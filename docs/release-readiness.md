@@ -5,6 +5,7 @@
 **Escopo avaliado:** MVP Docker Linux, agente Linux em container e agente Windows self-contained  
 **Base:** branch `development`, commit `b25cdb2`
 **Plano relacionado:** [MVP do Dokpod](plan/mvp.md)  
+**Plano para desbloqueio:** [Desbloqueio da candidata de release](plan/desbloqueio-release.md)
 
 **Atualização desta avaliação:** 2026-09-25, após lifecycle e autorização horizontal E2E.
 

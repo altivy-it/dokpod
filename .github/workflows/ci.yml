@@ -23,8 +23,8 @@ jobs:
     permissions:
       contents: read
     env:
-      DOKPOD_CONTROLPLANE_CONNECTION: ${{ github.event_name == 'pull_request' && 'Host=postgres;Port=0000;Database=namedb;Username=userdb;Search Path=dokpod;Command Timeout=300' || secrets.DOKPOD_CI_CONTROLPLANE_CONNECTION }}
-      DOKPOD_TEST_POSTGRES_CONNECTION: ${{ github.event_name == 'pull_request' && 'Host=postgres;Port=0000;Database=namedb;Username=userdb;Search Path=dokpod;Command Timeout=300' || secrets.DOKPOD_CI_TEST_POSTGRES_CONNECTION }}
+      DOKPOD_CONTROLPLANE_CONNECTION: ${{ github.event_name == 'pull_request' && 'Host=postgres;Port=5432;Database=keycloak;Username=keycloak;Search Path=dokpod;Command Timeout=300' || secrets.DOKPOD_CI_CONTROLPLANE_CONNECTION }}
+      DOKPOD_TEST_POSTGRES_CONNECTION: ${{ github.event_name == 'pull_request' && 'Host=postgres;Port=5432;Database=keycloak;Username=keycloak;Search Path=dokpod;Command Timeout=300' || secrets.DOKPOD_CI_TEST_POSTGRES_CONNECTION }}
     container:
       image: lzocateli/dotnet-sdk:10.0.400-noble
       options: --user 0
