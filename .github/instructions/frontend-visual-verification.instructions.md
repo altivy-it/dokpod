@@ -7,7 +7,7 @@ applyTo: "frontend/**"
 # Verificação visual
 
 - Toda tela ou componente Angular criado, alterado ou substituído passa por um loop de verificação visual antes de ser considerado pronto: capturar screenshot, analisar contra os critérios abaixo e ajustar até não haver defeito relevante.
-- Sirva a aplicação localmente (alias `ng serve` a partir de `frontend/web`, ou reaproveite um servidor já em execução) e abra a rota afetada com as ferramentas de navegador (`open_browser_page`, `navigate_page`).
+- Sirva a aplicação em container e abra a rota afetada somente pela borda de um nginx também containerizado (`open_browser_page`, `navigate_page`). Para o E2E real, use o gateway documentado em `deploy/e2e/README.md`; com respostas simuladas, configure nginx antes de testar. O alias `ng serve` pode iniciar o Angular em container, mas sua porta não é URL de navegador ou Playwright. Não reutilize servidor sem confirmar que o acesso passa pelo proxy.
 - Capture screenshot em pelo menos dois viewports por iteração: desktop (largura ≥ 1280px) e mobile (largura ≤ 480px), com `screenshot_page`. Capture também qualquer estado relevante da tela (loading, vazio, erro, forbidden, foco, validação) antes de concluir.
 - Analise cada screenshot contra estes critérios antes de decidir que a tela está correta:
   - usa exclusivamente componentes PO UI, conforme `frontend-po-ui.instructions.md`; nenhum elemento parece reimplementado ou de outra biblioteca;
