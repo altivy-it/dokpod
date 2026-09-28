@@ -6,6 +6,8 @@
 - Backend, BFF, API e agente usam C#/.NET 10; o frontend usa Angular 22.
 - Backend, BFF e frontend sempre executam em containers.
 - O agente Linux sempre executa em container; o agente Windows é um Worker Service self-contained instalado como Windows Service.
+- Runners de testes e ferramentas de build executam em containers; comandos Docker no host apenas os orquestram. Preserve a exceção do agente Windows: instalação e smoke test do Windows Service ocorrem em host Windows sem runtime .NET.
+- Sempre que um teste, preview ou validação exigir a aplicação em execução, suba seus serviços em containers e acesse HTTP do navegador e do runner exclusivamente pela borda de um proxy reverso nginx também em container. Isso inclui Playwright com respostas simuladas e E2E com serviços reais: não use `ng serve`, BFF ou API diretamente como URL do navegador/teste. Testes unitários sem aplicação HTTP em execução continuam em containers e não exigem nginx ocioso. Para E2E real, siga `deploy/e2e/README.md` e use `https://localhost:7443/dokpod/`; para testes simulados, configure primeiro uma borda nginx containerizada.
 - Keycloak é a autoridade externa obrigatória de identidade e autorização dos usuários.
 - Leia o [README](../README.md), a [arquitetura](../docs/arquitetura.md) e a [segurança](../docs/seguranca.md) antes de alterar contratos, agentes, engines, identidade ou deployment.
 - O engine local é a fonte de verdade dos containers; o inventário PostgreSQL é uma projeção reconstruível.

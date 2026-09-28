@@ -6,6 +6,7 @@ applyTo: "backend/tests/**, frontend/tests/**, frontend/**/*.spec.ts, frontend/*
 
 # Testes
 
+- Execute runners de testes em containers. Quando um teste depender de serviços da aplicação em execução (Playwright, smoke HTTP ou integração), mantenha esses serviços em containers e use como URL somente a borda de um proxy reverso nginx containerizado. Para E2E real, use o gateway de `deploy/e2e/README.md`; para testes com respostas simuladas, prepare nginx na rede Docker antes de abrir o navegador. Nunca aponte o runner diretamente para Angular, BFF ou API. Testes isolados sem servidor HTTP não precisam subir nginx. Preserve os testes de instalação do agente Windows no host Windows sem runtime .NET.
 - Teste comportamento observável e falhas, não detalhes privados.
 - Use xUnit no .NET, Vitest no Angular e Playwright em jornadas.
 - Testes de UI cobrem o comportamento Dokpod sobre componentes PO UI (dados, estado, integração); não reteste comportamento interno já validado pela biblioteca (foco, ARIA, teclado do próprio componente).
