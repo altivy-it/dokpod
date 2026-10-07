@@ -1,8 +1,11 @@
 name: Tarefa técnica
-description: Registre uma tarefa técnica independente de feature ou plano
+description: Registre intake de manutenção a encaminhar ao Spec Kit
 title: "[Task]: "
 labels: ["type:task", "status:triage"]
 body:
+  - type: markdown
+    attributes:
+      value: "Intake apenas, sem execução independente. Manutenção também exige artefatos e tarefa/remediação Spec Kit com autorização humana explícita. Use o formulário Spec Kit para vincular trabalho já definido; esta Issue não cria escopo autorizado."
   - type: textarea
     id: objective
     attributes:

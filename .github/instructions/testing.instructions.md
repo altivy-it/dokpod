@@ -6,6 +6,11 @@ applyTo: "backend/tests/**, frontend/tests/**, frontend/**/*.spec.ts, frontend/*
 
 # Testes
 
+- Gere ou altere testes somente para uma tarefa ou remediação Spec Kit explicitamente autorizada; registre a referência e a evidência nos artefatos correspondentes.
+- Para engine/protocolo, cubra transições, idempotência, deadline, fencing, journal-before-ack e replay durável após reinício; transporte cobre duplicação, resposta perdida, reconexão e ordem.
+- Contratos verificam serialização, evolução N/N-1, tags reservadas, valores desconhecidos e capabilities ausentes.
+- Declare a matriz Docker/Podman x Linux/Windows com versões e resultados: engine real cobre sucesso, inexistente, conflito e indisponibilidade; marque combinações não suportadas ou não verificadas explicitamente.
+- Smoke de Linux usa agente containerizado; Windows usa Windows Service self-contained, RID, named pipe e ACL em host sem runtime .NET. Segurança cobre operação fora da allowlist e entrada malformada.
 - Execute runners de testes em containers. Quando um teste depender de serviços da aplicação em execução (Playwright, smoke HTTP ou integração), mantenha esses serviços em containers e use como URL somente a borda de um proxy reverso nginx containerizado. Para E2E real, use o gateway de `deploy/e2e/README.md`; para testes com respostas simuladas, prepare nginx na rede Docker antes de abrir o navegador. Nunca aponte o runner diretamente para Angular, BFF ou API. Testes isolados sem servidor HTTP não precisam subir nginx. Preserve os testes de instalação do agente Windows no host Windows sem runtime .NET.
 - Teste comportamento observável e falhas, não detalhes privados.
 - Use xUnit no .NET, Vitest no Angular e Playwright em jornadas.

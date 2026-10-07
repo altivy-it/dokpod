@@ -27,13 +27,13 @@ Convenções:
 
 ## Connection strings e secrets
 
-Connection strings, senhas, certificados e demais secrets não entram no repositório, em exemplos com valores reais ou na linha de comando persistida. No desenvolvimento local, use o provider externo de User Secrets configurado para o projeto em:
+Connection strings, senhas, certificados e demais secrets não entram no repositório, em exemplos com valores reais ou na linha de comando persistida. No desenvolvimento local em Windows, armazene secrets exclusivamente no arquivo externo:
 
 ```text
-C:\Users\<usuario>\AppData\Roaming\Microsoft\UserSecrets\dokpod
+$env:APPDATA\Microsoft\UserSecrets\Dokpod\.env
 ```
 
-O arquivo externo não deve ser lido, listado, copiado ou editado por automações. A aplicação recebe a configuração por provider seguro ou variável de ambiente injetada pelo processo. Para migrations em design-time, use `DOKPOD_CONTROLPLANE_CONNECTION` apenas como variável de processo temporária e remova-a ao terminar.
+Não use `dotnet user-secrets` nem crie arquivos de secrets no repositório. O arquivo externo não deve ser lido, exibido, registrado, copiado ou sobrescrito durante validações; antes de qualquer gravação autorizada, falhe fechado se o destino existir. A aplicação recebe variáveis de ambiente injetadas por processo seguro. Para migrations em design-time, use `DOKPOD_CONTROLPLANE_CONNECTION` apenas como variável de processo temporária e remova-a ao terminar.
 
 A factory de design-time deve falhar fechado quando a connection string não estiver disponível; ela nunca deve usar um valor padrão, gravar secrets ou registrar a connection string em logs.
 
