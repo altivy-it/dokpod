@@ -1,5 +1,14 @@
 # Plano: Padronização de Dockerfiles Multi-Stage e Docker Compose Dev/Prod
 
+> **Legado congelado em 2026-10-06.** Destinos:
+> [004 - distribuição containerizada](../../specs/004-distribuicao-containerizada/spec.md) e
+> [002 - sessão BFF, relay e realtime](../../specs/002-sessao-bff-relay-realtime/spec.md).
+> Consulte a [rastreabilidade integral](../../specs/README.md).
+> O conteúdo abaixo permanece integralmente como histórico, inclusive evidências e
+> status inconsistentes. Status históricos não autorizam execução, aprovação ou
+> conclusão dos novos artefatos. Os rascunhos aguardam revisão humana;
+> não retomar este plano nem atualizar seu histórico como processo operacional.
+
 **Status:** approved  
 **Data de criação:** 2026-09-11  
 **Última atualização:** 2026-09-15

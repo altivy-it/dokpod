@@ -6,6 +6,8 @@ applyTo: "backend/**, frontend/**, contracts/**, deploy/**"
 
 # Arquitetura
 
+- Features, manutenção e defeitos só avançam pelo Spec Kit e por tarefas ou remediações explicitamente autorizadas. Estas instruções apoiam esse processo, não criam escopo ou um fluxo paralelo.
+- Decisões de desenho pertencem a `/speckit-plan`; ADRs auxiliares registram apenas decisões justificadas pelo planejamento e começam como `proposed`, sem aprovação automática.
 - Adote monólito modular no plano de controle e processo separado para o agente.
 - Hosts em `backend/apps` são composition roots; regras pertencem a `backend/libs`.
 - API, BFF e web sempre executam em containers; agente Linux em container e agente Windows como Worker Service self-contained.
@@ -15,6 +17,9 @@ applyTo: "backend/**, frontend/**, contracts/**, deploy/**"
 - `contracts` é independente de C# e TypeScript e origina clientes gerados.
 - O engine local é a fonte de verdade; inventário persistido é projeção reconstruível.
 - Comunicação distribuída usa deduplicação durável, fencing, expiração, backpressure e reconciliação.
+- Preserve compatibilidade N/N-1 do protocolo agente-servidor; mudanças incompatíveis exigem migração, rollout e rollback documentados nos artefatos Spec Kit.
+- Declare a matriz de capabilities Docker/Podman e Linux/Windows; `unsupported` é resultado válido, não equivalência presumida entre engines.
+- Operações pertencem a uma allowlist e definem entrada, saída, deadline, idempotência e efeitos proibidos. Exclusão de container nunca remove volumes implicitamente.
 - Não implemente proxy genérico do engine.
 - Keycloak é a autoridade obrigatória de identidade e autorização; BFF é cliente OIDC confidencial e API é PEP.
 - O Dokpod não mantém senhas, memberships nem políticas próprias; agentes continuam autenticados por mTLS.

@@ -3,6 +3,9 @@ description: Registre uma investigação ou decisão que pode exigir ADR
 title: "[Spike]: "
 labels: ["type:spike", "status:triage"]
 body:
+  - type: markdown
+    attributes:
+      value: "Intake apenas: esta Issue não autoriza experimento ou implementação. A investigação deve apoiar /speckit-plan ou tarefa/remediação Spec Kit explicitamente autorizada; ADR auxiliar permanece proposed até decisão humana."
   - type: textarea
     id: question
     attributes:

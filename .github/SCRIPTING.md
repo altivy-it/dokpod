@@ -21,6 +21,13 @@ Toda automação global de infraestrutura, administração, manutenção ou vali
 
 Scripts consumidos diretamente por Dockerfiles, imagens, instaladores, serviços ou runtime permanecem junto do módulo proprietário. Essa exceção preserva o contrato e o contexto operacional do artefato.
 
+Scripts oficiais do Spec Kit e da extensão Bug Fixing são outra exceção: preserve
+seus caminhos e contratos upstream, inclusive em `.specify/scripts/`. Não os
+mova para `tools/scripts/`, não os reescreva nem imponha `--help` ou o projeto uv
+local. Atualizações seguem o processo oficial; a exceção não autoriza scripts
+locais concorrentes. Automações próprias continuam sujeitas às regras abaixo e
+só apoiam tarefas/remediações Spec Kit explicitamente autorizadas.
+
 ## Escolha da linguagem
 
 Use PowerShell 7 quando a tarefa consistir principalmente em orquestrar CLIs, containers, filesystem ou comandos do sistema e precisar funcionar em Windows e Linux.
@@ -43,7 +50,7 @@ Dependências e versões mínimas ficam no `pyproject.toml`; o lockfile é atual
 
 ## Ajuda obrigatória
 
-Todo script criado ou refatorado aceita `--help` e apresenta, sem executar a operação principal:
+Todo script próprio criado ou refatorado aceita `--help` e apresenta, sem executar a operação principal (scripts oficiais preservam seu contrato upstream):
 
 - finalidade e escopo;
 - pré-requisitos e versões mínimas;

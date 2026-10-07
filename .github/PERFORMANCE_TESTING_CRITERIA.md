@@ -4,6 +4,10 @@ Este documento define a evidência mínima para avaliar regressões de desempenh
 capacidade no Dokpod. Os testes usam cargas sintéticas, ambientes reproduzíveis e
 a imagem fixada `lzocateli/k6:2.1.0-node24.15.0-bookworm`.
 
+Execuções e mudanças de testes apoiam somente tarefas/remediações Spec Kit
+explicitamente autorizadas. Vincule cenário, thresholds e evidências aos
+artefatos oficiais; uma Issue ou este documento não autoriza execução.
+
 ## Objetivos
 
 - verificar que o plano de controle permanece responsivo sob a carga declarada;
@@ -77,7 +81,8 @@ ambiente. Evidências de pull request seguem a retenção dos artifacts de CI;
 evidências de release acompanham a release correspondente.
 
 Exceção temporária exige responsável humano, risco aceito, prazo de expiração e
-plano de correção registrados em issue, plano ou ADR. Uma execução não realizada
+remediação registrados nos artefatos Spec Kit, com Issue e ADR como referências
+auxiliares. Uma execução não realizada
 é `NOT RUN`, nunca aprovação.
 
 Consulte também a [matriz de distribuição](../docs/distribuicao.md) e as
