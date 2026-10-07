@@ -2,7 +2,7 @@
 
 import type { Client, Options as Options2, TDataShape } from './client';
 import { client } from './client.gen';
-import type { GetContainerCommandData, GetContainerCommandErrors, GetContainerCommandResponses, GetEnvironmentData, GetEnvironmentErrors, GetEnvironmentResponses, ListEnvironmentContainersData, ListEnvironmentContainersErrors, ListEnvironmentContainersResponses, ListEnvironmentsData, ListEnvironmentsErrors, ListEnvironmentsResponses, RegisterEnvironmentData, RegisterEnvironmentErrors, RegisterEnvironmentResponses, SubmitContainerCommandData, SubmitContainerCommandErrors, SubmitContainerCommandResponses } from './types.gen';
+import type { GetContainerCommandData, GetContainerCommandErrors, GetContainerCommandResponses, GetEnvironmentData, GetEnvironmentErrors, GetEnvironmentResponses, ListEnvironmentContainersData, ListEnvironmentContainersErrors, ListEnvironmentContainersResponses, ListEnvironmentsData, ListEnvironmentsErrors, ListEnvironmentsResponses, RegisterEnvironmentData, RegisterEnvironmentErrors, RegisterEnvironmentResponses, RevokeAgentIdentityData, RevokeAgentIdentityErrors, RevokeAgentIdentityResponses, SubmitContainerCommandData, SubmitContainerCommandErrors, SubmitContainerCommandResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -78,4 +78,13 @@ export const registerEnvironment = <ThrowOnError extends boolean = false>(option
         'Content-Type': 'application/json',
         ...options.headers
     }
+});
+
+/**
+ * Revoga as identidades ativas do agente de um ambiente
+ */
+export const revokeAgentIdentity = <ThrowOnError extends boolean = false>(options: Options<RevokeAgentIdentityData, ThrowOnError>) => (options.client ?? client).post<RevokeAgentIdentityResponses, RevokeAgentIdentityErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/environments/{environmentId}/agent-identity/revoke',
+    ...options
 });

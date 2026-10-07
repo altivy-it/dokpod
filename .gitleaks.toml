@@ -6,9 +6,29 @@ useDefault = true
 [[rules]]
 id = "dokpod-connection-string-credential"
 description = "Detects hardcoded credentials in connection strings"
-regex = '''(?i)(?:password|pwd|passwd|secret|access[_ -]?key)\s*=\s*(?:'[^']+'|"[^"]+"|[^;\r\n]+)'''
+regex = '''(?i)(?:password|pwd|passwd|secret|access[_ -]?key)\s*=\s*('[^']+'|"[^"]+"|[^;\r\n]+)'''
+secretGroup = 1
 keywords = ["password", "pwd", "passwd", "secret", "access_key"]
 tags = ["secret", "connection-string", "dokpod"]
+
+[[rules.allowlists]]
+description = "Runtime references and empty or documented placeholder values, not credentials"
+regexTarget = "secret"
+regexes = [
+	'''^\s*(?:''|"")\s*$''',
+	'''^\s*['"]<[A-Za-z][A-Za-z0-9_-]*>['"]\s*$''',
+	'''^\s*\$(?:(?:env|script):)?[A-Za-z_][A-Za-z0-9_]*\s*\}?\s*$''',
+	'''^\s*['"]?\$\{[A-Za-z_][A-Za-z0-9_]*\}['"]?\s*$''',
+	'''^\s*\$\(ConvertTo-NpgsqlValue \$[A-Za-z_][A-Za-z0-9_]*\)\s*$''',
+	'''^\s*Get-EnvironmentSecret @\((?:['"][A-Z][A-Z0-9_]*['"]|\$[A-Za-z_][A-Za-z0-9_]*)\)\s*$''',
+	'''^\s*Get-EnvironmentSecret @\("DOKPOD_IDP_\$\(\$Provider\.prefix\)_CLIENT_SECRET"\)\s*$''',
+	'''^\s*Get-EnvironmentFileValue -Path \$[A-Za-z_][A-Za-z0-9_]* -Name ['"][A-Z][A-Z0-9_]*['"]\s*$''',
+	'''^\s*ConvertTo-SecureString \$[A-Za-z_][A-Za-z0-9_]* -AsPlainText -Force\s*$''',
+	'''^\s*Environment\.GetEnvironmentVariable\("[A-Z][A-Z0-9_]*"\)\s*$''',
+	'''^\s*keycloak\.ClientSecret\s*$''',
+	'''^\s*(?:os\.environ\.get|os\.getenv)\(['"][A-Z][A-Z0-9_]*['"]\)\s*$''',
+	'''^\s*_?require_credentials\(\)\s*$''',
+]
 
 [[rules]]
 id = "dokpod-basic-auth-header"

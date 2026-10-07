@@ -390,3 +390,52 @@ export type RegisterEnvironmentResponses = {
 };
 
 export type RegisterEnvironmentResponse = RegisterEnvironmentResponses[keyof RegisterEnvironmentResponses];
+
+export type RevokeAgentIdentityData = {
+    body?: never;
+    headers?: {
+        /**
+         * Identificador técnico opcional para correlação server-side.
+         */
+        'X-Correlation-Id'?: string;
+    };
+    path: {
+        environmentId: string;
+    };
+    query?: never;
+    url: '/api/v1/environments/{environmentId}/agent-identity/revoke';
+};
+
+export type RevokeAgentIdentityErrors = {
+    /**
+     * Requisição inválida.
+     */
+    400: ProblemDetails;
+    /**
+     * Autenticação ausente ou inválida.
+     */
+    401: ProblemDetails;
+    /**
+     * Decisão do Keycloak negou o cadastro.
+     */
+    403: ProblemDetails;
+    /**
+     * O ambiente não foi encontrado após autorização.
+     */
+    404: ProblemDetails;
+    /**
+     * Autorização ou persistência indisponível.
+     */
+    503: ProblemDetails;
+};
+
+export type RevokeAgentIdentityError = RevokeAgentIdentityErrors[keyof RevokeAgentIdentityErrors];
+
+export type RevokeAgentIdentityResponses = {
+    /**
+     * Identidade do agente revogada.
+     */
+    204: void;
+};
+
+export type RevokeAgentIdentityResponse = RevokeAgentIdentityResponses[keyof RevokeAgentIdentityResponses];

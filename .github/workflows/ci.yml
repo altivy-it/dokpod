@@ -50,6 +50,9 @@ jobs:
       - name: Restore local tools
         run: dotnet tool restore
 
+      - name: Restore backend projects
+        run: dotnet restore Dokpod.slnx
+
       - name: Apply database migrations
         run: >-
           dotnet ef database update
@@ -84,7 +87,7 @@ jobs:
       - name: Generate and verify API client
         run: |
           npm run generate:api
-          git diff --exit-code
+          git -c safe.directory="$GITHUB_WORKSPACE" diff --exit-code
 
       - name: Test frontend
         run: npm test -- --watch=false
