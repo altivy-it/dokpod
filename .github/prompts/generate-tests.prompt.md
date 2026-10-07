@@ -1,11 +1,13 @@
 ---
 name: "Gerar Testes"
-description: "Cria testes do Dokpod orientados a risco para comportamento, diff ou contrato, incluindo engines reais, transporte, segurança e Playwright quando aplicável."
-argument-hint: "Comportamento, risco, arquivo ou diff a validar"
+description: "Apoia testes de tarefa ou remediação Spec Kit explicitamente autorizada, sem criar fluxo de implementação independente."
+argument-hint: "Artefato Spec Kit, ID da tarefa ou remediação e autorização humana"
 agent: "Dokpod Quality Engineer"
 ---
 
 Produza evidência de teste para o comportamento solicitado.
+
+Confirme referência e autorização da tarefa via `/speckit-implement` ou da remediação via `/speckit-bug-fix`; sem elas, retorne ao processo Spec Kit. Não derive requisitos novos do diff nem corrija defeitos por fora de Bug Fixing. Devolva evidências ao artefato de origem e à verificação `/speckit-bug-test` quando aplicável.
 
 1. Derive critérios e riscos observáveis.
 2. Monte uma matriz curta entre risco e nível de teste.

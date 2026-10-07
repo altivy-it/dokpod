@@ -1,5 +1,15 @@
 # Plano: Desbloqueio da candidata de release
 
+> **Legado congelado em 2026-10-06.** Destinos:
+> [005 - qualificação de release Docker Linux](../../specs/005-qualificacao-release-docker-linux/spec.md) e
+> [006 - qualificação Windows e Podman](../../specs/006-qualificacao-windows-podman/spec.md).
+> Consulte a [rastreabilidade integral](../../specs/README.md).
+> O conteúdo abaixo permanece integralmente como histórico, inclusive evidências e
+> status inconsistentes. Status históricos não autorizam execução, aprovação ou
+> conclusão dos novos artefatos. Os rascunhos aguardam revisão humana;
+> não retomar este plano nem atualizar seu histórico como processo operacional.
+> O veredito NO-GO e os gates HIGH permanecem; esta migração não aprova release.
+
 **Status:** proposed
 **Data de criação:** 2026-09-25
 **Última atualização:** 2026-09-25

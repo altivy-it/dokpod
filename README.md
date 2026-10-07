@@ -135,9 +135,36 @@ contracts/
 deploy/                      # imagens, pacote Windows, Keycloak, Compose e operação
 docs/
   adr/                       # decisões arquiteturais
-  plan/                      # planos verificáveis
+  plan/                      # planos legados congelados, somente histórico
+specs/                       # requisitos, desenho e tarefas Spec Kit
 tools/scripts/               # automação global de infraestrutura e manutenção
 ```
+
+## Processo Spec Kit e fontes de verdade
+
+O Spec Kit organiza requisitos em `specs/<feature>/spec.md`, desenho em
+`plan.md` e tarefas em `tasks.md`. Os [seis conjuntos migrados](specs/README.md)
+estão em **rascunho, aguardando revisão humana**; a migração documental não
+autoriza implementação, testes de aplicação, CI remoto ou publicação.
+
+O fluxo é especificar, esclarecer, planejar, gerar tarefas, analisar coerência
+e implementar somente o recorte revisado e autorizado; a convergência compara
+o código/evidências com esses artefatos e registra apenas trabalho residual.
+Entregas já implementadas não viram novas features por haver pendência antiga
+no plano. Checkboxes registram execução validada, não aprovação humana.
+
+Este README define visão, escopo e princípios; [arquitetura](docs/arquitetura.md)
+e [segurança](docs/seguranca.md) restringem as specs. ADRs em `docs/adr/` registram
+decisões e não são substituídos por tarefas. A
+[avaliação de release](docs/release-readiness.md) mantém o veredito **NO-GO** e
+seus gates, inclusive HIGH, carga nominal e margem, N/N-1 e supply chain.
+
+Os cinco documentos de `docs/plan/` estão congelados. Seu conteúdo, histórico,
+evidências e status foram preservados, inclusive inconsistências; status antigos
+não autorizam retomar planos nem aprovar/concluir os rascunhos novos. A
+[matriz de rastreabilidade](specs/README.md) cobre todas as etapas e seus destinos.
+Issues/Project fazem intake e acompanhamento conforme a
+[gestão do projeto](docs/github-projeto-gestao.md), sem processo concorrente às specs.
 
 ## Documentação
 
@@ -157,7 +184,8 @@ tools/scripts/               # automação global de infraestrutura e manutenç�
 - [ADR da arquitetura inicial](docs/adr/2026-0001-arquitetura-inicial.md)
 - [ADR de distribuição e identidade](docs/adr/2026-0002-distribuicao-e-identidade.md)
 - [ADR de licenciamento e edições](docs/adr/2026-0003-licenciamento-e-edicoes.md)
-- [Plano proposto do MVP](docs/plan/mvp.md)
+- [Conjuntos Spec Kit e rastreabilidade](specs/README.md)
+- [Plano legado congelado do MVP](docs/plan/mvp.md)
 - [Guia de contribuição](.github/CONTRIBUTING.md)
 
 ## Princípios
@@ -172,8 +200,15 @@ tools/scripts/               # automação global de infraestrutura e manutenç�
 
 ## Próxima etapa
 
-Executar os gates externos restantes da
-[prontidão para release](docs/release-readiness.md): carga em VM isolada,
-assinatura/provenance, Windows Service em host limpo, matriz Podman e revisão
-humana GO/NO-GO. Docker Linux, Podman Linux e Docker Windows só recebem suporte
-publicado após seus respectivos gates.
+Revisar humanamente os [seis rascunhos](specs/README.md), resolver divergências
+de evidência/status e autorizar tarefas específicas antes de qualquer execução.
+Depois dessa autorização, avaliar a diferença frente ao comportamento já
+implementado, validar e concluir apenas o residual correspondente.
+
+A qualificação [Docker Linux](specs/005-qualificacao-release-docker-linux/spec.md)
+preserva CI remoto, triagem HIGH, carga nominal 56/1.120/30 por pelo menos
+30 minutos, margem >=100/2.000/50, N/N-1, assinatura/provenance, recuperação e
+decisão humana GO/NO-GO. [Windows e Podman](specs/006-qualificacao-windows-podman/spec.md)
+exigem qualificação própria ou adiamento humano formal na matriz inicial.
+Sem essas decisões, permanece NO-GO; suporte publicado, assinatura, publicação
+e deploy exigem suas autorizações específicas e não decorrem desta migração.

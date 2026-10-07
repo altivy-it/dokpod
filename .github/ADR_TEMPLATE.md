@@ -1,11 +1,12 @@
 # ADR AAAA-NNNN: Título da decisão
 
-**Status:** approved  
+**Status:** proposed
+
 **Data:** AAAA-MM-DD  
 **Responsáveis:** nomes ou equipe  
 **Origem:** humano ou IA assistida  
 **Revisor humano:** nome, equipe ou pendente  
-**Relacionado:** issue, PR ou ADR
+**Relacionado:** spec, plan, tarefa, issue, PR ou ADR
 
 ## Contexto
 

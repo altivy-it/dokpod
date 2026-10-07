@@ -1,5 +1,9 @@
 # Dokpod - Instruções globais
 
+Toda documentação produzida ou atualizada, inclusive artefatos do Spec Kit e
+relatórios de Bug Fixing, deve estar em português brasileiro (pt-BR). Preserve
+comandos, identificadores, caminhos e marcadores literais exigidos pelas ferramentas.
+
 ## Contexto obrigatório
 
 - O Dokpod é um plano de controle self-hosted para containers Docker e Podman.
@@ -16,9 +20,9 @@
 ## Estrutura do monorepo
 
 ```text
-backend/apps/api/          # host REST, gRPC e SignalR
-backend/apps/bff/          # OIDC confidencial e sessão do browser
-backend/apps/agent/        # agente Linux container/Windows Service
+backend/apps/Dokpod.ControlPlane.Api/ # host REST, gRPC e SignalR
+backend/apps/Dokpod.Bff/              # OIDC confidencial e sessão do browser
+backend/apps/Dokpod.Agent/            # agente Linux container/Windows Service
 backend/libs/              # domínio e aplicações/infraestruturas separadas
 backend/tests/             # testes .NET
 frontend/web/              # aplicação Angular
@@ -28,6 +32,8 @@ contracts/openapi/         # contrato público HTTP
 contracts/agent/           # protocolo agente-servidor
 deploy/                    # imagens, pacote Windows, Keycloak e operação
 docs/                      # arquitetura, ADRs, planos e runbooks
+specs/                     # requisitos, desenho e tarefas Spec Kit
+.specify/                  # constituição, templates e ferramentas oficiais
 tools/scripts/             # automação global de infraestrutura e manutenção
 ```
 
@@ -42,13 +48,24 @@ Não crie dependências circulares. Hosts compõem; bibliotecas implementam regr
 5. Atualize contrato, compatibilidade, migração, documentação, segurança e observabilidade quando o comportamento exigir.
 6. Preserve alterações existentes e não reformate arquivos fora do escopo.
 
-## ADRs e planos
+Esse fluxo técnico só pode ser executado dentro de uma tarefa Spec Kit autorizada
+ou da remediação autorizada de Bug Fixing; não cria processo independente.
+
+## Spec Kit, ADRs e planos
 
 - ADRs ficam em `docs/adr/AAAA-NNNN-titulo.md`, começam como `proposed` e seguem `.github/ADR_TEMPLATE.md`.
-- Planos ficam em `docs/plan/<tema>.md` e seguem `.github/PLAN_TEMPLATE.md`.
-- Todo plano possui status geral e status em cada etapa; atualize o histórico ao mudar qualquer status.
+- Spec Kit é o único processo autorizado para desenvolver e manter a aplicação: features, correções, manutenção e iniciativas de produto exigem seus artefatos e tarefas.
+- Features usam `specs/<feature>/spec.md`, `plan.md` e `tasks.md`. Use `/speckit-specify`, `/speckit-clarify` quando necessário, `/speckit-plan`, `/speckit-tasks`, `/speckit-analyze`, autorização humana explícita, `/speckit-implement` e `/speckit-converge`.
+- Defeitos usam exclusivamente a extensão oficial Bug Fixing: `/speckit-bug-assess`, `/speckit-bug-fix` e `/speckit-bug-test`. Não crie fluxo independente de diagnóstico/correção.
+- `.specify/memory/constitution.md` registra princípios duradouros; `.github/` contém procedimentos operacionais; specs contêm requisitos de cada mudança; ADRs registram decisões duradouras sem duplicar esses artefatos.
+- README, arquitetura, segurança e ADRs aceitos restringem features. Divergências exigem decisão humana, não arbitragem automática.
+- `docs/plan` está congelado para novos planos, atualizações e execução. Os cinco planos foram convertidos em seis conjuntos Spec Kit em rascunho, aguardando revisão humana em `specs/README.md`. Não retome essas iniciativas pela aprovação histórica; arquive/substitua originais somente após revisão.
+- `.github/PLAN_TEMPLATE.md` está obsoleto. Não crie requisitos, planos ou fluxos concorrentes em prompts, agentes, skills ou Issues; estes só apoiam tarefas Spec Kit existentes.
+- Use `/speckit-constitution` para adoção inicial e emendas aprovadas, registrando apenas princípios existentes ou explicitamente acordados.
+- Antes de implementar, confirme feature/diretório, tarefas ou remediação, escopo revisado e autorização explícita. Issue `Ready`, branch, checkbox ou artefato existente não autoriza execução. Selecione `SPECIFY_FEATURE_DIRECTORY` explicitamente quando houver múltiplas features; `SPECIFY_FEATURE` sozinho e o nome da branch não resolvem o diretório nesta versão. Para validação read-only, use `SPECIFY_FEATURE_NO_PERSIST=1`.
+- Checkboxes em `tasks.md` registram execução validada, não aprovação humana. Tarefas novas de `/speckit-converge` exigem revisão e autorização antes de executar.
 - Registre `Origem` como humano ou IA assistida e identifique o revisor humano.
-- IA não marca ADR como `accepted`, plano como `approved` nem etapa como `completed` ou `skipped` sem decisão ou evidência humana explícita e referenciada.
+- IA não marca ADR como `accepted`, artefato como aprovado nem altera status histórico sem decisão ou evidência humana explícita e referenciada.
 
 ## Commits
 
@@ -71,6 +88,7 @@ Não crie dependências circulares. Hosts compõem; bibliotecas implementam regr
 - Não crie `requirements.txt`, ambientes virtuais manuais, outro `pyproject.toml` para automação ou scripts globais fora de `tools/scripts/`.
 - Scripts de build, entrypoint, health check, instalação ou runtime permanecem no módulo proprietário.
 - Todo script criado ou refatorado oferece `--help` sem efeitos colaterais e segue `.github/instructions/script-authoring.instructions.md` e `.github/SCRIPTING.md`.
+- Scripts oficiais do Spec Kit/Bug Fixing permanecem em `.specify/scripts/` e `.specify/extensions/bug/scripts/`, preservando contrato e ajuda upstream. Esta exceção não autoriza scripts próprios nesses diretórios.
 
 ## Regras invariáveis
 

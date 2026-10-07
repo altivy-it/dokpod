@@ -3,14 +3,15 @@
 ## Antes de começar
 
 1. Leia o [README](../README.md) e os documentos da área afetada.
-2. Procure issue, ADR e plano relacionados.
-3. Para mudança relevante, registre resultado observável, não escopo e riscos.
+2. Procure os artefatos Spec Kit, tarefa/remediação, Issue e ADR relacionados.
+3. Confirme autorização humana explícita e limites da tarefa/remediação antes de executar; Issues são intake, não autorização.
 4. Nunca inclua secrets em nenhuma parte do código ou configuração, inclusive
    workflows, testes, documentação, exemplos, scripts e connection strings.
    Tokens, chaves, certificados privados, dados reais de infraestrutura e logs
    sensíveis são sempre proibidos.
 5. Para persistência e migrations, siga as [convenções de EF Core](EFCORE.md);
-   secrets locais permanecem no provider externo de User Secrets e secrets de CI
+   secrets locais permanecem exclusivamente no arquivo externo
+   `$env:APPDATA\Microsoft\UserSecrets\Dokpod\.env`, sem leitura por automações, e secrets de CI
    permanecem nos Environments do GitHub.
 6. Instale o hook obrigatório de detecção de secrets em cada clone:
 
@@ -31,17 +32,21 @@ Até que um Contributor License Agreement ou mecanismo equivalente seja aprovado
 
 ## Fluxo
 
-1. Crie uma branch curta a partir de `main`.
-2. Implemente um slice pequeno no módulo proprietário.
-3. Atualize testes, contratos, documentação e telemetria junto da mudança.
-4. Execute os gates aplicáveis e registre os resultados no pull request.
-5. Use os [Conventional Commits](COMMIT_CONVENTIONS.md).
+1. Para features e manutenção, use o processo Spec Kit de especificação, esclarecimento, planejamento, tarefas e análise. Requisitos, desenho e execução pertencem a `specs/<feature>/spec.md`, `plan.md` e `tasks.md`; não crie planos em `docs/plan`.
+2. Para defeitos, use a extensão oficial Bug Fixing: `/speckit-bug-assess`, remediação explicitamente autorizada via `/speckit-bug-fix` e verificação via `/speckit-bug-test`. Sem artefatos ou extensão, pare; não substitua por fluxo local.
+3. Execute somente tarefas explicitamente autorizadas via `/speckit-implement`, respeitando dependências e bloqueios de `/speckit-analyze`. A criação de branch ou a Issue não autoriza execução.
+4. Atualize testes, contratos, documentação e telemetria necessários à tarefa; valide o menor recorte primeiro e registre evidências no artefato e PR.
+5. Use `/speckit-converge` para pendências, sem ampliar escopo por conta própria. ADR auxiliar exige justificativa de `/speckit-plan` e permanece `proposed` até decisão humana.
+6. Use os [Conventional Commits](COMMIT_CONVENTIONS.md) somente quando houver solicitação de commit. Commit, push, merge, publicação e deploy exigem autorização separada.
 
 ## Scripts e automação
 
 Automações globais de infraestrutura, administração, manutenção e validação ficam em `tools/scripts/`. Escolha PowerShell 7 para orquestração de CLIs e sistema; escolha Python para parsing, APIs ou lógica reutilizável e execute-o exclusivamente com `uv` pelo projeto compartilhado `tools/pyproject.toml`.
 
 Scripts de build, entrypoint, health check, instalação ou runtime permanecem no módulo proprietário. Consulte [Scripts e automação](SCRIPTING.md) antes de criar ou mover um script.
+
+Scripts oficiais do Spec Kit e Bug Fixing preservam localização, interface e
+contrato upstream; não os mova nem imponha `--help` para adequação local.
 
 ## Comandos disponíveis
 
@@ -78,6 +83,7 @@ globais no fluxo oficial.
 
 ## Definition of Done
 
+- tarefa/remediação Spec Kit e autorização explícita rastreáveis, com evidências no artefato de origem;
 - critérios de aceite demonstrados;
 - código formatado, analisado e compilado;
 - testes reais proporcionais ao engine, sistema operacional e risco;

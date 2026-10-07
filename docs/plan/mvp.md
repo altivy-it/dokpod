@@ -1,5 +1,18 @@
 # Plano: MVP do Dokpod
 
+> **Legado congelado em 2026-10-06.** Este plano foi migrado para rascunhos Spec Kit:
+> [001 - identidade, ambientes e auditoria](../../specs/001-identidade-ambientes-auditoria/spec.md),
+> [002 - sessão BFF, relay e realtime](../../specs/002-sessao-bff-relay-realtime/spec.md),
+> [003 - inventário, lifecycle e reconciliação](../../specs/003-inventario-lifecycle-reconciliacao/spec.md),
+> [004 - distribuição containerizada](../../specs/004-distribuicao-containerizada/spec.md),
+> [005 - qualificação de release Docker Linux](../../specs/005-qualificacao-release-docker-linux/spec.md) e
+> [006 - qualificação Windows e Podman](../../specs/006-qualificacao-windows-podman/spec.md).
+> A [rastreabilidade integral](../../specs/README.md) identifica os destinos das etapas.
+> O conteúdo abaixo permanece integralmente como histórico, inclusive evidências e
+> status inconsistentes. Status históricos não autorizam execução, aprovação ou
+> conclusão dos novos artefatos. Todos os rascunhos aguardam revisão humana;
+> não retomar este plano nem atualizar seu histórico como processo operacional.
+
 **Status:** approved  
 **Data de criação:** 2026-09-06  
 **Última atualização:** 2026-09-25

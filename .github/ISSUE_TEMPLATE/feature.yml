@@ -3,6 +3,9 @@ description: Descreva um problema e um resultado verificável
 title: "[Feature]: "
 labels: ["type:feature", "status:triage"]
 body:
+  - type: markdown
+    attributes:
+      value: "Intake apenas: esta Issue não autoriza implementação. Requisitos, plano e tarefas pertencem ao Spec Kit; execução exige tarefas e autorização humana explícita referenciada."
   - type: textarea
     id: problem
     attributes:
