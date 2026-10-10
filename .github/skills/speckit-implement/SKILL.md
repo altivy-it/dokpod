@@ -1,126 +1,126 @@
 ---
 name: "speckit-implement"
-description: "Execute the implementation plan by processing and executing all tasks defined in tasks.md"
-compatibility: "Requires spec-kit project structure with .specify/ directory"
+description: "Executar o plano de implementação processando e realizando todas as tarefas definidas em tasks.md."
+compatibility: "Requer a estrutura de projeto do spec-kit com o diretório .specify/"
 metadata:
   author: "github-spec-kit"
   source: "templates/commands/implement.md"
 ---
 
 
-## User Input
+## Entrada do Usuário
 
 ```text
 $ARGUMENTS
 ```
 
-You **MUST** consider the user input before proceeding (if not empty).
+Você **DEVE** considerar a entrada do usuário antes de prosseguir (se não estiver vazia).
 
-## Pre-Execution Checks
+## Verificações Antes da Execução
 
-**Check for extension hooks (before implementation)**:
-- Check if `.specify/extensions.yml` exists in the project root.
-- If it exists, read it and look for entries under the `hooks.before_implement` key
-- If the YAML cannot be parsed or is invalid, do not skip silently: tell the user that `.specify/extensions.yml` could not be read (include the parser error) and that no hooks were checked, including any mandatory (`optional: false`) hooks registered there, then continue normally
-- Filter out hooks where `enabled` is explicitly `false`. Treat hooks without an `enabled` field as enabled by default.
-- For each remaining hook, do **not** attempt to interpret or evaluate hook `condition` expressions:
-  - If the hook has no `condition` field, or it is null/empty, treat the hook as executable
-  - If the hook defines a non-empty `condition`, skip the hook and leave condition evaluation to the HookExecutor implementation
-- When constructing command invocations from hook command names, replace dots (`.`) with hyphens (`-`). For example, `speckit.git.commit` → `/speckit-git-commit`.
-- For each executable hook, output the following based on its `optional` flag:
-  - **Optional hook** (`optional: true`):
+**Verifique os hooks de extensões (antes da implementação)**:
+- Verifique se `.specify/extensions.yml` existe na raiz do projeto.
+- Se existir, leia-o e procure entradas na chave `hooks.before_implement`.
+- Se o YAML não puder ser interpretado ou for inválido, não ignore silenciosamente: informe que `.specify/extensions.yml` não pôde ser lido (inclua o erro do parser) e que nenhum hook foi verificado, inclusive hooks obrigatórios (`optional: false`); depois, continue normalmente
+- Exclua os hooks cujo `enabled` seja explicitamente `false`. Considere habilitados por padrão aqueles sem o campo `enabled`.
+- Para cada hook restante, **não** tente interpretar ou avaliar expressões `condition`:
+  - Se não houver `condition`, ou se ela for nula/vazia, considere o hook executável
+  - Se houver `condition` não vazia, ignore o hook e deixe a avaliação da condição para a implementação de HookExecutor
+- Ao construir invocações a partir dos nomes dos comandos de hooks, substitua pontos (`.`) por hífens (`-`). Por exemplo, `speckit.git.commit` → `/speckit-git-commit`.
+- Para cada hook executável, apresente o seguinte conforme seu campo `optional`:
+  - **Hook opcional** (`optional: true`):
     ```
-    ## Extension Hooks
+    ## Hooks de Extensões
 
-    **Optional Pre-Hook**: {extension}
-    Command: `/{command}`
-    Description: {description}
+    **Hook Prévio Opcional**: {extension}
+    Comando: `/{command}`
+    Descrição: {description}
 
-    Prompt: {prompt}
-    To execute: `/{command}`
+    Solicitação: {prompt}
+    Para executar: `/{command}`
     ```
-  - **Mandatory hook** (`optional: false`):
+  - **Hook obrigatório** (`optional: false`):
     ```
-    ## Extension Hooks
+    ## Hooks de Extensões
 
-    **Automatic Pre-Hook**: {extension}
-    Executing: `/{command}`
+    **Hook Prévio Automático**: {extension}
+    Executando: `/{command}`
     EXECUTE_COMMAND: {command}
 
-    Wait for the result of the hook command before proceeding to the Outline.
+    Aguarde o resultado do hook antes de prosseguir para o Roteiro.
     ```
-    After emitting the block above you MUST actually invoke the hook and wait for it to finish before continuing. Run it the same way you would run the command yourself in this agent/session (the invocation may differ from the literal `{command}` id shown above, e.g. a skills-mode agent runs it as `/skill:speckit-...` or `$speckit-...`). Emitting the block alone does not run the hook.
-- If no hooks are registered or `.specify/extensions.yml` does not exist, skip silently
+    Após apresentar o bloco, você DEVE invocar o hook e aguardar sua conclusão. Execute-o como executaria o comando nesta sessão (a invocação pode diferir do identificador literal `{command}`; por exemplo, um agente em modo skills usa `/skill:speckit-...` ou `$speckit-...`). Apresentar apenas o bloco não executa o hook.
+- Se não houver hooks registrados ou `.specify/extensions.yml` não existir, prossiga sem anunciar essa ausência
 
-## Outline
+## Roteiro
 
-1. Run `.specify/scripts/powershell/check-prerequisites.ps1 -Json -RequireTasks -IncludeTasks` from repo root and parse FEATURE_DIR and AVAILABLE_DOCS list. All paths must be absolute. For single quotes in args like "I'm Groot", use escape syntax: e.g 'I'\''m Groot' (or double-quote if possible: "I'm Groot").
+1. Execute `.specify/scripts/powershell/check-prerequisites.ps1 -Json -RequireTasks -IncludeTasks` na raiz e interprete FEATURE_DIR e a lista AVAILABLE_DOCS. Todos os caminhos devem ser absolutos. Para aspas simples em argumentos como "I'm Groot", use escape: por exemplo, 'I'\''m Groot' (ou aspas duplas, se possível: "I'm Groot").
 
-2. **Check checklists status** (if FEATURE_DIR/checklists/ exists):
-   - Treat checklist markers as a read-only gate: scan checkbox state, report status, and ask before proceeding when needed; do NOT modify checklist files or markers
-   - `checklists/requirements.md` is the built-in spec-quality checklist maintained by `/speckit-specify` and `/speckit-clarify`; custom checklists generated by `/speckit-checklist` are reviewer-owned requirements-quality review artifacts
-   - For custom checklists, `[x]` means the reviewer determined the requirements-quality criterion is satisfied; it does NOT mean implementation work is complete
-   - Scan all checklist files in the checklists/ directory
-   - For each checklist, count:
-     - Total items: All lines matching `- [ ]` or `- [X]` or `- [x]`
-     - Checked items: Lines matching `- [X]` or `- [x]`
-     - Unchecked items: Lines matching `- [ ]`
-   - Create a status table:
+2. **Verifique as checklists**, se FEATURE_DIR/checklists/ existir:
+   - Trate os marcadores como verificação somente leitura: examine o estado, informe-o e pergunte antes de prosseguir quando necessário; NÃO modifique arquivos ou marcadores.
+   - `checklists/requirements.md` é a checklist de qualidade mantida por `/speckit-specify` e `/speckit-clarify`; checklists personalizadas de `/speckit-checklist` são artefatos de revisão de requisitos sob responsabilidade do revisor.
+   - Nas personalizadas, `[x]` significa que o revisor considerou satisfeito o critério de qualidade dos requisitos; NÃO significa implementação concluída.
+   - Examine todos os arquivos em checklists/.
+   - Para cada checklist, conte:
+     - Total: linhas com `- [ ]`, `- [X]` ou `- [x]`.
+     - Marcados: linhas com `- [X]` ou `- [x]`.
+     - Desmarcados: linhas com `- [ ]`.
+   - Crie uma tabela de estado:
 
      ```text
-     | Checklist | Total | Checked | Unchecked | Status |
+    | Checklist | Total | Marcados | Desmarcados | Estado |
      |-----------|-------|---------|-----------|--------|
      | ux.md     | 12    | 12      | 0         | ✓ PASS |
      | test.md   | 8     | 5       | 3         | ✗ FAIL |
      | security.md | 6   | 6       | 0         | ✓ PASS |
      ```
 
-   - Calculate overall status:
-     - **PASS**: All checklists have 0 unchecked items
-     - **FAIL**: One or more checklists have unchecked items
+   - Calcule o estado geral:
+     - **PASS**: Todas têm zero itens desmarcados.
+     - **FAIL**: Pelo menos uma tem itens desmarcados.
 
-   - **If any checklist has unchecked items**:
-     - Display the table with unchecked item counts
-     - **STOP** and ask: "Some checklists have unchecked items. Do you want to proceed with implementation anyway? (yes/no)"
-     - Wait for user response before continuing
-     - If user says "no" or "wait" or "stop", halt execution
-     - If user says "yes" or "proceed" or "continue", proceed to step 3
+   - **Se houver itens desmarcados**:
+     - Mostre a tabela com as contagens.
+     - **PARE** e pergunte: "Há itens desmarcados nas checklists. Deseja implementar mesmo assim? (sim/não)".
+     - Aguarde a resposta antes de continuar.
+     - Se o usuário disser "não", "aguarde" ou "pare", interrompa.
+     - Se disser "sim", "prossiga" ou "continue", avance para a etapa 3.
 
-   - **If all checklists are checked**:
-     - Display the table showing all checklists passed
-     - Automatically proceed to step 3
+   - **Se todas estiverem marcadas**:
+     - Mostre a tabela com aprovação de todas.
+     - Avance automaticamente para a etapa 3.
 
-3. Load and analyze the implementation context:
-   - **REQUIRED**: Read tasks.md for the complete task list and execution plan
-   - **REQUIRED**: Read plan.md for tech stack, architecture, and file structure
-   - **IF EXISTS**: Read data-model.md for entities and relationships
-   - **IF EXISTS**: Read contracts/ for API specifications and test requirements
-   - **IF EXISTS**: Read research.md for technical decisions and constraints
-   - **IF EXISTS**: Read .specify/memory/constitution.md for governance constraints
-   - **IF EXISTS**: Read quickstart.md for integration scenarios
+3. Carregue e analise o contexto:
+  - **OBRIGATÓRIO**: Leia tasks.md para a lista completa e o plano de execução.
+  - **OBRIGATÓRIO**: Leia plan.md para stack, arquitetura e estrutura.
+  - **SE EXISTIR**: Leia data-model.md para entidades e relacionamentos.
+  - **SE EXISTIR**: Leia contracts/ para specs de API e requisitos de testes.
+  - **SE EXISTIR**: Leia research.md para decisões e restrições técnicas.
+  - **SE EXISTIR**: Leia .specify/memory/constitution.md para governança.
+  - **SE EXISTIR**: Leia quickstart.md para cenários de integração.
 
-4. **Project Setup Verification**:
-   - **REQUIRED**: Create/verify ignore files based on actual project setup:
+4. **Verifique a configuração do projeto**:
+  - **OBRIGATÓRIO**: Crie/verifique arquivos de exclusão conforme a configuração real:
 
-   **Detection & Creation Logic**:
-   - Check if the following command succeeds to determine if the repository is a git repo (create/verify .gitignore if so):
+  **Lógica de detecção e criação**:
+  - Verifique o sucesso do comando abaixo para identificar um repositório Git; nesse caso, crie/verifique .gitignore:
 
      ```sh
      git rev-parse --git-dir 2>/dev/null
      ```
 
-   - Check if Dockerfile* exists or Docker in plan.md → create/verify .dockerignore
-   - Check if .eslintrc* exists → create/verify .eslintignore
-   - Check if eslint.config.* exists → ensure the config's `ignores` entries cover required patterns
-   - Check if .prettierrc* exists → create/verify .prettierignore
-   - Check if .npmrc or package.json exists → create/verify .npmignore (if publishing)
-   - Check if terraform files (*.tf) exist → create/verify .terraformignore
-   - Check if .helmignore needed (helm charts present) → create/verify .helmignore
+  - Dockerfile* existente ou Docker em plan.md → crie/verifique .dockerignore.
+  - .eslintrc* existente → crie/verifique .eslintignore.
+  - eslint.config.* existente → garanta que `ignores` cubra os padrões necessários.
+  - .prettierrc* existente → crie/verifique .prettierignore.
+  - .npmrc ou package.json existente → crie/verifique .npmignore, se houver publicação.
+  - Arquivos Terraform (*.tf) existentes → crie/verifique .terraformignore.
+  - Charts Helm presentes → crie/verifique .helmignore, se necessário.
 
-   **If ignore file already exists**: Verify it contains essential patterns, append missing critical patterns only
-   **If ignore file missing**: Create with full pattern set for detected technology
+  **Se já existir**: Confira os padrões essenciais e acrescente somente os críticos ausentes.
+  **Se estiver ausente**: Crie com o conjunto completo para a tecnologia detectada.
 
-   **Common Patterns by Technology** (from plan.md tech stack):
+  **Padrões comuns por tecnologia**, conforme a stack de plan.md:
    - **Node.js/JavaScript/TypeScript**: `node_modules/`, `dist/`, `build/`, `*.log`, `.env*`
    - **Python**: `__pycache__/`, `*.pyc`, `.venv/`, `venv/`, `dist/`, `*.egg-info/`
    - **Java**: `target/`, `*.class`, `*.jar`, `.gradle/`, `build/`
@@ -136,91 +136,91 @@ You **MUST** consider the user input before proceeding (if not empty).
    - **R**: `.Rproj.user/`, `.Rhistory`, `.RData`, `.Ruserdata`, `*.Rproj`, `packrat/`, `renv/`
    - **Universal**: `.DS_Store`, `Thumbs.db`, `*.tmp`, `*.swp`, `.vscode/`, `.idea/`
 
-   **Tool-Specific Patterns**:
+  **Padrões específicos de ferramentas**:
    - **Docker**: `node_modules/`, `.git/`, `Dockerfile*`, `.dockerignore`, `*.log*`, `.env*`, `coverage/`
    - **ESLint**: `node_modules/`, `dist/`, `build/`, `coverage/`, `*.min.js`
    - **Prettier**: `node_modules/`, `dist/`, `build/`, `coverage/`, `package-lock.json`, `yarn.lock`, `pnpm-lock.yaml`
    - **Terraform**: `.terraform/`, `*.tfstate*`, `*.tfvars`, `.terraform.lock.hcl`
    - **Kubernetes/k8s**: `*.secret.yaml`, `secrets/`, `.kube/`, `kubeconfig*`, `*.key`, `*.crt`
 
-5. Parse tasks.md structure and extract:
-   - **Task phases**: Setup, Tests, Core, Integration, Polish
-   - **Task dependencies**: Sequential vs parallel execution rules
-   - **Task details**: ID, description, file paths, parallel markers [P]
-   - **Execution flow**: Order and dependency requirements
+5. Interprete tasks.md e extraia:
+  - **Fases**: Preparação, testes, núcleo, integração e refinamento.
+  - **Dependências**: Regras de execução sequencial e paralela.
+  - **Detalhes**: ID, descrição, caminhos e marcadores [P].
+  - **Fluxo**: Ordem e requisitos de dependência.
 
-6. Execute implementation following the task plan:
-   - **Phase-by-phase execution**: Complete each phase before moving to the next
-   - **Respect dependencies**: Run sequential tasks in order, parallel tasks [P] can run together
-   - **Follow TDD approach**: Execute test tasks before their corresponding implementation tasks
-   - **File-based coordination**: Tasks affecting the same files must run sequentially
-   - **Validation checkpoints**: Verify each phase completion before proceeding
+6. Implemente conforme o plano de tarefas:
+  - **Por fase**: Conclua uma antes de avançar.
+  - **Respeite dependências**: Execute tarefas sequenciais em ordem; [P] podem executar juntas.
+  - **Siga TDD**: Execute tarefas de testes antes da implementação correspondente.
+  - **Coordene por arquivo**: Tarefas que afetam os mesmos arquivos devem executar sequencialmente.
+  - **Valide as etapas**: Confira a conclusão de cada fase antes de prosseguir.
 
-7. Implementation execution rules:
-   - **Setup first**: Initialize project structure, dependencies, configuration
-   - **Tests before code**: If you need to write tests for contracts, entities, and integration scenarios
-   - **Core development**: Implement models, services, CLI commands, endpoints
-   - **Integration work**: Database connections, middleware, logging, external services
-   - **Polish and validation**: Unit tests, performance optimization, documentation
+7. Regras de implementação:
+  - **Preparação primeiro**: Estrutura, dependências e configuração.
+  - **Testes antes do código**: Quando precisar testar contratos, entidades e integração.
+  - **Desenvolvimento central**: Modelos, serviços, comandos CLI e endpoints.
+  - **Integração**: Conexões de banco, middleware, logs e serviços externos.
+  - **Refinamento e validação**: Testes unitários, otimização e documentação.
 
-8. Progress tracking and error handling:
-   - Report progress after each completed task
-   - Halt execution if any non-parallel task fails
-   - For parallel tasks [P], continue with successful tasks, report failed ones
-   - Provide clear error messages with context for debugging
-   - Suggest next steps if implementation cannot proceed
-   - **IMPORTANT** For completed tasks, make sure to mark the task off as [X] in the tasks file.
+8. Acompanhamento e erros:
+  - Informe o progresso após cada tarefa concluída.
+  - Interrompa se uma tarefa não paralela falhar.
+  - Para [P], prossiga com as bem-sucedidas e informe as falhas.
+  - Forneça erros claros com contexto para depuração.
+  - Sugira próximos passos se não puder prosseguir.
+  - **IMPORTANTE**: Marque tarefas concluídas como [X] no arquivo de tarefas.
 
-9. Completion validation:
-   - Verify all required tasks are completed
-   - Check that implemented features match the original specification
-   - Validate that tests pass and coverage meets requirements
-   - Confirm the implementation follows the technical plan
+9. Validação de conclusão:
+  - Confira todas as tarefas obrigatórias.
+  - Verifique aderência à especificação original.
+  - Valide aprovação dos testes e cobertura exigida.
+  - Confirme aderência ao plano técnico.
 
-Note: This command assumes a complete task breakdown exists in tasks.md. If tasks are incomplete or missing, suggest running `/speckit-tasks` first to regenerate the task list.
+Nota: O comando pressupõe decomposição completa em tasks.md. Se faltar ou estiver incompleta, sugira `/speckit-tasks` primeiro para regenerar a lista.
 
-## Mandatory Post-Execution Hooks
+## Hooks Obrigatórios Após a Execução
 
-**You MUST complete this section before reporting completion to the user.**
+**Você DEVE concluir esta seção antes de informar a conclusão ao usuário.**
 
-Check if `.specify/extensions.yml` exists in the project root.
-- If it does not exist, or no hooks are registered under `hooks.after_implement`, skip to the Completion Report.
-- If it exists, read it and look for entries under the `hooks.after_implement` key.
-- If the YAML cannot be parsed or is invalid, do not skip silently: tell the user that `.specify/extensions.yml` could not be read (include the parser error) and that no hooks were checked, including any mandatory (`optional: false`) hooks registered there, then continue to the Completion Report.
-- Filter out hooks where `enabled` is explicitly `false`. Treat hooks without an `enabled` field as enabled by default.
-- For each remaining hook, do **not** attempt to interpret or evaluate hook `condition` expressions:
-  - If the hook has no `condition` field, or it is null/empty, treat the hook as executable
-  - If the hook defines a non-empty `condition`, skip the hook and leave condition evaluation to the HookExecutor implementation
-- When constructing command invocations from hook command names, replace dots (`.`) with hyphens (`-`). For example, `speckit.git.commit` → `/speckit-git-commit`.
-- For each executable hook, output the following based on its `optional` flag:
-  - **Mandatory hook** (`optional: false`) — **You MUST emit `EXECUTE_COMMAND:` for each mandatory hook**:
+Verifique se `.specify/extensions.yml` existe na raiz do projeto.
+- Se não existir ou não houver hooks registrados na chave `hooks.after_implement`, prossiga para o Relatório de Conclusão.
+- Se existir, leia-o e procure entradas na chave `hooks.after_implement`.
+- Se o YAML não puder ser interpretado ou for inválido, não ignore silenciosamente: informe que `.specify/extensions.yml` não pôde ser lido (inclua o erro do parser) e que nenhum hook foi verificado, inclusive hooks obrigatórios (`optional: false`); depois, prossiga para o Relatório de Conclusão.
+- Exclua os hooks cujo `enabled` seja explicitamente `false`. Considere habilitados por padrão aqueles sem o campo `enabled`.
+- Para cada hook restante, **não** tente interpretar ou avaliar expressões `condition`:
+  - Se não houver `condition`, ou se ela for nula/vazia, considere o hook executável
+  - Se houver `condition` não vazia, ignore o hook e deixe a avaliação da condição para a implementação de HookExecutor
+- Ao construir invocações a partir dos nomes dos comandos de hooks, substitua pontos (`.`) por hífens (`-`). Por exemplo, `speckit.git.commit` → `/speckit-git-commit`.
+- Para cada hook executável, apresente o seguinte conforme seu campo `optional`:
+  - **Hook obrigatório** (`optional: false`) — **Você DEVE apresentar `EXECUTE_COMMAND:` para cada hook obrigatório**:
     ```
-    ## Extension Hooks
+    ## Hooks de Extensões
 
-    **Automatic Hook**: {extension}
-    Executing: `/{command}`
+    **Hook Automático**: {extension}
+    Executando: `/{command}`
     EXECUTE_COMMAND: {command}
     ```
-    After emitting the block above you MUST actually invoke the hook and wait for it to finish before continuing. Run it the same way you would run the command yourself in this agent/session (the invocation may differ from the literal `{command}` id shown above, e.g. a skills-mode agent runs it as `/skill:speckit-...` or `$speckit-...`). Emitting the block alone does not run the hook.
-  - **Optional hook** (`optional: true`):
+    Após apresentar o bloco, você DEVE invocar o hook e aguardar sua conclusão. Execute-o como executaria o comando nesta sessão (a invocação pode diferir do identificador literal `{command}`; por exemplo, um agente em modo skills usa `/skill:speckit-...` ou `$speckit-...`). Apresentar apenas o bloco não executa o hook.
+  - **Hook opcional** (`optional: true`):
     ```
-    ## Extension Hooks
+    ## Hooks de Extensões
 
-    **Optional Hook**: {extension}
-    Command: `/{command}`
-    Description: {description}
+    **Hook Opcional**: {extension}
+    Comando: `/{command}`
+    Descrição: {description}
 
-    Prompt: {prompt}
-    To execute: `/{command}`
+    Solicitação: {prompt}
+    Para executar: `/{command}`
     ```
 
-## Completion Report
+## Relatório de Conclusão
 
-Report final status with summary of completed work.
+Informe o estado final com resumo do trabalho concluído.
 
-## Done When
+## Critérios de Conclusão
 
-- [ ] All tasks in tasks.md completed and marked `[X]`
-- [ ] Implementation validated against specification, plan, and test coverage
-- [ ] Extension hooks dispatched or skipped according to the rules in Mandatory Post-Execution Hooks above
-- [ ] Completion reported to user with summary of completed work
+- [ ] Todas as tarefas de tasks.md concluídas e marcadas `[X]`.
+- [ ] Implementação validada contra spec, plano e cobertura de testes.
+- [ ] Hooks de extensões acionados ou ignorados conforme as regras de Hooks Obrigatórios Após a Execução acima.
+- [ ] Conclusão informada com resumo do trabalho realizado.

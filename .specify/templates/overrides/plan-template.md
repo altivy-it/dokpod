@@ -2,70 +2,87 @@
 
 **Branch**: `[###-feature-name]` | **Data**: [DATE] | **Spec**: [link]
 
-**Entrada**: Especificação em `/specs/[###-feature-name]/spec.md`
+**Entrada**: Especificação da funcionalidade em `/specs/[###-feature-name]/spec.md`
 
-**Idioma**: Escreva este plano integralmente em português brasileiro (pt-BR). Preserve comandos, identificadores, nomes de tecnologias e caminhos literais.
+**Nota**: Este template é preenchido pelo comando `/speckit-plan`; sua definição descreve o fluxo de execução.
+
+> Redija este plano e todos os artefatos derivados em português brasileiro (pt-BR). Preserve nomes de código, caminhos, comandos e identificadores técnicos.
 
 ## Resumo
 
-[Sintetize a necessidade principal da spec e a abordagem técnica proposta.]
+[Resuma o requisito principal da spec e a abordagem técnica baseada na análise do repositório.]
 
-## Contexto Técnico
+## Contexto Tecnico
 
-<!-- Substitua esta seção pelos detalhes técnicos reais do projeto. -->
+<!--
+  AÇÃO NECESSÁRIA: Preencha esta seção com detalhes técnicos confirmados para a funcionalidade.
+  Use as configurações, dependências e convenções existentes no repositório como evidência.
+-->
 
-**Linguagem/Versão**: [ex.: .NET 10, Angular 22 ou NEEDS CLARIFICATION]
+**Linguagem/Versão**: [por exemplo, C# / .NET 10 e TypeScript / Angular 22 ou NEEDS CLARIFICATION]
 
-**Dependências Principais**: [Dependências necessárias e já aprovadas]
+**Dependências Principais**: [dependências existentes ou NEEDS CLARIFICATION]
 
-**Armazenamento**: [PostgreSQL ou não aplicável]
+**Persistência**: [por exemplo, PostgreSQL como projeção reconstruível do inventário; Docker/Podman como fonte de verdade ou N/A]
 
-**Testes**: [Ferramentas e níveis de teste usados pelo projeto]
+**Testes**: [projetos e comandos de teste aplicáveis ou NEEDS CLARIFICATION]
 
-**Plataforma Alvo**: [ex.: containers Linux ou agente Windows self-contained]
+**Plataforma Alvo**: [por exemplo, serviços em containers Linux atrás de nginx e agente Windows self-contained como Windows Service ou NEEDS CLARIFICATION]
 
-**Tipo de Projeto**: [ex.: aplicação web, biblioteca, API, agente]
+**Tipo de Projeto**: [por exemplo, plano de controle self-hosted, API, BFF, agente ou biblioteca]
 
-**Objetivos de Desempenho**: [Metas mensuráveis ou NEEDS CLARIFICATION]
+**Metas de Desempenho**: [métrica específica da funcionalidade ou N/A]
 
-**Restrições**: [Limites de segurança, compatibilidade, operação e recursos]
+**Restrições**: [restrições específicas ou NEEDS CLARIFICATION]
 
-**Escopo**: [Módulos, jornadas e componentes afetados]
+**Escala/Escopo**: [estimativa específica ou NEEDS CLARIFICATION]
 
 ## Verificação da Constituição
 
-**GATE**: Deve passar antes da pesquisa da Fase 0 e ser reavaliado após o desenho da Fase 1.
+*GATE: Deve ser aprovado antes da pesquisa da Fase 0 e revisado novamente após o design da Fase 1.*
 
-[Registre as regras da constituição aplicáveis, evidências, riscos e exceções que exigem decisão humana.]
+[Liste os princípios da constitution aplicáveis e como o plano os atende.]
 
 ## Estrutura do Projeto
 
-### Documentação desta Feature
+### Documentação desta Funcionalidade
 
 ```text
 specs/[###-feature]/
-├── plan.md
-├── research.md
-├── data-model.md
-├── quickstart.md
-├── contracts/
-└── tasks.md
+├── spec.md               # Requisitos e cenarios da funcionalidade
+├── plan.md               # Este arquivo, gerado por /speckit-plan
+├── research.md           # Pesquisa, quando aplicável
+├── data-model.md         # Modelo de dados, quando aplicável
+├── quickstart.md         # Instruções de validação, quando aplicáveis
+├── contracts/            # Contratos detalhados, quando aplicáveis
+└── tasks.md              # Tarefas geradas por /speckit-tasks
 ```
 
-`tasks.md` é gerado por `/speckit-tasks`, não por `/speckit-plan`.
-
-### Código-fonte
+### Código-Fonte (raiz do repositório)
+<!--
+  AÇÃO NECESSÁRIA: Substitua a arvore de exemplo abaixo pelos caminhos reais afetados.
+  Liste somente os projetos e arquivos relevantes para esta funcionalidade.
+-->
 
 ```text
-[Registre somente diretórios reais do repositório afetados pela feature.]
+backend/
+├── apps/                 # API, BFF e agente
+├── libs/                 # Domínio, aplicação e infraestrutura
+└── tests/                # Testes backend
+frontend/
+├── web/                  # Aplicação Angular
+├── libs/                 # Bibliotecas compartilhadas
+└── tests/                # Testes frontend
+contracts/               # HTTP e protocolo agente-servidor
+deploy/                  # Containers, pacote Windows e operação
 ```
 
-**Decisão de Estrutura**: [Explique como a feature se encaixa nos módulos existentes e referencie os diretórios reais.]
+**Decisão de Estrutura**: [Explique a organização escolhida e referencie os diretórios reais acima.]
 
 ## Registro de Complexidade
 
-> Preencha somente quando houver violação justificada da constituição.
+> **Preencha somente se houver violações da constitution que precisem de justificativa.**
 
-| Violação | Justificativa | Alternativa mais simples rejeitada e motivo |
-| -------- | ------------- | ------------------------------------------ |
-| [Regra violada] | [Necessidade concreta] | [Por que não atende] |
+| Violação | Motivo da Necessidade | Alternativa Mais Simples Rejeitada Porque |
+|-----------|------------|-------------------------------------|
+| [descrição] | [necessidade atual] | [motivo da rejeição] |

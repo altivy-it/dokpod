@@ -1,100 +1,163 @@
 ---
-description: "Modelo de tarefas para implementação de feature"
+
+description: "Template de tarefas para implementação de funcionalidades"
 ---
 
 # Tarefas: [FEATURE NAME]
 
-**Entrada**: Artefatos de desenho em `/specs/[###-feature-name]/`
+**Entrada**: Documentos de design em `/specs/[###-feature-name]/`
 
-**Pré-requisitos**: `plan.md` e `spec.md`; `research.md`, `data-model.md` e `contracts/` quando aplicáveis.
+> Redija todas as tarefas e descrições em português brasileiro (pt-BR), preservando identificadores, comandos e caminhos técnicos.
 
-**Idioma**: Escreva descrições, objetivos e explicações integralmente em português brasileiro (pt-BR). Preserve IDs, marcadores, comandos, código e caminhos literais.
+**Pré-requisitos**: plan.md (obrigatório), spec.md (obrigatório para histórias), research.md,
+data-model.md e contracts/
 
-**Testes**: Inclua tarefas de teste sempre que exigidas pelos riscos, critérios de aceite ou constituição. Não omita testes necessários apenas porque não foram pedidos literalmente.
+**Testes**: Toda mudanca de comportamento deve incluir tarefas de teste relevantes, conforme a
+constitution do projeto. Testes podem ser omitidos para alteracoes sem mudanca de comportamento.
 
-**Organização**: Agrupe as tarefas por jornada de usuário para permitir incrementos independentes e verificáveis.
+**Organização**: As tarefas são agrupadas por história de usuário para permitir implementação e
+validação independentes.
 
-## Formato: `[ID] [P?] [Story?] Descrição com caminho do arquivo`
+## Formato: `[ID] [P?] [Story] Descricao`
 
-- **[P]**: Use somente quando a tarefa puder executar em paralelo sem dependências pendentes e sem disputar arquivos.
-- **[Story]**: Use `[US1]`, `[US2]`, `[US3]` etc. nas tarefas de uma jornada.
-- Inclua caminhos exatos dos arquivos nas descrições de implementação.
+- **[P]**: Pode ser executada em paralelo (arquivos diferentes, sem dependencias)
+- **[Story]**: História de usuário relacionada (por exemplo, US1, US2, US3)
+- Inclua caminhos exatos dos arquivos nas descricoes
 
-## Convenções de Caminhos
+## Convencoes de Caminhos
 
-- Backend: `backend/apps/`, `backend/libs/` e `backend/tests/`.
-- Frontend: `frontend/web/`, `frontend/libs/` e `frontend/tests/`.
-- Contratos: `contracts/`.
-- Deployment e operação: `deploy/`.
-- Ajuste os caminhos à estrutura real registrada em `plan.md`.
+- **Dokpod**: hosts em `backend/apps/`, bibliotecas em `backend/libs/`, testes em `backend/tests/`, frontend em `frontend/web/`, `frontend/libs/` e `frontend/tests/`, contratos em `contracts/` e operação em `deploy/`
+- Use a estrutura real definida em `plan.md`; não invente projetos ou diretórios.
 
 <!--
-  As tarefas abaixo são somente exemplos estruturais. Substitua-as por tarefas
-  concretas derivadas da spec e do plano; não mantenha exemplos como entregas.
+  ============================================================================
+  IMPORTANTE: As tarefas abaixo sao apenas exemplos ilustrativos.
+
+  O comando /speckit-tasks DEVE substitui-las por tarefas reais, baseadas em:
+  - Historias de usuario de spec.md e suas prioridades (P1, P2, P3...)
+  - Requisitos e decisoes de plan.md
+  - Entidades de data-model.md
+  - Endpoints e contratos de contracts/
+
+  As tarefas DEVEM ser organizadas por historia para permitir implementacao, teste e entrega
+  independentes.
+
+  NAO mantenha estas tarefas de exemplo no arquivo tasks.md gerado.
+  ============================================================================
 -->
 
-## Fase 1: Preparação
+## Fase 1: Preparação (Infraestrutura Compartilhada)
 
-**Objetivo**: Preparar apenas a estrutura compartilhada necessária.
+**Objetivo**: Inicialização e estrutura básica do projeto.
 
-- [ ] T001 Preparar a estrutura da feature conforme o plano de implementação
-- [ ] T002 [P] Atualizar documentação em [caminho real]
-
----
-
-## Fase 2: Fundação (Pré-requisitos Bloqueantes)
-
-**Objetivo**: Concluir os pré-requisitos compartilhados antes das jornadas.
-
-- [ ] T003 Preparar a migration necessária em [caminho real]
-- [ ] T004 [P] Preparar os contratos compartilhados em [caminho real]
-
-**Ponto de verificação**: A fundação está pronta para iniciar as jornadas autorizadas.
+- [ ] T001 Preparar a estrutura conforme o plano de implementação
+- [ ] T002 Configurar os componentes necessarios para a funcionalidade
+- [ ] T003 [P] Configurar ferramentas de análise e formatação, se aplicável
 
 ---
 
-## Fase 3: Jornada do Usuário 1 - [Título] (Prioridade: P1)
+## Fase 2: Fundação (Pré-requisitos Bloqueadores)
 
-**Objetivo**: [Valor entregue por esta jornada.]
+**Objetivo**: Concluir a infraestrutura que DEVE estar pronta antes das histórias de usuário.
 
-**Teste independente**: [Critério que demonstra o comportamento desta jornada.]
+**CRÍTICO**: Nenhuma história de usuário pode começar antes da conclusão desta fase.
 
-### Testes da Jornada do Usuário 1
+Exemplos de tarefas de fundação (ajuste ao escopo real):
 
-- [ ] T005 [P] [US1] Adicionar teste de contrato em [caminho real]
-- [ ] T006 [P] [US1] Adicionar teste de integração em [caminho real]
+- [ ] T004 Preparar schema e migration do banco, se necessário
+- [ ] T005 [P] Ajustar autorização, se necessário
+- [ ] T006 [P] Ajustar rotas ou middleware, se necessário
+- [ ] T007 Criar os modelos ou entidades compartilhados necessários
+- [ ] T008 Configurar tratamento de erros e logging, se necessário
+- [ ] T009 Preparar a configuração de ambiente, se necessário
 
-### Implementação da Jornada do Usuário 1
-
-- [ ] T007 [P] [US1] Implementar regra de domínio em [caminho real]
-- [ ] T008 [US1] Integrar o caso de uso em [caminho real]
-- [ ] T009 [US1] Implementar a interface ou endpoint em [caminho real]
-
-**Ponto de verificação**: A jornada funciona e pode ser validada independentemente.
+**Checkpoint**: Fundação concluída; as histórias podem ser iniciadas conforme suas dependências.
 
 ---
 
-## Fase 4: Jornada do Usuário 2 - [Título] (Prioridade: P2)
+## Fase 3: História de Usuário 1 - [Título] (Prioridade: P1) MVP
 
-**Objetivo**: [Valor entregue por esta jornada.]
+**Objetivo**: [Descreva brevemente o valor entregue por esta historia.]
 
-**Teste independente**: [Critério que demonstra o comportamento desta jornada.]
+**Teste independente**: [Explique como validar esta historia isoladamente.]
 
-- [ ] T010 [P] [US2] Adicionar teste necessário em [caminho real]
-- [ ] T011 [US2] Implementar o comportamento em [caminho real]
+### Testes da História de Usuário 1
 
-**Ponto de verificação**: As jornadas 1 e 2 continuam independentes e verificáveis.
+> Escreva os testes antes da implementação e confirme que falham para o comportamento ausente.
+
+- [ ] T010 [P] [US1] Testar o contrato de [endpoint] em [caminho real do teste]
+- [ ] T011 [P] [US1] Testar a jornada [nome] em [caminho real do teste]
+
+### Implementação da História de Usuário 1
+
+- [ ] T012 [P] [US1] Criar ou ajustar [componente] em [caminho real]
+- [ ] T013 [P] [US1] Criar ou ajustar [componente] em [caminho real]
+- [ ] T014 [US1] Implementar [comportamento] em [caminho real], dependendo de T012 e T013
+- [ ] T015 [US1] Implementar [endpoint ou fluxo] em [caminho real]
+- [ ] T016 [US1] Adicionar validação e tratamento de erros necessários
+- [ ] T017 [US1] Adicionar logging operacional necessário
+
+**Checkpoint**: A história deve estar funcional e ser validável de forma independente.
+
+---
+
+## Fase 4: História de Usuário 2 - [Título] (Prioridade: P2)
+
+**Objetivo**: [Descreva brevemente o valor entregue por esta historia.]
+
+**Teste independente**: [Explique como validar esta historia isoladamente.]
+
+### Testes da História de Usuário 2
+
+- [ ] T018 [P] [US2] Testar o contrato de [endpoint] em [caminho real do teste]
+- [ ] T019 [P] [US2] Testar a jornada [nome] em [caminho real do teste]
+
+### Implementação da História de Usuário 2
+
+- [ ] T020 [P] [US2] Criar ou ajustar [componente] em [caminho real]
+- [ ] T021 [US2] Implementar [comportamento] em [caminho real]
+- [ ] T022 [US2] Implementar [endpoint ou fluxo] em [caminho real]
+- [ ] T023 [US2] Integrar com componentes da História de Usuário 1, se necessário
+
+**Checkpoint**: As histórias 1 e 2 devem funcionar e ser validáveis de forma independente.
+
+---
+
+## Fase 5: História de Usuário 3 - [Título] (Prioridade: P3)
+
+**Objetivo**: [Descreva brevemente o valor entregue por esta historia.]
+
+**Teste independente**: [Explique como validar esta historia isoladamente.]
+
+### Testes da História de Usuário 3
+
+- [ ] T024 [P] [US3] Testar o contrato de [endpoint] em [caminho real do teste]
+- [ ] T025 [P] [US3] Testar a jornada [nome] em [caminho real do teste]
+
+### Implementação da História de Usuário 3
+
+- [ ] T026 [P] [US3] Criar ou ajustar [componente] em [caminho real]
+- [ ] T027 [US3] Implementar [comportamento] em [caminho real]
+- [ ] T028 [US3] Implementar [endpoint ou fluxo] em [caminho real]
+
+**Checkpoint**: Todas as histórias devem estar funcionais e ser validáveis de forma independente.
+
+---
+
+[Adicione outras fases de história de usuário seguindo o mesmo padrão.]
 
 ---
 
 ## Fase N: Acabamento e Aspectos Transversais
 
-**Objetivo**: Concluir aspectos transversais exigidos pelo escopo e pela constituição.
+**Objetivo**: Concluir melhorias que afetam varias historias.
 
-- [ ] TXXX [P] Atualizar documentação do projeto em [caminho real]
-- [ ] TXXX Validar segurança e autorização
-- [ ] TXXX Executar testes de desempenho ou recuperação, se aplicáveis
-- [ ] TXXX Validar o guia `quickstart.md`
+- [ ] TXXX [P] Atualizar documentação em pt-BR
+- [ ] TXXX Revisar limpeza e refatoração do código
+- [ ] TXXX Avaliar desempenho nos fluxos afetados
+- [ ] TXXX [P] Adicionar testes unitários relevantes
+- [ ] TXXX Revisar segurança dos fluxos alterados
+- [ ] TXXX Executar as validações descritas em quickstart.md, se houver
 
 ---
 
@@ -102,36 +165,77 @@ description: "Modelo de tarefas para implementação de feature"
 
 ### Dependências entre Fases
 
-- **Preparação (Fase 1)**: sem dependências anteriores.
-- **Fundação (Fase 2)**: depende da preparação e bloqueia as jornadas que a utilizam.
-- **Jornadas (Fase 3+)**: siga as dependências explícitas; paralelize somente tarefas sem conflitos.
-- **Acabamento**: depende das jornadas incluídas no escopo autorizado.
+- **Preparação (Fase 1)**: Sem dependências; pode começar imediatamente.
+- **Fundação (Fase 2)**: Depende da preparação e bloqueia as histórias de usuário.
+- **Histórias (Fase 3+)**: Dependem da fundação e podem seguir em paralelo ou por prioridade.
+- **Acabamento (fase final)**: Depende da conclusão das histórias selecionadas.
 
-### Dependências entre Jornadas
+### Dependências entre Histórias
 
-- Registre as dependências reais extraídas da spec e do plano; não presuma independência.
+- **História 1 (P1)**: Pode iniciar após a fundação; não depende de outras histórias.
+- **História 2 (P2)**: Pode iniciar após a fundação e deve permanecer testável de forma independente.
+- **História 3 (P3)**: Pode iniciar após a fundação e deve permanecer testável de forma independente.
+
+### Dentro de Cada História
+
+- Testes de comportamento DEVEM ser escritos e falhar antes da implementação correspondente.
+- Implemente os componentes na ordem exigida por suas dependencias reais.
+- Conclua a validação independente da história antes de avançar quando houver dependência de prioridade.
 
 ### Oportunidades de Paralelismo
 
-- Marque `[P]` apenas quando arquivos, contratos e dependências permitirem execução independente.
+- Tarefas [P] sem dependencias entre si podem ser executadas em paralelo.
+- Histórias distintas podem ser paralelizadas após a conclusão da fundação, se a equipe permitir.
+- Confirme conflitos de arquivos e dependencias antes de paralelizar tarefas.
 
-## Estratégia de Implementação
+---
 
-### Incremento Mínimo
+## Exemplo de Paralelismo: História de Usuário 1
 
-1. Conclua preparação e fundação necessárias.
-2. Implemente a jornada P1 e valide-a isoladamente.
-3. Pare em cada ponto de verificação para analisar resultados antes de ampliar o escopo.
+```bash
+# Execute testes independentes da Historia de Usuario 1 em paralelo:
+Task: "Testar o contrato de [endpoint] em [caminho real do teste]"
+Task: "Testar a jornada [nome] em [caminho real do teste]"
+
+# Preparar componentes independentes em paralelo:
+Task: "Criar ou ajustar [componente 1] em [caminho real]"
+Task: "Criar ou ajustar [componente 2] em [caminho real]"
+```
+
+---
+
+## Estrategia de Implementacao
+
+### MVP Primeiro (Somente Historia de Usuario 1)
+
+1. Conclua a Fase 1: Preparação.
+2. Conclua a Fase 2: Fundação, que bloqueia as demais histórias.
+3. Conclua a Fase 3: História de Usuário 1.
+4. **PARE E VALIDE**: Teste a História 1 de forma independente.
+5. Implante ou demonstre se estiver pronta e autorizado.
 
 ### Entrega Incremental
 
-1. Implemente e valide uma jornada por vez, em ordem de prioridade e dependência.
-2. Preserve compatibilidade e evidências das jornadas anteriores.
+1. Conclua Preparação e Fundação.
+2. Adicione a História 1, valide-a e prepare a entrega do MVP.
+3. Adicione e valide a História 2.
+4. Adicione e valide a História 3.
+5. Cada história deve agregar valor sem regredir as anteriores.
+
+### Estratégia para Trabalho em Paralelo
+
+Com vários desenvolvedores:
+
+1. A equipe conclui Preparação e Fundação em conjunto.
+2. Após a fundação, distribua histórias sem dependências entre membros da equipe.
+3. Cada história deve ser concluída e integrada de forma verificável.
+
+---
 
 ## Observações
 
-- `[P]` indica paralelismo real; não use o marcador apenas para acelerar o cronograma.
-- `[USn]` relaciona cada tarefa à jornada definida em `spec.md`.
-- Cada jornada deve ser concluível e testável dentro da tarefa autorizada.
-- Marque uma tarefa `[x]` somente após implementar e validar sua evidência; isso não representa aprovação humana.
-- Siga os critérios da spec, o desenho de `plan.md` e os princípios da constituição.
+- Tarefas [P] devem atuar em arquivos distintos e não possuir dependências mútuas.
+- O identificador [Story] relaciona cada tarefa a uma história para rastreabilidade.
+- Cada história deve ser concluível e testável de forma independente.
+- Confirme a falha dos testes antes de implementar o comportamento correspondente.
+- Evite tarefas vagas, conflitos no mesmo arquivo e dependências que quebrem a independência.

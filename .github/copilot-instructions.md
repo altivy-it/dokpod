@@ -67,12 +67,19 @@ ou da remediação autorizada de Bug Fixing; não cria processo independente.
 - Registre `Origem` como humano ou IA assistida e identifique o revisor humano.
 - IA não marca ADR como `accepted`, artefato como aprovado nem altera status histórico sem decisão ou evidência humana explícita e referenciada.
 
+### Extensões e localização
+
+- Use as mesmas configurações Spec Kit do Inventory360Api: `auto_execute_hooks: true`, todos os 18 hooks Git com `enabled: true` e `git-config.yml` igual ao da referência. Os commits por evento continuam desativados nessa configuração.
+- A invocação de um fluxo Spec Kit autoriza os hooks nele configurados; não autoriza push, publicação, deploy ou implementação de produto fora das tarefas aprovadas.
+- Após instalar, atualizar ou reconciliar componentes, use [localize-speckit](prompts/localize-speckit.prompt.md) para auditar ou traduzir textos humanos em pt-BR sem alterar comandos, IDs, placeholders ou contratos de leitura. Sem modo explícito, somente audite; não invente configuração de idioma ou hooks de instalação.
+- Consulte [o guia de extensões](README.md#spec-kit-e-extensões) para versões e validação. Preserve constituição, specs, relatórios, overrides e personalizações locais.
+
 ## Commits
 
 - Todo commit criado ou sugerido segue [Conventional Commits](instructions/conventional-commits.instructions.md) e usa os tipos e escopos aprovados pelo projeto.
 - Escreva a descrição em português brasileiro, no imperativo, iniciando com minúscula e sem ponto final.
 - Mudanças incompatíveis usam `!` no cabeçalho e o rodapé `BREAKING CHANGE:` com impacto e migração.
-- Não faça commit, push, publicação ou deploy sem solicitação explícita.
+- Fora dos hooks autorizados pela invocação do fluxo Spec Kit, não faça commit sem solicitação explícita. Push, publicação e deploy sempre exigem solicitação explícita.
 
 ## Scripts e automação
 

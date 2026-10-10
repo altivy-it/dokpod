@@ -1,179 +1,173 @@
 ---
 name: "speckit-constitution"
-description: "Create or update the project constitution from interactive or provided principle inputs."
-compatibility: "Requires spec-kit project structure with .specify/ directory"
+description: "Criar ou atualizar a constituição do projeto a partir de princípios fornecidos ou definidos interativamente."
+compatibility: "Requer a estrutura de projeto do spec-kit com o diretório .specify/"
 metadata:
   author: "github-spec-kit"
   source: "templates/commands/constitution.md"
 ---
 
 
-## User Input
+## Entrada do Usuário
 
 ```text
 $ARGUMENTS
 ```
 
-You **MUST** consider the user input before proceeding (if not empty).
+Você **DEVE** considerar a entrada do usuário antes de prosseguir (se não estiver vazia).
 
-## Scope Guard
+## Proteção de Escopo
 
-This command's own work is limited to updating the project constitution itself. Dependent templates
-and commands read the constitution at runtime and are not modified here.
+O trabalho deste comando limita-se à atualização da constituição do projeto. Templates e comandos
+dependentes leem a constituição em tempo de execução e não são modificados aqui.
 
-- Classify every part of the user input as either constitution content or a separate,
-  non-governance intent.
-- If the input includes feature implementation, code generation, refactoring, building, or
-  deployment requests, you **MUST NOT** execute them. Extract them as deferred intents instead.
-- You **MUST NOT** create, modify, or delete application source files, feature routes,
-  components, tests, deployment files, or other artifacts unrelated to the constitution
-  workflow.
-- If it is unclear whether an instruction is constitution content, ask for clarification before
-  making changes.
-- After completing the constitution update, include a `Next Actions` section for each deferred
-  intent. List the original intent and suggest the appropriate follow-up Spec Kit command, such
-  as `/speckit-specify`, without invoking it.
-- If there are no non-governance intents, omit the `Next Actions` section.
+- Classifique cada parte da entrada como conteúdo da constituição ou intenção separada, alheia à governança.
+- Se houver solicitações de implementação de feature, geração de código, refatoração, build ou deploy,
+  você **NÃO DEVE** executá-las. Registre-as como intenções adiadas.
+- Você **NÃO DEVE** criar, modificar ou excluir código da aplicação, rotas, componentes, testes,
+  arquivos de deploy ou outros artefatos alheios ao fluxo da constituição.
+- Se não estiver claro se uma instrução é conteúdo da constituição, peça esclarecimento antes de alterar.
+- Após atualizar a constituição, inclua uma seção `Next Actions` (próximas ações) para as intenções adiadas.
+  Liste cada intenção original e sugira o comando Spec Kit apropriado, como `/speckit-specify`, sem invocá-lo.
+- Se não houver intenções alheias à governança, omita a seção `Next Actions`.
 
-## Pre-Execution Checks
+## Verificações Antes da Execução
 
-**Check for extension hooks (before constitution update)**:
-- Check if `.specify/extensions.yml` exists in the project root.
-- If it exists, read it and look for entries under the `hooks.before_constitution` key
-- If the YAML cannot be parsed or is invalid, do not skip silently: tell the user that `.specify/extensions.yml` could not be read (include the parser error) and that no hooks were checked, including any mandatory (`optional: false`) hooks registered there, then continue normally
-- Filter out hooks where `enabled` is explicitly `false`. Treat hooks without an `enabled` field as enabled by default.
-- For each remaining hook, do **not** attempt to interpret or evaluate hook `condition` expressions:
-  - If the hook has no `condition` field, or it is null/empty, treat the hook as executable
-  - If the hook defines a non-empty `condition`, skip the hook and leave condition evaluation to the HookExecutor implementation
-- When constructing command invocations from hook command names, replace dots (`.`) with hyphens (`-`). For example, `speckit.git.commit` → `/speckit-git-commit`.
-- For each executable hook, output the following based on its `optional` flag:
-  - **Optional hook** (`optional: true`):
+**Verifique os hooks de extensões (antes da atualização da constituição)**:
+- Verifique se `.specify/extensions.yml` existe na raiz do projeto.
+- Se existir, leia-o e procure entradas na chave `hooks.before_constitution`.
+- Se o YAML não puder ser interpretado ou for inválido, não ignore silenciosamente: informe que `.specify/extensions.yml` não pôde ser lido (inclua o erro do parser) e que nenhum hook foi verificado, inclusive hooks obrigatórios (`optional: false`); depois, continue normalmente
+- Exclua os hooks cujo `enabled` seja explicitamente `false`. Considere habilitados por padrão aqueles sem o campo `enabled`.
+- Para cada hook restante, **não** tente interpretar ou avaliar expressões `condition`:
+  - Se não houver `condition`, ou se ela for nula/vazia, considere o hook executável
+  - Se houver `condition` não vazia, ignore o hook e deixe a avaliação da condição para a implementação de HookExecutor
+- Ao construir invocações a partir dos nomes dos comandos de hooks, substitua pontos (`.`) por hífens (`-`). Por exemplo, `speckit.git.commit` → `/speckit-git-commit`.
+- Para cada hook executável, apresente o seguinte conforme seu campo `optional`:
+  - **Hook opcional** (`optional: true`):
     ```
-    ## Extension Hooks
+    ## Hooks de Extensões
 
-    **Optional Pre-Hook**: {extension}
-    Command: `/{command}`
-    Description: {description}
+    **Hook Prévio Opcional**: {extension}
+    Comando: `/{command}`
+    Descrição: {description}
 
-    Prompt: {prompt}
-    To execute: `/{command}`
+    Solicitação: {prompt}
+    Para executar: `/{command}`
     ```
-  - **Mandatory hook** (`optional: false`):
+  - **Hook obrigatório** (`optional: false`):
     ```
-    ## Extension Hooks
+    ## Hooks de Extensões
 
-    **Automatic Pre-Hook**: {extension}
-    Executing: `/{command}`
+    **Hook Prévio Automático**: {extension}
+    Executando: `/{command}`
     EXECUTE_COMMAND: {command}
 
-    Wait for the result of the hook command before proceeding to the Outline.
+    Aguarde o resultado do hook antes de prosseguir para o Roteiro.
     ```
-    After emitting the block above you MUST actually invoke the hook and wait for it to finish before continuing. Run it the same way you would run the command yourself in this agent/session (the invocation may differ from the literal `{command}` id shown above, e.g. a skills-mode agent runs it as `/skill:speckit-...` or `$speckit-...`). Emitting the block alone does not run the hook.
-- If no hooks are registered or `.specify/extensions.yml` does not exist, skip silently
+    Após apresentar o bloco, você DEVE invocar o hook e aguardar sua conclusão. Execute-o como executaria o comando nesta sessão (a invocação pode diferir do identificador literal `{command}`; por exemplo, um agente em modo skills usa `/skill:speckit-...` ou `$speckit-...`). Apresentar apenas o bloco não executa o hook.
+- Se não houver hooks registrados ou `.specify/extensions.yml` não existir, prossiga sem anunciar essa ausência
 
-## Outline
+## Roteiro
 
-You are updating the project constitution at `.specify/memory/constitution.md`. The active
-constitution scaffold is resolved at command time from `constitution-template` through the Spec Kit
-preset/template resolution stack.
+Você está atualizando a constituição em `.specify/memory/constitution.md`. A estrutura ativa
+é resolvida no momento da execução a partir de `constitution-template`, pela pilha de resolução
+de presets/templates do Spec Kit.
 
-Follow this execution flow:
+Siga este fluxo de execução:
 
-1. Run `.specify/scripts/powershell/resolve-template.ps1 constitution-template -Json` from the repository root and parse `TEMPLATE_CONTENT` as the active template.
-   - The shared resolver applies project overrides, composing preset layers, and extension layers
-     before the core template fallback. It MUST succeed before continuing.
-   - If it fails, stop and report the resolution error; do not continue with only one contributing
-     template layer.
-   - If `.specify/memory/constitution.md` exists, load it as the source of current project-specific
-     values and amendments. Preserve information that is still applicable when applying the newly
-     resolved scaffold.
-   - If it does not exist, use the resolved template as the initial document.
-   - Do not write back to any versioned template layer.
-   - Identify every placeholder token of the form `[ALL_CAPS_IDENTIFIER]`.
-   **IMPORTANT**: The user might require less or more principles than the ones used in the template. If a number is specified, respect that - follow the general template. You will update the doc accordingly.
+1. Execute `.specify/scripts/powershell/resolve-template.ps1 constitution-template -Json` na raiz do repositório e interprete `TEMPLATE_CONTENT` como o template ativo.
+   - O resolver compartilhado aplica overrides do projeto e compõe camadas de presets e extensões
+     antes de recorrer ao template central. Ele DEVE concluir com sucesso antes de prosseguir.
+   - Se falhar, pare e informe o erro de resolução; não prossiga com apenas uma camada contribuinte.
+   - Se `.specify/memory/constitution.md` existir, carregue os valores e alterações atuais do projeto.
+     Preserve as informações ainda aplicáveis ao usar a estrutura recém-resolvida.
+   - Se não existir, use o template resolvido como documento inicial.
+   - Não escreva em nenhuma camada de template versionada.
+   - Identifique todos os placeholders no formato `[ALL_CAPS_IDENTIFIER]`.
+   **IMPORTANTE**: O usuário pode exigir mais ou menos princípios que o template. Se indicar uma quantidade, respeite-a e siga a estrutura geral, ajustando o documento.
 
-2. Collect/derive values for placeholders:
-   - If user input (conversation) supplies a value, use it.
-   - Otherwise infer from existing repo context (README, docs, prior constitution versions if embedded).
-   - For governance dates: `RATIFICATION_DATE` is the original adoption date (if unknown ask or mark TODO), `LAST_AMENDED_DATE` is today if changes are made, otherwise keep previous.
-   - `CONSTITUTION_VERSION` must increment according to semantic versioning rules:
-     - MAJOR: Backward incompatible governance/principle removals or redefinitions.
-     - MINOR: New principle/section added or materially expanded guidance.
-     - PATCH: Clarifications, wording, typo fixes, non-semantic refinements.
-   - If version bump type ambiguous, propose reasoning before finalizing.
+2. Colete ou derive os valores dos placeholders:
+   - Use o valor fornecido na conversa, quando houver.
+   - Caso contrário, infira pelo contexto existente (README, docs e versões anteriores incorporadas).
+   - Datas de governança: `RATIFICATION_DATE` é a data original de adoção (se desconhecida, pergunte ou marque TODO); `LAST_AMENDED_DATE` é hoje se houver alterações, caso contrário mantenha a anterior.
+   - Incremente `CONSTITUTION_VERSION` conforme o versionamento semântico:
+     - MAJOR: Remoções ou redefinições incompatíveis de governança/princípios.
+     - MINOR: Novo princípio/seção ou ampliação material de orientação.
+     - PATCH: Esclarecimentos, redação, erros de digitação ou refinamentos sem mudança semântica.
+   - Se o tipo de incremento for ambíguo, apresente a justificativa antes de finalizar.
 
-3. Draft the updated constitution content using the resolved template as the required structure:
-   - Replace every placeholder with concrete text (no bracketed tokens left except intentionally retained template slots that the project has chosen not to define yet—explicitly justify any left).
-   - Preserve heading hierarchy and comments can be removed once replaced unless they still add clarifying guidance.
-   - Ensure each Principle section: succinct name line, paragraph (or bullet list) capturing non‑negotiable rules, explicit rationale if not obvious.
-   - Ensure Governance section lists amendment procedure, versioning policy, and compliance review expectations.
+3. Redija a constituição atualizada usando obrigatoriamente a estrutura do template resolvido:
+  - Substitua todos os placeholders por texto concreto (não deixe tokens entre colchetes, exceto campos intencionalmente não definidos pelo projeto; justifique explicitamente cada um).
+  - Preserve a hierarquia dos títulos; remova comentários substituídos, salvo se ainda esclarecerem o conteúdo.
+  - Em cada princípio, inclua nome conciso, parágrafo ou lista com regras inegociáveis e justificativa explícita quando não for óbvia.
+  - A seção de governança deve listar o procedimento de alteração, a política de versões e as expectativas de revisão de conformidade.
 
-4. Produce a Sync Impact Report as an HTML comment at the top of the constitution file after update.
-   This report is temporary scratch material for human review of the amendment, not governance
-   content; it is expected to be removed before the amended constitution file is committed.
-   - Version change: old → new
-   - List of modified principles (old title → new title if renamed)
-   - Added sections
-   - Removed sections
-   - Follow-up TODOs if any placeholders intentionally deferred.
+4. Produza um relatório de impacto da sincronização em comentário HTML no topo da constituição atualizada.
+  O relatório é material temporário para revisão humana, não conteúdo de governança;
+  deve ser removido antes do commit da constituição alterada.
+  - Mudança de versão: anterior → nova.
+  - Princípios modificados (título anterior → novo, se renomeados).
+  - Seções adicionadas.
+  - Seções removidas.
+  - TODOs de acompanhamento para placeholders intencionalmente adiados.
 
-5. Validation before final output:
-   - No remaining unexplained bracket tokens.
-   - Version line matches report.
-   - Dates ISO format YYYY-MM-DD.
-   - Principles are declarative, testable, and free of vague language ("should" → replace with MUST/SHOULD rationale where appropriate).
+5. Valide antes da resposta final:
+  - Nenhum token entre colchetes sem explicação.
+  - Linha de versão correspondente ao relatório.
+  - Datas ISO no formato YYYY-MM-DD.
+  - Princípios declarativos, testáveis e sem linguagem vaga (substitua "deveria" por MUST/SHOULD com justificativa, quando adequado).
 
-6. Write the completed constitution back to `.specify/memory/constitution.md` (overwrite).
+6. Escreva a constituição completa em `.specify/memory/constitution.md` (sobrescreva).
 
-7. Output a final summary to the user with:
-   - New version and bump rationale.
-   - Any TODO placeholders or deferred items requiring manual follow-up.
-   - Suggested commit message (e.g., `docs: amend constitution to vX.Y.Z (principle additions + governance update)`).
-   - A `Next Actions` section for any deferred non-governance intents.
+7. Apresente um resumo final com:
+  - Nova versão e justificativa do incremento.
+  - Placeholders TODO ou itens adiados que exijam acompanhamento manual.
+  - Mensagem de commit sugerida (por exemplo, `docs: atualizar constituição para vX.Y.Z (novos princípios e revisão de governança)`).
+  - Seção `Next Actions` para intenções adiadas alheias à governança.
 
-Formatting & Style Requirements:
+Requisitos de formatação e estilo:
 
-- Use Markdown headings exactly as in the template (do not demote/promote levels).
-- Wrap long rationale lines to keep readability (<100 chars ideally) but do not hard enforce with awkward breaks.
-- Keep a single blank line between sections.
-- Avoid trailing whitespace.
+- Use os títulos Markdown exatamente como no template (não altere os níveis).
+- Quebre linhas longas de justificativa para facilitar a leitura (idealmente <100 caracteres), sem impor quebras artificiais.
+- Mantenha uma única linha vazia entre seções.
+- Evite espaços no final das linhas.
 
-If the user supplies partial updates (e.g., only one principle revision), still perform validation and version decision steps.
+Se o usuário fornecer alterações parciais (como revisar apenas um princípio), execute mesmo assim a validação e a decisão de versão.
 
-If critical info missing (e.g., ratification date truly unknown), insert `TODO(<FIELD_NAME>): explanation` and include in the Sync Impact Report under deferred items.
+Se faltar informação crítica (como data de ratificação realmente desconhecida), insira `TODO(<FIELD_NAME>): explicação` e inclua-a entre os itens adiados no relatório de impacto.
 
-Write only `.specify/memory/constitution.md`; do not create or modify template source files.
+Escreva somente em `.specify/memory/constitution.md`; não crie nem modifique arquivos-fonte dos templates.
 
-## Post-Execution Checks
+## Verificações Após a Execução
 
-**Check for extension hooks (after constitution update)**:
-Check if `.specify/extensions.yml` exists in the project root.
-- If it exists, read it and look for entries under the `hooks.after_constitution` key
-- If the YAML cannot be parsed or is invalid, do not skip silently: tell the user that `.specify/extensions.yml` could not be read (include the parser error) and that no hooks were checked, including any mandatory (`optional: false`) hooks registered there, then continue normally
-- Filter out hooks where `enabled` is explicitly `false`. Treat hooks without an `enabled` field as enabled by default.
-- For each remaining hook, do **not** attempt to interpret or evaluate hook `condition` expressions:
-  - If the hook has no `condition` field, or it is null/empty, treat the hook as executable
-  - If the hook defines a non-empty `condition`, skip the hook and leave condition evaluation to the HookExecutor implementation
-- When constructing command invocations from hook command names, replace dots (`.`) with hyphens (`-`). For example, `speckit.git.commit` → `/speckit-git-commit`.
-- For each executable hook, output the following based on its `optional` flag:
-  - **Optional hook** (`optional: true`):
+**Verifique os hooks de extensões (após a atualização da constituição)**:
+Verifique se `.specify/extensions.yml` existe na raiz do projeto.
+- Se existir, leia-o e procure entradas na chave `hooks.after_constitution`.
+- Se o YAML não puder ser interpretado ou for inválido, não ignore silenciosamente: informe que `.specify/extensions.yml` não pôde ser lido (inclua o erro do parser) e que nenhum hook foi verificado, inclusive hooks obrigatórios (`optional: false`); depois, continue normalmente
+- Exclua os hooks cujo `enabled` seja explicitamente `false`. Considere habilitados por padrão aqueles sem o campo `enabled`.
+- Para cada hook restante, **não** tente interpretar ou avaliar expressões `condition`:
+  - Se não houver `condition`, ou se ela for nula/vazia, considere o hook executável
+  - Se houver `condition` não vazia, ignore o hook e deixe a avaliação da condição para a implementação de HookExecutor
+- Ao construir invocações a partir dos nomes dos comandos de hooks, substitua pontos (`.`) por hífens (`-`). Por exemplo, `speckit.git.commit` → `/speckit-git-commit`.
+- Para cada hook executável, apresente o seguinte conforme seu campo `optional`:
+  - **Hook opcional** (`optional: true`):
     ```
-    ## Extension Hooks
+    ## Hooks de Extensões
 
-    **Optional Hook**: {extension}
-    Command: `/{command}`
-    Description: {description}
+    **Hook Opcional**: {extension}
+    Comando: `/{command}`
+    Descrição: {description}
 
-    Prompt: {prompt}
-    To execute: `/{command}`
+    Solicitação: {prompt}
+    Para executar: `/{command}`
     ```
-  - **Mandatory hook** (`optional: false`):
+  - **Hook obrigatório** (`optional: false`):
     ```
-    ## Extension Hooks
+    ## Hooks de Extensões
 
-    **Automatic Hook**: {extension}
-    Executing: `/{command}`
+    **Hook Automático**: {extension}
+    Executando: `/{command}`
     EXECUTE_COMMAND: {command}
     ```
-    After emitting the block above you MUST actually invoke the hook and wait for it to finish before continuing. Run it the same way you would run the command yourself in this agent/session (the invocation may differ from the literal `{command}` id shown above, e.g. a skills-mode agent runs it as `/skill:speckit-...` or `$speckit-...`). Emitting the block alone does not run the hook.
-- If no hooks are registered or `.specify/extensions.yml` does not exist, skip silently
+    Após apresentar o bloco, você DEVE invocar o hook e aguardar sua conclusão. Execute-o como executaria o comando nesta sessão (a invocação pode diferir do identificador literal `{command}`; por exemplo, um agente em modo skills usa `/skill:speckit-...` ou `$speckit-...`). Apresentar apenas o bloco não executa o hook.
+- Se não houver hooks registrados ou `.specify/extensions.yml` não existir, prossiga sem anunciar essa ausência

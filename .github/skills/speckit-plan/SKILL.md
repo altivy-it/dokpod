@@ -1,166 +1,166 @@
 ---
 name: "speckit-plan"
-description: "Execute the implementation planning workflow using the plan template to generate design artifacts."
-compatibility: "Requires spec-kit project structure with .specify/ directory"
+description: "Executar o fluxo de planejamento da implementação usando o template de plano para gerar artefatos de desenho."
+compatibility: "Requer a estrutura de projeto do spec-kit com o diretório .specify/"
 metadata:
   author: "github-spec-kit"
   source: "templates/commands/plan.md"
 ---
 
 
-## User Input
+## Entrada do Usuário
 
 ```text
 $ARGUMENTS
 ```
 
-You **MUST** consider the user input before proceeding (if not empty).
+Você **DEVE** considerar a entrada do usuário antes de prosseguir (se não estiver vazia).
 
-## Pre-Execution Checks
+## Verificações Antes da Execução
 
-**Check for extension hooks (before planning)**:
-- Check if `.specify/extensions.yml` exists in the project root.
-- If it exists, read it and look for entries under the `hooks.before_plan` key
-- If the YAML cannot be parsed or is invalid, do not skip silently: tell the user that `.specify/extensions.yml` could not be read (include the parser error) and that no hooks were checked, including any mandatory (`optional: false`) hooks registered there, then continue normally
-- Filter out hooks where `enabled` is explicitly `false`. Treat hooks without an `enabled` field as enabled by default.
-- For each remaining hook, do **not** attempt to interpret or evaluate hook `condition` expressions:
-  - If the hook has no `condition` field, or it is null/empty, treat the hook as executable
-  - If the hook defines a non-empty `condition`, skip the hook and leave condition evaluation to the HookExecutor implementation
-- When constructing command invocations from hook command names, replace dots (`.`) with hyphens (`-`). For example, `speckit.git.commit` → `/speckit-git-commit`.
-- For each executable hook, output the following based on its `optional` flag:
-  - **Optional hook** (`optional: true`):
+**Verifique os hooks de extensões (antes do planejamento)**:
+- Verifique se `.specify/extensions.yml` existe na raiz do projeto.
+- Se existir, leia-o e procure entradas na chave `hooks.before_plan`.
+- Se o YAML não puder ser interpretado ou for inválido, não ignore silenciosamente: informe que `.specify/extensions.yml` não pôde ser lido (inclua o erro do parser) e que nenhum hook foi verificado, inclusive hooks obrigatórios (`optional: false`); depois, continue normalmente
+- Exclua os hooks cujo `enabled` seja explicitamente `false`. Considere habilitados por padrão aqueles sem o campo `enabled`.
+- Para cada hook restante, **não** tente interpretar ou avaliar expressões `condition`:
+  - Se não houver `condition`, ou se ela for nula/vazia, considere o hook executável
+  - Se houver `condition` não vazia, ignore o hook e deixe a avaliação da condição para a implementação de HookExecutor
+- Ao construir invocações a partir dos nomes dos comandos de hooks, substitua pontos (`.`) por hífens (`-`). Por exemplo, `speckit.git.commit` → `/speckit-git-commit`.
+- Para cada hook executável, apresente o seguinte conforme seu campo `optional`:
+  - **Hook opcional** (`optional: true`):
     ```
-    ## Extension Hooks
+    ## Hooks de Extensões
 
-    **Optional Pre-Hook**: {extension}
-    Command: `/{command}`
-    Description: {description}
+    **Hook Prévio Opcional**: {extension}
+    Comando: `/{command}`
+    Descrição: {description}
 
-    Prompt: {prompt}
-    To execute: `/{command}`
+    Solicitação: {prompt}
+    Para executar: `/{command}`
     ```
-  - **Mandatory hook** (`optional: false`):
+  - **Hook obrigatório** (`optional: false`):
     ```
-    ## Extension Hooks
+    ## Hooks de Extensões
 
-    **Automatic Pre-Hook**: {extension}
-    Executing: `/{command}`
+    **Hook Prévio Automático**: {extension}
+    Executando: `/{command}`
     EXECUTE_COMMAND: {command}
 
-    Wait for the result of the hook command before proceeding to the Outline.
+    Aguarde o resultado do hook antes de prosseguir para o Roteiro.
     ```
-    After emitting the block above you MUST actually invoke the hook and wait for it to finish before continuing. Run it the same way you would run the command yourself in this agent/session (the invocation may differ from the literal `{command}` id shown above, e.g. a skills-mode agent runs it as `/skill:speckit-...` or `$speckit-...`). Emitting the block alone does not run the hook.
-- If no hooks are registered or `.specify/extensions.yml` does not exist, skip silently
+    Após apresentar o bloco, você DEVE invocar o hook e aguardar sua conclusão. Execute-o como executaria o comando nesta sessão (a invocação pode diferir do identificador literal `{command}`; por exemplo, um agente em modo skills usa `/skill:speckit-...` ou `$speckit-...`). Apresentar apenas o bloco não executa o hook.
+- Se não houver hooks registrados ou `.specify/extensions.yml` não existir, prossiga sem anunciar essa ausência
 
-## Outline
+## Roteiro
 
-1. **Setup**: Run `.specify/scripts/powershell/setup-plan.ps1 -Json` from repo root and parse JSON for FEATURE_SPEC, IMPL_PLAN, FEATURE_DIR, BRANCH. For single quotes in args like "I'm Groot", use escape syntax: e.g 'I'\''m Groot' (or double-quote if possible: "I'm Groot").
+1. **Preparação**: Execute `.specify/scripts/powershell/setup-plan.ps1 -Json` na raiz do repositório e interprete o JSON para obter FEATURE_SPEC, IMPL_PLAN, FEATURE_DIR e BRANCH. Para aspas simples em argumentos como "I'm Groot", use escape: por exemplo, 'I'\''m Groot' (ou aspas duplas, se possível: "I'm Groot").
 
-2. **Load context**: Read FEATURE_SPEC and `.specify/memory/constitution.md`. Load IMPL_PLAN template (already copied).
+2. **Carregar contexto**: Leia FEATURE_SPEC e `.specify/memory/constitution.md`. Carregue o template IMPL_PLAN (já copiado).
 
-3. **Execute plan workflow**: Follow the structure in IMPL_PLAN template to:
-   - Fill Technical Context (mark unknowns as "NEEDS CLARIFICATION")
-   - Fill Constitution Check section from constitution
-   - Evaluate gates (ERROR if violations unjustified)
-   - Phase 0: Generate research.md (resolve all NEEDS CLARIFICATION)
-   - Phase 1: Generate data-model.md, contracts/, quickstart.md
-   - Re-evaluate Constitution Check post-design
+3. **Executar o planejamento**: Siga a estrutura do template IMPL_PLAN para:
+  - Preencher o contexto técnico (marque dúvidas como "NEEDS CLARIFICATION").
+  - Preencher a verificação da constituição com base nos seus princípios.
+  - Avaliar as verificações obrigatórias (ERROR se houver violações sem justificativa).
+  - Fase 0: Gerar research.md (resolver todos os NEEDS CLARIFICATION).
+  - Fase 1: Gerar data-model.md, contracts/ e quickstart.md.
+  - Reavaliar a verificação da constituição após o desenho.
 
-## Mandatory Post-Execution Hooks
+## Hooks Obrigatórios Após a Execução
 
-**You MUST complete this section before reporting completion to the user.**
+**Você DEVE concluir esta seção antes de informar a conclusão ao usuário.**
 
-Check if `.specify/extensions.yml` exists in the project root.
-- If it does not exist, or no hooks are registered under `hooks.after_plan`, skip to the Completion Report.
-- If it exists, read it and look for entries under the `hooks.after_plan` key.
-- If the YAML cannot be parsed or is invalid, do not skip silently: tell the user that `.specify/extensions.yml` could not be read (include the parser error) and that no hooks were checked, including any mandatory (`optional: false`) hooks registered there, then continue to the Completion Report.
-- Filter out hooks where `enabled` is explicitly `false`. Treat hooks without an `enabled` field as enabled by default.
-- For each remaining hook, do **not** attempt to interpret or evaluate hook `condition` expressions:
-  - If the hook has no `condition` field, or it is null/empty, treat the hook as executable
-  - If the hook defines a non-empty `condition`, skip the hook and leave condition evaluation to the HookExecutor implementation
-- When constructing command invocations from hook command names, replace dots (`.`) with hyphens (`-`). For example, `speckit.git.commit` → `/speckit-git-commit`.
-- For each executable hook, output the following based on its `optional` flag:
-  - **Mandatory hook** (`optional: false`) — **You MUST emit `EXECUTE_COMMAND:` for each mandatory hook**:
+Verifique se `.specify/extensions.yml` existe na raiz do projeto.
+- Se não existir ou não houver hooks registrados na chave `hooks.after_plan`, prossiga para o Relatório de Conclusão.
+- Se existir, leia-o e procure entradas na chave `hooks.after_plan`.
+- Se o YAML não puder ser interpretado ou for inválido, não ignore silenciosamente: informe que `.specify/extensions.yml` não pôde ser lido (inclua o erro do parser) e que nenhum hook foi verificado, inclusive hooks obrigatórios (`optional: false`); depois, prossiga para o Relatório de Conclusão.
+- Exclua os hooks cujo `enabled` seja explicitamente `false`. Considere habilitados por padrão aqueles sem o campo `enabled`.
+- Para cada hook restante, **não** tente interpretar ou avaliar expressões `condition`:
+  - Se não houver `condition`, ou se ela for nula/vazia, considere o hook executável
+  - Se houver `condition` não vazia, ignore o hook e deixe a avaliação da condição para a implementação de HookExecutor
+- Ao construir invocações a partir dos nomes dos comandos de hooks, substitua pontos (`.`) por hífens (`-`). Por exemplo, `speckit.git.commit` → `/speckit-git-commit`.
+- Para cada hook executável, apresente o seguinte conforme seu campo `optional`:
+  - **Hook obrigatório** (`optional: false`) — **Você DEVE apresentar `EXECUTE_COMMAND:` para cada hook obrigatório**:
     ```
-    ## Extension Hooks
+    ## Hooks de Extensões
 
-    **Automatic Hook**: {extension}
-    Executing: `/{command}`
+    **Hook Automático**: {extension}
+    Executando: `/{command}`
     EXECUTE_COMMAND: {command}
     ```
-    After emitting the block above you MUST actually invoke the hook and wait for it to finish before continuing. Run it the same way you would run the command yourself in this agent/session (the invocation may differ from the literal `{command}` id shown above, e.g. a skills-mode agent runs it as `/skill:speckit-...` or `$speckit-...`). Emitting the block alone does not run the hook.
-  - **Optional hook** (`optional: true`):
+    Após apresentar o bloco, você DEVE invocar o hook e aguardar sua conclusão. Execute-o como executaria o comando nesta sessão (a invocação pode diferir do identificador literal `{command}`; por exemplo, um agente em modo skills usa `/skill:speckit-...` ou `$speckit-...`). Apresentar apenas o bloco não executa o hook.
+  - **Hook opcional** (`optional: true`):
     ```
-    ## Extension Hooks
+    ## Hooks de Extensões
 
-    **Optional Hook**: {extension}
-    Command: `/{command}`
-    Description: {description}
+    **Hook Opcional**: {extension}
+    Comando: `/{command}`
+    Descrição: {description}
 
-    Prompt: {prompt}
-    To execute: `/{command}`
+    Solicitação: {prompt}
+    Para executar: `/{command}`
     ```
 
-## Completion Report
+## Relatório de Conclusão
 
-Command ends after Phase 1 design. Report branch, IMPL_PLAN path, and generated artifacts.
+O comando termina após o desenho da fase 1. Informe a branch, o caminho IMPL_PLAN e os artefatos gerados.
 
-## Phases
+## Fases
 
-### Phase 0: Outline & Research
+### Fase 0: Roteiro e Pesquisa
 
-1. **Extract unknowns from Technical Context** above:
-   - For each NEEDS CLARIFICATION → research task
-   - For each dependency → best practices task
-   - For each integration → patterns task
+1. **Extraia as dúvidas do contexto técnico** acima:
+  - Para cada NEEDS CLARIFICATION → tarefa de pesquisa.
+  - Para cada dependência → tarefa de boas práticas.
+  - Para cada integração → tarefa de padrões.
 
-2. **Generate and dispatch research agents**:
+2. **Gere e acione agentes de pesquisa**:
 
    ```text
-   For each unknown in Technical Context:
-     Task: "Research {unknown} for {feature context}"
-   For each technology choice:
-     Task: "Find best practices for {tech} in {domain}"
+   Para cada dúvida do contexto técnico:
+     Tarefa: "Pesquise {unknown} para {feature context}"
+   Para cada escolha tecnológica:
+     Tarefa: "Encontre boas práticas para {tech} em {domain}"
    ```
 
-3. **Consolidate findings** in `research.md` using format:
-   - Decision: [what was chosen]
-   - Rationale: [why chosen]
-   - Alternatives considered: [what else evaluated]
+3. **Consolide os achados** em `research.md` usando o formato:
+  - Decisão: [o que foi escolhido]
+  - Justificativa: [por que foi escolhido]
+  - Alternativas consideradas: [o que mais foi avaliado]
 
-**Output**: research.md with all NEEDS CLARIFICATION resolved
+**Saída**: research.md com todos os NEEDS CLARIFICATION resolvidos.
 
-### Phase 1: Design & Contracts
+### Fase 1: Desenho e Contratos
 
-**Prerequisites:** `research.md` complete
+**Pré-requisitos:** `research.md` completo.
 
-1. **Extract entities from feature spec** → `data-model.md`:
-   - Entity name, fields, relationships
-   - Validation rules from requirements
-   - State transitions if applicable
+1. **Extraia as entidades da spec da feature** → `data-model.md`:
+  - Nome da entidade, campos e relacionamentos.
+  - Regras de validação dos requisitos.
+  - Transições de estado, quando aplicáveis.
 
-2. **Define interface contracts** (if project has external interfaces) → `/contracts/`:
-   - Identify what interfaces the project exposes to users or other systems
-   - Document the contract format appropriate for the project type
-   - Examples: public APIs for libraries, command schemas for CLI tools, endpoints for web services, grammars for parsers, UI contracts for applications
-   - Skip if project is purely internal (build scripts, one-off tools, etc.)
+2. **Defina contratos de interfaces** (se houver interfaces externas no projeto) → `/contracts/`:
+  - Identifique as interfaces que o projeto expõe aos usuários ou a outros sistemas.
+  - Documente o formato de contrato adequado ao tipo de projeto.
+  - Exemplos: APIs públicas de bibliotecas, schemas de comandos CLI, endpoints de serviços web, gramáticas de parsers e contratos de UI.
+  - Ignore se o projeto for exclusivamente interno (scripts de build, ferramentas pontuais etc.).
 
-3. **Create quickstart validation guide** → `quickstart.md`:
-   - Document runnable validation scenarios that prove the feature works end-to-end
-   - Include prerequisites, setup commands, test/run commands, and expected outcomes
-   - Use links or references to contracts and data model details instead of duplicating them
-   - Do not include full implementation code, model/service/controller bodies, migrations, or complete test suites
-   - Keep this artifact as a validation/run guide; implementation details belong in `tasks.md` and the implementation phase
+3. **Crie um guia de validação inicial** → `quickstart.md`:
+  - Documente cenários executáveis que comprovem o funcionamento ponta a ponta da feature.
+  - Inclua pré-requisitos, comandos de preparação, teste/execução e resultados esperados.
+  - Use links ou referências a contratos e detalhes do modelo de dados em vez de duplicá-los.
+  - Não inclua implementação completa, corpos de modelos/serviços/controllers, migrations ou suítes completas de testes.
+  - Mantenha este artefato como guia de validação/execução; detalhes de implementação pertencem a `tasks.md` e à fase de implementação.
 
-**Output**: data-model.md, /contracts/*, quickstart.md
+**Saída**: data-model.md, /contracts/* e quickstart.md.
 
-## Key rules
+## Regras Principais
 
-- Use absolute paths for filesystem operations; use project-relative paths for references in documentation
-- ERROR on gate failures or unresolved clarifications
+- Use caminhos absolutos para operações no sistema de arquivos e caminhos relativos ao projeto nas referências da documentação.
+- Informe ERROR quando uma verificação obrigatória falhar ou houver esclarecimentos não resolvidos.
 
-## Done When
+## Critérios de Conclusão
 
-- [ ] Plan workflow executed and design artifacts generated
-- [ ] Extension hooks dispatched or skipped according to the rules in Mandatory Post-Execution Hooks above
-- [ ] Completion reported to user with branch, plan path, and generated artifacts
+- [ ] Fluxo de planejamento executado e artefatos de desenho gerados.
+- [ ] Hooks de extensões acionados ou ignorados conforme as regras de Hooks Obrigatórios Após a Execução acima.
+- [ ] Conclusão informada ao usuário com branch, caminho do plano e artefatos gerados.

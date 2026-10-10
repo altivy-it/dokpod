@@ -1,126 +1,194 @@
 ---
-description: "Validate that a previously fixed bug is resolved and record the verification report"
+description: "Validar se um bug corrigido foi resolvido e registrar o relatório de verificação"
 ---
 
-# Test Bug Fix
 
-Validate that the fix recorded by `__SPECKIT_COMMAND_BUG_FIX__` actually resolves the bug described by `__SPECKIT_COMMAND_BUG_ASSESS__`. The output is a verification report at `.specify/bugs/<slug>/test.md`.
+# Testar Correção de Bug
 
-## Orientação de Idioma (pt-BR)
+Valide se a correção registrada por `__SPECKIT_COMMAND_BUG_FIX__` resolve o bug descrito por `__SPECKIT_COMMAND_BUG_ASSESS__`. A saída é um relatório em `.specify/bugs/<slug>/test.md`.
 
-- Responda ao usuário e escreva o conteúdo narrativo de `test.md` em português brasileiro (pt-BR), incluindo resumo, evidências, limitações, riscos residuais e recomendação.
-- Preserve em inglês todos os títulos, rótulos de campos e cabeçalhos de tabelas do modelo oficial abaixo, incluindo `Bug Verification`, `Slug`, `Assessment`, `Fix`, `Result`, `Checks Performed`, `Output Excerpts`, `Residual Risks` e `Recommendation`. Leia os rótulos canônicos dos relatórios anteriores sem traduzi-los.
-- Preserve os valores literais `verified`, `partial`, `failed`, `pass`, `fail`, `skipped` e `not-run`; escreva justificativas em pt-BR. Use `not-run` para verificações não executadas e `partial` no resultado geral quando faltar evidência crítica, sem criar um novo valor de `Result`.
-- Não traduza `$ARGUMENTS`, `BUG_SLUG`, `BUG_DIR`, tokens `__SPECKIT_COMMAND_BUG_*__`, comandos, caminhos, identificadores, datas ISO 8601, mensagens técnicas citadas nem referências `./assessment.md` e `./fix.md`.
-- Esta orientação não substitui o fluxo oficial nem seus guardrails: não altere código-fonte nem relatórios anteriores, não sobrescreva `test.md` sem confirmação e não declare `verified` sem exercitar a reprodução original e concluir as verificações críticas.
-- Preserve evidências técnicas sem incluir secrets ou dados sensíveis; registre a supressão em pt-BR. Não invente resultados e siga as regras de execução e validação do Dokpod.
-
-## User Input
+## Entrada do Usuário
 
 ```text
 $ARGUMENTS
 ```
 
-The user input should identify the bug to validate. Accept any of:
+A entrada deve identificar o bug a validar. Aceite:
 
-- `slug=<bug-slug>` or `--slug <bug-slug>` or a bare slug-like token.
-- A path that contains the slug (e.g. `.specify/bugs/login-timeout/`).
-- **Nothing** — fall back to context (see below).
+- `slug=<bug-slug>`, `--slug <bug-slug>` ou token isolado semelhante a slug.
+- Caminho contendo o slug, como `.specify/bugs/login-timeout/`.
+- **Entrada vazia**: Recorra ao contexto, conforme abaixo.
 
-## Slug Resolution
+## Resolução do Slug
 
-Resolve `BUG_SLUG` in this order, stopping at the first match:
+Resolva `BUG_SLUG` nesta ordem, parando na primeira correspondência:
 
-1. **Explicit user input** — a slug passed in `$ARGUMENTS` (any of the forms above).
-2. **Conversation context** — if the current session has just run `__SPECKIT_COMMAND_BUG_ASSESS__` or `__SPECKIT_COMMAND_BUG_FIX__`, the slug it reported is the working slug. Reuse it without re-prompting. Confirm it by checking that `.specify/bugs/<slug>/fix.md` exists; if it does not, fall through.
-3. **Single candidate on disk** — list `.specify/bugs/*/fix.md`. If exactly one bug has a `fix.md`, use it.
-4. **Disambiguate**:
-   - **Interactive mode**: ask the user which bug to validate and list the candidates.
-   - **Automated mode**: stop with an error listing the candidates. Do not guess.
+1. **Entrada explícita**: Slug em `$ARGUMENTS` em uma das formas acima.
+2. **Contexto da conversa**: Se `__SPECKIT_COMMAND_BUG_ASSESS__` ou `__SPECKIT_COMMAND_BUG_FIX__` acabou de executar, reutilize o slug sem perguntar. Confirme `.specify/bugs/<slug>/fix.md`; se ausente, avance na resolução.
+3. **Candidato único em disco**: Liste `.specify/bugs/*/fix.md`; com exatamente um bug com `fix.md`, use-o.
+4. **Desambiguação**:
+  - **Interativo**: Pergunte qual bug validar e liste candidatos.
+  - **Automatizado**: Pare com erro e liste candidatos, sem adivinhar.
 
-Once resolved, set `BUG_SLUG` and `BUG_DIR = .specify/bugs/<BUG_SLUG>`, and briefly state in your reply which resolution path was used (explicit / from context / single candidate / asked).
+Defina `BUG_SLUG` e `BUG_DIR = .specify/bugs/<BUG_SLUG>` e informe brevemente a origem: explícita, contexto, candidato único ou pergunta.
 
-## Prerequisites
+## Pré-requisitos
 
-- `BUG_DIR/assessment.md` MUST exist.
-- `BUG_DIR/fix.md` MUST exist. If not, stop and instruct the user to run `__SPECKIT_COMMAND_BUG_FIX__` first.
-- If `BUG_DIR/test.md` already exists, ask the user whether to overwrite it (interactive mode) or refuse (automated mode).
-- Read both `assessment.md` and `fix.md` in full so you know:
-  - The original symptom and reproduction steps (from `assessment.md`).
-  - The actual code changes and tests added (from `fix.md`).
+- `BUG_DIR/assessment.md` DEVE existir.
+- `BUG_DIR/fix.md` DEVE existir; caso contrário, pare e oriente executar `__SPECKIT_COMMAND_BUG_FIX__` primeiro.
+- Se `BUG_DIR/test.md` existir, peça autorização para sobrescrever no modo interativo ou recuse no automatizado.
+- Leia `assessment.md` e `fix.md` integralmente para conhecer:
+  - Sintoma original e passos de reprodução de `assessment.md`.
+  - Mudanças reais e testes adicionados de `fix.md`.
 
-## Execution
+## Verificações Antes da Execução
 
-1. **Plan the validation**
-   - Decide which checks prove the bug is gone:
-     - Re-run the reproduction steps from the assessment (or their automated equivalent).
-     - Run the tests added or updated in the fix.
-     - Run any broader regression suite that touches the changed files.
-   - Decide which checks prove nothing was broken:
-     - Existing test suites for the changed modules.
-     - Lint / type-check if the project uses them.
+Neste ponto, `BUG_SLUG` e `BUG_DIR` estão resolvidos; hooks desta sessão podem reutilizá-los da conversa, mas nada é repassado automaticamente.
 
-2. **Run the checks**
-   - Execute each planned check. Capture command, exit status, and a short excerpt of relevant output (last few lines, or the failing assertion).
-   - If a check is destructive, network-dependent, or expensive, skip it and record it as `skipped` with a reason; do not run it without explicit user consent.
-   - If you cannot run a check at all (missing tooling, no test framework configured), record it as `not-run` with a reason instead of fabricating a result.
+**Verifique os hooks de extensões (antes da verificação)**:
+- Verifique se `.specify/extensions.yml` existe na raiz do projeto.
+- Se existir, leia-o e procure entradas na chave `hooks.before_bug_test`.
+- Se o YAML não puder ser interpretado ou for inválido, não ignore silenciosamente: informe que `.specify/extensions.yml` não pôde ser lido (inclua o erro do parser) e que nenhum hook foi verificado, inclusive hooks obrigatórios (`optional: false`); depois, continue normalmente
+- Exclua os hooks cujo `enabled` seja explicitamente `false`. Considere habilitados por padrão aqueles sem o campo `enabled`.
+- Para cada hook restante, **não** tente interpretar ou avaliar expressões `condition`:
+  - Se não houver `condition`, ou se ela for nula/vazia, considere o hook executável
+  - Se houver `condition` não vazia, ignore o hook e deixe a avaliação da condição para a implementação de HookExecutor
+- Para cada hook executável, apresente o seguinte conforme seu campo `optional`:
+  - **Hook opcional** (`optional: true`):
+    ```
+    ## Hooks de Extensões
 
-3. **Judge the outcome**
-   - Mark the fix as:
-     - **verified** — all critical checks pass and the original symptom no longer reproduces.
-     - **partial** — the original symptom is gone but unrelated regressions appeared, or some checks are inconclusive.
-     - **failed** — the symptom still reproduces or the regression suite is broken by the fix.
-   - Do not over-claim. If reproduction was not actually performed (e.g., the bug required a production environment), say so explicitly.
+    **Hook Prévio Opcional**: {extension}
+    Comando: `/{command}`
+    Descrição: {description}
 
-4. **Write the verification report**
+    Solicitação: {prompt}
+    Para executar: `/{command}`
+    ```
+  - **Hook obrigatório** (`optional: false`):
+    ```
+    ## Hooks de Extensões
 
-   Write to `BUG_DIR/test.md` using this structure:
+    **Hook Prévio Automático**: {extension}
+    Executando: `/{command}`
+    EXECUTE_COMMAND: {command}
+
+    Aguarde o resultado do hook antes de prosseguir para a Execução.
+    ```
+    Após apresentar o bloco, você DEVE invocar o hook e aguardar sua conclusão. Execute-o como executaria o comando nesta sessão (a invocação pode diferir do identificador literal `{command}`; por exemplo, um agente em modo skills usa `/skill:speckit-...` ou `$speckit-...`). Apresentar apenas o bloco não executa o hook.
+- Se não houver hooks registrados ou `.specify/extensions.yml` não existir, prossiga sem anunciar essa ausência
+
+## Execução
+
+1. **Planeje a validação**
+   - Determine verificações que provem a resolução:
+     - Repita os passos da avaliação ou seu equivalente automatizado.
+     - Execute testes adicionados/atualizados na correção.
+     - Execute suítes de regressão mais amplas dos arquivos alterados.
+   - Determine verificações que comprovem ausência de regressão:
+     - Suítes existentes dos módulos alterados.
+     - Lint/verificação de tipos, se adotados.
+
+2. **Execute as verificações**
+  - Execute cada uma; registre comando, código de saída e trecho relevante, como últimas linhas ou assertion falha.
+  - Se destrutiva, dependente de rede ou onerosa, registre `skipped` com motivo; não execute sem consentimento explícito.
+  - Se impossível por ferramenta ausente ou framework não configurado, registre `not-run` com motivo, sem inventar resultados.
+
+3. **Avalie o resultado**
+   - Classifique como:
+     - **verified**: Verificações críticas aprovadas e sintoma original não reproduz mais.
+     - **partial**: Sintoma resolvido, mas surgiram regressões alheias ou há verificações inconclusivas.
+     - **failed**: Sintoma persiste ou a correção quebrou a suíte de regressão.
+   - Não exagere a confirmação. Se a reprodução não ocorreu, como por exigir produção, informe explicitamente.
+
+4. **Escreva o relatório de verificação**
+
+  Escreva em `BUG_DIR/test.md` com esta estrutura:
 
    ```markdown
-   # Bug Verification: <short title>
+  # Verificação de Bug: <título curto>
 
    - **Slug**: <BUG_SLUG>
-   - **Tested**: <ISO 8601 date>
-   - **Assessment**: ./assessment.md
-   - **Fix**: ./fix.md
-   - **Result**: verified | partial | failed
+  - **Testado em**: <data ISO 8601>
+  - **Avaliação**: ./assessment.md
+  - **Correção**: ./fix.md
+  - **Resultado**: verified | partial | failed
 
-   ## Summary
+  ## Resumo
 
-   <One or two sentences: does the bug reproduce, did the fix hold, were any regressions found.>
+  <Uma ou duas frases sobre reprodução, efetividade da correção e regressões encontradas.>
 
-   ## Checks Performed
+  ## Verificações Executadas
 
-   | Check | Command / Action | Result | Notes |
+  | Verificação | Comando / Ação | Resultado | Notas |
    |-------|------------------|--------|-------|
-   | Reproduction (post-fix) | <command or manual steps> | pass / fail / skipped / not-run | <short note> |
-   | New / updated tests | `<command>` | pass / fail | <short note> |
-   | Regression suite | `<command>` | pass / fail / skipped | <short note> |
-   | Lint / type-check | `<command>` | pass / fail / skipped | <short note> |
+  | Reprodução após correção | <comando ou passos manuais> | pass / fail / skipped / not-run | <nota curta> |
+  | Testes novos / atualizados | `<command>` | pass / fail | <nota curta> |
+  | Suíte de regressão | `<command>` | pass / fail / skipped | <nota curta> |
+  | Lint / verificação de tipos | `<command>` | pass / fail / skipped | <nota curta> |
 
-   ## Output Excerpts
+  ## Trechos de Saída
 
-   <Short snippets of relevant output (e.g., final summary line of a test run, the failing assertion). Keep it tight — no full logs.>
+  <Trechos curtos, como resumo final dos testes ou assertion falha; sem logs completos.>
 
-   ## Residual Risks
+  ## Riscos Residuais
 
-   - <known limitation, environment not covered, etc.>
+  - <limitação conhecida, ambiente não coberto etc.>
 
-   ## Recommendation
+  ## Recomendação
 
-   <One paragraph. Examples:>
-   - "Close the bug — verified end-to-end."
-   - "Hold — reproduction inconclusive; needs verification in staging."
-   - "Reopen — symptom still reproduces; rerun `__SPECKIT_COMMAND_BUG_ASSESS__`."
+  <Um parágrafo. Exemplos:>
+  - "Encerre o bug: verificado ponta a ponta."
+  - "Aguarde: reprodução inconclusiva; exige verificação em staging."
+  - "Reabra: sintoma persiste; repita `__SPECKIT_COMMAND_BUG_ASSESS__`."
    ```
 
-5. **Report back** with:
-   - The slug and `BUG_DIR/test.md` path.
-   - The result (`verified`, `partial`, `failed`).
-   - If the result is `failed`, recommend re-running `__SPECKIT_COMMAND_BUG_ASSESS__` with the new evidence captured in `test.md`.
+## Hooks Obrigatórios Após a Execução
 
-## Guardrails
+**Você DEVE concluir esta seção antes de informar a conclusão ao usuário.**
 
-- This command MUST NOT modify source code. It only runs checks and writes inside `.specify/bugs/<slug>/`.
-- Never overwrite an existing `test.md` without confirmation.
-- Never mark a fix as `verified` based on tests alone if the original assessment listed a reproduction that you did not actually exercise — downgrade to `partial` and say so.
+Neste ponto, `BUG_SLUG` e `BUG_DIR` estão resolvidos e o relatório está disponível; hooks podem reutilizá-los da conversa, sem repasse automático.
+
+Verifique se `.specify/extensions.yml` existe na raiz do projeto.
+- Se não existir ou não houver hooks registrados na chave `hooks.after_bug_test`, prossiga para o Relatório de Conclusão.
+- Se existir, leia-o e procure entradas na chave `hooks.after_bug_test`.
+- Se o YAML não puder ser interpretado ou for inválido, não ignore silenciosamente: informe que `.specify/extensions.yml` não pôde ser lido (inclua o erro do parser) e que nenhum hook foi verificado, inclusive hooks obrigatórios (`optional: false`); depois, prossiga para o Relatório de Conclusão.
+- Exclua os hooks cujo `enabled` seja explicitamente `false`. Considere habilitados por padrão aqueles sem o campo `enabled`.
+- Para cada hook restante, **não** tente interpretar ou avaliar expressões `condition`:
+  - Se não houver `condition`, ou se ela for nula/vazia, considere o hook executável
+  - Se houver `condition` não vazia, ignore o hook e deixe a avaliação da condição para a implementação de HookExecutor
+- Para cada hook executável, apresente o seguinte conforme seu campo `optional`:
+  - **Hook obrigatório** (`optional: false`) — **Você DEVE apresentar `EXECUTE_COMMAND:` para cada hook obrigatório**:
+    ```
+    ## Hooks de Extensões
+
+    **Hook Automático**: {extension}
+    Executando: `/{command}`
+    EXECUTE_COMMAND: {command}
+    ```
+    Após apresentar o bloco, você DEVE invocar o hook e aguardar sua conclusão. Execute-o como executaria o comando nesta sessão (a invocação pode diferir do identificador literal `{command}`; por exemplo, um agente em modo skills usa `/skill:speckit-...` ou `$speckit-...`). Apresentar apenas o bloco não executa o hook.
+  - **Hook opcional** (`optional: true`):
+    ```
+    ## Hooks de Extensões
+
+    **Hook Opcional**: {extension}
+    Comando: `/{command}`
+    Descrição: {description}
+
+    Solicitação: {prompt}
+    Para executar: `/{command}`
+    ```
+
+## Relatório de Conclusão
+
+**Informe**:
+
+- Slug e caminho `BUG_DIR/test.md`.
+- Resultado (`verified`, `partial`, `failed`).
+- Com `failed`, recomende repetir `__SPECKIT_COMMAND_BUG_ASSESS__` com as novas evidências de `test.md`.
+
+## Restrições de Segurança
+
+- Este comando NÃO DEVE modificar código. Só executa verificações e escreve em `.specify/bugs/<slug>/`.
+- Nunca sobrescreva `test.md` existente sem confirmação.
+- Nunca classifique `verified` somente pelos testes se a reprodução prevista não foi executada; use `partial` e informe.

@@ -2,9 +2,9 @@ schema_version: "1.0"
 
 extension:
   id: bug
-  name: "Bug Triage Workflow"
-  version: "1.0.0"
-  description: "Assess, fix, and validate bug reports against the codebase with per-bug reports stored under .specify/bugs/<slug>/"
+  name: "Fluxo de Triagem de Bugs"
+  version: "1.0.1"
+  description: "Avaliar, corrigir e validar relatos de bugs contra o código, com relatórios por bug em .specify/bugs/<slug>/"
   author: spec-kit-core
   repository: https://github.com/github/spec-kit
   license: MIT
@@ -16,13 +16,13 @@ provides:
   commands:
     - name: speckit.bug.assess
       file: commands/speckit.bug.assess.md
-      description: "Assess a bug report (pasted text or URL) against the codebase and produce an assessment with possible remediation"
+      description: "Avaliar um relato de bug (texto ou URL) contra o código e produzir uma avaliação com possível correção"
     - name: speckit.bug.fix
       file: commands/speckit.bug.fix.md
-      description: "Apply the remediation from a bug assessment and record what was changed"
+      description: "Aplicar a correção proposta na avaliação de um bug e registrar as mudanças"
     - name: speckit.bug.test
       file: commands/speckit.bug.test.md
-      description: "Validate that a previously fixed bug is resolved and record the verification report"
+      description: "Validar se um bug corrigido foi resolvido e registrar o relatório de verificação"
 
 tags:
   - "bug"

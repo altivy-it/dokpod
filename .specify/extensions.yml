@@ -1,5 +1,169 @@
 installed:
+- assess
 - bug
+- git
 settings:
   auto_execute_hooks: true
-hooks: {}
+hooks:
+  before_constitution:
+  - extension: git
+    command: speckit.git.initialize
+    enabled: true
+    optional: false
+    priority: 10
+    prompt: Executar speckit.git.initialize?
+    description: Inicializa o repositório Git antes de configurar a constituição
+    condition: null
+  before_specify:
+  - extension: git
+    command: speckit.git.feature
+    enabled: true
+    optional: false
+    priority: 10
+    prompt: Executar speckit.git.feature?
+    description: Cria uma branch de feature antes da especificação
+    condition: null
+  before_clarify:
+  - extension: git
+    command: speckit.git.commit
+    enabled: true
+    optional: true
+    priority: 10
+    prompt: Fazer commit das alterações pendentes antes do esclarecimento?
+    description: Faz commit automático antes de esclarecer a spec
+    condition: null
+  before_plan:
+  - extension: git
+    command: speckit.git.commit
+    enabled: true
+    optional: true
+    priority: 10
+    prompt: Fazer commit das alterações pendentes antes do planejamento?
+    description: Faz commit automático antes do planejamento da implementação
+    condition: null
+  before_tasks:
+  - extension: git
+    command: speckit.git.commit
+    enabled: true
+    optional: true
+    priority: 10
+    prompt: Fazer commit das alterações pendentes antes de gerar as tarefas?
+    description: Faz commit automático antes de gerar as tarefas
+    condition: null
+  before_implement:
+  - extension: git
+    command: speckit.git.commit
+    enabled: true
+    optional: true
+    priority: 10
+    prompt: Fazer commit das alterações pendentes antes da implementação?
+    description: Faz commit automático antes da implementação
+    condition: null
+  before_checklist:
+  - extension: git
+    command: speckit.git.commit
+    enabled: true
+    optional: true
+    priority: 10
+    prompt: Fazer commit das alterações pendentes antes da checklist?
+    description: Faz commit automático antes de gerar a checklist
+    condition: null
+  before_analyze:
+  - extension: git
+    command: speckit.git.commit
+    enabled: true
+    optional: true
+    priority: 10
+    prompt: Fazer commit das alterações pendentes antes da análise?
+    description: Faz commit automático antes da análise
+    condition: null
+  before_taskstoissues:
+  - extension: git
+    command: speckit.git.commit
+    enabled: true
+    optional: true
+    priority: 10
+    prompt: Fazer commit das alterações pendentes antes de sincronizar issues?
+    description: Faz commit automático antes de converter tarefas em issues
+    condition: null
+  after_constitution:
+  - extension: git
+    command: speckit.git.commit
+    enabled: true
+    optional: true
+    priority: 10
+    prompt: Fazer commit das alterações na constituição?
+    description: Faz commit automático após atualizar a constituição
+    condition: null
+  after_specify:
+  - extension: git
+    command: speckit.git.commit
+    enabled: true
+    optional: true
+    priority: 10
+    prompt: Fazer commit das alterações na especificação?
+    description: Faz commit automático após a especificação
+    condition: null
+  after_clarify:
+  - extension: git
+    command: speckit.git.commit
+    enabled: true
+    optional: true
+    priority: 10
+    prompt: Fazer commit das alterações do esclarecimento?
+    description: Faz commit automático após esclarecer a spec
+    condition: null
+  after_plan:
+  - extension: git
+    command: speckit.git.commit
+    enabled: true
+    optional: true
+    priority: 10
+    prompt: Fazer commit das alterações no plano?
+    description: Faz commit automático após o planejamento da implementação
+    condition: null
+  after_tasks:
+  - extension: git
+    command: speckit.git.commit
+    enabled: true
+    optional: true
+    priority: 10
+    prompt: Fazer commit das alterações nas tarefas?
+    description: Faz commit automático após gerar as tarefas
+    condition: null
+  after_implement:
+  - extension: git
+    command: speckit.git.commit
+    enabled: true
+    optional: true
+    priority: 10
+    prompt: Fazer commit das alterações da implementação?
+    description: Faz commit automático após a implementação
+    condition: null
+  after_checklist:
+  - extension: git
+    command: speckit.git.commit
+    enabled: true
+    optional: true
+    priority: 10
+    prompt: Fazer commit das alterações na checklist?
+    description: Faz commit automático após gerar a checklist
+    condition: null
+  after_analyze:
+  - extension: git
+    command: speckit.git.commit
+    enabled: true
+    optional: true
+    priority: 10
+    prompt: Fazer commit dos resultados da análise?
+    description: Faz commit automático após a análise
+    condition: null
+  after_taskstoissues:
+  - extension: git
+    command: speckit.git.commit
+    enabled: true
+    optional: true
+    priority: 10
+    prompt: Fazer commit após sincronizar as issues?
+    description: Faz commit automático após converter tarefas em issues
+    condition: null
