@@ -6,6 +6,7 @@ applyTo: "frontend/**"
 
 # Angular 22
 
+- Execute o Angular CLI, build e testes em container, conforme o alias `ng` descrito em `.github/copilot-instructions.md`. Se o Angular precisar ficar em execução, mantenha-o na rede Docker e acesse-o somente pelo nginx containerizado; a URL de navegador/Playwright nunca aponta para `ng serve`, BFF ou API diretamente. Use `deploy/e2e/README.md` para o gateway real e prepare um proxy nginx para cenários simulados. Testes unitários sem servidor HTTP não exigem proxy.
 - Use Angular 22, componentes standalone, TypeScript estrito e lazy loading por feature.
 - Organize a aplicação em `core`, `shell`, `data-access`, `design-system` e `features`.
 - Features não importam detalhes internos de outras features.
@@ -20,8 +21,9 @@ applyTo: "frontend/**"
 - Exclusão exige confirmação contextual e nunca inclui volumes implicitamente.
 - Use control flow nativo e `track` estável em listas.
 - Atenda WCAG 2.2 AA, teclado completo, foco visível e movimento reduzido.
-- Use ícones de biblioteca permissiva aprovada e tooltip em ações não óbvias.
-- Evite cards aninhados, grandes raios, glassmorphism, gradientes decorativos e estética genérica de SaaS.
+- Use exclusivamente componentes PO UI (`@po-ui/ng-components`) para UI; não invente componente nem adote outra biblioteca de componentes. Veja `frontend-po-ui.instructions.md`.
+- Use ícones de `po-icon` e tooltip em ações não óbvias.
+- Evite cards aninhados, grandes raios, glassmorphism, gradientes decorativos e estética genérica de SaaS fora do tema PO UI do Dokpod.
 - Teste com Vitest e Playwright; valide desktop, mobile e console.
 
-Consulte `docs/frontend.md`.
+Consulte `docs/frontend.md`, `frontend-po-ui.instructions.md` e `frontend-visual-verification.instructions.md`.

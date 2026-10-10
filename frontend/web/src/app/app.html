@@ -1,0 +1,19 @@
+@if (loading()) {
+  <main class="session-state" aria-live="polite"><p class="eyebrow">DOKPOD / SESSÃO</p><h1>Carregando sessão…</h1></main>
+} @else if (errorMessage()) {
+  <main class="session-state error"><p class="eyebrow">FALHA DE SESSÃO</p><h1>{{ errorMessage() }}</h1><button type="button" (click)="loadSession()">Tentar novamente</button></main>
+} @else if (session()?.authenticated) {
+  <header class="app-header">
+    <a routerLink="/" class="brand" aria-label="Dokpod, ambientes"><picture><source srcset="brand/dokpod-logo-dark.svg" media="(prefers-color-scheme: dark)" /><img src="brand/dokpod-logo-light.svg" alt="Dokpod" /></picture></a>
+    <div class="session-actions">
+      <div class="session-user"><span>SESSÃO ATIVA</span><strong>{{ session()?.name ?? session()?.subject ?? 'usuário' }}</strong></div>
+      <button type="button" class="secondary" (click)="logout()">Sair</button>
+    </div>
+  </header>
+  <router-outlet />
+} @else {
+  <main class="login-shell">
+    <div class="brand-panel"><picture><source srcset="brand/dokpod-logo-dark.svg" media="(prefers-color-scheme: dark)" /><img src="brand/dokpod-logo-light.svg" alt="Dokpod" /></picture><p>PLANO DE CONTROLE / 01</p></div>
+    <section><p class="eyebrow">CONSOLE OPERACIONAL</p><h1>Controle operacional, sem atalhos.</h1><p>Acesse ambientes e containers conforme as permissões definidas no Keycloak.</p><button type="button" (click)="login()">Entrar com Keycloak</button></section>
+  </main>
+}

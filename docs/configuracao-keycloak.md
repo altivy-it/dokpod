@@ -2,9 +2,11 @@
 
 ## Estado
 
-Este documento define o contrato de identidade e autorização do Dokpod. Os manifests e valores exatos serão criados durante o scaffolding e validados em laboratório antes de produção.
+Este documento define o contrato de identidade e autorização do Dokpod. Os manifests iniciais de laboratório estão versionados em `deploy/keycloak`, e a reconciliação idempotente do realm é feita por `tools/scripts/configure-keycloak.ps1`.
 
 Keycloak é uma dependência externa obrigatória. O baseline containerizado usa `lzocateli/keycloak:26.7.0`, fixada também por digest em cada release. O Dokpod não possui fallback de usuário local nem modo que ignore autorização quando o Keycloak estiver indisponível.
+
+Em desenvolvimento local, o Dokpod pode usar a mesma instância administrativa de Keycloak/PostgreSQL usada pelos produtos Altivy. Essa instância compartilhada hospeda realms separados; o Dokpod usa sempre o realm `dokpod`, nunca o realm `master` como realm de aplicação.
 
 ## Topologia
 
@@ -41,6 +43,8 @@ Nunca use o realm `master` para a aplicação. O baseline usa:
 | Resource server | `dokpod-api` | audience, recursos, scopes e políticas |
 | Client de serviço | `dokpod-provisioner` | registrar e reconciliar recursos com menor privilégio |
 | Audience | `dokpod-api` | destinatário obrigatório do token da API |
+
+O laboratório também declara o client público `dokpod-lab` para validar a tela de login customizada e o client `dokpod-authorization-spike` para provas locais de autorização com PKCE.
 
 O client `dokpod-bff` habilita somente redirects e post-logout redirects exatos da origem implantada. Wildcards amplos, Direct Access Grants, Implicit Flow e Offline Access permanecem desabilitados sem ADR específico.
 
@@ -120,8 +124,80 @@ Nenhum token de usuário é encaminhado ao agente.
 - provisionamento repetido converge sem duplicar recursos;
 - agente válido sem autorização de usuário não cria comando por conta própria.
 
+## Prova UMA do Dokpod
+
+O script `tools/scripts/test-keycloak-authorization-spike.ps1` valida a mesma
+decisão UMA usada pela API, sem expor ou persistir o access token. Ele envia ao
+realm `dokpod` uma decisão para o recurso
+`urn:dokpod:environment:{EnvironmentId}` e um scope suportado, usando a
+audience `dokpod-api`.
+
+Antes da execução, o recurso precisa existir no Authorization Services do
+client `dokpod-api` e o token do usuário precisa ser destinado a essa API. O
+token pode ser injetado pelo processo em `DOKPOD_SPIKE_USER_ACCESS_TOKEN` ou
+fornecido como `SecureString`; nunca coloque token em arquivo, histórico ou
+argumento persistido.
+
+Valide primeiro sem rede:
+
+```powershell
+./tools/scripts/test-keycloak-authorization-spike.ps1 -DryRun
+```
+
+Execute uma decisão real com token efêmero:
+
+```powershell
+$token = Read-Host 'Access token efêmero' -AsSecureString
+./tools/scripts/test-keycloak-authorization-spike.ps1 `
+    -UserAccessToken $token `
+    -EnvironmentId 00000000-0000-0000-0000-000000000001 `
+    -Scope environment:read `
+    -Expected allowed
+```
+
+O resultado contém somente `iteration`, `outcome`, `statusCode` e `durationMs`.
+`allowed` confirma concessão; `denied` confirma negação; falhas de transporte,
+timeout ou JSON inválido são reportadas como `indeterminate` e retornam falha
+quando `-Expected allowed` ou `-Expected denied` não for atendido.
+
+## Provisionar recurso e permission UMA
+
+O script `tools/scripts/provision-environment-authorization.ps1` segue o
+padrão do AltivyNotes para cadastrar o recurso e ligar uma policy a uma
+permission do client `dokpod-api`. Ele usa credencial administrativa somente
+durante a reconciliação; a API em runtime não usa essa credencial.
+
+No desenvolvimento local, o script importa automaticamente as variáveis do
+arquivo externo `$env:APPDATA/Microsoft/UserSecrets/Dokpod/.env` e, como
+fallback de compatibilidade, `$env:APPDATA/Microsoft/UserSecrets/Altivy.Notes/.env`.
+Variáveis já presentes no processo têm precedência. A senha usada para a
+reconciliação é `DOKPOD_KEYCLOAK_ADMIN_PASSWORD` (ou o fallback
+`ALTIVY_KEYCLOAK_ADMIN_PASSWORD`); `DOKPOD_ADMIN_TEMPORARY_PASSWORD` é apenas
+a senha inicial do usuário de bootstrap.
+
+Para liberar leitura do ambiente ao grupo de administradores:
+
+```powershell
+./tools/scripts/provision-environment-authorization.ps1 `
+    -EnvironmentId 00000000-0000-0000-0000-000000000001 `
+    -GroupPath /dokpod/administrators `
+    -Scope environment:read
+```
+
+Para liberar diretamente um usuário:
+
+```powershell
+./tools/scripts/provision-environment-authorization.ps1 `
+    -EnvironmentId 00000000-0000-0000-0000-000000000001 `
+    -OwnerUsername dokpod-admin `
+    -Scope environment:read
+```
+
+Use `-DryRun` antes da alteração. O script é idempotente e não aceita
+simultaneamente `OwnerUsername` e `GroupPath`.
+
 ## Operação
 
 O deployment deve incluir health/readiness do Keycloak sem transformar indisponibilidade em bypass. Backups do banco do Keycloak e do banco do Dokpod são independentes e ambos precisam de testes de restauração. Atualizações seguem release notes, compatibilidade, migration, rollback, scan de vulnerabilidades e teste dos fluxos autenticados.
 
-Valores de sessão, tokens e URLs serão fixados com evidência do ambiente de implantação. Atualizações da imagem seguem a matriz e os gates definidos em [Distribuição e operação](distribuicao.md#imagens-base-e-toolchains).
+Para o laboratório local, consulte [deploy/keycloak/README.md](../deploy/keycloak/README.md). Valores de sessão, tokens e URLs de produção serão fixados com evidência do ambiente de implantação. Atualizações da imagem seguem a matriz e os gates definidos em [Distribuição e operação](distribuicao.md#imagens-base-e-toolchains).

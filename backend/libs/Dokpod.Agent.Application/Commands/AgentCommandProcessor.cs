@@ -15,18 +15,52 @@ public sealed class AgentCommandProcessor(
     public async Task<JournaledCommandResult> ProcessAsync(
         AgentCommand command,
         long activeFencingToken,
+        CancellationToken cancellationToken) =>
+        await ProcessAsync(
+            command,
+            activeFencingToken,
+            static (_, _, _) => Task.CompletedTask,
+            cancellationToken);
+
+    public async Task<JournaledCommandResult> ProcessAsync(
+        AgentCommand command,
+        long activeFencingToken,
+        Func<CommandAdmission, string?, CancellationToken, Task> admissionCallback,
         CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(admissionCallback);
+
         var admission = await gate.AdmitAsync(command, activeFencingToken, cancellationToken);
+        var admissionFailureCode = admission is CommandAdmission.Accepted or CommandAdmission.Duplicate
+            ? null
+            : MapAdmissionFailure(admission);
+        await admissionCallback(admission, admissionFailureCode, cancellationToken);
+
         if (admission == CommandAdmission.Duplicate)
         {
-            return await journal.FindResultAsync(command.EnvironmentId, command.CommandId, cancellationToken)
-                ?? CreateResult(command, CommandExecutionState.Indeterminate, "result_pending", null);
+            var persistedResult = await journal.FindResultAsync(
+                command.EnvironmentId,
+                command.CommandId,
+                cancellationToken);
+            if (persistedResult is not null)
+            {
+                return persistedResult;
+            }
         }
 
-        if (admission != CommandAdmission.Accepted)
+        if (admission is not (CommandAdmission.Accepted or CommandAdmission.Duplicate))
         {
-            return CreateResult(command, CommandExecutionState.Failed, MapAdmissionFailure(admission), null);
+            var rejection = CreateResult(
+                command,
+                CommandExecutionState.Failed,
+                admissionFailureCode,
+                null);
+            if (admission != CommandAdmission.ConflictingPayload)
+            {
+                await journal.SaveResultAsync(rejection, CancellationToken.None);
+            }
+
+            return rejection;
         }
 
         var mutationLock = mutationLocks.GetOrAdd(
@@ -36,6 +70,11 @@ public sealed class AgentCommandProcessor(
 
         try
         {
+            if (command.DeadlineUtc <= timeProvider.GetUtcNow())
+            {
+                return await SaveAsync(CreateResult(command, CommandExecutionState.Failed, "expired_command", null));
+            }
+
             var container = await engine.InspectContainerAsync(command.ContainerId, cancellationToken);
             if (container is null)
             {
@@ -74,7 +113,7 @@ public sealed class AgentCommandProcessor(
 
         async Task<JournaledCommandResult> SaveAsync(JournaledCommandResult result)
         {
-            await journal.SaveResultAsync(result, cancellationToken);
+            await journal.SaveResultAsync(result, CancellationToken.None);
             return result;
         }
     }

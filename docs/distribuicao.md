@@ -65,6 +65,17 @@ Diretórios lógicos:
 
 O socket nunca é publicado em porta TCP nem compartilhado com outro componente Dokpod. Podman rootless exige UID, socket e regras SELinux documentados para a distribuição homologada.
 
+O stream operacional com o plano de controle é habilitado quando estas variáveis são injetadas no processo:
+
+| Variável | Obrigatória | Finalidade |
+| --- | --- | --- |
+| `DOKPOD_AGENT_CONTROL_PLANE_ENDPOINT` | para conexão remota | URL HTTPS do endpoint gRPC do plano de controle |
+| `DOKPOD_AGENT_ENVIRONMENT_ID` | com endpoint configurado | UUID do ambiente associado ao certificado |
+| `DOKPOD_AGENT_CLIENT_CERTIFICATE_PATH` | com endpoint configurado | caminho absoluto do PFX; padrão `identity/agent.pfx` sob o diretório de dados |
+| `DOKPOD_AGENT_CLIENT_CERTIFICATE_PASSWORD` | quando o PFX exigir | senha injetada pelo mecanismo externo de secrets, nunca por argumento ou arquivo versionado |
+
+Sem `DOKPOD_AGENT_CONTROL_PLANE_ENDPOINT`, o agente mantém somente a inspeção local e não abre sessão remota. O certificado e sua chave privada permanecem no volume protegido do agente; a cadeia do servidor deve ser confiável pelo sistema operacional.
+
 ## Agente Windows
 
 O projeto `backend/apps/agent` produz um Worker Service .NET 10. Cada release Windows é publicada com `--self-contained true` para um RID homologado, inicialmente candidato a `win-x64`. Não é necessário instalar runtime ou SDK .NET no servidor.
@@ -96,9 +107,50 @@ O mecanismo exato de empacotamento será escolhido após o spike, mas deve cumpr
 
 Desinstalação remove serviço e binários. Dados e identidade só são removidos por opção explícita, pois sua exclusão exige novo enrollment.
 
+### Script de gerenciamento do Windows Service
+
+O script `deploy/agent/manage-windows-service.ps1` recebe os dados da
+instalação e gerencia o ciclo de vida do serviço. Execute o PowerShell como
+Administrador para operações reais. `-DryRun` valida os parâmetros e mostra as
+ações sem alterar o SCM ou o registro.
+
+```powershell
+$certificateDirectory = Join-Path $env:APPDATA 'Microsoft\UserSecrets\Dokpod\certs'
+$agentDataDirectory = Join-Path $env:ProgramData 'Dokpod\Agent'
+$agentBinary = Join-Path $env:ProgramFiles 'Dokpod\Agent\Dokpod.Agent.exe'
+
+./deploy/agent/manage-windows-service.ps1 -Action Install `
+	-FailureRestartDelaySeconds 60 `
+	-BinaryPath $agentBinary `
+	-ControlPlaneEndpoint 'https://controlplane.example:7443' `
+	-EnvironmentId '<uuid-do-ambiente>' `
+	-DockerSocket 'docker_engine' `
+	-ClientCertificatePath (Join-Path $certificateDirectory 'dokpod-agent.pfx') `
+	-ServerCaCertificatePath (Join-Path $certificateDirectory 'dokpod-dev-ca.crt') `
+	-DataDirectory $agentDataDirectory
+
+./deploy/agent/manage-windows-service.ps1 -Action Start
+./deploy/agent/manage-windows-service.ps1 -Action Stop
+./deploy/agent/manage-windows-service.ps1 -Action Restart
+./deploy/agent/manage-windows-service.ps1 -Action Status
+./deploy/agent/manage-windows-service.ps1 -Action Remove -Confirm
+```
+
+`Remove` preserva o diretório de dados, certificados, identidade e journal.
+Para apagar o diretório de dados é necessário informar `-RemoveData` e
+`-DataDirectory` explicitamente. A remoção de dados exige confirmação e não
+remove certificados fora desse diretório.
+
+Durante `Install`, o script configura inicialização atrasada e duas tentativas
+de reinício automático após falha. O intervalo é controlado por
+`-FailureRestartDelaySeconds`; depois das tentativas configuradas, o SCM não
+reinicia indefinidamente o processo.
+
 ## Configuração
 
 Configuração não secreta pode vir de arquivo montado no Linux ou arquivo protegido no Windows. Secrets e chaves privadas usam arquivos com permissões mínimas ou provider seguro. Variáveis de ambiente são aceitas somente quando o ambiente operacional impedir exposição por inspeção de processo e houver justificativa.
+
+O endpoint gRPC do plano de controle exige um certificado de servidor explícito em `DOKPOD_API_CERTIFICATE_PATH`; a senha opcional do PFX vem de `DOKPOD_API_CERTIFICATE_PASSWORD`. Em produção, use certificado emitido pela PKI da organização ou por uma autoridade confiável, montado como arquivo somente leitura. Não gere certificado autoassinado no startup e não dependa do certificado de desenvolvimento do SDK. Em testes automatizados, certificados autoassinados efêmeros e restritos ao processo são aceitáveis. Em laboratório, uma CA local controlada pode emitir os certificados de servidor e agente, desde que sua raiz seja distribuída explicitamente aos participantes e nunca seja desabilitada a validação da cadeia.
 
 Campos mínimos:
 

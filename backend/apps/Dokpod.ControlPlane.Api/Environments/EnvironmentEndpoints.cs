@@ -1,0 +1,376 @@
+using System.Security.Claims;
+using System.Text;
+using Dokpod.ControlPlane.Application.Agents;
+using Dokpod.ControlPlane.Application.Authorization;
+using Dokpod.ControlPlane.Application.Environments;
+using Dokpod.Domain.Environments;
+using Microsoft.AspNetCore.WebUtilities;
+
+namespace Dokpod.ControlPlane.Api.Endpoints;
+
+public sealed record RegisterEnvironmentRequest(
+    Guid EnvironmentId,
+    string Name,
+    string Host,
+    bool Enabled = true,
+    IReadOnlyCollection<string>? Scopes = null);
+
+public static class EnvironmentEndpoints
+{
+    public static void Map(IEndpointRouteBuilder endpoints)
+    {
+        endpoints.MapGet("/api/v1/environments", ListAsync)
+            .RequireAuthorization();
+        endpoints.MapGet("/api/v1/environments/{environmentId:guid}", GetAsync)
+            .RequireAuthorization();
+        endpoints.MapPost("/api/v1/environments", RegisterAsync)
+            .RequireAuthorization();
+        endpoints.MapPost("/api/v1/environments/{environmentId:guid}/agent-identity/revoke", RevokeAgentIdentityAsync)
+            .RequireAuthorization();
+    }
+
+    private static async Task<IResult> ListAsync(
+        string? cursor,
+        int? limit,
+        HttpContext context,
+        EnvironmentRegistrationService registrationService,
+        CancellationToken cancellationToken)
+    {
+        var subject = context.User.FindFirstValue("sub");
+        var accessToken = ExtractBearerToken(context.Request.Headers.Authorization);
+        if (string.IsNullOrWhiteSpace(subject) || string.IsNullOrWhiteSpace(accessToken))
+        {
+            return Problem(context,
+                StatusCodes.Status401Unauthorized,
+                "authentication_required",
+                "A autenticação do usuário é obrigatória.");
+        }
+
+        var pageLimit = limit ?? 20;
+        if (pageLimit is < 1 or > 100 || !TryDecodeCursor(cursor, out var afterEnvironmentId))
+        {
+            return Problem(context,
+                StatusCodes.Status400BadRequest,
+                "invalid_environment_query",
+                "Os parâmetros da consulta são inválidos.");
+        }
+
+        EnvironmentCatalogResult result;
+        try
+        {
+            result = await registrationService.ListAsync(
+                afterEnvironmentId,
+                pageLimit,
+                AuthenticatedActor.FromSubject(subject),
+                accessToken,
+                GetCorrelationId(context),
+                cancellationToken).ConfigureAwait(false);
+        }
+        catch (InvalidOperationException)
+        {
+            return Problem(context,
+                StatusCodes.Status503ServiceUnavailable,
+                "persistence_unavailable",
+                "O catálogo de ambientes está indisponível.");
+        }
+
+        if (!result.Available)
+        {
+            return Problem(context,
+                StatusCodes.Status503ServiceUnavailable,
+                result.FailureCode ?? "authorization_unavailable",
+                "O catálogo de ambientes não pôde ser autorizado.");
+        }
+
+        return Results.Ok(new
+        {
+            environments = result.Registrations.Select(registration => new
+            {
+                environmentId = registration.EnvironmentId,
+                name = registration.Name,
+                host = registration.Host,
+                enabled = registration.Enabled,
+                scopes = registration.Scopes.Order(StringComparer.Ordinal),
+            }),
+            nextCursor = EncodeCursor(result.NextCursor),
+        });
+    }
+
+    private static async Task<IResult> GetAsync(
+        Guid environmentId,
+        HttpContext context,
+        EnvironmentRegistrationService registrationService,
+        CancellationToken cancellationToken)
+    {
+        var subject = context.User.FindFirstValue("sub");
+        var accessToken = ExtractBearerToken(context.Request.Headers.Authorization);
+        if (string.IsNullOrWhiteSpace(subject) || string.IsNullOrWhiteSpace(accessToken))
+        {
+            return Problem(context,
+                StatusCodes.Status401Unauthorized,
+                "authentication_required",
+                "A autenticação do usuário é obrigatória.");
+        }
+
+        EnvironmentStateResult result;
+        try
+        {
+            result = await registrationService.GetAsync(
+                environmentId,
+                AuthenticatedActor.FromSubject(subject),
+                accessToken,
+                GetCorrelationId(context),
+                cancellationToken).ConfigureAwait(false);
+        }
+        catch (ArgumentException)
+        {
+            return Problem(context,
+                StatusCodes.Status400BadRequest,
+                "invalid_environment_id",
+                "O identificador do ambiente é inválido.");
+        }
+        catch (InvalidOperationException)
+        {
+            return Problem(context,
+                StatusCodes.Status503ServiceUnavailable,
+                "persistence_unavailable",
+                "O estado do ambiente está indisponível.");
+        }
+
+        if (!result.Allowed)
+        {
+            return Problem(context,
+                result.AuthorizationOutcome is AuthorizationDecisionOutcome.Indeterminate
+                    ? StatusCodes.Status503ServiceUnavailable
+                    : StatusCodes.Status403Forbidden,
+                result.FailureCode ?? "authorization_denied",
+                "O estado do ambiente não foi autorizado.");
+        }
+
+        if (result.Registration is null)
+        {
+            return Problem(context,
+                StatusCodes.Status404NotFound,
+                "environment_not_found",
+                "O ambiente não foi encontrado.");
+        }
+
+        return Results.Ok(new
+        {
+            environmentId = result.Registration.EnvironmentId,
+            name = result.Registration.Name,
+            host = result.Registration.Host,
+            enabled = result.Registration.Enabled,
+            scopes = result.Registration.Scopes.Order(StringComparer.Ordinal),
+        });
+    }
+
+    private static async Task<IResult> RegisterAsync(
+        RegisterEnvironmentRequest request,
+        HttpContext context,
+        EnvironmentRegistrationService registrationService,
+        CancellationToken cancellationToken)
+    {
+        if (request.EnvironmentId == Guid.Empty
+            || string.IsNullOrWhiteSpace(request.Name)
+            || string.IsNullOrWhiteSpace(request.Host))
+        {
+            return Problem(context,
+                StatusCodes.Status400BadRequest,
+                "invalid_environment_registration",
+                "O cadastro do ambiente é inválido.");
+        }
+
+        var subject = context.User.FindFirstValue("sub");
+        var accessToken = ExtractBearerToken(context.Request.Headers.Authorization);
+        if (string.IsNullOrWhiteSpace(subject) || string.IsNullOrWhiteSpace(accessToken))
+        {
+            return Problem(context,
+                StatusCodes.Status401Unauthorized,
+                "authentication_required",
+                "A autenticação do usuário é obrigatória.");
+        }
+
+        EnvironmentRegistration registration;
+        try
+        {
+            registration = EnvironmentRegistration.Create(
+                request.EnvironmentId,
+                request.Name,
+                request.Host,
+                request.Enabled,
+                request.Scopes ?? [EnvironmentResourceScopes.Read, EnvironmentResourceScopes.Manage]);
+        }
+        catch (ArgumentException)
+        {
+            return Problem(context,
+                StatusCodes.Status400BadRequest,
+                "invalid_environment_registration",
+                "O cadastro do ambiente é inválido.");
+        }
+        EnvironmentRegistrationResult result;
+        try
+        {
+            result = await registrationService.RegisterAsync(
+                registration,
+                AuthenticatedActor.FromSubject(subject),
+                accessToken,
+                GetCorrelationId(context),
+                cancellationToken).ConfigureAwait(false);
+        }
+        catch (InvalidOperationException)
+        {
+            return Problem(context,
+                StatusCodes.Status503ServiceUnavailable,
+                "persistence_unavailable",
+                "O cadastro do ambiente está indisponível.");
+        }
+
+        if (!result.Allowed)
+        {
+            return Problem(context,
+                result.AuthorizationOutcome is AuthorizationDecisionOutcome.Indeterminate
+                    ? StatusCodes.Status503ServiceUnavailable
+                    : StatusCodes.Status403Forbidden,
+                result.FailureCode ?? "authorization_denied",
+                "O cadastro do ambiente não foi autorizado.");
+        }
+
+        if (!result.Created)
+        {
+            return Problem(context,
+                StatusCodes.Status409Conflict,
+                result.FailureCode ?? "environment_conflict",
+                "O ambiente já está cadastrado.");
+        }
+
+        return Results.Created($"/api/v1/environments/{registration.EnvironmentId:D}", new
+        {
+            environmentId = registration.EnvironmentId,
+        });
+    }
+
+    private static async Task<IResult> RevokeAgentIdentityAsync(
+        Guid environmentId,
+        HttpContext context,
+        AgentIdentityRevocationService revocationService,
+        CancellationToken cancellationToken)
+    {
+        var subject = context.User.FindFirstValue("sub");
+        var accessToken = ExtractBearerToken(context.Request.Headers.Authorization);
+        if (string.IsNullOrWhiteSpace(subject) || string.IsNullOrWhiteSpace(accessToken))
+        {
+            return Problem(context,
+                StatusCodes.Status401Unauthorized,
+                "authentication_required",
+                "A autenticação do usuário é obrigatória.");
+        }
+
+        AgentIdentityRevocationResult result;
+        try
+        {
+            result = await revocationService.RevokeAsync(
+                environmentId,
+                AuthenticatedActor.FromSubject(subject),
+                accessToken,
+                GetCorrelationId(context),
+                cancellationToken).ConfigureAwait(false);
+        }
+        catch (ArgumentException)
+        {
+            return Problem(context,
+                StatusCodes.Status400BadRequest,
+                "invalid_environment_id",
+                "O identificador do ambiente é inválido.");
+        }
+        catch (InvalidOperationException)
+        {
+            return Problem(context,
+                StatusCodes.Status503ServiceUnavailable,
+                "persistence_unavailable",
+                "A identidade do agente está indisponível.");
+        }
+
+        if (!result.Allowed)
+        {
+            return Problem(context,
+                result.AuthorizationOutcome is AuthorizationDecisionOutcome.Indeterminate
+                    ? StatusCodes.Status503ServiceUnavailable
+                    : StatusCodes.Status403Forbidden,
+                result.FailureCode ?? "authorization_denied",
+                "A revogação da identidade não foi autorizada.");
+        }
+
+        if (!result.Revoked)
+        {
+            return Problem(context,
+                StatusCodes.Status404NotFound,
+                result.FailureCode ?? "agent_identity_not_found",
+                "A identidade do agente não foi encontrada.");
+        }
+
+        return Results.NoContent();
+    }
+
+    private static IResult Problem(HttpContext context, int status, string code, string detail) =>
+        Results.Problem(
+            statusCode: status,
+            title: status switch
+            {
+                StatusCodes.Status401Unauthorized => "Autenticação necessária",
+                StatusCodes.Status403Forbidden => "Acesso negado",
+                StatusCodes.Status404NotFound => "Ambiente não encontrado",
+                StatusCodes.Status409Conflict => "Conflito de ambiente",
+                StatusCodes.Status503ServiceUnavailable => "Autorização indisponível",
+                _ => "Requisição inválida",
+            },
+            detail: detail,
+            instance: context.Request.Path,
+            extensions: new Dictionary<string, object?>
+            {
+                ["code"] = code,
+                ["traceId"] = context.TraceIdentifier,
+            });
+
+    private static string? ExtractBearerToken(string? authorization) =>
+        !string.IsNullOrWhiteSpace(authorization)
+        && authorization.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase)
+            ? authorization["Bearer ".Length..].Trim()
+            : null;
+
+    private static bool TryDecodeCursor(string? cursor, out Guid? environmentId)
+    {
+        environmentId = null;
+        if (string.IsNullOrWhiteSpace(cursor))
+        {
+            return true;
+        }
+
+        try
+        {
+            var value = Encoding.UTF8.GetString(WebEncoders.Base64UrlDecode(cursor));
+            if (!Guid.TryParseExact(value, "D", out var parsed))
+            {
+                return false;
+            }
+
+            environmentId = parsed;
+            return true;
+        }
+        catch (FormatException)
+        {
+            return false;
+        }
+    }
+
+    private static string? EncodeCursor(Guid? environmentId) =>
+        environmentId is null
+            ? null
+            : WebEncoders.Base64UrlEncode(
+                Encoding.UTF8.GetBytes(environmentId.Value.ToString("D")));
+
+    private static Guid GetCorrelationId(HttpContext context) =>
+        Guid.TryParse(context.Request.Headers["X-Correlation-Id"], out var correlationId)
+            ? correlationId
+            : Guid.NewGuid();
+}

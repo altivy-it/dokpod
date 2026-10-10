@@ -8,10 +8,18 @@
 
 <!-- Mudanças e itens deliberadamente excluídos. -->
 
-## Issue e decisões
+## Spec Kit e decisões
 
-- Issue:
+- Feature/artefatos Spec Kit ou assessment oficial Bug Fixing:
+- IDs das tarefas/remediações:
+- Autorização humana explícita (referência, responsável e limites):
+- Issue de intake/rastreabilidade (não autoriza execução):
 - ADR:
+
+- [ ] O diff corresponde somente às tarefas/remediações autorizadas
+- [ ] Dependências e bloqueios de análise foram tratados
+- [ ] Evidências foram registradas nos artefatos oficiais; checkboxes não representam aprovação humana
+- [ ] Não foi criado fluxo paralelo em plano, prompt, agente ou Issue
 
 ## Áreas
 
@@ -46,8 +54,14 @@ Comandos e resultados:
 - [ ] Recursos/scopes Keycloak e comportamento fail-closed foram avaliados
 - [ ] Tokens permanecem fora do browser e não chegam ao agente
 - [ ] Idempotência, timeout e reconexão foram avaliados
+- [ ] Journal-before-ack, fencing, replay e recuperação após falha parcial foram avaliados
+- [ ] Matriz Docker/Podman x Linux/Windows declara versões e combinações não suportadas ou não verificadas
 - [ ] Nenhum socket foi exposto nem proxy genérico adicionado
 - [ ] Nenhum secret ou dado sensível foi incluído
+- [ ] Nenhuma connection string, senha de teste ou credencial foi incluída em
+  código, testes, documentação, scripts ou workflows
+- [ ] Secrets necessários ao CI foram criados no Environment do GitHub, e não
+  commitados no repositório
 - [ ] Dependências possuem licença e versão verificadas
 - [ ] Testes de carga seguem os critérios do Dokpod quando o caminho crítico foi alterado
 - [ ] Rollout, rollback e observabilidade estão documentados
@@ -55,3 +69,7 @@ Comandos e resultados:
 ## Riscos e limitações
 
 <!-- Riscos residuais e validações não executadas. -->
+
+Registre gates não executados como `NOT RUN`, com motivo; não marque aprovação
+sem evidência. Reviews são read-only. Este PR não autoriza commit, push, merge,
+publicação ou deploy por um agente.

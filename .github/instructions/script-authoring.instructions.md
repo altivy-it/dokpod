@@ -6,6 +6,12 @@ applyTo: "**/*.ps1, **/*.sh, **/*.bash, **/*.py, **/pyproject.toml, **/uv.lock, 
 
 # Criação e manutenção de scripts
 
+Estas regras aplicam-se às automações próprias que apoiam tarefas/remediações
+Spec Kit explicitamente autorizadas, nunca a um workflow concorrente. Scripts
+oficiais do Spec Kit e Bug Fixing preservam caminhos e interfaces upstream:
+não os mova de `.specify/scripts/` nem imponha `--help`, estrutura ou projeto uv
+local. Valide-os segundo o contrato oficial, não pelos requisitos locais abaixo.
+
 ## Localização e propriedade
 
 - Coloque toda automação global de infraestrutura, administração, manutenção e validação do repositório em `tools/scripts/`.

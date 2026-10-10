@@ -26,11 +26,15 @@ backend/tests/
 
 O agente e o plano de controle compartilham somente domínio realmente comum e contratos versionados. API, BFF e agente possuem composition roots, configurações e permissões próprias. API e BFF são sempre executados em containers. O agente usa uma imagem OCI em Linux e publicação self-contained como Windows Service em Windows.
 
+O fluxo, as garantias e as limitações atuais do BFF estão documentados em [BFF do Dokpod](bff.md). O BFF não deve ser considerado integrado ponta a ponta enquanto a API não possuir a superfície HTTP que será encaminhada pelo relay.
+
 ## Transporte do agente
 
 Cada agente mantém um único stream gRPC bidirecional HTTP/2 com mTLS para a API. O contrato Protocol Buffers v1 negocia versão e capabilities e transporta apresentação, heartbeat, deltas, snapshots paginados, comandos, aceite e resultado. Inscrição e emissão inicial de certificado usam HTTPS separado; REST não substitui o canal operacional e o agente não expõe proxy genérico do engine.
 
 Comandos são persistidos antes do envio. O stream aplica filas limitadas, sequência monotônica, fencing, deadlines e retomada por reconciliação; desconexão nunca autoriza repetir cegamente uma mutação.
+
+A API REST aceita a intenção de lifecycle com `Idempotency-Key` e permite consultar seu estado por ambiente e comando. A API deriva hash e fencing no servidor, autoriza cada operação antes de acessar a persistência e não expõe metadados internos de entrega.
 
 ## Identidade e autorização
 
@@ -58,6 +62,10 @@ Não executar CLI por shell para operações normais e não encaminhar caminhos 
 PostgreSQL armazena ambientes, certificados/revogação, capacidades, projeções, comandos, execuções e auditoria. O estado atual do engine continua sendo autoridade sobre containers em execução.
 
 Commands e resultados têm chave composta por ambiente e ID, hash imutável do payload, deadline e fencing token. Escrita no banco e chamada ao engine não formam uma transação distribuída; estados intermediários são reconciliados por observação posterior.
+
+A intenção autorizada e cada resultado terminal são correlacionados por `commandId` em auditoria append-only. A criação do comando e sua intenção, assim como a transição terminal e seu resultado, usam a mesma transação PostgreSQL; falha ao persistir a auditoria desfaz a mutação. Replays idempotentes não criam eventos adicionais. Expiração também é auditada atomicamente pelo ator técnico `control-plane`: comando nunca despachado resulta em `Failed`, enquanto comando possivelmente executado resulta em `Indeterminate`. Esse último estado pode ser reconciliado por um resultado definitivo tardio preservado no journal do agente, gerando novo evento de auditoria sem remover a evidência da expiração.
+
+A consulta pública projeta apenas ação, alvo, revisão esperada, estado, resultado e timestamps. `payload_hash`, fencing original e fencing de redespacho permanecem internos.
 
 O agente mantém em volume persistente protegido sua chave privada, certificados e um journal mínimo de comandos/resultados. A rotação grava novo material de forma atômica antes da troca; ausência ou permissão insegura no volume impede startup.
 

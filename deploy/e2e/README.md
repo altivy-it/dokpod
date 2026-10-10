@@ -1,0 +1,169 @@
+# Stack E2E do Dokpod
+
+Este diretório define a stack local do projeto Dokpod, consumindo a plataforma
+global de identidade pela rede externa `identity-global`. O Compose cria os
+serviços próprios do Dokpod e não depende do checkout do AltivyNotes.
+
+## Serviços
+
+- `web`: aplicação Angular estática `dokpod-web:e2e`;
+- `api`: API do plano de controle `dokpod-api:e2e`, com gRPC/mTLS na porta interna `7443` e health HTTP na porta interna `8080`;
+- `agent`: agente Linux opcional no perfil `agent`, com acesso explícito ao socket Docker local.
+
+O gateway global publica o Dokpod em `https://localhost:7443/dokpod/` e encaminha
+sessão, API e SignalR pelo BFF.
+
+O `Dokpod.Bff` entra nesta stack como `dokpod-bff`, com Data Protection em
+volume próprio e API como upstream interno.
+
+## Pré-requisitos
+
+- plataforma `altivy-identity` saudável;
+- rede externa `identity-global` criada;
+- `KEYCLOAK_BFF_CLIENT_SECRET` e demais valores no arquivo externo do Dokpod;
+- `POSTGRES_ADMIN_USERNAME` e `POSTGRES_ADMIN_PASSWORD` no arquivo externo da plataforma `Altivy.Identity`;
+- certificado PFX de laboratório para a API;
+- Docker Desktop com containers Linux.
+
+## Variáveis externas
+
+Defina no arquivo externo `$env:APPDATA\Microsoft\UserSecrets\Dokpod\.env` ou na
+sessão atual:
+
+- `DOKPOD_E2E_API_CERTIFICATE_PATH`, obrigatório, caminho absoluto para o PFX da API;
+- `DOKPOD_E2E_API_CERTIFICATE_PASSWORD`, opcional quando o PFX não tiver senha;
+- `DOKPOD_E2E_AGENT_CERTIFICATE_FINGERPRINT`, opcional para o laboratório de agentes;
+- `DOKPOD_E2E_AGENT_ENVIRONMENT_ID`, opcional, GUID do ambiente associado ao certificado do agente.
+
+Com o perfil `agent`, a pasta padrão de certificados é
+`$env:APPDATA\Microsoft\UserSecrets\Dokpod\certs`. Ela deve conter
+`dokpod-agent.pfx` e `dokpod-dev-ca.crt`; o UUID informado deve possuir uma
+identidade correspondente em `dokpod.agent_identities`.
+
+O script recomendado também lê `POSTGRES_ADMIN_USERNAME` e
+`POSTGRES_ADMIN_PASSWORD` do arquivo externo
+`$env:APPDATA\Microsoft\UserSecrets\Altivy.Identity\.env`. Ele deriva somente
+em memória a conexão da API com `postgres:5432` e `Search Path=dokpod`, sem
+copiar ou exibir credenciais. O uso da role administrativa é uma compatibilidade
+transitória exclusiva do laboratório; ambientes promovidos devem usar database
+e role de runtime próprios, provisionados antes da migration.
+
+Ao invocar o Compose diretamente, sem o script, defina também
+`DOKPOD_CONTROLPLANE_CONNECTION` no processo por um mecanismo seguro.
+
+Nunca versione certificados privados, senhas ou `.env` dentro do repositório.
+
+## Configurar certificado da API
+
+A API do Dokpod exige um certificado PFX para o endpoint gRPC/mTLS. Para
+laboratório local, gere o PFX fora do repositório em UserSecrets. O certificado
+deve possuir EKU `serverAuth` e SAN DNS `api`, pois o agente conecta ao endpoint
+`https://api:7443` na rede do Compose. Não reutilize um certificado limitado a
+`localhost`.
+
+Quando a PKI dedicada já tiver produzido `dokpod-api.crt` e `dokpod-api.key`,
+exporte o PFX no mesmo diretório externo:
+
+```powershell
+$DokpodSecretsDirectory = Join-Path $env:APPDATA 'Microsoft\UserSecrets\Dokpod'
+$DokpodCertsDirectory = Join-Path $DokpodSecretsDirectory 'certs'
+New-Item -ItemType Directory -Force $DokpodCertsDirectory | Out-Null
+
+docker run --rm `
+  -v "${DokpodCertsDirectory}:/certs" `
+  lzocateli/nginx:1.28.0-bookworm `
+  openssl pkcs12 -export `
+    -in /certs/dokpod-api.crt `
+    -inkey /certs/dokpod-api.key `
+    -out /certs/dokpod-api.pfx `
+    -passout pass:
+
+$env:DOKPOD_E2E_API_CERTIFICATE_PATH = Join-Path $DokpodCertsDirectory 'dokpod-api.pfx'
+$env:DOKPOD_E2E_API_CERTIFICATE_PASSWORD = ''
+```
+
+## Validar e iniciar
+
+O caminho recomendado é o script `tools/scripts/manage-e2e-stack.ps1`, que
+repassa o arquivo externo de variáveis de ambiente ao Docker Compose e cobre
+subir, recriar e encerrar a stack inteira ou um serviço específico. Execute a
+partir da raiz do repositório:
+
+```powershell
+./tools/scripts/manage-e2e-stack.ps1 --help
+
+./tools/scripts/manage-e2e-stack.ps1 -Action Config
+./tools/scripts/manage-e2e-stack.ps1 -Action Up -Build
+./tools/scripts/manage-e2e-stack.ps1 -Action Up -Build -ComposeProfile agent
+./tools/scripts/manage-e2e-stack.ps1 -Action Recreate -Service api -NoDeps
+./tools/scripts/manage-e2e-stack.ps1 -Action Down -Service agent
+./tools/scripts/manage-e2e-stack.ps1 -Action Down
+```
+
+O padrão de `-EnvFile` é `$env:APPDATA\Microsoft\UserSecrets\Dokpod\.env`, e o
+de `-IdentityEnvFile` é
+`$env:APPDATA\Microsoft\UserSecrets\Altivy.Identity\.env`. Use os parâmetros
+para apontar outros arquivos externos e `-ComposeProfile agent` para habilitar
+o agente. `-DryRun` exibe o comando resultante sem executá-lo.
+
+O build do serviço `web` executa `npm ci`, geração do cliente OpenAPI e
+`ng build` dentro do Dockerfile `frontend/web/Dockerfile`, usando a imagem
+`lzocateli/angular-cli`. O runtime publicado é apenas NGINX com arquivos
+estáticos; Node.js e `node_modules` não fazem parte da imagem final.
+
+Os comandos equivalentes em Docker Compose são:
+
+```powershell
+docker compose `
+  --env-file "$env:APPDATA\Microsoft\UserSecrets\Dokpod\.env" `
+  -f deploy/e2e/docker-compose-dokpod.yaml `
+  config --quiet
+
+docker compose `
+  --env-file "$env:APPDATA\Microsoft\UserSecrets\Dokpod\.env" `
+  -f deploy/e2e/docker-compose-dokpod.yaml `
+  up --build --wait
+```
+
+Para incluir o agente Docker local:
+
+```powershell
+./tools/scripts/manage-e2e-stack.ps1 -Action Up -Build -ComposeProfile agent
+```
+
+O mount `/var/run/docker.sock:/run/docker.sock` concede privilégio elevado sobre
+o host Docker local. Use o perfil `agent` somente em laboratório controlado.
+
+## Validar o agente Windows self-contained
+
+O agente também pode ser publicado como `win-x64` e executado fora de
+container em uma máquina Windows com Docker Desktop. O adapter usa o named pipe
+`docker_engine` e o endpoint gRPC publicado pela stack:
+
+```powershell
+docker run --rm -v "${PWD}:/workspace" -w /workspace `
+  lzocateli/dotnet-sdk:10.0.400-noble `
+  dotnet publish backend/apps/Dokpod.Agent/Dokpod.Agent.csproj `
+  --configuration Release --runtime win-x64 --self-contained true `
+  --output artifacts/agent/windows-e2e
+
+$env:DOKPOD_AGENT_CONTROL_PLANE_ENDPOINT = 'https://127.0.0.1:17443'
+$env:DOKPOD_AGENT_ENVIRONMENT_ID = '<uuid-do-ambiente-provisionado>'
+$env:DOKPOD_AGENT_DOCKER_SOCKET = 'docker_engine'
+$env:DOKPOD_AGENT_CLIENT_CERTIFICATE_PATH = Join-Path $env:APPDATA 'Microsoft\UserSecrets\Dokpod\certs\dokpod-agent.pfx'
+$env:DOKPOD_AGENT_SERVER_CA_CERTIFICATE_PATH = Join-Path $env:APPDATA 'Microsoft\UserSecrets\Dokpod\certs\dokpod-dev-ca.crt'
+$env:DOKPOD_AGENT_DATA_DIRECTORY = Join-Path $env:APPDATA 'Microsoft\UserSecrets\Dokpod\agent-windows-e2e'
+& ./artifacts/agent/windows-e2e/Dokpod.Agent.exe
+```
+
+Esta execução em console é uma prova técnica. Instalação como Windows Service,
+ACL dedicada, atualização e rollback continuam gates de P-07.
+
+## Encerrar
+
+```powershell
+./tools/scripts/manage-e2e-stack.ps1 -Action Down
+```
+
+Para remover também os volumes nomeados da stack, use `-RemoveVolumes`. A
+operação é destrutiva e descarta as chaves de Data Protection do BFF.

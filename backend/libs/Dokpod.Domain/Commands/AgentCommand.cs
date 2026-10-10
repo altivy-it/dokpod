@@ -52,34 +52,38 @@ public sealed record JournaledCommandResult(
 
 public interface ICommandJournal
 {
-    ValueTask<JournaledCommand?> AppendIfAbsentAsync(
+    Task<JournaledCommand?> AppendIfAbsentAsync(
         JournaledCommand command,
         CancellationToken cancellationToken);
 
-    ValueTask<JournaledCommandResult?> FindResultAsync(
+    Task<JournaledCommandResult?> FindResultAsync(
         Guid environmentId,
         Guid commandId,
         CancellationToken cancellationToken);
 
-    ValueTask SaveResultAsync(
+    Task SaveResultAsync(
         JournaledCommandResult result,
         CancellationToken cancellationToken);
 }
 
 public sealed class AgentCommandGate(ICommandJournal journal, TimeProvider timeProvider)
 {
-    public async ValueTask<CommandAdmission> AdmitAsync(
+    public async Task<CommandAdmission> AdmitAsync(
         AgentCommand command,
         long activeFencingToken,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(command);
 
+        if (command.FencingToken != activeFencingToken)
+        {
+            return CommandAdmission.StaleSession;
+        }
+
         var admission = command.Kind switch
         {
             AgentCommandKind.Unknown => CommandAdmission.Unsupported,
             _ when command.DeadlineUtc <= timeProvider.GetUtcNow() => CommandAdmission.Expired,
-            _ when command.FencingToken != activeFencingToken => CommandAdmission.StaleSession,
             _ => CommandAdmission.Accepted,
         };
 
@@ -92,8 +96,13 @@ public sealed class AgentCommandGate(ICommandJournal journal, TimeProvider timeP
             return admission;
         }
 
-        return string.Equals(existing.PayloadHash, command.PayloadHash, StringComparison.Ordinal)
+        if (!string.Equals(existing.PayloadHash, command.PayloadHash, StringComparison.Ordinal))
+        {
+            return CommandAdmission.ConflictingPayload;
+        }
+
+        return existing.Admission == CommandAdmission.Accepted
             ? CommandAdmission.Duplicate
-            : CommandAdmission.ConflictingPayload;
+            : existing.Admission;
     }
 }
