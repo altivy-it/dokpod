@@ -4,7 +4,7 @@
 
 **Criada em**: 2026-10-12
 
-**Estado**: `draft` - aguardando revisão humana.
+**Estado**: `implemented` - aprovada em 2026-10-13 ([specs/README.md](../README.md)) e implementada; evidências e itens `NOT RUN` em [tasks.md](tasks.md).
 
 **Entrada**: Board `01 · Visão geral` ([Main.dc.html](../../docs/design/app/project/Main.dc.html)) e item de menu "Hosts"; dados de hosts e estados usados pelos boards `Containers` e `Detalhe`.
 
@@ -120,7 +120,7 @@ Como operador, quero que hosts com Podman sejam identificados como Podman e tenh
 - **FR-009**: O plano de controle DEVE gerar eventos próprios: engine fora da versão homologada, agente conectado/desconectado, resultado de comandos (concluído, falhou, indeterminado) e `events.dropped` a partir da quantidade descartada informada pelo agente.
 - **FR-010**: Eventos DEVEM ter tipo, severidade (sucesso, informativo, aviso, erro, neutro), horário do engine, horário de recebimento, host, sujeito (container, imagem, volume, host, comando) e parâmetros sanitizados; nunca incluem variáveis de ambiente, conteúdo de logs ou secrets. Quando o horário do engine diverge do horário de recebimento em mais de 5 minutos, o evento é exibido com sinalização de divergência.
 - **FR-011**: A API DEVE permitir consultar eventos por estágio, host, severidade e período, com paginação por cursor, limitada a hosts autorizados.
-- **FR-012**: Eventos DEVEM ser retidos por período limitado configurável (padrão proposto: 30 dias), com partições mensais criadas antecipadamente e uma rotina de retenção nova que remove partições inteiramente fora do período e apaga em lotes as linhas vencidas da partição parcialmente fora dele, sem bloquear escrita, conforme a constituição.
+- **FR-012**: Eventos DEVEM ser retidos por período limitado configurável (padrão confirmado: 30 dias, `EventRetention:Period`), com partições mensais criadas antecipadamente e uma rotina de retenção nova que remove partições inteiramente fora do período e apaga em lotes as linhas vencidas da partição parcialmente fora dele, sem bloquear escrita, conforme a constituição.
 - **FR-013**: Mudanças de descritor e conexão (`kind=host`), de inventário (`kind=inventory`) e novos eventos (`kind=events`) DEVEM emitir invalidação segmentada por host pelo canal em tempo real existente, respeitando o limite de uma emissão por segundo por host e tipo.
 - **FR-014**: A Visão geral DEVE exibir, conforme o mockup: cabeçalho do estágio com título e subtítulo, ações "Atualizar", "Baixar imagem" (visível quando a spec 012 estiver entregue e houver `image:pull`) e "Novo container" (visível quando a spec 013 estiver entregue e houver `container:create`), indicadores, gráfico por engine, card "Hosts e engines" com ação "Ver todos os hosts" e card "Eventos recentes" com contador de atenção.
 - **FR-015**: Os indicadores de CPU, memória e imagens sem uso e o gráfico de recursos DEVEM aparecer como "indisponível" até que as specs 009 e 012 sejam entregues, sem quebrar layout.
@@ -150,7 +150,7 @@ Como operador, quero que hosts com Podman sejam identificados como Podman e tenh
 
 ## Premissas
 
-- Limites padrão propostos: agente desconectado após 3 heartbeats perdidos (≈ 45 s com o intervalo padrão de 15 s); inventário desatualizado após 2 minutos de revisão divergente sem reconciliação; eventos de atenção = aviso ou erro nas últimas 24 h; até 120 eventos por minuto por host; varredura de conexões a cada 60 s.
+- Limites padrão confirmados em 2026-10-13 (T001): agente desconectado após 3 heartbeats perdidos (≈ 45 s com o intervalo padrão de 15 s); inventário desatualizado após 2 minutos de revisão divergente sem reconciliação; eventos de atenção = aviso ou erro nas últimas 24 h; até 120 eventos por minuto por host; varredura de conexões a cada 60 s.
 - Versão mínima homologada vem de configuração do plano de controle, documentada em `docs/distribuicao.md`; não é consultada em fonte externa.
 - O texto dos eventos é montado no frontend a partir de tipo e parâmetros, em pt-BR.
 - Reconhecimento ("ack") de eventos e a tela Alertas ficam fora do escopo; o contador é apenas por janela de 24 horas.

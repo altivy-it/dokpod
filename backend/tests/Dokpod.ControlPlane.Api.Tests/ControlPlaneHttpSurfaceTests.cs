@@ -64,6 +64,25 @@ public sealed class ControlPlaneHttpSurfaceTests
                 or "/hubs/control-plane"),
             endpoint => Assert.NotNull(endpoint.Metadata.GetMetadata<IAuthorizeData>()));
 
+        // Rotas do console (specs 008-011): todas exigem usuário autenticado; autorização por ambiente é feita nos serviços.
+        string[] consoleRoutes =
+        [
+            "/api/v1/overview",
+            "/api/v1/events",
+            "/api/v1/containers",
+            "/api/v1/environments/{environmentId:guid}/stage",
+            "/api/v1/environments/{environmentId:guid}/containers/{containerId}",
+            "/api/v1/environments/{environmentId:guid}/containers/{containerId}/summary",
+            "/api/v1/environments/{environmentId:guid}/containers/{containerId}/inspect",
+            "/api/v1/environments/{environmentId:guid}/containers/{containerId}/logs",
+        ];
+        foreach (var route in consoleRoutes)
+        {
+            var matches = endpoints.Where(endpoint => endpoint.RoutePattern.RawText == route).ToArray();
+            Assert.True(matches.Length > 0, $"rota {route} ausente");
+            Assert.All(matches, endpoint => Assert.NotNull(endpoint.Metadata.GetMetadata<IAuthorizeData>()));
+        }
+
         var healthChecks = app.Services
             .GetRequiredService<IOptions<HealthCheckServiceOptions>>()
             .Value.Registrations

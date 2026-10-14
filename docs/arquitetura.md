@@ -72,6 +72,15 @@ Hosts são composition roots. Regras reutilizáveis pertencem às bibliotecas. C
 5. Snapshot completo ocorre no primeiro vínculo, após lacuna/reconexão solicitada pelo servidor e periodicamente a cada 15 minutos com jitter. Snapshots são paginados em lotes limitados, aplicados transacionalmente por revisão e substituem somente a projeção do ambiente correspondente.
 6. A API consolida mudanças e publica pelo SignalR somente invalidação segmentada por ambiente, limitada inicialmente a uma emissão por segundo. O browser busca o estado durável pela API.
 
+## Fluxo de eventos operacionais (spec 008)
+
+1. O agente assina `/events` do engine (container, imagem e volume), reconecta com recuo e reduz cada evento à allowlist de atributos (`name`, `image`, `exitCode`); labels e variáveis nunca saem do host.
+2. O publicador deduplica, agrega repetições (inclusive `oom` seguido de `die` como um único `container.oom_killed`) e respeita um limite por lote; excedentes viram `dropped_count`.
+3. `EngineEventBatch` só é enviado quando o servidor confirmou `CAPABILITY_ENGINE_EVENTS` em `SessionEstablished.accepted_capabilities`; servidores N-1 não recebem payload novo.
+4. A API valida o tipo contra a allowlist, sanitiza textos e parâmetros, marca divergência de relógio acima de 5 minutos, grava em `environment_events` (particionada por mês, deduplicada por `source_key`) e converte `dropped_count` em `events.dropped`.
+5. Conexão e desconexão do agente, versão de engine desatualizada e resultados de comandos também geram eventos. Cada gravação efetiva publica invalidação `kind=events`.
+6. A retenção (`EventRetention:Period`) remove partições vencidas e apaga em lotes as linhas vencidas da partição de corte pela função `dokpod_apply_temporal_retention`.
+
 O contrato v1 terá um serviço de sessão com uma operação bidirecional `Connect`. Servidor envia controle de sessão, solicitação de snapshot e comandos; agente envia apresentação, heartbeat, deltas, partes de snapshot, aceite e resultado. Inscrição inicial e emissão do primeiro certificado usam endpoint HTTPS separado, de uso único e sem conexão anônima ao stream operacional.
 
 ## Fluxo de comando

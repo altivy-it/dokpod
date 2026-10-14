@@ -98,16 +98,7 @@
               <span class="alt-app-header__user-group">{{ userGroup() }}</span>
             }
           </div>
-          <a
-            routerLink="/"
-            class="alt-app-header__btn alt-app-header__notif"
-            [attr.aria-label]="notifications() ? 'Eventos que pedem atenção, ' + notifications() + ' não vistos' : 'Eventos recentes'"
-          >
-            <dok-icon name="bell" [size]="20" />
-            @if (notifications()) {
-              <span class="alt-app-header__badge alt-num" aria-hidden="true">{{ notifications()! > 99 ? '99+' : notifications() }}</span>
-            }
-          </a>
+          <dok-notifications-panel [count]="notifications()" [stage]="stageFilter.stage()" />
           <div class="alt-app-header__profile-wrap" #profileWrap>
             <button
               type="button"

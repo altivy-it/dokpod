@@ -28,7 +28,7 @@ ALL_SCOPES = [
     "container:delete", "container:pause", "container:inspect", "container:logs", "image:pull",
     "container:create", "container:exec", "audit:read",
 ]
-STATE: dict = {"scenario": "default", "commands": {}}
+STATE: dict = {"scenario": "default", "commands": {}, "stages": {}, "registered": {}, "revoked": set()}
 
 
 def iso(delta_minutes: float = 0) -> str:
@@ -91,7 +91,7 @@ def host_view(h) -> dict:
         "scopes": scopes(),
         "stage": stage,
         "situation": situation,
-        "containerCount": sum(1 for c in CONTAINERS if c[1] == n),
+        "containerCount": sum(1 for c in all_containers() if c[1] == n),
         "agent": {
             "connected": connected,
             "sessionStartedAt": iso(60 * 26) if connected else None,
@@ -112,12 +112,40 @@ def host_view(h) -> dict:
     }
 
 
+LARGE_HOSTS = [
+    (100 + i, f"srv-lab-{i:02d}", ("production", "staging", "development")[i % 3], "podman" if i % 3 == 0 else "docker",
+     "5.2.3" if i % 3 == 0 else "27.3.1", "up_to_date", 8, 32, i % 3 == 0)
+    for i in range(56)
+]
+LARGE_CONTAINERS = [
+    (f"lab-{h[0]}-{c:02d}", h[0], "registry.empresa.com/lab/app:1.0.0",
+     ("running", "running", "running", "stopped", "failed", "paused")[c % 6], 0, [])
+    for h in LARGE_HOSTS for c in range(20)
+]
+
+
+def all_hosts():
+    return LARGE_HOSTS if STATE["scenario"] == "large" else HOSTS
+
+
+def all_containers():
+    return LARGE_CONTAINERS if STATE["scenario"] == "large" else CONTAINERS
+
+
 def hosts() -> list[dict]:
-    return [] if STATE["scenario"] == "empty" else [host_view(h) for h in HOSTS]
+    if STATE["scenario"] == "empty":
+        return []
+    views = [host_view(h) for h in all_hosts()]
+    for view in views:
+        view["stage"] = STATE["stages"].get(view["environmentId"], view["stage"])
+        if view["environmentId"] in STATE["revoked"]:
+            view["situation"] = "disconnected"
+            view["agent"]["connected"] = False
+    return views + list(STATE["registered"].values())
 
 
 def host_by_n(n: int):
-    return next(h for h in HOSTS if h[0] == n)
+    return next(h for h in all_hosts() if h[0] == n)
 
 
 def container_item(c) -> dict:
@@ -151,7 +179,7 @@ def container_item(c) -> dict:
 
 
 def containers() -> list[dict]:
-    return [] if STATE["scenario"] == "empty" else [container_item(c) for c in CONTAINERS]
+    return [] if STATE["scenario"] == "empty" else [container_item(c) for c in all_containers()]
 
 
 def find_container(environment_id: str, container_id: str):
@@ -166,7 +194,7 @@ def count_map(values) -> dict:
 
 
 def events() -> list[dict]:
-    if STATE["scenario"] == "empty":
+    if STATE["scenario"] in ("empty", "large"):
         return []
     rows = [
         ("container.died", "error", 4, "migracao-catalogo", 5, {"exitCode": "1"}),
@@ -272,6 +300,9 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/__mock/scenario" and method == "POST":
             STATE["scenario"] = self.read_body().get("name", "default")
             STATE["commands"].clear()
+            STATE["stages"].clear()
+            STATE["registered"].clear()
+            STATE["revoked"].clear()
             return self.send_json(200, {"scenario": STATE["scenario"]})
         if path == "/__mock/health":
             return self.send_json(200, {"ok": True})
@@ -299,6 +330,17 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/v1/events":
             rows = [e for e in events() if (not q("stage") or host_stage(e["environmentId"]) == q("stage")) and (not q("environmentId") or e["environmentId"] == q("environmentId")) and (not q("severity") or e["severity"] == q("severity"))]
             return self.send_json(200, {"events": rows[: int(q("limit") or 50)], "nextCursor": None})
+        if path == "/api/v1/environments" and method == "POST":
+            if STATE["scenario"] == "readonly":
+                return self.send_json(403, problem(403, "Acesso negado", "authorization_denied"), "application/problem+json")
+            body = self.read_body()
+            environment_id = body.get("environmentId") or str(uuid.uuid4())
+            if any(h["environmentId"] == environment_id for h in hosts()):
+                return self.send_json(409, problem(409, "Ambiente já cadastrado", "environment_conflict"), "application/problem+json")
+            view = {"environmentId": environment_id, "name": body.get("name"), "host": body.get("host"), "enabled": body.get("enabled", True),
+                    "scopes": scopes(), "stage": body.get("stage"), "situation": "disconnected", "containerCount": 0, "agent": None}
+            STATE["registered"][environment_id] = view
+            return self.send_json(201, view)
         if path == "/api/v1/environments":
             rows = [h for h in hosts() if (not q("stage") or h["stage"] == q("stage")) and (not q("engine") or h["agent"]["engine"] == q("engine")) and (not q("situation") or h["situation"] == q("situation")) and (not q("q") or q("q").lower() in h["name"])]
             return self.send_json(200, {"environments": rows, "nextCursor": None})
@@ -327,8 +369,16 @@ class Handler(BaseHTTPRequestHandler):
         if rest == "":
             return self.send_json(200, host)
         if rest == "/stage" and method == "PUT":
-            host["stage"] = self.read_body().get("stage")
+            if "environment:manage" not in scopes():
+                return self.send_json(403, problem(403, "Acesso negado", "authorization_denied"), "application/problem+json")
+            STATE["stages"][environment_id] = self.read_body().get("stage")
+            host["stage"] = STATE["stages"][environment_id]
             return self.send_json(200, host)
+        if rest == "/agent-identity/revoke" and method == "POST":
+            if "environment:manage" not in scopes():
+                return self.send_json(403, problem(403, "Acesso negado", "authorization_denied"), "application/problem+json")
+            STATE["revoked"].add(environment_id)
+            return self.send_json(204, None)
         if rest == "/containers":
             rows = [c for c in containers() if c["environmentId"] == environment_id]
             return self.send_json(200, {"environmentId": environment_id, "revision": 7, "observedAt": iso(0.5), "ageSeconds": 30, "containers": rows, "nextCursor": None})

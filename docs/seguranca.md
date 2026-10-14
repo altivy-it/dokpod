@@ -52,6 +52,13 @@ Inventário contém metadados potencialmente sensíveis. Variáveis de ambiente,
 
 A telemetria usa allowlist de campos, limites e normalização de caracteres de controle. A auditoria é append-only e registra identidade, ação, recurso, horário, correlation ID e resultado. A role normal da aplicação não recebe `UPDATE` ou `DELETE` sobre auditoria; integridade e retenção serão definidas antes de produção. Acesso à auditoria também exige autorização.
 
+## Eventos operacionais (spec 008)
+
+- Somente tipos da allowlist (`OperationalEventTypes`) são aceitos; tipo desconhecido é descartado. Parâmetros seguem allowlist por nome, com caracteres de controle removidos, valores limitados a 256 caracteres e o conjunto a 2 KiB; labels, variáveis de ambiente e comandos dos containers nunca são copiados.
+- Horário informado pelo agente é preservado, mas divergência acima de 5 minutos do recebimento é sinalizada e não altera a ordenação de auditoria.
+- `dokpod_apply_temporal_retention` é `SECURITY DEFINER`; desde a migration `202610130004_RestrictTemporalRetention` aceita apenas `environment_events`, `host_resource_samples`, `agent_commands` e `agent_command_parameters` e as colunas temporais previstas. Auditoria nunca é purgada por essa função.
+- Gravação de inventário usa transação `SERIALIZABLE` repetida em `40001`/`40P01`, evitando perda de snapshot quando vários agentes publicam ao mesmo tempo.
+
 ## Threat model: inspeção e logs sob demanda (spec 011)
 
 **Fronteira nova**: navegador → BFF → API → stream mTLS do agente → API do engine (`/containers/{id}/json` e `/logs`). Consultas são mensagens tipadas (`SUMMARY`, `INSPECT`, `LOGS`), nunca repasse genérico de rota ou payload.

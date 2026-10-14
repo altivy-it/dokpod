@@ -65,6 +65,18 @@ Diretórios lógicos:
 
 O socket nunca é publicado em porta TCP nem compartilhado com outro componente Dokpod. Podman rootless exige UID, socket e regras SELinux documentados para a distribuição homologada.
 
+### Engines homologados (spec 008)
+
+| Engine | Versão mínima homologada | Configuração (`EngineSupport`) | Socket padrão procurado |
+| --- | --- | --- | --- |
+| Docker Engine | 27.0.0 | `DockerMinimumVersion` | `/run/docker.sock`, `/var/run/docker.sock` |
+| Podman (API compatível com Docker) | 5.0.0 | `PodmanMinimumVersion` | `$XDG_RUNTIME_DIR/podman/podman.sock` (rootless), `/run/podman/podman.sock` (rootful) |
+
+- `DOKPOD_AGENT_DOCKER_SOCKET`, quando definido, sempre vence; sem ele o agente usa o primeiro socket existente na ordem acima. O engine efetivo é detectado por `/version` (`Components` contém "Podman Engine"), não pelo caminho.
+- Hosts abaixo da versão mínima aparecem como "Atualizar" e geram `engine.version_outdated`; versão não interpretável aparece como "Desconhecido".
+- Podman é qualificado pela API compatível com testes reais (`backend/tests/Dokpod.Agent.Podman.IntegrationTests`, `DOKPOD_TEST_PODMAN_SOCKET`). Diferenças tratadas pelo agente: `stop` de container pausado retoma antes de parar (o Podman recusa) e conflitos de estado (HTTP 500 `container state improper`) são mapeados como no Docker (`not_running`/`not_paused`). Pods e API Libpod não fazem parte desta entrega.
+- Evidência atual: Podman 5.7.0 rootless em Ubuntu 24.04 (2026-10-13). Podman rootful, Docker real e Windows: `NOT RUN` nesta entrega.
+
 O stream operacional com o plano de controle é habilitado quando estas variáveis são injetadas no processo:
 
 | Variável | Obrigatória | Finalidade |

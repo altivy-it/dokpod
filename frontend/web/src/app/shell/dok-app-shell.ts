@@ -15,6 +15,7 @@ import { NavigationEnd, Router, RouterLink } from '@angular/router';
 import { filter, map } from 'rxjs';
 import { DokIcon } from '../design-system/icon/dok-icon';
 import { activeNavId, groupNavigation, NAV_ITEMS } from './navigation';
+import { DokNotificationsPanel } from './notifications-panel';
 import { ShellContextService } from './shell-context.service';
 import { STAGES, StageFilterService, type Stage } from './stage-filter.service';
 
@@ -27,7 +28,7 @@ const COLLAPSE_BELOW = 1100;
 @Component({
   selector: 'dok-app-shell',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [DokIcon, RouterLink],
+  imports: [DokIcon, DokNotificationsPanel, RouterLink],
   host: {
     '(window:resize)': 'onResize()',
     '(document:mousedown)': 'onDocumentDown($event)',

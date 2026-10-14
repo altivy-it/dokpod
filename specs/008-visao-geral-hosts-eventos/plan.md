@@ -2,7 +2,7 @@
 
 **Branch**: `007-console-operacional` | **Data**: 2026-10-12 | **Spec**: [spec.md](spec.md)
 
-**Estado**: `draft` - aguardando revisão humana.
+**Estado**: `implemented` - ver [tasks.md](tasks.md).
 
 ## Resumo
 

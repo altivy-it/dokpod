@@ -134,6 +134,18 @@ Para incluir o agente Docker local:
 O mount `/var/run/docker.sock:/run/docker.sock` concede privilégio elevado sobre
 o host Docker local. Use o perfil `agent` somente em laboratório controlado.
 
+## Incluir um agente Podman rootless
+
+O perfil `agent-podman` (spec 008 T027) sobe um segundo agente apontando para o socket Podman do host, com identidade mTLS própria (`dokpod-agent-podman.pfx` na pasta externa de certificados e UUID em `DOKPOD_E2E_PODMAN_AGENT_ENVIRONMENT_ID`).
+
+```bash
+systemctl --user start podman.socket          # ou: podman system service --time=0 &
+export DOKPOD_E2E_PODMAN_SOCKET="$XDG_RUNTIME_DIR/podman/podman.sock"
+docker compose -f deploy/e2e/docker-compose-dokpod.yaml --profile agent --profile agent-podman up -d
+```
+
+O runner de CI atual não oferece Podman; a execução fica manual, com evidência registrada nas tarefas. A qualificação do adapter sem a stack completa roda com `DOKPOD_TEST_PODMAN_SOCKET` em `backend/tests/Dokpod.Agent.Podman.IntegrationTests`.
+
 ## Validar o agente Windows self-contained
 
 O agente também pode ser publicado como `win-x64` e executado fora de
