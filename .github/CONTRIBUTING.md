@@ -55,11 +55,11 @@ instalado no host; build e testes usam a imagem de toolchain fixada.
 
 ```powershell
 docker run --rm --volume "${PWD}:/workspace" --workdir /workspace `
-   lzocateli/dotnet-sdk:10.0.400-noble `
+   lzocateli/dotnet-sdk:10.0.402-noble-v1 `
    dotnet build Dokpod.slnx --configuration Release --verbosity minimal
 
 docker run --rm --volume "${PWD}:/workspace" --workdir /workspace `
-   lzocateli/dotnet-sdk:10.0.400-noble `
+   lzocateli/dotnet-sdk:10.0.402-noble-v1 `
    dotnet test Dokpod.slnx --configuration Release --verbosity minimal
 ```
 
@@ -71,7 +71,7 @@ docker run --rm --group-add 0 `
    --volume "${PWD}:/workspace" `
    --volume /var/run/docker.sock:/var/run/docker.sock `
    --workdir /workspace/backend `
-   lzocateli/dotnet-sdk:10.0.400-noble `
+   lzocateli/dotnet-sdk:10.0.402-noble-v1 `
    dotnet test tests/Dokpod.Agent.Docker.IntegrationTests/Dokpod.Agent.Docker.IntegrationTests.csproj `
       --configuration Release --verbosity minimal
 ```

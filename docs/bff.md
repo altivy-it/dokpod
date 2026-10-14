@@ -128,7 +128,7 @@ Na raiz do repositório, com Docker disponível:
 docker run --rm --group-add 0 `
   --volume "${PWD}:/workspace" `
   --workdir /workspace `
-  lzocateli/dotnet-sdk:10.0.400-noble `
+  lzocateli/dotnet-sdk:10.0.402-noble-v1 `
   dotnet test backend/tests/Dokpod.Bff.Tests/Dokpod.Bff.Tests.csproj `
   --configuration Release --verbosity minimal
 ```

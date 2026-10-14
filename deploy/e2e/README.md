@@ -154,7 +154,7 @@ container em uma máquina Windows com Docker Desktop. O adapter usa o named pipe
 
 ```powershell
 docker run --rm -v "${PWD}:/workspace" -w /workspace `
-  lzocateli/dotnet-sdk:10.0.400-noble `
+  lzocateli/dotnet-sdk:10.0.402-noble-v1 `
   dotnet publish backend/apps/Dokpod.Agent/Dokpod.Agent.csproj `
   --configuration Release --runtime win-x64 --self-contained true `
   --output artifacts/agent/windows-e2e

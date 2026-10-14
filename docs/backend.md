@@ -8,7 +8,7 @@
 - OpenTelemetry para traces, métricas e correlação;
 - xUnit para testes e Testcontainers para integrações reais.
 
-O baseline de build usa `lzocateli/dotnet-sdk:10.0.400-noble`; API, BFF e agente Linux derivam de `lzocateli/dotnet-aspnet:10.0.11-noble`. A release fixa também os digests conforme [Distribuição e operação](distribuicao.md#imagens-base-e-toolchains). Pacotes NuGet continuam exigindo versão centralizada e verificação prévia de licença e manutenção.
+O baseline de build usa `lzocateli/dotnet-sdk:10.0.402-noble-v1`; API, BFF e agente Linux derivam de `lzocateli/dotnet-aspnet:10.0.13-noble-v1`. A release fixa também os digests conforme [Distribuição e operação](distribuicao.md#imagens-base-e-toolchains). Pacotes NuGet continuam exigindo versão centralizada e verificação prévia de licença e manutenção.
 
 ## Projetos alvo
 
