@@ -14,7 +14,7 @@ namespace Dokpod.Agent.Podman.IntegrationTests;
 /// <summary>Spec 013 em Podman real: configuração aplicada = solicitada (SC-005), Libpod para segredos/health, rollback e reconciliação.</summary>
 public sealed class ContainerCreationPodmanTests : IAsyncLifetime
 {
-    private const string FixtureImage = "docker.io/lzocateli/nginx:1.28.0-bookworm";
+    private const string FixtureImage = "docker.io/lzocateli/nginx:1.28.0-bookworm-v1";
     private readonly string suffix = Guid.NewGuid().ToString("N")[..8];
     private HttpClient? http;
     private DockerEngineClient? engine;

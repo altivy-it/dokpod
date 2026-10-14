@@ -26,7 +26,7 @@ fi
   docker.io/lzocateli/playwright-e2e:0.1.0 /mock/control_plane_mock.py >/dev/null
 "$ENGINE" run -d --name dokpod-edge --network "$NET" -v "$ROOT/frontend/web/dist/e2e/browser":/usr/share/nginx/html:ro$LABEL \
   -v "$ROOT/docs/design/app":/design:ro$LABEL \
-  -v "$ROOT/frontend/tests/e2e/mock/nginx.conf":/etc/nginx/conf.d/default.conf:ro$LABEL docker.io/lzocateli/nginx:1.28.0-bookworm >/dev/null
+  -v "$ROOT/frontend/tests/e2e/mock/nginx.conf":/etc/nginx/conf.d/default.conf:ro$LABEL docker.io/lzocateli/nginx:1.28.0-bookworm-v1 >/dev/null
 cleanup() { [ "$KEEP" = 1 ] || "$ENGINE" rm -f dokpod-mock dokpod-edge >/dev/null 2>&1 || true; }
 trap cleanup EXIT
 mkdir -p "$ROOT/artifacts/e2e/mock"

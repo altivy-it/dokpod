@@ -10,7 +10,7 @@ namespace Dokpod.Agent.Podman.IntegrationTests;
 /// <summary>Spec 014 T006 em Podman real: exec sequestrado, eco, resize, término por `exit` e por fechamento do TTY.</summary>
 public sealed class ExecPodmanTests : IAsyncLifetime
 {
-    private const string FixtureImage = "docker.io/lzocateli/nginx:1.28.0-bookworm";
+    private const string FixtureImage = "docker.io/lzocateli/nginx:1.28.0-bookworm-v1";
     private HttpClient? http;
     private DockerEngineClient? engine;
     private string apiVersion = string.Empty;

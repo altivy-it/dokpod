@@ -71,7 +71,7 @@ New-Item -ItemType Directory -Force $DokpodCertsDirectory | Out-Null
 
 docker run --rm `
   -v "${DokpodCertsDirectory}:/certs" `
-  lzocateli/nginx:1.28.0-bookworm `
+  lzocateli/nginx:1.28.0-bookworm-v1 `
   openssl pkcs12 -export `
     -in /certs/dokpod-api.crt `
     -inkey /certs/dokpod-api.key `

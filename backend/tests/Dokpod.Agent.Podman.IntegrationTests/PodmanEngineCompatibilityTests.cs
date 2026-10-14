@@ -14,7 +14,7 @@ namespace Dokpod.Agent.Podman.IntegrationTests;
 /// </summary>
 public sealed class PodmanEngineCompatibilityTests : IAsyncLifetime
 {
-    private const string FixtureImage = "docker.io/lzocateli/nginx:1.28.0-bookworm";
+    private const string FixtureImage = "docker.io/lzocateli/nginx:1.28.0-bookworm-v1";
     private readonly List<string> created = [];
     private HttpClient? http;
     private DockerEngineClient? engine;
