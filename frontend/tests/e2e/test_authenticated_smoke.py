@@ -216,7 +216,8 @@ def test_horizontal_access_is_denied(authenticated_page: Page) -> None:
         f"{BASE_URL.rstrip('/')}/containers/{DENIED_ENVIRONMENT_ID}/{'a' * 64}",
         wait_until="networkidle",
     )
-    expect(authenticated_page.get_by_text("Acesso negado", exact=True)).to_be_visible()
+    # IDOR (spec 011): ambiente negado é indistinguível de container inexistente.
+    expect(authenticated_page.get_by_text("O container não foi encontrado.")).to_be_visible()
 
 
 def test_agent_identity_can_be_revoked(authenticated_page: Page) -> None:
@@ -267,7 +268,8 @@ def test_inventory_visual_states(authenticated_page: Page) -> None:
         f"{BASE_URL.rstrip('/')}/containers/{DENIED_ENVIRONMENT_ID}/{'a' * 64}",
         wait_until="networkidle",
     )
-    expect(authenticated_page.get_by_text("Acesso negado", exact=True)).to_be_visible()
+    # IDOR (spec 011): ambiente negado é indistinguível de container inexistente.
+    expect(authenticated_page.get_by_text("O container não foi encontrado.")).to_be_visible()
     authenticated_page.screenshot(
         path=f"{REPORT_DIRECTORY}/inventory-forbidden-mobile.png",
         full_page=True,

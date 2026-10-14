@@ -29,7 +29,7 @@ let nextId = 0;
             [class.alt-tabs__tab--active]="tab.id === value()"
             [id]="tabId(tab.id)"
             [attr.aria-selected]="tab.id === value()"
-            [attr.aria-controls]="panelId()"
+            [attr.aria-controls]="tab.id === value() ? controls() : null"
             [attr.tabindex]="tab.id === value() ? 0 : -1"
             [disabled]="tab.disabled"
             (click)="select(tab)"
@@ -53,16 +53,14 @@ export class DokTabs {
   readonly value = model<string>('');
   readonly variant = input<'plain' | 'card'>('plain');
   readonly ariaLabel = input<string | null>(null);
+  /** Id do `role="tabpanel"` da página; sem ele, `aria-controls` não é emitido (evita referência inválida). */
+  readonly controls = input<string | null>(null);
 
   private readonly uid = ++nextId;
   private readonly buttons = viewChildren<ElementRef<HTMLButtonElement>>('tabButton');
 
   tabId(id: string): string {
     return `dok-tabs-${this.uid}-tab-${id}`;
-  }
-
-  panelId(): string {
-    return `dok-tabs-${this.uid}-panel`;
   }
 
   protected select(tab: TabItem): void {

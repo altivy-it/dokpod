@@ -4,7 +4,7 @@
 
 **Criada em**: 2026-10-12
 
-**Estado**: `draft` - aguardando revisão humana; exige revisão de segurança (mudança na política de logs).
+**Estado**: `implemented` - aprovada em 2026-10-13 ([specs/README.md](../README.md)); revisão humana de segurança antes de release; evidências e itens `NOT RUN` em [tasks.md](tasks.md).
 
 **Entrada**: Board `03 · Detalhe do container` ([Detalhe.dc.html](../../docs/design/app/project/Detalhe.dc.html)): cabeçalho com situação, engine, imagem, ID, host, tempo ativo, reinícios e health check; ações (Abrir terminal, Reiniciar, Parar, Remover container); abas Resumo, Logs, Inspecionar, Estatísticas e Terminal; cards "Recursos agora" e "Rede e armazenamento".
 

@@ -86,6 +86,7 @@ export class ContainerDetailPage {
     { id: 'estatisticas', label: 'Estatísticas', icon: 'chart-line' },
     { id: 'terminal', label: 'Terminal', icon: 'command', disabled: true },
   ];
+  protected readonly tabLabel = computed(() => this.tabs.find(t => t.id === this.tab())?.label ?? '');
   protected readonly tab = computed<TabId>(() => {
     const value = this.aba();
     return value === 'resumo' || value === 'inspecionar' || value === 'estatisticas' ? value : 'logs';

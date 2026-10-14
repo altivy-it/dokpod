@@ -46,6 +46,15 @@ interface ViewLine {
 type LogsState = 'loading' | 'ready' | 'forbidden' | 'disconnected' | 'unsupported' | 'error';
 
 /** Aba Logs (spec 011 US4): últimas linhas, filtros, ao vivo com taxa limitada e download do buffer. */
+const END_REASON: Record<string, string> = {
+  authorization_revoked: 'Ao vivo encerrado: a permissão de logs foi revogada.',
+  authorization_unavailable: 'Ao vivo encerrado: não foi possível confirmar a permissão no Keycloak.',
+  expired: 'Ao vivo encerrado após o tempo máximo de 15 minutos.',
+  agent_ended: 'Ao vivo encerrado: o agente encerrou a sessão.',
+  agent_disconnected: 'Ao vivo encerrado: o agente do host desconectou.',
+  container_stopped: 'Ao vivo encerrado: o container parou.',
+};
+
 @Component({
   selector: 'app-logs-panel',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -86,7 +95,8 @@ type LogsState = 'loading' | 'ready' | 'forbidden' | 'disconnected' | 'unsupport
             </button>
             <button dok-button variant="ghost" size="xs" startIcon="download" type="button" [disabled]="!lines().length" (click)="download()">Baixar</button>
           </div>
-          <div #scroller class="ct-mono alt-scroll lg-lines" role="log" aria-label="Linhas de log" [attr.aria-busy]="state() === 'loading'" (scroll)="onScroll()">
+          <p class="app-caption lg-muted" role="status" style="margin: 0" [hidden]="!endNotice()">{{ endNotice() }}</p>
+          <div #scroller class="ct-mono alt-scroll lg-lines" role="log" aria-label="Linhas de log" tabindex="0" [attr.aria-busy]="state() === 'loading'" (scroll)="onScroll()">
             @if (state() === 'loading') {
               @for (i of skeleton; track i) {
                 <div class="alt-skel" style="height: 14px; margin: 4px 0" [style.width.%]="40 + ((i * 17) % 55)"></div>
@@ -127,6 +137,7 @@ export class LogsPanel {
   protected readonly filter = signal('');
   protected readonly level = signal('');
   protected readonly live = signal(false);
+  protected readonly endNotice = signal<string | null>(null);
   protected readonly omitted = signal(0);
   protected readonly truncated = signal(false);
   protected readonly dropped = signal(false);
@@ -191,19 +202,43 @@ export class LogsPanel {
       return;
     }
 
-    this.live.set(true);
     this.omitted.set(0);
+    await this.startLive();
+  }
+
+  private async startLive(): Promise<void> {
+    this.live.set(true);
+    this.endNotice.set(null);
     this.subscription = await this.realtime.streamLogs(this.environmentId(), this.containerId(), null, {
       next: chunk => {
         this.append(chunk.lines);
         if (chunk.omittedLines) this.omitted.update(value => value + chunk.omittedLines);
-        if (chunk.ended) this.live.set(false);
+        if (chunk.ended) void this.onEnded(chunk.endReason ?? null);
         if (this.followBottom) queueMicrotask(() => this.scrollToEnd());
       },
-      error: () => this.live.set(false),
+      error: () => {
+        this.live.set(false);
+        this.endNotice.set('Ao vivo encerrado: a conexão em tempo real caiu.');
+      },
       complete: () => this.live.set(false),
     });
-    if (!this.subscription) this.live.set(false);
+    if (!this.subscription) {
+      this.live.set(false);
+      this.endNotice.set('Ao vivo indisponível: sem conexão em tempo real com o plano de controle.');
+    }
+  }
+
+  /** Sessão ao vivo terminada pelo servidor; renovação de token retoma de forma transparente. */
+  private async onEnded(reason: string | null): Promise<void> {
+    this.subscription?.dispose();
+    this.subscription = null;
+    if (reason === 'session_refresh_required') {
+      await this.realtime.reconnect();
+      await this.startLive();
+      return;
+    }
+    this.live.set(false);
+    this.endNotice.set(END_REASON[reason ?? ''] ?? 'Ao vivo encerrado.');
   }
 
   protected onScroll(): void {

@@ -47,6 +47,10 @@ public static class ApiHost
         ApiHostOptions? options = null)
     {
         var builder = WebApplication.CreateBuilder(args);
+        // URLs com query não vão aos logs: `contains` dos logs sob demanda (spec 011) e demais filtros
+        // apareceriam em "Request starting ..." e no log do HttpClient em nível Information.
+        builder.Logging.AddFilter("Microsoft.AspNetCore.Hosting.Diagnostics", LogLevel.Warning);
+        builder.Logging.AddFilter("System.Net.Http.HttpClient", LogLevel.Warning);
         options ??= LoadOptionsFromEnvironment();
         ArgumentNullException.ThrowIfNull(
             options.ServerCertificate,

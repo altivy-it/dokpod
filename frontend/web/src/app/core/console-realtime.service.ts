@@ -69,6 +69,13 @@ export class ConsoleRealtimeService {
     return subscription;
   }
 
+  /** Reabre a conexão (o BFF renova o token na negociação); assinaturas de ambiente são refeitas. */
+  async reconnect(): Promise<void> {
+    const ids = [...this.joined];
+    await this.stop();
+    await this.watch(ids);
+  }
+
   async stop(): Promise<void> {
     const connection = this.connection;
     this.connection = null;

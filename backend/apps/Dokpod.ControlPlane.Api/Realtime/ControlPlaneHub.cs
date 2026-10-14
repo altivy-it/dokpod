@@ -3,6 +3,7 @@ using System.Security.Claims;
 using Dokpod.ControlPlane.Api.Endpoints;
 using Dokpod.ControlPlane.Application.Authorization;
 using Dokpod.ControlPlane.Application.Queries;
+using Dokpod.ControlPlane.Application.Realtime;
 using Dokpod.Domain.Environments;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
@@ -109,7 +110,7 @@ public sealed class ControlPlaneHub(
         long lines = 0;
         using var lifetime = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         lifetime.CancelAfter(LiveLogsMaxDuration);
-        var nextCheck = startedAt + AuthorizationRecheckInterval;
+        var monitor = new StreamingAuthorizationMonitor(timeProvider, TokenExpiresAt(Context.User), AuthorizationRecheckInterval);
         try
         {
             while (true)
@@ -133,13 +134,23 @@ public sealed class ControlPlaneHub(
                     }
                 }
 
-                if (timeProvider.GetUtcNow() >= nextCheck)
+                if (monitor.IsDue)
                 {
-                    nextCheck = timeProvider.GetUtcNow() + AuthorizationRecheckInterval;
-                    var recheck = await insights.AuthorizeAsync(envId, containerId, EnvironmentResourceScopes.ReadContainerLogs, actor, accessToken, correlationId, lifetime.Token);
-                    if (recheck.Access != InsightAccess.Allowed)
+                    var state = await monitor.CheckAsync(
+                        async token =>
+                        {
+                            var recheck = await insights.AuthorizeAsync(envId, containerId, EnvironmentResourceScopes.ReadContainerLogs, actor, accessToken, correlationId, token);
+                            return recheck.Access switch
+                            {
+                                InsightAccess.Allowed => AuthorizationDecisionOutcome.Allowed,
+                                InsightAccess.Unavailable => AuthorizationDecisionOutcome.Indeterminate,
+                                _ => AuthorizationDecisionOutcome.Denied,
+                            };
+                        },
+                        lifetime.Token);
+                    if (state != StreamingAuthorizationState.Allowed)
                     {
-                        reason = "authorization_revoked";
+                        reason = StreamingAuthorizationMonitor.EndReason(state);
                         yield return new { sessionId = handle.SessionId, lines = Array.Empty<object>(), omittedLines = 0, ended = true, endReason = reason };
                         break;
                     }
@@ -179,6 +190,12 @@ public sealed class ControlPlaneHub(
     }
 
     public static string GroupFor(string environmentId) => $"environment-{environmentId}";
+
+    /// <summary>`exp` do access token da conexão (validado na abertura do hub).</summary>
+    internal static DateTimeOffset? TokenExpiresAt(ClaimsPrincipal? user) =>
+        long.TryParse(user?.FindFirstValue("exp"), System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var seconds)
+            ? DateTimeOffset.FromUnixTimeSeconds(seconds)
+            : null;
 
     private static string? ExtractAccessToken(HttpContext? context)
     {

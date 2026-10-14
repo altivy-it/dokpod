@@ -64,8 +64,8 @@
 
     <div class="dok-row" style="align-items: flex-start">
       <div class="dok-row__main cd-main">
-        <dok-tabs [tabs]="tabs" [value]="tab()" (valueChange)="selectTab($event)" ariaLabel="Seções do container" />
-        <div role="tabpanel" [attr.aria-label]="tab()">
+        <dok-tabs [tabs]="tabs" [value]="tab()" (valueChange)="selectTab($event)" ariaLabel="Seções do container" controls="cd-tabpanel" />
+        <div id="cd-tabpanel" role="tabpanel" [attr.aria-label]="tabLabel()" tabindex="-1">
           @switch (tab()) {
             @case ('logs') {
               @if (detail(); as d) {

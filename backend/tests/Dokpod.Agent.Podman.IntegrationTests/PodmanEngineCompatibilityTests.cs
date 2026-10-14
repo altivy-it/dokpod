@@ -227,6 +227,62 @@ public sealed class PodmanEngineCompatibilityTests : IAsyncLifetime
         Assert.True(container.MemoryUsedBytes > 0);
     }
 
+    [Fact]
+    public async Task Logs_ReadsStdoutAndStderrWithEngineTimestamps()
+    {
+        RequirePodman();
+        var id = await CreateAsync(new { Image = FixtureImage, Entrypoint = new[] { "/bin/sh", "-c", "echo saida-1; echo erro-1 >&2; echo saida-2" } });
+        Assert.True((await Engine.ExecuteAsync(AgentCommandKind.StartContainer, id, Token)).Succeeded);
+        await Task.Delay(1500, Token);
+
+        var lines = new List<EngineLogLine>();
+        await foreach (var line in Engine.ReadLogsAsync(id, new EngineLogRequest(100, null, null, false), Token)) lines.Add(line);
+
+        Assert.Contains(lines, l => l.Stream == 1 && l.Raw.EndsWith("saida-1", StringComparison.Ordinal));
+        Assert.Contains(lines, l => l.Stream == 2 && l.Raw.EndsWith("erro-1", StringComparison.Ordinal));
+        Assert.All(lines, l => Assert.True(DateTimeOffset.TryParse(l.Raw.Split(' ')[0], out _), l.Raw));
+    }
+
+    [Fact]
+    public async Task Events_PolicyRestartIsObservable()
+    {
+        RequirePodman();
+        var id = await CreateAsync(new
+        {
+            Image = FixtureImage,
+            Entrypoint = new[] { "/bin/sh", "-c", "sleep 1; exit 1" },
+            HostConfig = new { RestartPolicy = new { Name = "on-failure", MaximumRetryCount = 1 } },
+        });
+        using var watch = CancellationTokenSource.CreateLinkedTokenSource(Token);
+        watch.CancelAfter(TimeSpan.FromSeconds(30));
+        var actions = new List<string>();
+        var reader = Task.Run(async () =>
+        {
+            try
+            {
+                await foreach (var record in Engine.WatchEventsAsync(watch.Token))
+                {
+                    if (record.SubjectId != id) continue;
+                    actions.Add(record.Action);
+                    if (actions.Count(a => a == "died" || a == "die") >= 2) break;
+                }
+            }
+            catch (OperationCanceledException)
+            {
+            }
+        }, Token);
+
+        await Task.Delay(500, Token);
+        Assert.True((await Engine.ExecuteAsync(AgentCommandKind.StartContainer, id, Token)).Succeeded);
+        await reader;
+
+        // D-005 da 011: o agente da 008 aceita `restart` ou `die` seguido de `start` sem comando pendente.
+        var restartObservable = actions.Contains("restart") ||
+            actions.Select((a, i) => (a, i)).Any(x => (x.a is "die" or "died") && actions.Skip(x.i + 1).Contains("start"));
+        Assert.True(restartObservable, string.Join(",", actions));
+        TestContext.Current.SendDiagnosticMessage($"podman policy restart events: {string.Join(",", actions)}");
+    }
+
     private async Task<string> CreateAsync(object spec)
     {
         using var content = new StringContent(JsonSerializer.Serialize(spec), Encoding.UTF8, "application/json");

@@ -465,6 +465,12 @@ class Handler(BaseHTTPRequestHandler):
                       "cpu": [None if (not resources or i < 3) else round(resources["cpuPercent"] * (0.8 + (i % 5) / 20), 1) for i in range(30)],
                       "memory": [None if (not resources or i < 3) else round(resources["memoryUsedBytes"] / resources["memoryLimitBytes"] * 100, 1) for i in range(30)]}
             return self.send_json(200, {"current": current, "series": series, "operationalLimitPercent": 80})
+        if sub in ("/summary", "/inspect") and "container:inspect" not in scopes():
+            return self.send_json(403, problem(403, "Acesso negado", "authorization_denied"), "application/problem+json")
+        if sub == "/logs" and "container:logs" not in scopes():
+            return self.send_json(403, problem(403, "Acesso negado", "authorization_denied"), "application/problem+json")
+        if sub in ("/summary", "/inspect", "/logs") and not container["hostConnected"]:
+            return self.send_json(409, problem(409, "Agente desconectado", "agent_disconnected"), "application/problem+json")
         if sub == "/summary":
             return self.send_json(200, {
                 "command": "node dist/server.js", "user": "app", "workingDir": "/srv/app",
@@ -480,12 +486,16 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_json(200, {"json": {"Id": container["containerId"], "Name": "/" + container["name"], "Config": {"Env": "<oculto>", "Image": container["imageReference"]}, "State": {"Status": container["state"]}}, "truncated": False, "redactedPaths": ["Config.Env"]})
         if sub == "/logs":
             contains = (q("contains") or "").lower()
+            tail = min(int(q("tail") or 500), 5000)
+            sample = [
+                ("INFO", "Servidor iniciado na porta 80"), ("INFO", "GET /healthz 200 2ms"), ("WARN", "Pool de conexões em 80%"),
+                ("INFO", "POST /pedidos 201 48ms"), ("ERROR", "Timeout ao consultar postgres-principal:5432"),
+                ("INFO", "Authorization: Bearer ***"), ("INFO", "GET /pedidos/42 200 12ms"),
+            ]
+            texts = [sample[i % len(sample)] for i in range(tail)]
             lines = [
-                {"timestamp": iso(3 - i * 0.1), "stream": "stderr" if lvl == "ERROR" else "stdout", "level": lvl, "text": text}
-                for i, (lvl, text) in enumerate([
-                    ("INFO", "Servidor iniciado na porta 80"), ("INFO", "GET /healthz 200 2ms"), ("WARN", "Pool de conexões em 80%"),
-                    ("INFO", "POST /pedidos 201 48ms"), ("ERROR", "Timeout ao consultar postgres-principal:5432"), ("INFO", "GET /pedidos/42 200 12ms"),
-                ])
+                {"timestamp": iso((tail - i) / 600), "stream": "stderr" if lvl == "ERROR" else "stdout", "level": lvl, "text": text}
+                for i, (lvl, text) in enumerate(texts)
                 if not contains or contains in text.lower()
             ]
             return self.send_json(200, {"lines": lines, "truncated": False, "omittedLines": 0})

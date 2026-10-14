@@ -2,7 +2,7 @@
 
 **Branch**: `007-console-operacional` | **Data**: 2026-10-12 | **Spec**: [spec.md](spec.md)
 
-**Estado**: `draft` - aguardando revisão humana e de segurança.
+**Estado**: `implemented` - aprovada em 2026-10-13 ([specs/README.md](../README.md)); revisão humana de segurança antes de release; evidências e itens `NOT RUN` em [tasks.md](tasks.md).
 
 ## Resumo
 
