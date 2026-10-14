@@ -69,6 +69,8 @@ public sealed class ContainerCreatorTests
     [InlineData("/etc")]
     [InlineData("/srv/dados/../../etc")]
     [InlineData("/home/usuario")]
+    [InlineData("/srv/dados/app")]
+    [InlineData("/srv/dados/link-para-raiz")]
     public async Task Create_RefusesBindOutsideTheAllowlist(string source)
     {
         var engine = new FakeEngine();
@@ -81,14 +83,21 @@ public sealed class ContainerCreatorTests
     }
 
     [Fact]
-    public async Task Create_AllowsBindInsideTheAllowlist()
+    public async Task Create_AllowsBindOfTheExactAllowlistedDirectory()
     {
         var engine = new FakeEngine();
-        var spec = Spec(s => s with { Volumes = [new VolumeSpec(VolumeKind.Bind, "/srv/dados/app", "/data", true)] });
+        var spec = Spec(s => s with { Volumes = [new VolumeSpec(VolumeKind.Bind, "/srv/dados/", "/data", true)] });
 
-        var (state, _, _) = await new ContainerCreator(engine, new Secrets(), new ContainerCreationPolicy(["/srv/dados"], null)).CreateAsync(Command(), spec, CancellationToken.None);
+        var (state, _, _) = await new ContainerCreator(engine, new Secrets(), new ContainerCreationPolicy(["/srv/dados", "/srv/outros"], null)).CreateAsync(Command(), spec, CancellationToken.None);
 
         Assert.Equal(CommandExecutionState.Succeeded, state);
+    }
+
+    [Fact]
+    public void Policy_DetectsNestedAllowlistRoots()
+    {
+        Assert.Equal(("/srv/dados", "/srv/dados/app"), ContainerCreationPolicy.FindNestedRoots(["/srv/dados", "/srv/dados/app"]));
+        Assert.Null(ContainerCreationPolicy.FindNestedRoots(["/srv/dados", "/srv/dados-2", "/srv/outros"]));
     }
 
     [Fact]

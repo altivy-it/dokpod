@@ -21,7 +21,7 @@
 | `name` | `^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,62}$` |
 | `ports[]` | ≤ 32; `hostPort` 1-65535 (0 = aleatória), `containerPort` 1-65535, `protocol` tcp/udp, `hostIp` opcional IPv4/IPv6 |
 | `environment[]` | ≤ 100; `name` `^[A-Za-z_][A-Za-z0-9_]{0,127}$`; `value` ≤ 32 KiB **ou** `secretRef {kind, name}`; `sensitive` bool |
-| `volumes[]` | ≤ 10; `{type: volume\|bind, source, target, readOnly}`; bind só na allowlist do agente; a interface edita um volume no formato `origem:destino[:ro\|rw]` |
+| `volumes[]` | ≤ 10; `{type: volume\|bind, source, target, readOnly}`; bind só de diretório exato da allowlist do agente (sem subcaminhos); a interface edita um volume no formato `origem:destino[:ro\|rw]` |
 | `network` | nome de rede existente, opcional; somente API (sem campo na interface) |
 | `cpuLimitCores` | 0,01-64 |
 | `memoryLimitBytes` | 6 MiB-1 TiB |

@@ -88,7 +88,7 @@ O stream operacional com o plano de controle é habilitado quando estas variáve
 
 | `DOKPOD_AGENT_REGISTRY_AUTH_FILE` | não | caminho absoluto de um `config.json` no formato Docker (`auths`) com credenciais de registros privados para o pull (spec 012) |
 
-| `DOKPOD_AGENT_BIND_MOUNT_ALLOWLIST` | não | diretórios absolutos (separados por `:`) aceitos como origem de bind mount na criação de container (spec 013); vazio = somente volumes nomeados |
+| `DOKPOD_AGENT_BIND_MOUNT_ALLOWLIST` | não | diretórios absolutos (separados por `:`) aceitos como origem de bind mount na criação de container (spec 013); só o diretório exato é aceito, sem subcaminhos, e diretórios aninhados impedem o agente de iniciar (proteção contra escape por link simbólico); vazio = somente volumes nomeados |
 
 ### Terminal interativo (spec 014)
 

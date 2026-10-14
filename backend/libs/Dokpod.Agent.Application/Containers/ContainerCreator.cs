@@ -30,7 +30,28 @@ public sealed class ContainerCreationPolicy(IReadOnlyList<string> bindAllowlist,
         }
 
         if (AlwaysDenied.Any(denied => path == denied)) return false;
-        return bindAllowlist.Select(Normalize).OfType<string>().Any(root => path == root || path.StartsWith(root.TrimEnd('/') + "/", StringComparison.Ordinal));
+
+        // Somente o diretório exato da allowlist: o engine segue links simbólicos na origem do bind, e um container
+        // com o diretório montado poderia trocar um subcaminho por um link para `/` entre a validação e a montagem.
+        return bindAllowlist.Select(Normalize).OfType<string>().Any(root => path == root);
+    }
+
+    /// <summary>
+    /// Raízes aninhadas reabririam o escape por link simbólico (a de cima, montada, troca a de baixo por um link);
+    /// devolve o primeiro par aninhado para o agente recusar a configuração.
+    /// </summary>
+    public static (string Outer, string Inner)? FindNestedRoots(IReadOnlyList<string> roots)
+    {
+        var normalized = roots.Select(Normalize).OfType<string>().Distinct(StringComparer.Ordinal).ToArray();
+        foreach (var outer in normalized)
+        {
+            foreach (var inner in normalized)
+            {
+                if (outer != inner && inner.StartsWith(outer.TrimEnd('/') + "/", StringComparison.Ordinal)) return (outer, inner);
+            }
+        }
+
+        return null;
     }
 
     private static string? Normalize(string? path)

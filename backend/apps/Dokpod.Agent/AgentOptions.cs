@@ -52,7 +52,7 @@ public sealed record AgentOptions(
             TimeSpan.FromSeconds(GetBoundedInteger("DOKPOD_AGENT_METRICS_INTERVAL_SECONDS", 15, 5, 30)),
             // Spec 012: config.json (formato Docker, `auths`) com credenciais de registro que ficam no host.
             GetOptionalAbsolutePath("DOKPOD_AGENT_REGISTRY_AUTH_FILE"),
-            // Spec 013: bind mounts só dentro destes diretórios absolutos (separados por ':'); vazio = somente volumes nomeados.
+            // Spec 013: bind mount só destes diretórios exatos (absolutos, separados por ':', sem aninhamento); vazio = somente volumes nomeados.
             GetBindAllowlist());
     }
 
@@ -90,7 +90,14 @@ public sealed record AgentOptions(
             throw new InvalidOperationException("DOKPOD_AGENT_BIND_MOUNT_ALLOWLIST must contain absolute paths.");
         }
 
-        return paths.Select(path => Path.GetFullPath(path)).ToArray();
+        var roots = paths.Select(path => Path.GetFullPath(path)).ToArray();
+        if (Dokpod.Agent.Application.Containers.ContainerCreationPolicy.FindNestedRoots(roots) is { } nested)
+        {
+            throw new InvalidOperationException(
+                $"DOKPOD_AGENT_BIND_MOUNT_ALLOWLIST must not contain nested directories ({nested.Inner} is inside {nested.Outer}).");
+        }
+
+        return roots;
     }
 
     private static int GetBoundedInteger(string variableName, int defaultValue, int minimum, int maximum)
