@@ -108,7 +108,7 @@ def host_view(h) -> dict:
             "cpuCount": cpus,
             "memoryBytes": mem * 1024**3,
             "capabilities": ["CONTAINER_LIFECYCLE", "ENGINE_EVENTS", "RESOURCE_METRICS", "CONTAINER_PAUSE", "CONTAINER_UNPAUSE", "CONTAINER_INSPECT", "CONTAINER_LOGS"]
-            + ([] if situation == "update_required" else ["ImageInventory", "ImagePull"]),
+            + ([] if situation == "update_required" else ["ImageInventory", "ImagePull", "ContainerCreate"]),
         },
     }
 
@@ -130,7 +130,7 @@ def all_hosts():
 
 
 def all_containers():
-    return LARGE_CONTAINERS if STATE["scenario"] == "large" else CONTAINERS
+    return LARGE_CONTAINERS if STATE["scenario"] == "large" else CONTAINERS + STATE.get("created", [])
 
 
 def hosts() -> list[dict]:
@@ -408,6 +408,7 @@ class Handler(BaseHTTPRequestHandler):
             STATE["revoked"].clear()
             STATE["submitted"] = []
             STATE["pulled"] = []
+            STATE["created"] = []
             return self.send_json(200, {"scenario": STATE["scenario"]})
         if path == "/__mock/submitted":
             return self.send_json(200, STATE.get("submitted", []))
@@ -515,9 +516,48 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send_json(403, problem(403, "Acesso negado", "authorization_denied"), "application/problem+json")
             STATE["revoked"].add(environment_id)
             return self.send_json(204, None)
-        if rest == "/containers":
+        if rest == "/containers" and method == "GET":
             rows = [c for c in containers() if c["environmentId"] == environment_id]
             return self.send_json(200, {"environmentId": environment_id, "revision": 7, "observedAt": iso(0.5), "ageSeconds": 30, "containers": rows, "nextCursor": None})
+        if rest == "/create-options":
+            if "container:create" not in scopes():
+                return self.send_json(403, problem(403, "Acesso negado", "authorization_denied"), "application/problem+json")
+            if not host["agent"]["connected"]:
+                return self.send_json(409, problem(409, "Agente desconectado", "agent_disconnected"), "application/problem+json")
+            podman = host["agent"]["engine"] == "podman"
+            return self.send_json(200, {
+                "engine": host["agent"]["engine"], "engineVersion": host["agent"]["engineVersion"], "rootless": host["agent"]["engineRootless"],
+                "secrets": ([{"kind": "podman_secret", "name": "jwt-pedidos"}] if podman else []) + [{"kind": "file", "name": "token-app"}],
+                "networks": [{"name": "rede-pedidos", "driver": "bridge"}], "volumes": [{"name": "vol-pedidos-uploads"}],
+                "allowedRegistries": [], "bindMountsAllowed": False, "partial": False,
+                "limits": {"ports": 32, "environment": 100, "volumes": 10, "valueBytes": 32768},
+            })
+        if rest == "/containers" and method == "POST":
+            if "container:create" not in scopes():
+                return self.send_json(403, problem(403, "Acesso negado", "authorization_denied"), "application/problem+json")
+            body = self.read_body()
+            allowed = {"image", "name", "ports", "environment", "volumes", "network", "cpuLimitCores", "memoryLimitBytes", "restartPolicy", "healthcheck", "autoRemove", "deadlineUtc"}
+            extra = sorted(set(body) - allowed)
+            if extra:
+                return self.send_json(400, {**problem(400, "Especificação inválida", "invalid_container_spec"), "errors": {extra[0]: ["not_allowed"]}}, "application/problem+json")
+            if not host["agent"]["connected"]:
+                return self.send_json(409, problem(409, "Agente desconectado", "agent_disconnected"), "application/problem+json")
+            key = self.headers.get("Idempotency-Key")
+            existing = next((c for c in STATE["commands"].values() if c.get("idempotencyKey") == key), None)
+            if existing:
+                return self.send_json(202, {"commandId": existing["commandId"], "equivalentCommand": None})
+            command_id = str(uuid.uuid4())
+            name = body.get("name") or ""
+            port = (body.get("ports") or [{}])[0].get("hostPort")
+            failure = "port_conflict" if port == 9999 else "start_failed" if name.startswith("falha") else None
+            STATE["commands"][command_id] = {
+                "environmentId": environment_id, "commandId": command_id, "action": "create", "kind": "container", "containerId": None,
+                "expectedContainerRevision": None, "reference": body.get("image"), "containerName": name, "state": "pending", "failureCode": None,
+                "result": None, "observedContainerRevision": None, "deadlineUtc": iso(-17), "createdAtUtc": iso(0), "updatedAtUtc": iso(0),
+                "completedAtUtc": None, "idempotencyKey": key, "polls": 0, "failure": failure, "body": body,
+            }
+            STATE.setdefault("submitted", []).append(("create", host["name"], name, json.dumps(body, sort_keys=True)))
+            return self.send_json(202, {"commandId": command_id, "equivalentCommand": None})
         if rest == "/images/lookup":
             ref = q("reference") or ""
             if not REFERENCE.fullmatch(ref):
@@ -558,6 +598,25 @@ class Handler(BaseHTTPRequestHandler):
             command = STATE["commands"].get(cm.group(1))
             if not command:
                 return self.send_json(404, problem(404, "Comando não encontrado"))
+            if command["action"] == "create":
+                command["polls"] += 1
+                if command["polls"] == 1:
+                    command["state"] = "accepted"
+                elif command["state"] not in ("succeeded", "failed"):
+                    failure = command["failure"]
+                    n = next(h[0] for h in all_hosts() if env_id(h[0]) == environment_id)
+                    created = None
+                    if failure != "port_conflict":
+                        body = command["body"]
+                        created = (body["name"], n, body["image"], "stopped" if failure else "running", 0,
+                                   [(p.get("hostPort"), p["containerPort"]) for p in body.get("ports") or [] if p.get("hostPort")])
+                        STATE.setdefault("created", []).append(created)
+                    cid = None
+                    if created:
+                        cid = next((c["containerId"] for c in containers() if c["name"] == created[0] and c["environmentId"] == environment_id), None)
+                    command.update({"state": "failed" if failure else "succeeded", "failureCode": failure, "completedAtUtc": iso(0),
+                                    "result": {"createdContainerId": cid} if cid else None})
+                return self.send_json(200, {k: v for k, v in command.items() if k not in ("idempotencyKey", "polls", "failure", "body")})
             if command["action"] == "pull":
                 command["polls"] += 1
                 if command["polls"] == 1:

@@ -12,6 +12,7 @@ from conftest import BASE_URL, REPORTS
 PAIRS = [
     ("01-visao-geral", "Main.dc.html", ""),
     ("02-containers", "Containers.dc.html", "containers"),
+    ("04-novo-container", "NovoContainer.dc.html", "containers?novo=1"),
 ]
 
 

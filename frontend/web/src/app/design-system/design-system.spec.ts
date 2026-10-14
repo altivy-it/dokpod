@@ -140,9 +140,15 @@ describe('design system', () => {
     expect(trigger.getAttribute('aria-expanded')).toBe('false');
     key(trigger, 'Enter');
     fixture.detectChanges();
+    // Esc com a lista aberta não chega ao contêiner (ex.: o drawer da criação de container).
+    const outer = vi.fn();
+    fixture.nativeElement.addEventListener('keydown', outer);
     key(trigger, 'Escape');
     fixture.detectChanges();
     expect(fixture.nativeElement.querySelector('[role=listbox]')).toBeNull();
+    expect(outer).not.toHaveBeenCalled();
+    key(trigger, 'Escape');
+    expect(outer).toHaveBeenCalledTimes(1);
   });
 
   it('tabs move with arrows skipping disabled tabs and use roving tabindex', () => {

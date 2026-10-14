@@ -4,7 +4,7 @@
 
 **Criada em**: 2026-10-12
 
-**Estado**: `approved-for-implementation` - execução autorizada em 2026-10-13 (ver [specs/README.md](../README.md), "Aprovação humana"); o encerramento da decisão adiada "criação declarativa" **somente para container único** fica registrado em `docs/arquitetura.md` (T001). O threat model (T002) continua sendo gate obrigatório antes da implementação da fronteira.
+**Estado**: `implemented` - concluída em 2026-10-14; revisão humana de segurança antes de release; evidências e itens `NOT RUN` em [tasks.md](tasks.md).
 
 **Entrada**: Board `04 · Novo container` ([NovoContainer.dc.html](../../docs/design/app/project/NovoContainer.dc.html)) e componentes `Campo`, `Selecao`, `Marcador`.
 

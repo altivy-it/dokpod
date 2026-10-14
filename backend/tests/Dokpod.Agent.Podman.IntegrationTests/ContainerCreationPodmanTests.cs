@@ -136,9 +136,9 @@ public sealed class ContainerCreationPodmanTests : IAsyncLifetime
     public async Task Create_UsesLibpodForPodmanSecretsAndHealthRestart()
     {
         RequirePodman();
-        using (var secret = await http!.PostAsync($"v4.0.0/libpod/secrets/create?name=jwt-{suffix}", new StringContent("segredo-podman", Encoding.UTF8, "text/plain"), Token))
+        using (var createdResponse = await http!.PostAsync($"v4.0.0/libpod/secrets/create?name=jwt-{suffix}", new StringContent("segredo-podman", Encoding.UTF8, "text/plain"), Token))
         {
-            Assert.True(secret.IsSuccessStatusCode, await secret.Content.ReadAsStringAsync(Token));
+            Assert.True(createdResponse.IsSuccessStatusCode, await createdResponse.Content.ReadAsStringAsync(Token));
         }
 
         var spec = Spec("libpod", 18082, s => s with

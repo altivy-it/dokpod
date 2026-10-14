@@ -19,7 +19,18 @@
         }
       </div>
       <button dok-button variant="danger" size="sm" startIcon="trash" type="button" (click)="prepareBatch('delete')">Remover</button>
-      <button dok-button variant="primary" size="sm" startIcon="plus" type="button" [disabled]="true" title="Disponível com a criação de containers">Novo container</button>
+      <button
+        dok-button
+        variant="primary"
+        size="sm"
+        startIcon="plus"
+        type="button"
+        [disabled]="!canCreate()"
+        [attr.title]="canCreate() ? null : 'Nenhum host deste estágio permite criar containers'"
+        (click)="creating.set(true)"
+      >
+        Novo container
+      </button>
     </div>
   </div>
 
@@ -127,4 +138,8 @@
     (cancelled)="pending.set(null)"
     (confirmed)="confirm()"
   />
+}
+
+@if (creating()) {
+  <app-new-container-drawer [open]="true" (closed)="closeCreate()" />
 }

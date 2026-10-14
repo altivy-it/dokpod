@@ -199,7 +199,9 @@ export class DokSelect implements ControlValueAccessor {
         return;
       case 'Escape':
         if (this.open()) {
+          // Fecha só a lista: sem isso o Esc também fecharia o drawer que contém o campo.
           event.preventDefault();
+          event.stopPropagation();
           this.open.set(false);
         }
         return;

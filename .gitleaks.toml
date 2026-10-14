@@ -28,6 +28,9 @@ regexes = [
 	'''^\s*keycloak\.ClientSecret\s*$''',
 	'''^\s*(?:os\.environ\.get|os\.getenv)\(['"][A-Z][A-Z0-9_]*['"]\)\s*$''',
 	'''^\s*_?require_credentials\(\)\s*$''',
+	# Código, não valor: construção de objeto (`secret = new HostSecretRef`) e números de campo/enum do protobuf.
+	'''^\s*new [A-Z][A-Za-z0-9_.]*(?:\(.*|\s*\{?)\s*;?\s*$''',
+	'''^\s*\d+\s*;?\s*$''',
 ]
 
 [[rules]]

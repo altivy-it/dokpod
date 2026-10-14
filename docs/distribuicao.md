@@ -88,6 +88,16 @@ O stream operacional com o plano de controle é habilitado quando estas variáve
 
 | `DOKPOD_AGENT_REGISTRY_AUTH_FILE` | não | caminho absoluto de um `config.json` no formato Docker (`auths`) com credenciais de registros privados para o pull (spec 012) |
 
+| `DOKPOD_AGENT_BIND_MOUNT_ALLOWLIST` | não | diretórios absolutos (separados por `:`) aceitos como origem de bind mount na criação de container (spec 013); vazio = somente volumes nomeados |
+
+### Criação de container (spec 013)
+
+- O agente cria e inicia containers pela API compatível; no Podman, segredos do Podman (`secret_env`) e health check com reinício (`health_check_on_failure_action`) usam `POST /libpod/containers/create`. A capability `CAPABILITY_CONTAINER_CREATE` só é anunciada no Linux.
+- Segredos "do cofre": segredos do Podman (`podman secret create`) ou arquivos em `<diretório de dados>/secrets/<nome>` (nome `[a-zA-Z0-9][a-zA-Z0-9_.-]*`, até 32 KiB, sem link simbólico e sem leitura por "outros", ex.: `chmod 600`). O agente lê o arquivo somente no momento da criação; o valor não vai ao plano de controle.
+- Bind mounts ficam proibidos por padrão; o socket do engine e `/`, `/etc`, `/proc`, `/sys`, `/dev`, `/run`, `/var/run`, `/boot`, `/root`, `/var/lib/docker` e `/var/lib/containers` são sempre recusados.
+- A API cifra os valores de variáveis com key ring próprio de Data Protection (`DataProtection__KeysPath`, volume `dokpod-api-keys` no compose); proteja o volume como segredo e faça backup junto com o banco. Perder o key ring faz comandos ainda não executados falharem com `parameters_unavailable`; nenhum container é criado sem os valores.
+- Evidência: criação real em Podman 5.7.0 rootless (configuração aplicada, Libpod com segredo e health check com reinício, conflito de porta com rollback e reconciliação por label) em `Dokpod.Agent.Podman.IntegrationTests`. Docker real e Podman rootful: `NOT RUN`.
+
 ### Download de imagens (spec 012)
 
 - O pull é executado pelo agente no engine local (`POST /images/create`), com prazo do comando (padrão de 10 min na interface, máximo de 30 min).

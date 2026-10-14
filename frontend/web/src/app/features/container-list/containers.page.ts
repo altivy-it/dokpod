@@ -27,6 +27,8 @@ import {
 import { ShellContextService } from '../../shell/shell-context.service';
 import { StageFilterService, stageLabel } from '../../shell/stage-filter.service';
 import { ContainersFacade, rowKey, type ContainerFilters, type ServerSort } from './containers.facade';
+import { NewContainerDrawer } from './new-container.drawer';
+import { createIneligibility } from './new-container.facade';
 
 interface ContainerRow {
   id: string;
@@ -64,6 +66,7 @@ function asArray(value: string | string[] | undefined): string[] {
     DokEmptyState,
     DokIcon,
     DokStatusChip,
+    NewContainerDrawer,
   ],
   providers: [ContainersFacade],
   styleUrl: './containers.page.css',
@@ -76,6 +79,7 @@ export class ContainersPage {
   readonly status = input<string | string[] | undefined>();
   readonly q = input<string | undefined>();
   readonly sort = input<string | undefined>();
+  readonly novo = input<string | undefined>();
 
   protected readonly facade = inject(ContainersFacade);
   protected readonly actions = inject(ContainerActionsService);
@@ -90,6 +94,8 @@ export class ContainersPage {
   protected readonly pending = signal<{ action: ContainerAction; eligibility: Eligibility } | null>(null);
   protected readonly submitting = signal(false);
   protected readonly moreOpen = signal(false);
+  /** Drawer "Novo container" (spec 013), também aberto por `?novo=1` vindo da Visão geral. */
+  protected readonly creating = signal(false);
   protected readonly statusLabels = CONTAINER_STATUS;
   protected readonly tones = CONTAINER_STATUS_TONES;
   protected readonly actionLabels = ACTION_LABEL;
@@ -177,9 +183,23 @@ export class ContainersPage {
     return ids.map(id => this.directory.byId(id)?.name ?? id.slice(0, 8)).join(', ');
   });
   protected readonly batchSummary = computed(() => this.actions.summary());
+  protected readonly canCreate = computed(() => this.stageHosts().some(env => createIneligibility(env) === null));
+
+  protected closeCreate(): void {
+    this.creating.set(false);
+    void this.facade.reload();
+  }
 
   constructor() {
     inject(ShellContextService).set('Containers', ['Operação', 'Containers']);
+    void this.directory.load();
+    effect(() => {
+      if (this.novo() !== '1') return;
+      untracked(() => {
+        this.creating.set(true);
+        this.navigate({ novo: null });
+      });
+    });
     effect(() => {
       const filters: ContainerFilters = {
         environmentIds: asArray(this.environmentId()),

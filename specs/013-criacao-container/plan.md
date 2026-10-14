@@ -2,7 +2,7 @@
 
 **Branch**: `007-console-operacional` | **Data**: 2026-10-12 | **Spec**: [spec.md](spec.md)
 
-**Estado**: `approved-for-implementation` - execução autorizada em 2026-10-13 (specs/README.md); T001 registra o encerramento da decisão adiada para container único; threat model (T002) continua bloqueante.
+**Estado**: `implemented` - concluída em 2026-10-14; revisão humana de segurança antes de release; evidências e itens `NOT RUN` em [tasks.md](tasks.md).
 
 ## Resumo
 

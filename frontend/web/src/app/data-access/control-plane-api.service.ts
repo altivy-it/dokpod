@@ -17,6 +17,8 @@ import {
   listEnvironments,
   listEvents,
   listImages,
+  createContainer,
+  getContainerCreateOptions,
   lookupImage,
   pullImage,
   registerEnvironment,
@@ -40,6 +42,8 @@ import {
   type ListImagesData,
   type ImageListPage,
   type ImageLookup,
+  type ContainerCreationRequest,
+  type ContainerCreateOptions,
   type OperationalEventPage,
   type OverviewSummary,
   type Stage,
@@ -187,6 +191,24 @@ export class ControlPlaneApiService {
       throwOnError: true,
     });
     return accepted.data.commandId;
+  }
+
+  /** Dados do formulário de criação (spec 013): segredos, redes e volumes do host, somente nomes. */
+  async getContainerCreateOptions(environmentId: string): Promise<ContainerCreateOptions> {
+    const result = await getContainerCreateOptions({ path: { environmentId }, throwOnError: true });
+    return result.data;
+  }
+
+  /** Criação idempotente: a chave é gerada por envio lógico e reutilizada em retry (spec 013 SC-004). */
+  async createContainer(environmentId: string, request: ContainerCreationRequest, idempotencyKey: string): Promise<{ commandId: string; equivalentCommand?: string | null }> {
+    const requestToken = await this.antiforgery();
+    const accepted = await createContainer({
+      path: { environmentId },
+      headers: { 'Idempotency-Key': idempotencyKey, 'X-Dokpod-Antiforgery': requestToken },
+      body: request,
+      throwOnError: true,
+    });
+    return accepted.data;
   }
 
   async getOverview(stage?: Stage | null): Promise<OverviewSummary> {
