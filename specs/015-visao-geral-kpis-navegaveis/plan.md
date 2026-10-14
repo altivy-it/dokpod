@@ -2,7 +2,7 @@
 
 **Branch**: `015-visao-geral-kpis-navegaveis` | **Data**: 2026-10-14 | **Spec**: [spec.md](spec.md)
 
-**Estado**: `approved` - plano derivado da spec aprovada em 2026-10-14.
+**Estado**: `implemented` - concluída em 2026-10-14; evidências e itens `NOT RUN` em [tasks.md](tasks.md).
 
 ## Resumo
 
