@@ -4,7 +4,7 @@
 
 **Criada em**: 2026-10-12
 
-**Estado**: `implemented` - concluída em 2026-10-14; ADR 2026-0006 `proposed` e revisão humana de segurança antes de release; evidências e itens `NOT RUN` em [tasks.md](tasks.md).
+**Estado**: `implemented` - concluída em 2026-10-14; ADR 2026-0006 `accepted` em 2026-10-14; revisão humana de segurança antes de release; evidências e itens `NOT RUN` em [tasks.md](tasks.md).
 
 **Entrada**: Board `03 · Detalhe do container` (botão "Abrir terminal", aba Terminal) e ação de linha "Abrir terminal" do board `02 · Containers`.
 

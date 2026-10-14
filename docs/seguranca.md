@@ -146,7 +146,7 @@ A telemetria usa allowlist de campos, limites e normalização de caracteres de 
 | Transporte inseguro do navegador | WebSocket obrigatório (sem long polling/SSE) | outro transporte → `websocket_required` |
 | Vazamento de conteúdo | Conteúdo nunca vai a PostgreSQL, logs ou telemetria; auditoria com metadados (bytes, duração, motivo) | canários digitados/exibidos ausentes do banco e dos logs |
 
-**Janela de revogação**: até 60 s mais a vida útil restante do access token (realm com access token ≤ 5 min, `docs/configuracao-keycloak.md`). **Risco residual**: processos em segundo plano criados pelo usuário e ações executadas antes da revogação. Aprovação: decisão do solicitante registrada em `specs/README.md` (2026-10-13); ADR 2026-0006 `proposed` com revisão humana de segurança pendente antes de release.
+**Janela de revogação**: até 60 s mais a vida útil restante do access token (realm com access token ≤ 5 min, `docs/configuracao-keycloak.md`). **Risco residual**: processos em segundo plano criados pelo usuário e ações executadas antes da revogação. Aprovação: decisão do solicitante registrada em `specs/README.md` (2026-10-13); ADR 2026-0006 `accepted` em 2026-10-14; revisão humana de segurança pendente antes de release.
 
 ## Desenvolvimento e release
 

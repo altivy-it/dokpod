@@ -2,7 +2,7 @@
 
 **Branch**: `007-console-operacional` | **Data**: 2026-10-12 | **Spec**: [spec.md](spec.md)
 
-**Estado**: `implemented` - concluída em 2026-10-14; ADR 2026-0006 `proposed` e revisão humana de segurança antes de release; evidências e itens `NOT RUN` em [tasks.md](tasks.md).
+**Estado**: `implemented` - concluída em 2026-10-14; ADR 2026-0006 `accepted` em 2026-10-14; revisão humana de segurança antes de release; evidências e itens `NOT RUN` em [tasks.md](tasks.md).
 
 ## Resumo
 
@@ -31,13 +31,13 @@
 | VI. Plataforma | Docker e Podman Linux qualificados separadamente; Windows não anuncia a capability nesta entrega. |
 | Operações privilegiadas e novas fronteiras exigem threat model e testes negativos | Pendente (T002). |
 | Mudança de protocolo | Adição compatível (novo RPC e mensagens); agentes N-1 sem capability. |
-| Nova dependência | ADR `proposed` 2026-0006 (terminal e xterm.js). |
+| Nova dependência | ADR 2026-0006 (terminal e xterm.js), `accepted` em 2026-10-14. |
 | Telemetria sem logs/conteúdo | OK: conteúdo não registrado. |
 
 ## Estrutura do Projeto
 
 ```text
-docs/adr/2026-0006-terminal-interativo.md            # novo ADR (proposed)
+docs/adr/2026-0006-terminal-interativo.md            # novo ADR (accepted em 2026-10-14)
 contracts/agent/v1/agent.proto                       # rpc Exec; ExecOpenRequest (16); ExecFrame; capability 15
 contracts/openapi/...                                # GET terminal-policy; scope container:exec
 backend/libs/Dokpod.ControlPlane.Application/Terminal/  # TerminalSessionService, TerminalPolicy, ExecSessionRegistry
