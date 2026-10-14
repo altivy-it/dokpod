@@ -238,6 +238,8 @@ export const getContainerLogs = <ThrowOnError extends boolean = false>(options: 
 
 /**
  * Agregado de CPU e memória dos hosts autorizados do estágio, atual e série (spec 009)
+ *
+ * `current` soma o consumo dos containers com amostra recente sobre a capacidade dos hosts (spec 015); `series` é a série persistida do host.
  */
 export const getStageMetrics = <ThrowOnError extends boolean = false>(options?: Options<GetStageMetricsData, ThrowOnError>) => (options?.client ?? client).get<GetStageMetricsResponses, GetStageMetricsErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],

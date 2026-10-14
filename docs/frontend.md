@@ -59,6 +59,10 @@ O console segue o design system próprio derivado do Altivy (ADR 2026-0005), com
 
 Ícones vêm de `dok-icon` (geometria do kit Altivy) e sempre possuem nome acessível ou tooltip quando o significado não é óbvio. Todo status leva palavra ou ícone além da cor.
 
+### Cards de KPI navegáveis
+
+Cards de indicador que representam um recorte de lista são links para essa lista, já filtrada ou ordenada, preservando o estágio da URL (`queryParamsHandling="merge"`); na Visão geral, os seis cards levam à tela Containers (situação ou ordenação por consumo) ou à tela Imagens (spec 015). O nome acessível é o texto visível do card seguido do destino em `.sr-only` (WCAG 2.5.3, "label in name"), nunca um `aria-label` que substitua o texto visível. Durante o carregamento o card não é link; com valor "indisponível" continua navegável.
+
 ## Acessibilidade e desempenho
 
 - WCAG 2.2 AA;

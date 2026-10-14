@@ -476,7 +476,13 @@ class Handler(BaseHTTPRequestHandler):
             sort = q("sort") or "name"
             reverse = sort.startswith("-")
             key = sort.lstrip("-")
-            rows.sort(key=lambda c: (c["environmentName"] if key == "environment" else c.get(key) or ""), reverse=reverse)
+            if key in ("cpu", "memory"):
+                # Spec 015: consumo atual; sem amostra no fim nas duas direções, por nome.
+                field = "cpuPercent" if key == "cpu" else "memoryUsedBytes"
+                sampled = sorted((c for c in rows if c.get("resources")), key=lambda c: c["resources"][field], reverse=reverse)
+                rows = sampled + sorted((c for c in rows if not c.get("resources")), key=lambda c: c["name"])
+            else:
+                rows.sort(key=lambda c: (c["environmentName"] if key == "environment" else c.get(key) or ""), reverse=reverse)
             return self.send_json(200, {"containers": rows, "summary": {"total": len(rows), "byDisplayStatus": count_map(c["displayStatus"] for c in rows)}, "observedAt": iso(0.5), "nextCursor": None})
 
         if path == "/api/v1/images":
