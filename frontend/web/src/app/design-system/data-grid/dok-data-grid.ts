@@ -5,12 +5,14 @@ import {
   computed,
   contentChildren,
   Directive,
+  effect,
   ElementRef,
   input,
   model,
   output,
   signal,
   TemplateRef,
+  untracked,
   viewChild,
   inject,
 } from '@angular/core';
@@ -31,6 +33,10 @@ export interface GridColumn<T = Record<string, unknown>> {
   mono?: boolean;
   key?: boolean;
   filterable?: boolean;
+  /** Pode ser usada em "Agrupar" (agrupa as linhas carregadas). */
+  groupable?: boolean;
+  /** Não pode ser ocultada pelo seletor de colunas. */
+  locked?: boolean;
   sortable?: boolean;
   value?: (row: T) => unknown;
 }
@@ -48,6 +54,15 @@ export interface GridSort {
 }
 
 export type GridDensity = 'compact' | 'standard' | 'comfortable';
+
+/** Valor de faceta fornecido pela página quando o filtro é aplicado no servidor. */
+export interface GridFacet {
+  value: string;
+  label?: string;
+  count?: number;
+}
+
+export type GridBodyRow<T> = { kind: 'group'; key: string; label: string; count: number; collapsed: boolean } | { kind: 'row'; row: T };
 
 /** Template de célula: `<ng-template dokCell="status" let-row>…</ng-template>`. */
 @Directive({ selector: 'ng-template[dokCell]' })
@@ -82,6 +97,9 @@ function normalize(value: unknown): string {
   imports: [DokIcon, DokSearchField, NgTemplateOutlet],
   host: { style: 'display: block; min-width: 0', '(document:mousedown)': 'onDocumentDown($event)' },
   templateUrl: './dok-data-grid.html',
+  styles: `
+    .dok-grid-unit { font-size: 11px; font-weight: 400; color: var(--muted); }
+  `,
 })
 export class DokDataGrid<T extends object = Record<string, unknown>> {
   readonly title = input.required<string>();
@@ -110,15 +128,27 @@ export class DokDataGrid<T extends object = Record<string, unknown>> {
   readonly height = input<string | null>(null);
   readonly pageSize = input(25);
   readonly emptyTitle = input<string | null>(null);
+  /** Facetas vindas do servidor (substituem as calculadas sobre as linhas carregadas). */
+  readonly facetOptions = input<Record<string, GridFacet[]> | null>(null);
+  /** A página pode exibir os chips de filtros fora do grid (board `Containers.dc.html`). */
+  readonly showFilterChips = input(true);
+  /** Chave para lembrar as colunas visíveis neste navegador (`localStorage`). */
+  readonly storageKey = input<string | null>(null);
 
   readonly rowAction = output<{ action: string; row: T }>();
   readonly rowOpen = output<T>();
   readonly loadMore = output<void>();
-  readonly filtersChange = output<Record<string, string[]>>();
 
   protected readonly cellTemplates = contentChildren(DokGridCell);
-  protected readonly filters = signal<Record<string, string[]>>({});
-  protected readonly openMenu = signal<'filters' | 'density' | null>(null);
+  readonly filters = model<Record<string, string[]>>({});
+  protected readonly openMenu = signal<'filters' | 'density' | 'group' | 'columns' | null>(null);
+  protected readonly hidden = signal<ReadonlySet<string>>(new Set());
+  protected readonly groupBy = signal<string | null>(null);
+  protected readonly collapsed = signal<Record<string, boolean>>({});
+  protected readonly visibleColumns = computed(() => this.columns().filter(c => c.locked || !this.hidden().has(c.field)));
+  protected readonly groupColumns = computed(() => this.columns().filter(c => c.groupable));
+  protected readonly groupOptions = computed<(string | null)[]>(() => [null, ...this.groupColumns().map(c => c.field)]);
+  protected readonly colSpan = computed(() => this.visibleColumns().length + (this.selectable() ? 2 : 1));
   protected readonly rowMenu = signal<{ id: string; row: T; top: number; right: number; actions: GridRowAction[] } | null>(null);
   protected readonly page = signal(0);
   protected readonly densities = DENSITIES;
@@ -224,7 +254,9 @@ export class DokDataGrid<T extends object = Record<string, unknown>> {
     return tone(this.statusTones()[String(value)] ?? 'neutral').color;
   }
 
-  protected facetValues(column: GridColumn<T>): { value: string; count: number }[] {
+  protected facetValues(column: GridColumn<T>): { value: string; label: string; count: number | null }[] {
+    const provided = this.facetOptions()?.[column.field];
+    if (provided) return provided.map(f => ({ value: f.value, label: f.label ?? f.value, count: f.count ?? null }));
     const counts = new Map<string, number>();
     for (const row of this.rows()) {
       const value = String(this.raw(row, column) ?? '');
@@ -232,7 +264,7 @@ export class DokDataGrid<T extends object = Record<string, unknown>> {
     }
     return [...counts.entries()]
       .sort((a, b) => a[0].localeCompare(b[0], 'pt-BR'))
-      .map(([value, count]) => ({ value, count }));
+      .map(([value, count]) => ({ value, label: value, count }));
   }
 
   protected isFiltered(field: string, value: string): boolean {
@@ -248,13 +280,11 @@ export class DokDataGrid<T extends object = Record<string, unknown>> {
   protected setFilter(field: string, values: string[]): void {
     this.filters.update(current => ({ ...current, [field]: values }));
     this.page.set(0);
-    this.filtersChange.emit(this.filters());
   }
 
   protected clearFilters(): void {
     this.filters.set({});
     this.page.set(0);
-    this.filtersChange.emit({});
   }
 
   protected headerFor(field: string): string {
@@ -298,7 +328,85 @@ export class DokDataGrid<T extends object = Record<string, unknown>> {
     this.page.set(0);
   }
 
-  protected toggleToolbarMenu(menu: 'filters' | 'density'): void {
+  /** Linhas da página com cabeçalhos de grupo (kit EnhancedDataGrid); grupos recolhidos ocultam as linhas. */
+  protected readonly bodyRows = computed<GridBodyRow<T>[]>(() => {
+    const field = this.groupBy();
+    const rows = this.pageRows();
+    if (!field) return rows.map(row => ({ kind: 'row', row }));
+    const column = this.columns().find(c => c.field === field);
+    if (!column) return rows.map(row => ({ kind: 'row', row }));
+    const counts = new Map<string, number>();
+    for (const row of this.data()) {
+      const key = this.text(row, column);
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+    const ordered = [...rows].sort((a, b) => this.text(a, column).localeCompare(this.text(b, column), 'pt-BR'));
+    const out: GridBodyRow<T>[] = [];
+    let last: string | null = null;
+    for (const row of ordered) {
+      const key = this.text(row, column);
+      const collapsed = !!this.collapsed()[key];
+      if (key !== last) {
+        out.push({ kind: 'group', key, label: key, count: counts.get(key) ?? 0, collapsed });
+        last = key;
+      }
+      if (!collapsed) out.push({ kind: 'row', row });
+    }
+    return out;
+  });
+
+  protected setGroupBy(field: string | null): void {
+    this.groupBy.set(field);
+    this.collapsed.set({});
+    this.openMenu.set(null);
+  }
+
+  protected toggleGroup(key: string): void {
+    this.collapsed.update(current => ({ ...current, [key]: !current[key] }));
+  }
+
+  protected toggleColumn(column: GridColumn<T>): void {
+    if (column.locked) return;
+    const next = new Set(this.hidden());
+    if (next.has(column.field)) next.delete(column.field);
+    else next.add(column.field);
+    this.hidden.set(next);
+    this.persistColumns();
+  }
+
+  protected resetColumns(): void {
+    this.hidden.set(new Set());
+    this.persistColumns();
+  }
+
+  protected groupLabel(field: string | null): string {
+    if (!field) return 'Sem agrupamento';
+    return `Por ${(this.columns().find(c => c.field === field)?.header ?? field).toLowerCase()}`;
+  }
+
+  private persistColumns(): void {
+    const key = this.storageKey();
+    if (!key) return;
+    try {
+      localStorage.setItem(`dokpod.grid.columns.${key}`, JSON.stringify([...this.hidden()]));
+    } catch {
+      // Preferência de exibição: sem armazenamento, vale só para esta visita.
+    }
+  }
+
+  private readonly restoreColumns = effect(() => {
+    const key = this.storageKey();
+    if (!key) return;
+    try {
+      const raw = localStorage.getItem(`dokpod.grid.columns.${key}`);
+      const fields = raw ? (JSON.parse(raw) as unknown) : [];
+      if (Array.isArray(fields)) untracked(() => this.hidden.set(new Set(fields.filter((f): f is string => typeof f === 'string'))));
+    } catch {
+      // Ignora preferência corrompida ou armazenamento indisponível.
+    }
+  });
+
+  protected toggleToolbarMenu(menu: 'filters' | 'density' | 'group' | 'columns'): void {
     this.openMenu.set(this.openMenu() === menu ? null : menu);
   }
 
@@ -317,7 +425,10 @@ export class DokDataGrid<T extends object = Record<string, unknown>> {
     const rect = trigger.getBoundingClientRect();
     this.rowMenuTrigger = trigger;
     const actions = this.rowActionsFor()?.(row) ?? this.rowActions();
-    this.rowMenu.set({ id, row, top: rect.bottom + 4, right: window.innerWidth - rect.right, actions });
+    // Abre para cima quando não cabe abaixo do gatilho (últimas linhas da tela).
+    const estimatedHeight = actions.length * 36 + 12;
+    const top = rect.bottom + 4 + estimatedHeight > window.innerHeight ? Math.max(8, rect.top - 4 - estimatedHeight) : rect.bottom + 4;
+    this.rowMenu.set({ id, row, top, right: window.innerWidth - rect.right, actions });
     queueMicrotask(() => this.menuItems()[0]?.focus());
   }
 

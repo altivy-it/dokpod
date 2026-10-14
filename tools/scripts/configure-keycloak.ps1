@@ -455,7 +455,14 @@ function Ensure-AuthorizationScopes {
         'container:stop',
         'container:restart',
         'container:delete',
-        'audit:read')) {
+        'audit:read',
+        # Specs 010-014: pausa, inspeção, logs, pull, criação e terminal.
+        'container:pause',
+        'container:inspect',
+        'container:logs',
+        'image:pull',
+        'container:create',
+        'container:exec')) {
         $encodedScope = [Uri]::EscapeDataString($scopeName)
         $scope = @(Invoke-KeycloakApi GET "$authzBase/scope?name=$encodedScope&exact=true") |
             Where-Object name -eq $scopeName | Select-Object -First 1

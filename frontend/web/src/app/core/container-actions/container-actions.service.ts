@@ -1,6 +1,7 @@
 import { computed, inject, Injectable, signal } from '@angular/core';
 import { ControlPlaneApiService, type ContainerAction } from '../../data-access/control-plane-api.service';
 import type { ContainerCommandStatus, ContainerListItem } from '../../data-access/generated/control-plane';
+import { newUuid } from '../uuid';
 
 export const ACTION_LABEL: Record<ContainerAction, { verb: string; done: string; icon: string }> = {
   start: { verb: 'Iniciar', done: 'iniciado', icon: 'play' },
@@ -95,7 +96,7 @@ export class ContainerActionsService {
     if (items.length === 0) throw new Error('Nenhum container elegível.');
     if (items.length > BATCH_LIMIT) throw new Error(`O lote aceita no máximo ${BATCH_LIMIT} containers.`);
     const batch: Batch = {
-      id: crypto.randomUUID(),
+      id: newUuid(),
       action,
       startedAt: new Date().toISOString(),
       items: items.map(item => ({
@@ -104,7 +105,7 @@ export class ContainerActionsService {
         containerId: item.containerId,
         name: item.name,
         revision: item.revision,
-        idempotencyKey: crypto.randomUUID(),
+        idempotencyKey: newUuid(),
         commandId: null,
         state: 'queued',
         failureCode: null,

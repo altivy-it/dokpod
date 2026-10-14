@@ -47,6 +47,7 @@ import {
 } from './generated/control-plane';
 import { client } from './generated/control-plane/client.gen';
 import { SessionService } from '../core/session.service';
+import { newUuid } from '../core/uuid';
 
 export type ContainerAction = SubmitContainerCommandRequest['action'];
 
@@ -235,7 +236,7 @@ export class ControlPlaneApiService {
     const accepted = await submitContainerCommand({
       path: { environmentId, containerId: container.containerId },
       headers: {
-        'Idempotency-Key': crypto.randomUUID(),
+        'Idempotency-Key': newUuid(),
         'X-Dokpod-Antiforgery': requestToken,
       },
       body: {

@@ -52,14 +52,39 @@
                       }
                     </span>
                     @if (column.type === 'status') {
-                      <span class="alt-enhanced-data-grid__status"><span class="alt-dot" [style.color]="statusColor(facet.value)"></span>{{ facet.value }}</span>
+                      <span class="alt-enhanced-data-grid__status"><span class="alt-dot" [style.color]="statusColor(facet.label)"></span>{{ facet.label }}</span>
                     } @else {
-                      <span>{{ facet.value || '—' }}</span>
+                      <span>{{ facet.label || '—' }}</span>
                     }
-                    <span class="alt-enhanced-data-grid__fcount alt-num">{{ facet.count }}</span>
+                    @if (facet.count !== null) {
+                      <span class="alt-enhanced-data-grid__fcount alt-num">{{ facet.count }}</span>
+                    }
                   </button>
                 }
               </div>
+            }
+          </div>
+        }
+      </div>
+    }
+    @if (groupColumns().length) {
+      <div class="alt-enhanced-data-grid__mb">
+        <button
+          type="button"
+          class="alt-tbtn"
+          aria-haspopup="true"
+          [attr.aria-expanded]="openMenu() === 'group'"
+          [attr.aria-pressed]="!!groupBy()"
+          (click)="toggleToolbarMenu('group')"
+        >
+          <dok-icon name="layers" [size]="16" />{{ groupBy() ? 'Agrupado' : 'Agrupar' }}
+        </button>
+        @if (openMenu() === 'group') {
+          <div class="alt-popover alt-enhanced-data-grid__pop" role="menu" aria-label="Agrupar linhas">
+            @for (field of groupOptions(); track $index) {
+              <button type="button" role="menuitemradio" class="alt-menu-item" [attr.aria-checked]="groupBy() === field" (click)="setGroupBy(field)">
+                {{ groupLabel(field) }}
+              </button>
             }
           </div>
         }
@@ -94,12 +119,59 @@
         </div>
       }
     </div>
+    <div class="alt-column-picker alt-column-picker--end">
+      <button
+        type="button"
+        class="alt-tbtn alt-column-picker__trigger"
+        aria-haspopup="true"
+        [attr.aria-expanded]="openMenu() === 'columns'"
+        (click)="toggleToolbarMenu('columns')"
+      >
+        <dok-icon name="columns" [size]="16" />Colunas
+        @if (columns().length - visibleColumns().length; as count) {
+          <span class="alt-count" [attr.title]="count === 1 ? '1 coluna oculta' : count + ' colunas ocultas'">{{ count }}</span>
+        }
+      </button>
+      @if (openMenu() === 'columns') {
+        <div class="alt-popover alt-column-picker__pop" role="menu" aria-label="Colunas visíveis">
+          <div class="alt-column-picker__hd">
+            <span class="app-label">Colunas visíveis</span>
+            <span class="alt-num">{{ visibleColumns().length }} de {{ columns().length }}</span>
+          </div>
+          <div class="alt-column-picker__list">
+            @for (column of columns(); track column.field) {
+              <button
+                type="button"
+                role="menuitemcheckbox"
+                class="alt-menu-item alt-column-picker__item"
+                [attr.aria-checked]="column.locked || !hidden().has(column.field)"
+                [attr.aria-disabled]="column.locked ? 'true' : null"
+                (click)="toggleColumn(column)"
+              >
+                <span class="alt-enhanced-data-grid__cb" [class.is-on]="column.locked || !hidden().has(column.field)" aria-hidden="true">
+                  @if (column.locked || !hidden().has(column.field)) {
+                    <dok-icon name="check" [size]="11" [strokeWidth]="3" />
+                  }
+                </span>
+                <span class="alt-column-picker__name">{{ column.header }}</span>
+                @if (column.locked) {
+                  <dok-icon name="lock" [size]="13" label="fixa" />
+                }
+              </button>
+            }
+          </div>
+          <div class="alt-column-picker__ft">
+            <button type="button" class="alt-column-picker__reset" (click)="resetColumns()">Restaurar padrão</button>
+          </div>
+        </div>
+      }
+    </div>
     @if (exportName()) {
-      <button type="button" class="alt-tbtn" (click)="exportCsv()"><dok-icon name="download" [size]="16" />Exportar CSV</button>
+      <button type="button" class="alt-btn alt-btn--primary alt-btn--sm" aria-label="Exportar CSV" (click)="exportCsv()"><dok-icon name="download" [size]="16" />Exportar</button>
     }
   </div>
 
-  @if (activeFilters().length) {
+  @if (showFilterChips() && activeFilters().length) {
     <div class="alt-enhanced-data-grid__chips">
       @for (entry of activeFilters(); track entry[0]) {
         <span class="alt-chip alt-enhanced-data-grid__fchip">
@@ -118,7 +190,7 @@
         @if (selectable()) {
           <col style="width: 44px" />
         }
-        @for (column of columns(); track column.field) {
+        @for (column of visibleColumns(); track column.field) {
           <col [style.width.px]="column.width ?? null" />
         }
         <col style="width: 52px" />
@@ -146,13 +218,13 @@
               </button>
             </th>
           }
-          @for (column of columns(); track column.field) {
+          @for (column of visibleColumns(); track column.field) {
             <th scope="col" [class.is-num]="column.type === 'number'" [class.is-sorted]="ariaSort(column) !== 'none'" [attr.aria-sort]="ariaSort(column)">
               @if (column.sortable === false) {
-                <span>{{ column.header }}</span>
+                <span>{{ column.header }}@if (column.unit) {<small class="dok-grid-unit"> {{ column.unit }}</small>}</span>
               } @else {
                 <button type="button" [title]="'Ordenar por ' + column.header" (click)="toggleSort(column)">
-                  <span>{{ column.header }}</span>
+                  <span>{{ column.header }}@if (column.unit) {<small class="dok-grid-unit"> {{ column.unit }}</small>}</span>
                   <span class="alt-enhanced-data-grid__arrow" [class.is-on]="sort()?.field === column.field" style="display: inline-flex">
                     <dok-icon [name]="sort()?.field === column.field && sort()?.dir === 'desc' ? 'arrow-down' : 'arrow-up'" [size]="13" />
                   </span>
@@ -167,11 +239,23 @@
         @if (loading() && !rows().length) {
           @for (i of [1, 2, 3, 4, 5, 6]; track i) {
             <tr [style.height.px]="rowHeight()" aria-hidden="true">
-              <td [attr.colspan]="columns().length + (selectable() ? 2 : 1)"><div class="alt-skel" style="height: 14px; width: 60%"></div></td>
+              <td [attr.colspan]="colSpan()"><div class="alt-skel" style="height: 14px; width: 60%"></div></td>
             </tr>
           }
         } @else {
-          @for (row of pageRows(); track rowId()(row)) {
+          @for (entry of bodyRows(); track entry.kind === 'group' ? 'g:' + entry.key : rowId()(entry.row)) {
+            @if (entry.kind === 'group') {
+              <tr class="alt-enhanced-data-grid__group">
+                <td [attr.colspan]="colSpan()">
+                  <button type="button" [attr.aria-expanded]="!entry.collapsed" (click)="toggleGroup(entry.key)">
+                    <dok-icon [name]="entry.collapsed ? 'chevron-right' : 'chevron-down'" [size]="15" />
+                    <span>{{ entry.label }}</span>
+                    <span class="alt-enhanced-data-grid__gcount alt-num">{{ entry.count }} {{ entry.count === 1 ? entityLabel()[0] : entityLabel()[1] }}</span>
+                  </button>
+                </td>
+              </tr>
+            } @else {
+            @let row = entry.row;
             <tr
               [class.is-selected]="isSelected(row)"
               [attr.aria-selected]="selectable() ? isSelected(row) : null"
@@ -196,7 +280,7 @@
                   </button>
                 </td>
               }
-              @for (column of columns(); track column.field) {
+              @for (column of visibleColumns(); track column.field) {
                 <td
                   class="alt-num"
                   [class.is-num]="column.type === 'number'"
@@ -229,9 +313,10 @@
                 }
               </td>
             </tr>
+            }
           } @empty {
             <tr class="alt-enhanced-data-grid__empty">
-              <td [attr.colspan]="columns().length + (selectable() ? 2 : 1)">
+              <td [attr.colspan]="colSpan()">
                 <dok-icon name="search" [size]="20" />
                 <div>{{ emptyTitle() ?? 'Nenhum ' + entityLabel()[0] + ' encontrado' + (search() ? ' para “' + search() + '”' : '') + '.' }}</div>
                 @if (search() || activeFilters().length) {

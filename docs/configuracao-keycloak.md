@@ -65,6 +65,14 @@ Scopes iniciais:
 | `container:delete` | excluir container sem remover volumes implicitamente |
 | `audit:read` | consultar auditoria do ambiente |
 | `environment:manage` | aprovar, suspender e configurar o ambiente |
+| `container:pause` | pausar e retomar container (spec 010) |
+| `container:inspect` | resumo e inspeção sanitizada do container (spec 011) |
+| `container:logs` | logs sob demanda e ao vivo, mascarados no agente (spec 011) |
+| `image:pull` | baixar imagem no host (spec 012) |
+| `container:create` | criar e iniciar container pela allowlist de parâmetros (spec 013) |
+| `container:exec` | abrir terminal interativo no container (spec 014) |
+
+Os scopes são criados por `tools/scripts/configure-keycloak.ps1` no resource server `dokpod-api` e concedidos por ambiente com `tools/scripts/provision-environment-authorization.ps1 -Scope <scope>`. Scopes de operações privilegiadas (`container:create`, `container:exec`) devem ser concedidos a grupos restritos e revisados periodicamente.
 
 Roles podem agrupar permissões para administração, operação e auditoria, mas a decisão final continua associada ao recurso e scope. O Dokpod não persiste cópia de role ou membership como autorização local.
 

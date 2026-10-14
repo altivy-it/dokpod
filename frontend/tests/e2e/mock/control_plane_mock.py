@@ -341,7 +341,10 @@ class Handler(BaseHTTPRequestHandler):
             STATE["stages"].clear()
             STATE["registered"].clear()
             STATE["revoked"].clear()
+            STATE["submitted"] = []
             return self.send_json(200, {"scenario": STATE["scenario"]})
+        if path == "/__mock/submitted":
+            return self.send_json(200, STATE.get("submitted", []))
         if path == "/__mock/health":
             return self.send_json(200, {"ok": True})
 
@@ -436,8 +439,10 @@ class Handler(BaseHTTPRequestHandler):
             command = STATE["commands"].get(cm.group(1))
             if not command:
                 return self.send_json(404, problem(404, "Comando não encontrado"))
-            command.update({"state": "succeeded", "updatedAtUtc": iso(0), "completedAtUtc": iso(0)})
-            return self.send_json(200, command)
+            failed = command["action"] == "start" and command.get("containerName", "").startswith("migracao")
+            command.update({"state": "failed" if failed else "succeeded", "failureCode": "start_failed" if failed else None,
+                            "updatedAtUtc": iso(0), "completedAtUtc": iso(0)})
+            return self.send_json(200, {k: v for k, v in command.items() if k != "containerName"})
         cm = re.fullmatch(r"/containers/([^/]+)(/.*)?", rest)
         if not cm:
             return self.send_json(404, problem(404, "Rota inexistente"))
@@ -492,6 +497,8 @@ class Handler(BaseHTTPRequestHandler):
                 "expectedContainerRevision": body.get("expectedContainerRevision"), "state": "accepted", "failureCode": None,
                 "observedContainerRevision": None, "deadlineUtc": body.get("deadlineUtc"), "createdAtUtc": iso(0), "updatedAtUtc": iso(0), "completedAtUtc": None,
             }
+            STATE["commands"][command_id]["containerName"] = container["name"]
+            STATE.setdefault("submitted", []).append((body.get("action"), container["name"]))
             return self.send_json(202, STATE["commands"][command_id])
         return self.send_json(404, problem(404, "Rota inexistente"))
 

@@ -32,17 +32,15 @@ frontend/tests/
 
 Features integram por rotas, contratos públicos e fachadas pequenas; não importam detalhes internos umas das outras.
 
-### Inventário e lifecycle de containers
+### Lista unificada de containers e ações em lote (spec 010)
 
-- a rota lazy `/environments/:environmentId/containers` consulta cadastro e inventário pelo BFF;
-- a rota inicial lista somente ambientes autorizados por `environment:read`, com paginação por cursor e sem expor total global;
-- o cadastro solicita identificador previamente provisionado, nome e host, usa antiforgery e informa que usuários e permissões continuam sob responsabilidade do Keycloak;
-- ambientes desabilitados permanecem visíveis no catálogo, mas não oferecem acesso ao inventário;
-- ações são exibidas conforme os scopes retornados pelo cadastro do ambiente;
-- toda mutação obtém `X-Dokpod-Antiforgery`, gera uma chave de idempotência UUID e envia a revisão observada do container;
-- a fachada acompanha o comando até `succeeded`, `failed` ou `indeterminate` e então atualiza o inventário;
-- troca de ambiente e destruição da página invalidam carregamentos e polling anteriores;
-- exclusão exige confirmação contextual e informa que volumes não são removidos implicitamente.
+- `/containers` lista containers de todos os hosts autorizados (`GET /api/v1/containers`) com cursor, busca no servidor, ordenação por nome/situação/host/criação e resumo das seis situações; a rota legada `/environments/:environmentId/containers` redireciona para a lista filtrada pelo host;
+- filtros (estágio global, host, engine, situação e busca) ficam na URL; os ativos aparecem como chips removíveis acima do grid ("Engine: …", "Ambiente: …") e são escolhidos pelo botão "Filtros" do grid com facetas fornecidas pela página;
+- o grid oferece Agrupar (linhas carregadas), densidade, seletor de colunas lembrado no navegador e exportação CSV da página carregada com neutralização de fórmulas;
+- ações por linha (logs, terminal, inspecionar, iniciar, parar, reiniciar, pausar, retomar, remover) seguem `allowedActions` (scope × capability do agente × situação × conexão);
+- lotes: até 50 containers, um comando individual por container com concorrência 5, chaves de idempotência e IDs em `sessionStorage` (escopo da aba), acompanhamento consultando o servidor e retomada após recarga sem reenvio automático;
+- a confirmação lista afetados e ignorados com motivo, informa que volumes não são removidos e, para remover mais de um container em Produção, exige digitar a quantidade;
+- toda mutação usa `X-Dokpod-Antiforgery`, chave de idempotência UUID v4 (com fallback a `crypto.getRandomValues` fora de contexto seguro) e a revisão observada do container.
 
 ## Experiência operacional
 

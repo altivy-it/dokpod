@@ -1,5 +1,4 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, input, signal, untracked } from '@angular/core';
-import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { EnvironmentDirectoryService } from '../../core/environment-directory.service';
 import { ConfirmActionDrawer } from '../../core/container-actions/confirm-action.drawer';
@@ -16,14 +15,12 @@ import {
   DokButton,
   DokDataGrid,
   DokEmptyState,
-  DokEngineBadge,
-  DokGridCell,
   DokIcon,
-  DokSelect,
   DokStatusChip,
   formatDateTime,
   ToastService,
   type GridColumn,
+  type GridFacet,
   type GridRowAction,
   type GridSort,
 } from '../../design-system';
@@ -65,12 +62,8 @@ function asArray(value: string | string[] | undefined): string[] {
     DokButton,
     DokDataGrid,
     DokEmptyState,
-    DokEngineBadge,
-    DokGridCell,
     DokIcon,
-    DokSelect,
     DokStatusChip,
-    FormsModule,
   ],
   providers: [ContainersFacade],
   styleUrl: './containers.page.css',
@@ -103,15 +96,15 @@ export class ContainersPage {
   protected readonly statusOrder: ContainerDisplayStatus[] = ['running', 'starting', 'restarting', 'failed', 'paused', 'stopped'];
 
   protected readonly columns: GridColumn<ContainerRow>[] = [
-    { field: 'name', header: 'Nome', width: 190, key: true },
-    { field: 'status', header: 'Situação', type: 'status', width: 140 },
-    { field: 'engine', header: 'Engine', width: 110, sortable: false },
-    { field: 'host', header: 'Host', width: 140 },
+    { field: 'name', header: 'Nome', width: 190, key: true, locked: true },
+    { field: 'status', header: 'Situação', type: 'status', width: 140, filterable: true, groupable: true },
+    { field: 'engine', header: 'Engine', width: 100, sortable: false, filterable: true, groupable: true },
+    { field: 'host', header: 'Host', width: 140, filterable: true, groupable: true },
     { field: 'image', header: 'Imagem', width: 320, mono: true, sortable: false },
-    { field: 'cpu', header: 'CPU %', type: 'number', decimals: 1, width: 84, sortable: false },
-    { field: 'mem', header: 'Memória MiB', type: 'number', width: 116, sortable: false },
+    { field: 'cpu', header: 'CPU', unit: '%', type: 'number', decimals: 1, width: 84, sortable: false },
+    { field: 'mem', header: 'Memória', unit: 'MiB', type: 'number', width: 110, sortable: false },
     { field: 'ports', header: 'Portas', width: 170, mono: true, sortable: false },
-    { field: 'created', header: 'Criado em', width: 150, type: 'datetime' },
+    { field: 'created', header: 'Criado', width: 150, type: 'datetime' },
   ];
 
   protected readonly rows = computed<ContainerRow[]>(() =>
@@ -142,18 +135,41 @@ export class ContainersPage {
       .map(status => ({ status, count: counts[status] ?? 0, ...CONTAINER_STATUS[status] }));
   });
 
-  protected readonly hostOptions = computed(() => [
-    { value: '', label: 'Todos os hosts' },
-    ...this.directory
-      .environments()
-      .filter(env => !this.stageFilter.stage() || env.stage === this.stageFilter.stage())
-      .map(env => ({ value: env.environmentId, label: env.name, caption: env.agent?.engine ? ENGINE_LABEL[env.agent.engine] : undefined })),
-  ]);
-  protected readonly engineOptions = [
-    { value: '', label: 'Docker e Podman' },
-    { value: 'docker', label: 'Docker', dot: 'var(--chart-2)' },
-    { value: 'podman', label: 'Podman', dot: 'var(--chart-5)' },
-  ];
+  /** Hosts do estágio global, para facetas e chips (spec 010 FR-010). */
+  private readonly stageHosts = computed(() =>
+    this.directory.environments().filter(env => !this.stageFilter.stage() || env.stage === this.stageFilter.stage()),
+  );
+
+  /** Facetas do botão "Filtros" do grid; valores são as chaves do servidor e os rótulos, os do board. */
+  protected readonly facets = computed<Record<string, GridFacet[]>>(() => {
+    const counts = this.facade.summary()?.byDisplayStatus ?? {};
+    return {
+      status: this.statusOrder.map(status => ({ value: status, label: CONTAINER_STATUS[status].label, count: counts[status] ?? 0 })),
+      engine: [
+        { value: 'docker', label: 'Docker' },
+        { value: 'podman', label: 'Podman' },
+      ],
+      host: this.stageHosts().map(env => ({ value: env.environmentId, label: env.name, count: env.containerCount ?? undefined })),
+    };
+  });
+
+  protected readonly gridFilters = computed<Record<string, string[]>>(() => {
+    const f = this.facade.filters();
+    return { status: f.statuses, engine: f.engines, host: f.environmentIds };
+  });
+
+  /** Chips de filtros ativos acima do grid (board: "Engine: Docker, Podman", "Ambiente: Produção"). */
+  protected readonly filterChips = computed(() => {
+    const f = this.facade.filters();
+    const chips: { key: 'engine' | 'stage' | 'host' | 'status'; field: string; label: string }[] = [];
+    if (f.engines.length) chips.push({ key: 'engine', field: 'Engine', label: f.engines.map(e => ENGINE_LABEL[e] ?? e).join(', ') });
+    if (this.stageFilter.stage()) chips.push({ key: 'stage', field: 'Ambiente', label: this.stageName() });
+    if (f.environmentIds.length) chips.push({ key: 'host', field: 'Host', label: this.hostFilterName() });
+    if (f.statuses.length) chips.push({ key: 'status', field: 'Situação', label: f.statuses.map(s => CONTAINER_STATUS[s].label).join(', ') });
+    return chips;
+  });
+
+  protected readonly exportName = computed(() => `containers-${(this.stageFilter.stage() ? this.stageName() : 'todos').toLowerCase().replace(/[^a-z0-9]+/g, '-')}`);
   protected readonly stageName = computed(() => stageLabel(this.stageFilter.stage()));
   protected readonly updatedAt = computed(() => (this.facade.observedAt() ? formatDateTime(this.facade.observedAt()) : null));
   protected readonly hostFilterName = computed(() => {
@@ -161,8 +177,6 @@ export class ContainersPage {
     return ids.map(id => this.directory.byId(id)?.name ?? id.slice(0, 8)).join(', ');
   });
   protected readonly batchSummary = computed(() => this.actions.summary());
-  protected readonly selectedHost = computed(() => this.facade.filters().environmentIds[0] ?? '');
-  protected readonly selectedEngine = computed(() => this.facade.filters().engines[0] ?? '');
 
   constructor() {
     inject(ShellContextService).set('Containers', ['Operação', 'Containers']);
@@ -279,16 +293,14 @@ export class ContainersPage {
     this.navigate({ status: next.length ? next : null });
   }
 
-  protected setHost(environmentId: string): void {
-    this.navigate({ environmentId: environmentId || null });
+  protected onGridFilters(filters: Record<string, string[]>): void {
+    const toParam = (values: string[] | undefined) => (values && values.length ? values : null);
+    this.navigate({ status: toParam(filters['status']), engine: toParam(filters['engine']), environmentId: toParam(filters['host']) });
   }
 
-  protected setEngine(engine: string): void {
-    this.navigate({ engine: engine || null });
-  }
-
-  protected clearStatus(): void {
-    this.navigate({ status: null });
+  protected removeFilter(key: 'engine' | 'stage' | 'host' | 'status'): void {
+    if (key === 'stage') this.stageFilter.select(null);
+    else this.navigate({ [key === 'host' ? 'environmentId' : key]: null });
   }
 
   protected onDocumentDown(event: MouseEvent): void {

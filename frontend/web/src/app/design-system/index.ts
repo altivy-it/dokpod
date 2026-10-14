@@ -7,6 +7,7 @@ export {
   DokGridCell,
   type GridColumn,
   type GridDensity,
+  type GridFacet,
   type GridRowAction,
   type GridSort,
 } from './data-grid/dok-data-grid';

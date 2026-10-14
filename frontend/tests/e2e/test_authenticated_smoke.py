@@ -1,3 +1,4 @@
+import re
 import os
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -50,7 +51,8 @@ def test_logout_invalidates_bff_session(authenticated_page: Page) -> None:
 def test_authenticated_catalog_is_rendered(authenticated_page: Page) -> None:
     authenticated_page.goto(BASE_URL, wait_until="networkidle")
     expect(authenticated_page.get_by_role("main")).to_be_visible()
-    expect(authenticated_page.get_by_role("heading", name="Ambientes", exact=True)).to_be_visible()
+    expect(authenticated_page.get_by_role("navigation", name="Menu principal")).to_be_visible()
+    expect(authenticated_page.get_by_role("banner").get_by_role("heading", name="Visão geral")).to_be_visible()
 
 
 def test_environment_can_be_opened(authenticated_page: Page) -> None:
@@ -102,7 +104,7 @@ def test_environment_can_be_opened(authenticated_page: Page) -> None:
     assert duplicate_registration.status == 409
 
     authenticated_page.goto(
-        f"{BASE_URL.rstrip('/')}/environments/{ENVIRONMENT_ID}/containers",
+        f"{BASE_URL.rstrip('/')}/containers?environmentId={ENVIRONMENT_ID}",
         wait_until="networkidle",
     )
     expect(authenticated_page.get_by_role("main")).to_be_visible()
@@ -118,18 +120,17 @@ def test_lifecycle_view_exposes_authorized_container_actions(
         pytest.skip("DOKPOD_E2E_ENVIRONMENT_ID não configurado")
 
     authenticated_page.goto(
-        f"{BASE_URL.rstrip('/')}/environments/{ENVIRONMENT_ID}/containers",
+        f"{BASE_URL.rstrip('/')}/containers?environmentId={ENVIRONMENT_ID}",
         wait_until="networkidle",
     )
     expect(authenticated_page.get_by_role("main")).to_be_visible()
-    expect(authenticated_page.locator(".container-row").first).to_be_visible()
-    expect(authenticated_page.get_by_text("Tempo real: connected", exact=True)).to_be_visible(
-        timeout=15_000
-    )
-    expect(authenticated_page.get_by_role("button", name="Iniciar", exact=True).first).to_be_visible()
-    expect(authenticated_page.get_by_role("button", name="Parar", exact=True).first).to_be_visible()
-    expect(authenticated_page.get_by_role("button", name="Reiniciar", exact=True).first).to_be_visible()
-    expect(authenticated_page.get_by_role("button", name="Excluir", exact=True).first).to_be_visible()
+    rows = authenticated_page.get_by_role("table").locator("tbody tr")
+    expect(rows.first).to_be_visible()
+    first_name = rows.first.locator("td").nth(1).inner_text().strip()
+    authenticated_page.get_by_role("button", name=f"Ações de {first_name}", exact=False).first.click()
+    menu = authenticated_page.get_by_role("menu").last
+    expect(menu.get_by_role("menuitem", name="Ver logs")).to_be_visible()
+    expect(menu.get_by_role("menuitem").filter(has_text=re.compile("Iniciar|Parar|Reiniciar|Remover")).first).to_be_visible()
 
 
 def test_synthetic_container_lifecycle(authenticated_page: Page) -> None:
@@ -137,45 +138,46 @@ def test_synthetic_container_lifecycle(authenticated_page: Page) -> None:
         pytest.skip("Ambiente e container sintético de mutação não configurados")
 
     authenticated_page.goto(
-        f"{BASE_URL.rstrip('/')}/environments/{ENVIRONMENT_ID}/containers",
+        f"{BASE_URL.rstrip('/')}/containers?environmentId={ENVIRONMENT_ID}&q={MUTATION_CONTAINER_NAME}",
         wait_until="networkidle",
     )
 
     def container_row():
-        return authenticated_page.locator("article.container-row").filter(
-            has=authenticated_page.get_by_role(
-                "heading",
-                name=MUTATION_CONTAINER_NAME,
-                exact=True,
-            )
+        return authenticated_page.get_by_role("table").locator("tr").filter(
+            has=authenticated_page.get_by_text(MUTATION_CONTAINER_NAME, exact=True)
         )
 
-    def run_action(action: str, expected_state: str) -> None:
+    def run_action(verb: str, expected_status: str) -> None:
         row = container_row()
         expect(row).to_have_count(1)
+        row.get_by_role("button", name=re.compile(f"^Ações de {re.escape(MUTATION_CONTAINER_NAME)}")).click()
+        authenticated_page.get_by_role("menuitem", name=verb, exact=True).click()
+        dialog = authenticated_page.get_by_role("dialog")
         with authenticated_page.expect_response(
-            lambda response: "/commands" in response.url
-            and response.request.method == "POST"
+            lambda response: "/commands" in response.url and response.request.method == "POST"
         ) as response_info:
-            row.get_by_role("button", name=action, exact=True).click()
+            dialog.get_by_role("button", name=verb, exact=True).click()
         response = response_info.value
         assert "x-dokpod-antiforgery" in response.request.all_headers()
         cookie_names = {cookie["name"] for cookie in authenticated_page.context.cookies()}
         assert "__Host-Dokpod.Antiforgery" in cookie_names
         assert response.status == 202, response.text()
-        expect(row.locator(".operation")).to_contain_text("succeeded", timeout=30_000)
-        expect(row.get_by_text(expected_state, exact=True)).to_be_visible(timeout=30_000)
+        progress = authenticated_page.get_by_role("region", name="Andamento do lote")
+        expect(progress.get_by_text("Concluído", exact=True)).to_be_visible(timeout=30_000)
+        expect(container_row().get_by_text(expected_status, exact=True)).to_be_visible(timeout=30_000)
+        progress.get_by_role("button", name="Fechar andamento do lote").click()
 
-    run_action("Iniciar", "Running")
-    run_action("Reiniciar", "Running")
-    run_action("Parar", "Exited")
+    run_action("Iniciar", "Em execução")
+    run_action("Reiniciar", "Em execução")
+    run_action("Parar", "Parado")
 
     row = container_row()
-    row.get_by_role("button", name="Excluir", exact=True).click()
+    row.get_by_role("button", name=re.compile(f"^Ações de {re.escape(MUTATION_CONTAINER_NAME)}")).click()
+    authenticated_page.get_by_role("menuitem", name="Remover", exact=True).click()
     dialog = authenticated_page.get_by_role("dialog")
     expect(dialog).to_contain_text(MUTATION_CONTAINER_NAME)
-    expect(dialog).to_contain_text("Volumes não serão excluídos implicitamente")
-    dialog.get_by_role("button", name="Excluir container", exact=True).click()
+    expect(dialog).to_contain_text("Volumes não são removidos")
+    dialog.get_by_role("button", name="Remover", exact=True).click()
     expect(container_row()).to_have_count(0, timeout=30_000)
 
 
@@ -211,15 +213,10 @@ def test_horizontal_access_is_denied(authenticated_page: Page) -> None:
     assert response.status == 403
 
     authenticated_page.goto(
-        f"{BASE_URL.rstrip('/')}/environments/{DENIED_ENVIRONMENT_ID}/containers",
+        f"{BASE_URL.rstrip('/')}/containers/{DENIED_ENVIRONMENT_ID}/{'a' * 64}",
         wait_until="networkidle",
     )
     expect(authenticated_page.get_by_text("Acesso negado", exact=True)).to_be_visible()
-    expect(authenticated_page.locator(".realtime-status")).to_have_attribute(
-        "data-state",
-        "error",
-        timeout=15_000,
-    )
 
 
 def test_agent_identity_can_be_revoked(authenticated_page: Page) -> None:
@@ -246,18 +243,13 @@ def test_inventory_visual_states(authenticated_page: Page) -> None:
 
     os.makedirs(REPORT_DIRECTORY, exist_ok=True)
     inventory_url = (
-        f"{BASE_URL.rstrip('/')}/environments/{ENVIRONMENT_ID}/containers"
+        f"{BASE_URL.rstrip('/')}/containers?environmentId={ENVIRONMENT_ID}"
     )
-    sensitive_fields = [
-        authenticated_page.locator(".identity"),
-        authenticated_page.locator("dd"),
-    ]
+    sensitive_fields = [authenticated_page.locator("td.ct-mono"), authenticated_page.locator("dd")]
 
     authenticated_page.set_viewport_size({"width": 1440, "height": 900})
     authenticated_page.goto(inventory_url, wait_until="networkidle")
-    expect(authenticated_page.locator(".realtime-status")).to_have_attribute(
-        "data-state", "connected", timeout=15_000
-    )
+    expect(authenticated_page.get_by_role("table").locator("tbody tr").first).to_be_visible(timeout=15_000)
     authenticated_page.screenshot(
         path=f"{REPORT_DIRECTORY}/inventory-desktop.png",
         full_page=True,
@@ -272,7 +264,7 @@ def test_inventory_visual_states(authenticated_page: Page) -> None:
     )
 
     authenticated_page.goto(
-        f"{BASE_URL.rstrip('/')}/environments/{DENIED_ENVIRONMENT_ID}/containers",
+        f"{BASE_URL.rstrip('/')}/containers/{DENIED_ENVIRONMENT_ID}/{'a' * 64}",
         wait_until="networkidle",
     )
     expect(authenticated_page.get_by_text("Acesso negado", exact=True)).to_be_visible()

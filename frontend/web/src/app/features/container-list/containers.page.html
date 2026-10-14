@@ -24,19 +24,8 @@
   </div>
 
   <div class="cl-filters">
-    <dok-select ariaLabel="Filtrar por host" size="sm" [options]="hostOptions()" [ngModel]="selectedHost()" (ngModelChange)="setHost($event)" />
-    <dok-select ariaLabel="Filtrar por engine" size="sm" [options]="engineOptions" [ngModel]="selectedEngine()" (ngModelChange)="setEngine($event)" />
-    @if (facade.filters().engines.length) {
-      <dok-status-chip variant="filter" field="Engine" [label]="facade.filters().engines.join(', ') === 'docker' ? 'Docker' : 'Podman'" [removable]="true" (removed)="setEngine('')" />
-    }
-    @if (stageFilter.stage()) {
-      <dok-status-chip variant="filter" field="Estágio" [label]="stageName()" [removable]="true" (removed)="stageFilter.select(null)" />
-    }
-    @if (facade.filters().environmentIds.length) {
-      <dok-status-chip variant="filter" field="Host" [label]="hostFilterName()" [removable]="true" (removed)="setHost('')" />
-    }
-    @if (facade.filters().statuses.length) {
-      <button type="button" class="alt-enhanced-data-grid__link" (click)="clearStatus()">Todas as situações</button>
+    @for (chip of filterChips(); track chip.key) {
+      <dok-status-chip variant="filter" [field]="chip.field" [label]="chip.label" [removable]="true" (removed)="removeFilter(chip.key)" />
     }
     @if (summaryChips().length) {
       <span class="app-small cl-muted">Resumo:</span>
@@ -106,26 +95,24 @@
       [(search)]="search"
       [(sort)]="gridSort"
       [clientSide]="false"
+      [filters]="gridFilters()"
+      (filtersChange)="onGridFilters($event)"
+      [facetOptions]="facets()"
+      [showFilterChips]="false"
+      storageKey="containers"
       [loading]="facade.loading()"
       [hasMore]="!!facade.nextCursor()"
       [loadingMore]="facade.loadingMore()"
       [totalCount]="facade.summary()?.total ?? null"
       [updatedAt]="updatedAt()"
       searchPlaceholder="Nome, imagem, host ou porta"
-      exportName="containers"
+      [exportName]="exportName()"
       height="600px"
       emptyTitle="Nenhum container encontrado com os filtros aplicados."
       (rowAction)="onRowAction($event)"
       (rowOpen)="openRow($event)"
       (loadMore)="facade.loadMore()"
     >
-      <ng-template dokCell="engine" let-row>
-        @if (row.item.engine) {
-          <dok-engine-badge [engine]="row.item.engine" />
-        } @else {
-          —
-        }
-      </ng-template>
     </dok-data-grid>
   }
 </div>

@@ -4,7 +4,7 @@
 
 **Criada em**: 2026-10-12
 
-**Estado**: `draft` - aguardando revisão humana.
+**Estado**: `implemented` - aprovada em 2026-10-13 ([specs/README.md](../README.md)); evidências e itens `NOT RUN` em [tasks.md](tasks.md).
 
 **Entrada**: Board `02 · Containers` ([Containers.dc.html](../../docs/design/app/project/Containers.dc.html)).
 

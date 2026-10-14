@@ -61,6 +61,62 @@ public sealed class ContainerSearchIntegrationTests
         }
     }
 
+    [Theory]
+    [InlineData(56)]
+    [InlineData(100)]
+    public async Task SearchStore_FirstPageAndSearchMeetLatencyBudgetWith1120Containers(int hostCount)
+    {
+        await using var context = CreateContextOrSkip();
+        var ct = TestContext.Current.CancellationToken;
+        var ids = Enumerable.Range(0, hostCount).Select(_ => Guid.NewGuid()).ToArray();
+        var registrations = new PostgresEnvironmentRegistrationStore(context);
+        var inventory = new PostgresInventoryProjectionStore(context);
+        var now = DateTimeOffset.UtcNow;
+        var perHost = 1120 / hostCount;
+        var remainder = 1120 % hostCount;
+        try
+        {
+            for (var h = 0; h < ids.Length; h++)
+            {
+                var id = ids[h];
+                await registrations.CreateAsync(EnvironmentRegistration.Create(id, $"p{h:D3}-{id:N}"[..20], $"perf-{h}", true, [EnvironmentResourceScopes.Read]), ct);
+                var count = perHost + (h < remainder ? 1 : 0);
+                await inventory.ReplaceSnapshotAsync(Snapshot(id, now,
+                    Enumerable.Range(0, count).Select(c => ($"svc-{h:D3}-{c:D2}", c % 7 == 0 ? "Exited" : "Running", (int?)(c % 14 == 0 ? 1 : null))).ToArray()), ct);
+            }
+
+            var store = new PostgresContainerSearchStore(context);
+            var first = await Measure(() => store.SearchAsync(new ContainerSearchQuery(ids, [], null, ContainerSort.NameAsc, null, 50), ct));
+            var search = await Measure(() => store.SearchAsync(new ContainerSearchQuery(ids, [], "svc-04", ContainerSort.NameAsc, null, 50), ct));
+            var page = await store.SearchAsync(new ContainerSearchQuery(ids, [], null, ContainerSort.NameAsc, null, 50), ct);
+
+            Assert.Equal(1120, page.SummaryByDisplayStatus.Values.Sum());
+            Assert.Equal(50, page.Rows.Count);
+            Assert.True(first <= 500, $"primeira página p95 {first:F0} ms com {hostCount} hosts");
+            Assert.True(search <= 1000, $"busca p95 {search:F0} ms com {hostCount} hosts");
+        }
+        finally
+        {
+            await context.InventoryProjections.Where(item => ids.Contains(item.EnvironmentId)).ExecuteDeleteAsync(ct);
+            await context.EnvironmentRegistrations.Where(item => ids.Contains(item.EnvironmentId)).ExecuteDeleteAsync(ct);
+        }
+
+        static async Task<double> Measure(Func<Task> action)
+        {
+            await action(); // aquecimento
+            var samples = new List<double>();
+            for (var i = 0; i < 20; i++)
+            {
+                var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+                await action();
+                samples.Add(stopwatch.Elapsed.TotalMilliseconds);
+            }
+
+            samples.Sort();
+            return samples[(int)Math.Ceiling(samples.Count * 0.95) - 1];
+        }
+    }
+
     [Fact]
     public void AllowedActions_IntersectScopeCapabilityStateAndConnection()
     {

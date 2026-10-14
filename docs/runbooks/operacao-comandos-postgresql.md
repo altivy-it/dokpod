@@ -4,6 +4,8 @@
 
 A migration `202609220001_PartitionAgentCommands` converte `dokpod.agent_commands` em uma tabela particionada mensalmente por `created_at_utc`. A tabela `dokpod.agent_command_keys` mantém a identidade global `(environment_id, command_id)` separada das partições para preservar deduplicação entre meses.
 
+Tipos aceitos por `ck_agent_commands_kind`: 1 `start`, 2 `stop`, 3 `restart`, 4 `delete`, 5 `pause` e 6 `unpause` (spec 010); a 012 e a 013 ampliam para 7 e 8. Pausa e retomada só são despachadas a agentes que anunciaram `CAPABILITY_CONTAINER_PAUSE`/`CAPABILITY_CONTAINER_UNPAUSE`; no Podman, parar um container pausado é feito retomando antes de parar.
+
 A partição `dokpod.agent_commands_default` é uma proteção contra perda de escrita quando a faixa mensal ainda não existe. Linhas nessa partição indicam falha de rollover e exigem correção operacional.
 
 ## Sinais
