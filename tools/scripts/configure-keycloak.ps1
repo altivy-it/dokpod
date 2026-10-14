@@ -273,6 +273,25 @@ function ConvertFrom-SecureValue {
     }
 }
 
+function Get-HttpStatusCode {
+    param([Parameter(Mandatory)][System.Management.Automation.ErrorRecord] $ErrorRecord)
+
+    $exception = $ErrorRecord.Exception
+    if ($exception -is [System.Net.Http.HttpRequestException] -and $null -ne $exception.StatusCode) {
+        return [int]$exception.StatusCode
+    }
+    if ($exception.PSObject.Properties['Response'] -and $null -ne $exception.Response) {
+        return [int]$exception.Response.StatusCode
+    }
+    return $null
+}
+
+function Test-KeycloakNotFound {
+    param([Parameter(Mandatory)][System.Management.Automation.ErrorRecord] $ErrorRecord)
+
+    return (Get-HttpStatusCode $ErrorRecord) -eq 404
+}
+
 function Invoke-KeycloakApi {
     param(
         [Parameter(Mandatory)][ValidateSet('GET', 'POST', 'PUT', 'DELETE')][string] $Method,
@@ -298,7 +317,7 @@ function Invoke-KeycloakApi {
             return $response
         }
         catch {
-            $statusCode = $_.Exception.Response.StatusCode.value__
+            $statusCode = Get-HttpStatusCode $_
             if ($statusCode -eq 401 -and $attempt -eq 0 -and ($script:adminPasswordPlain -or $script:provisionerSecret)) {
                 Request-AccessToken
                 $parameters.Headers.Authorization = "Bearer $script:accessToken"
@@ -317,7 +336,12 @@ function Invoke-KeycloakApi {
                 }
             }
             $detail = if ($keycloakError) { " Motivo informado pelo Keycloak: $keycloakError" } else { '' }
-            throw "Falha na Admin API ($Method $Path): $($_.Exception.Message)$detail"
+            $message = "Falha na Admin API ($Method $Path): $($_.Exception.Message)$detail"
+            if ($null -ne $statusCode) {
+                # Preserva o código HTTP para os chamadores que tratam 404 (recurso ainda inexistente).
+                throw [System.Net.Http.HttpRequestException]::new($message, $null, [System.Net.HttpStatusCode]$statusCode)
+            }
+            throw $message
         }
     }
 }
@@ -388,7 +412,7 @@ function Ensure-ClientRole {
         Invoke-KeycloakApi PUT "/admin/realms/$Realm/clients/$ClientUuid/roles/$encodedRole" $representation | Out-Null
     }
     catch {
-        if ($_.Exception.Response.StatusCode.value__ -ne 404) { throw }
+        if (-not (Test-KeycloakNotFound $_)) { throw }
         Invoke-KeycloakApi POST "/admin/realms/$Realm/clients/$ClientUuid/roles" @{
             name = $RoleName; description = $Description
         } | Out-Null
@@ -438,7 +462,7 @@ function Ensure-AudienceClientScope {
     }
 
     $defaultScopes = @(Invoke-KeycloakApi GET "/admin/realms/$Realm/clients/$ClientUuid/default-client-scopes")
-    if ($defaultScopes.id -notcontains $scopeId) {
+    if (@($defaultScopes | ForEach-Object { $_.id }) -notcontains $scopeId) {
         Invoke-KeycloakApi PUT "/admin/realms/$Realm/clients/$ClientUuid/default-client-scopes/$scopeId" $null | Out-Null
     }
     Write-Output "Reconciliado client scope dokpod-api-audience em $ClientUuid."
@@ -536,7 +560,7 @@ function Ensure-IdentityProvider {
         Write-Output "Atualizado IdP $($Provider.alias)."
     }
     catch {
-        if ($_.Exception.Response.StatusCode.value__ -ne 404) { throw }
+        if (-not (Test-KeycloakNotFound $_)) { throw }
         Invoke-KeycloakApi POST "/admin/realms/$Realm/identity-provider/instances" $representation | Out-Null
         Write-Output "Criado IdP $($Provider.alias)."
     }
@@ -568,7 +592,7 @@ if ($Bootstrap) {
         $realmRepresentation = Invoke-KeycloakApi GET "/admin/realms/$Realm"
     }
     catch {
-        if ($_.Exception.Response.StatusCode.value__ -ne 404) { throw }
+        if (-not (Test-KeycloakNotFound $_)) { throw }
         Invoke-KeycloakApi POST '/admin/realms' @{ realm = $Realm; enabled = $true; displayName = 'Dokpod' } | Out-Null
         $realmRepresentation = Invoke-KeycloakApi GET "/admin/realms/$Realm"
         Write-Output "Criado realm $Realm."
@@ -631,6 +655,24 @@ $provisionerClient = @{
 $provisionerSecret = Get-EnvironmentSecret @('DOKPOD_PROVISIONER_CLIENT_SECRET')
 if ($provisionerSecret) { $provisionerClient.secret = $provisionerSecret }
 $provisionerClientUuid = Ensure-Client $provisionerClient
+if ($Bootstrap) {
+    # Service account do provisioner: somente manage-clients, manage-users e manage-authorization no
+    # realm-management (documentado acima); exige a credencial administrativa do -Bootstrap.
+    $serviceAccount = Invoke-KeycloakApi GET "/admin/realms/$Realm/clients/$provisionerClientUuid/service-account-user"
+    $realmManagement = @(Invoke-KeycloakApi GET "/admin/realms/$Realm/clients?clientId=realm-management") |
+    Where-Object clientId -eq 'realm-management' | Select-Object -First 1
+    if (-not $realmManagement) { throw 'Client realm-management não encontrado no realm.' }
+    $currentRoles = @(Invoke-KeycloakApi GET "/admin/realms/$Realm/users/$($serviceAccount.id)/role-mappings/clients/$($realmManagement.id)" | ForEach-Object { $_.name })
+    $missingRoles = @(foreach ($roleName in @('manage-clients', 'manage-users', 'manage-authorization')) {
+            if ($currentRoles -notcontains $roleName) {
+                Invoke-KeycloakApi GET "/admin/realms/$Realm/clients/$($realmManagement.id)/roles/$roleName"
+            }
+        })
+    if ($missingRoles.Count -gt 0) {
+        Invoke-KeycloakApi POST "/admin/realms/$Realm/users/$($serviceAccount.id)/role-mappings/clients/$($realmManagement.id)" $missingRoles | Out-Null
+    }
+    Write-Output 'Reconciliadas roles do realm-management da service account dokpod-provisioner.'
+}
 
 $bffClient = @{
     clientId = 'dokpod-bff'; name = 'Dokpod BFF'; enabled = $true; publicClient = $false
@@ -676,7 +718,7 @@ foreach ($role in $roles) {
     $encodedRole = [Uri]::EscapeDataString($role.name)
     $roleRepresentation = Invoke-KeycloakApi GET "/admin/realms/$Realm/clients/$apiClientUuid/roles/$encodedRole"
     $currentMappings = @(Invoke-KeycloakApi GET "/admin/realms/$Realm/groups/$groupId/role-mappings/clients/$apiClientUuid")
-    if ($currentMappings.name -notcontains $role.name) {
+    if (@($currentMappings | ForEach-Object { $_.name }) -notcontains $role.name) {
         Invoke-KeycloakApi POST "/admin/realms/$Realm/groups/$groupId/role-mappings/clients/$apiClientUuid" @($roleRepresentation) | Out-Null
     }
 }
