@@ -284,7 +284,7 @@ public sealed class TransportBoundaryTests
                 NullLogger<global::Dokpod.Agent.AgentControlWorker>.Instance,
                 new global::Dokpod.Agent.Application.Terminal.ExecSessionManager(engine, new global::Dokpod.Agent.Infrastructure.Terminal.FileActiveExecStore(dataDirectory), TimeProvider.System));
             using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
-            cancellation.CancelAfter(TimeSpan.FromSeconds(30));
+            cancellation.CancelAfter(TimeSpan.FromSeconds(60));
             var session = worker.RunSessionAsync(token => client.Connect(cancellationToken: token), environmentId, cancellation.Token, token => client.Exec(cancellationToken: token));
             var dispatcher = app.Services.GetRequiredService<Dokpod.ControlPlane.Application.Queries.AgentQueryDispatcher>();
             while (!dispatcher.Supports(environmentId, Capability.ContainerExec))
@@ -337,6 +337,42 @@ public sealed class TransportBoundaryTests
             Assert.True(connected);
             Assert.Contains("ola-terminal", text.ToString());
             Assert.True(engine.Signaled, "o agente deve enviar SIGHUP ao shell ao encerrar");
+
+            // Queda do navegador enquanto o agente abre o shell: o shell aberto depois disso também é encerrado.
+            engine.ExecStarting = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            engine.StartGate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            var registry = app.Services.GetRequiredService<Dokpod.ControlPlane.Application.Terminal.TerminalSessionRegistry>();
+            using var browser = CancellationTokenSource.CreateLinkedTokenSource(cancellation.Token);
+            var dropped = System.Threading.Channels.Channel.CreateUnbounded<Dokpod.ControlPlane.Application.Terminal.TerminalOutputFrame>();
+            var droppedRun = terminal.RunAsync(
+                new Dokpod.ControlPlane.Application.Terminal.TerminalOpenRequest(environmentId, containerId, 80, 24, null),
+                Dokpod.ControlPlane.Application.Authorization.AuthenticatedActor.FromSubject("u-1"),
+                "token",
+                DateTimeOffset.UtcNow.AddHours(1),
+                null,
+                true,
+                Guid.NewGuid(),
+                System.Threading.Channels.Channel.CreateUnbounded<Dokpod.ControlPlane.Application.Terminal.TerminalInputFrame>().Reader.ReadAllAsync(browser.Token),
+                dropped.Writer,
+                browser.Token);
+            var connecting = await dropped.Reader.ReadAsync(cancellation.Token);
+            Assert.Equal("connecting", connecting.Status?.State);
+            while (registry.Find(connecting.Status!.SessionId!.Value)?.AgentAttachedAt is null)
+            {
+                await Task.Delay(20, cancellation.Token);
+            }
+
+            await engine.ExecStarting.Task.WaitAsync(cancellation.Token);
+            await browser.CancelAsync();
+            await Task.Delay(200, cancellation.Token);
+            engine.StartGate.TrySetResult();
+            await droppedRun.WaitAsync(TimeSpan.FromSeconds(15), cancellation.Token);
+            while (!engine.Signaled)
+            {
+                await Task.Delay(50, cancellation.Token);
+            }
+
+            Assert.Equal(0, registry.Count);
             await app.Services.GetRequiredService<IAgentSessionStore>().InvalidateEnvironmentAsync(environmentId, cancellation.Token);
             await Assert.ThrowsAsync<RpcException>(async () => await session);
         }
@@ -376,8 +412,13 @@ public sealed class TransportBoundaryTests
     /// <summary>Engine em memória: o exec emite o marcador do `ShellLauncher` e ecoa a entrada.</summary>
     private sealed class EchoExecEngine : IContainerEngine
     {
-        private readonly System.IO.Pipelines.Pipe pipe = new();
+        private System.IO.Pipelines.Pipe pipe = new();
         public bool Signaled { get; private set; }
+
+        /// <summary>Quando definido, segura a abertura do exec até ser liberado (abertura lenta no engine).</summary>
+        public TaskCompletionSource? StartGate { get; set; }
+
+        public TaskCompletionSource ExecStarting { get; set; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         public Task<EngineDescriptor> InspectAsync(CancellationToken cancellationToken) => Task.FromResult(new EngineDescriptor("5.0.0", "1.41"));
         public Task<IReadOnlyList<EngineContainer>> ListContainersAsync(CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<EngineContainer>>([]);
@@ -388,6 +429,14 @@ public sealed class TransportBoundaryTests
 
         public async Task<EngineExecSession> StartExecAsync(string containerId, IReadOnlyList<string> command, int cols, int rows, CancellationToken cancellationToken)
         {
+            if (StartGate is { } gate)
+            {
+                pipe = new System.IO.Pipelines.Pipe();
+                Signaled = false;
+                ExecStarting.TrySetResult();
+                await gate.Task.WaitAsync(cancellationToken);
+            }
+
             await pipe.Writer.WriteAsync("\u001b]777;dokpod;42;/bin/bash\u0007$ "u8.ToArray(), cancellationToken);
             return new EngineExecSession(new string('e', 64), new EchoStream(pipe));
         }

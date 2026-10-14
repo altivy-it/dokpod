@@ -198,6 +198,8 @@ public sealed class TerminalSessionService(
             }
 
             var first = await ReadStatusAsync(session, cancellationToken).ConfigureAwait(false);
+            // Queda do navegador enquanto o agente abre o shell: segue para o término pedido ao agente (abaixo).
+            if (first is null) cancellationToken.ThrowIfCancellationRequested();
             if (first?.State != ExecState.Opened)
             {
                 endReason = string.IsNullOrEmpty(first?.Reason) ? "error" : first.Reason;
@@ -323,7 +325,7 @@ public sealed class TerminalSessionService(
             {
                 // Pede ao agente o término (SIGHUP no shell) e espera a confirmação com o indicador de órfão.
                 session.ToAgent.Writer.TryWrite(new ExecFrame { Status = new ExecStatus { State = ExecState.Closed, Reason = endReason } });
-                var closed = await ReadStatusAsync(session, CancellationToken.None, TimeSpan.FromSeconds(8)).ConfigureAwait(false);
+                var closed = await ReadStatusAsync(session, CancellationToken.None, TimeSpan.FromSeconds(8), terminalOnly: true).ConfigureAwait(false);
                 orphan = closed?.OrphanSuspected ?? false;
             }
         }
@@ -331,7 +333,7 @@ public sealed class TerminalSessionService(
         {
             endReason = "client_disconnected";
             session.ToAgent.Writer.TryWrite(new ExecFrame { Status = new ExecStatus { State = ExecState.Closed, Reason = endReason } });
-            var closed = await ReadStatusAsync(session, CancellationToken.None, TimeSpan.FromSeconds(8)).ConfigureAwait(false);
+            var closed = await ReadStatusAsync(session, CancellationToken.None, TimeSpan.FromSeconds(8), terminalOnly: true).ConfigureAwait(false);
             orphan = closed?.OrphanSuspected ?? false;
         }
         finally
@@ -364,7 +366,8 @@ public sealed class TerminalSessionService(
         return true;
     }
 
-    private static async Task<ExecStatus?> ReadStatusAsync(TerminalSession session, CancellationToken cancellationToken, TimeSpan? timeout = null)
+    /// <summary>Próximo status do agente; com `terminalOnly`, ignora `Opened` até o `Closed`/`Error` (que traz o indicador de órfão).</summary>
+    private static async Task<ExecStatus?> ReadStatusAsync(TerminalSession session, CancellationToken cancellationToken, TimeSpan? timeout = null, bool terminalOnly = false)
     {
         using var wait = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         wait.CancelAfter(timeout ?? TimeSpan.FromSeconds(15));
@@ -373,7 +376,7 @@ public sealed class TerminalSessionService(
             while (true)
             {
                 var frame = await session.FromAgent.Reader.ReadAsync(wait.Token).ConfigureAwait(false);
-                if (frame.FrameCase == ExecFrame.FrameOneofCase.Status) return frame.Status;
+                if (frame.FrameCase == ExecFrame.FrameOneofCase.Status && (!terminalOnly || frame.Status.State is ExecState.Closed or ExecState.Error)) return frame.Status;
             }
         }
         catch (Exception exception) when (exception is OperationCanceledException or ChannelClosedException)

@@ -451,6 +451,9 @@ public sealed class AgentControlService(
             {
                 await responseStream.WriteAsync(frame, end.Token);
             }
+
+            // A sessão terminou no plano de controle: encerra o RPC para o agente derrubar o shell mesmo sem `Closed`.
+            await end.CancelAsync();
         }, CancellationToken.None);
         try
         {
