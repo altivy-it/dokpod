@@ -3,6 +3,8 @@ using System.Text;
 using Dokpod.ControlPlane.Application.Agents;
 using Dokpod.ControlPlane.Application.Authorization;
 using Dokpod.ControlPlane.Application.Environments;
+using Dokpod.ControlPlane.Application.Hosts;
+using Dokpod.Domain.Hosts;
 using Dokpod.Domain.Environments;
 using Microsoft.AspNetCore.WebUtilities;
 
@@ -13,7 +15,8 @@ public sealed record RegisterEnvironmentRequest(
     string Name,
     string Host,
     bool Enabled = true,
-    IReadOnlyCollection<string>? Scopes = null);
+    IReadOnlyCollection<string>? Scopes = null,
+    string? Stage = null);
 
 public static class EnvironmentEndpoints
 {
@@ -32,8 +35,14 @@ public static class EnvironmentEndpoints
     private static async Task<IResult> ListAsync(
         string? cursor,
         int? limit,
+        string? stage,
+        string? engine,
+        string? situation,
+        string? q,
         HttpContext context,
         EnvironmentRegistrationService registrationService,
+        AuthorizedEnvironmentsService authorizedEnvironments,
+        HostQueryService hostQuery,
         CancellationToken cancellationToken)
     {
         var subject = context.User.FindFirstValue("sub");
@@ -47,12 +56,43 @@ public static class EnvironmentEndpoints
         }
 
         var pageLimit = limit ?? 20;
-        if (pageLimit is < 1 or > 100 || !TryDecodeCursor(cursor, out var afterEnvironmentId))
+        if (pageLimit is < 1 or > 100 || !TryDecodeCursor(cursor, out var afterEnvironmentId) ||
+            !TryParseHostFilter(stage, engine, situation, q, out var filter))
         {
             return Problem(context,
                 StatusCodes.Status400BadRequest,
                 "invalid_environment_query",
                 "Os parâmetros da consulta são inválidos.");
+        }
+
+        if (!filter.IsEmpty)
+        {
+            AuthorizedEnvironments authorized;
+            try
+            {
+                authorized = await authorizedEnvironments.ListAllAsync(
+                    AuthenticatedActor.FromSubject(subject), accessToken, GetCorrelationId(context), cancellationToken).ConfigureAwait(false);
+            }
+            catch (InvalidOperationException)
+            {
+                return Problem(context, StatusCodes.Status503ServiceUnavailable, "persistence_unavailable", "O catálogo de ambientes está indisponível.");
+            }
+
+            if (!authorized.Available)
+            {
+                return Problem(context, StatusCodes.Status503ServiceUnavailable, authorized.FailureCode ?? "authorization_unavailable", "O catálogo de ambientes não pôde ser autorizado.");
+            }
+
+            var hosts = HostQueryService.Filter(await hostQuery.DescribeAsync(authorized.Registrations, cancellationToken).ConfigureAwait(false), filter)
+                .OrderBy(host => host.Registration.EnvironmentId)
+                .Where(host => afterEnvironmentId is null || host.Registration.EnvironmentId.CompareTo(afterEnvironmentId.Value) > 0)
+                .ToArray();
+            var pageHosts = hosts.Take(pageLimit).ToArray();
+            return Results.Ok(new
+            {
+                environments = pageHosts.Select(HostResponses.ToEnvironment),
+                nextCursor = hosts.Length > pageLimit ? EncodeCursor(pageHosts[^1].Registration.EnvironmentId) : null,
+            });
         }
 
         EnvironmentCatalogResult result;
@@ -82,16 +122,10 @@ public static class EnvironmentEndpoints
                 "O catálogo de ambientes não pôde ser autorizado.");
         }
 
+        var described = await hostQuery.DescribeAsync(result.Registrations, cancellationToken).ConfigureAwait(false);
         return Results.Ok(new
         {
-            environments = result.Registrations.Select(registration => new
-            {
-                environmentId = registration.EnvironmentId,
-                name = registration.Name,
-                host = registration.Host,
-                enabled = registration.Enabled,
-                scopes = registration.Scopes.Order(StringComparer.Ordinal),
-            }),
+            environments = described.Select(HostResponses.ToEnvironment),
             nextCursor = EncodeCursor(result.NextCursor),
         });
     }
@@ -100,6 +134,7 @@ public static class EnvironmentEndpoints
         Guid environmentId,
         HttpContext context,
         EnvironmentRegistrationService registrationService,
+        HostQueryService hostQuery,
         CancellationToken cancellationToken)
     {
         var subject = context.User.FindFirstValue("sub");
@@ -155,14 +190,8 @@ public static class EnvironmentEndpoints
                 "O ambiente não foi encontrado.");
         }
 
-        return Results.Ok(new
-        {
-            environmentId = result.Registration.EnvironmentId,
-            name = result.Registration.Name,
-            host = result.Registration.Host,
-            enabled = result.Registration.Enabled,
-            scopes = result.Registration.Scopes.Order(StringComparer.Ordinal),
-        });
+        var view = (await hostQuery.DescribeAsync([result.Registration], cancellationToken).ConfigureAwait(false))[0];
+        return Results.Ok(HostResponses.ToEnvironment(view));
     }
 
     private static async Task<IResult> RegisterAsync(
@@ -199,7 +228,8 @@ public static class EnvironmentEndpoints
                 request.Name,
                 request.Host,
                 request.Enabled,
-                request.Scopes ?? [EnvironmentResourceScopes.Read, EnvironmentResourceScopes.Manage]);
+                request.Scopes ?? [EnvironmentResourceScopes.Read, EnvironmentResourceScopes.Manage],
+                EnvironmentStages.ParseNullable(request.Stage));
         }
         catch (ArgumentException)
         {
@@ -310,6 +340,29 @@ public static class EnvironmentEndpoints
         }
 
         return Results.NoContent();
+    }
+
+    internal static bool TryParseHostFilter(string? stage, string? engine, string? situation, string? q, out HostFilter filter)
+    {
+        filter = new HostFilter();
+        EnvironmentStage? parsedStage = null;
+        if (!string.IsNullOrEmpty(stage))
+        {
+            if (!EnvironmentStages.TryParse(stage, out var value)) return false;
+            parsedStage = value;
+        }
+
+        if (!string.IsNullOrEmpty(engine) && engine is not ("docker" or "podman")) return false;
+        HostSituation? parsedSituation = null;
+        if (!string.IsNullOrEmpty(situation))
+        {
+            if (!HostSituations.TryParse(situation, out var value)) return false;
+            parsedSituation = value;
+        }
+
+        if (q is { Length: > 128 }) return false;
+        filter = new HostFilter(parsedStage, string.IsNullOrEmpty(engine) ? null : engine, parsedSituation, string.IsNullOrWhiteSpace(q) ? null : q);
+        return true;
     }
 
     private static IResult Problem(HttpContext context, int status, string code, string detail) =>

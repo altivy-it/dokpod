@@ -26,10 +26,17 @@ public sealed record AuditEvent
         "environment.approve",
         "environment.suspend",
         "environment.revoke",
+        "environment.stage_changed",
+        "container.inspected",
+        "container.logs.read",
+        "container.logs.stream_started",
+        "container.logs.stream_ended",
         "container.start",
         "container.stop",
         "container.restart",
         "container.delete",
+        "container.pause",
+        "container.unpause",
         "container.command.result",
     ];
 
@@ -39,6 +46,8 @@ public sealed record AuditEvent
         "container.stop",
         "container.restart",
         "container.delete",
+        "container.pause",
+        "container.unpause",
         "container.command.result",
     ];
 
@@ -76,6 +85,53 @@ public sealed record AuditEvent
     public AuditOutcome Outcome { get; }
     public string? FailureCode { get; }
     public Guid? CommandId { get; }
+
+    /// <summary>Recurso afetado (ex.: container) quando a ação não tem comando (spec 011 D-006).</summary>
+    public string? SubjectId { get; private init; }
+
+    /// <summary>Metadados permitidos por ação: somente números, booleanos e enums, nunca texto livre.</summary>
+    public IReadOnlyDictionary<string, string>? Details { get; private init; }
+
+    public const int MaxDetailsBytes = 2048;
+
+    private static readonly HashSet<string> AllowedDetailKeys =
+    [
+        "kind", "tail", "since", "until", "filtered", "lines", "bytes", "truncated", "sessionId", "reason", "durationSeconds", "previousStage", "stage",
+    ];
+
+    public AuditEvent WithSubject(string subjectId, IReadOnlyDictionary<string, string>? details)
+    {
+        var subject = NormalizeIdentifier(subjectId, nameof(subjectId), 255)
+            ?? throw new ArgumentException("Audit subject is required.", nameof(subjectId));
+        Dictionary<string, string>? clean = null;
+        if (details is not null)
+        {
+            clean = new Dictionary<string, string>(StringComparer.Ordinal);
+            var size = 0;
+            foreach (var (key, value) in details)
+            {
+                if (!AllowedDetailKeys.Contains(key))
+                {
+                    throw new ArgumentException($"Audit detail '{key}' is not allowed.", nameof(details));
+                }
+
+                var normalized = NormalizeIdentifier(value, nameof(details), 128) ?? string.Empty;
+                size += key.Length + normalized.Length;
+                if (size > MaxDetailsBytes)
+                {
+                    throw new ArgumentException("Audit details exceed the size limit.", nameof(details));
+                }
+
+                clean[key] = normalized;
+            }
+        }
+
+        return new AuditEvent(EventId, OccurredAtUtc, CorrelationId, ActorKind, ActorId, Action, EnvironmentId, Outcome, FailureCode, CommandId)
+        {
+            SubjectId = subject,
+            Details = clean,
+        };
+    }
 
     public static AuditEvent Create(
         Guid eventId,

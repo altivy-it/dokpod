@@ -15,7 +15,32 @@ public sealed record ContainerInventory(
     string ImageReference,
     string State,
     string Revision,
-    DateTimeOffset ObservedAtUtc);
+    DateTimeOffset ObservedAtUtc)
+{
+    public DateTimeOffset? CreatedAtUtc { get; init; }
+    public DateTimeOffset? StartedAtUtc { get; init; }
+    public ContainerHealth? Health { get; init; }
+    public int? RestartCount { get; init; }
+    public int? ExitCode { get; init; }
+    public bool? OomKilled { get; init; }
+    public IReadOnlyList<ContainerPortBinding> Ports { get; init; } = [];
+
+    public ContainerDisplayStatus DisplayStatus =>
+        ContainerDisplayStatuses.Evaluate(State, Health, ExitCode, OomKilled);
+}
+
+public enum ContainerHealth
+{
+    None,
+    Starting,
+    Healthy,
+    Unhealthy,
+}
+
+public sealed record ContainerPortBinding(string? HostIp, int HostPort, int ContainerPort, string Protocol)
+{
+    public const int MaxPerContainer = 64;
+}
 
 public sealed record InventoryChange(
     InventoryChangeKind Kind,

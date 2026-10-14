@@ -73,15 +73,7 @@ public static class InventoryEndpoints
             revision = page.Revision,
             observedAt = page.ObservedAtUtc,
             ageSeconds = Math.Max(0, (long)(DateTimeOffset.UtcNow - page.ObservedAtUtc).TotalSeconds),
-            containers = page.Containers.Select(container => new
-            {
-                containerId = container.ContainerId,
-                name = container.Name,
-                imageReference = container.ImageReference,
-                state = container.State,
-                revision = container.Revision,
-                observedAt = container.ObservedAtUtc,
-            }),
+            containers = page.Containers.Select(HostResponses.ToContainer),
             nextCursor = EncodeCursor(page.NextContainerId),
         });
     }

@@ -1,0 +1,143 @@
+<div class="dok-stack">
+  <div class="dok-page-head">
+    <div class="dok-page-head__text">
+      <span class="eyebrow">Operação · {{ stageName() }}</span>
+      <h1 class="app-title">Containers em todos os hosts</h1>
+      <p class="app-small">Docker e Podman na mesma lista. Selecione linhas para ações em lote.</p>
+    </div>
+    <div class="dok-actions">
+      <button dok-button variant="outline" size="sm" startIcon="play" type="button" (click)="prepareBatch('start')">Iniciar</button>
+      <button dok-button variant="outline" size="sm" startIcon="pause" type="button" (click)="prepareBatch('stop')">Parar</button>
+      <button dok-button variant="outline" size="sm" startIcon="refresh" type="button" (click)="prepareBatch('restart')">Reiniciar</button>
+      <div class="cl-more">
+        <button dok-button variant="ghost" size="sm" icon="more" type="button" aria-label="Mais ações em lote" aria-haspopup="menu" [attr.aria-expanded]="moreOpen()" (click)="moreOpen.set(!moreOpen())"></button>
+        @if (moreOpen()) {
+          <div class="alt-popover cl-more__menu" role="menu" aria-label="Mais ações em lote">
+            <button type="button" role="menuitem" class="alt-menu-item" (click)="prepareBatch('pause')"><dok-icon name="pause" [size]="16" />Pausar</button>
+            <button type="button" role="menuitem" class="alt-menu-item" (click)="prepareBatch('unpause')"><dok-icon name="play" [size]="16" />Retomar</button>
+          </div>
+        }
+      </div>
+      <button dok-button variant="danger" size="sm" startIcon="trash" type="button" (click)="prepareBatch('delete')">Remover</button>
+      <button dok-button variant="primary" size="sm" startIcon="plus" type="button" [disabled]="true" title="Disponível com a criação de containers">Novo container</button>
+    </div>
+  </div>
+
+  <div class="cl-filters">
+    <dok-select ariaLabel="Filtrar por host" size="sm" [options]="hostOptions()" [ngModel]="selectedHost()" (ngModelChange)="setHost($event)" />
+    <dok-select ariaLabel="Filtrar por engine" size="sm" [options]="engineOptions" [ngModel]="selectedEngine()" (ngModelChange)="setEngine($event)" />
+    @if (facade.filters().engines.length) {
+      <dok-status-chip variant="filter" field="Engine" [label]="facade.filters().engines.join(', ') === 'docker' ? 'Docker' : 'Podman'" [removable]="true" (removed)="setEngine('')" />
+    }
+    @if (stageFilter.stage()) {
+      <dok-status-chip variant="filter" field="Estágio" [label]="stageName()" [removable]="true" (removed)="stageFilter.select(null)" />
+    }
+    @if (facade.filters().environmentIds.length) {
+      <dok-status-chip variant="filter" field="Host" [label]="hostFilterName()" [removable]="true" (removed)="setHost('')" />
+    }
+    @if (facade.filters().statuses.length) {
+      <button type="button" class="alt-enhanced-data-grid__link" (click)="clearStatus()">Todas as situações</button>
+    }
+    @if (summaryChips().length) {
+      <span class="app-small cl-muted">Resumo:</span>
+      @for (chip of summaryChips(); track chip.status) {
+        <button
+          type="button"
+          class="cl-chip-btn"
+          [attr.aria-pressed]="facade.filters().statuses.includes(chip.status)"
+          [title]="'Filtrar por ' + chip.label.toLowerCase()"
+          (click)="toggleStatus(chip.status)"
+        >
+          <dok-status-chip variant="outlined" [color]="chip.tone" [label]="chip.count + ' ' + chip.label.toLowerCase()" size="sm" />
+        </button>
+      }
+    }
+  </div>
+
+  @if (actions.batch(); as batch) {
+    <section class="cl-batch alt-glass" aria-live="polite" aria-label="Andamento do lote">
+      <div class="cl-batch__head">
+        <strong>{{ actionLabels[batch.action].verb }} · {{ batch.items.length }} {{ batch.items.length === 1 ? 'container' : 'containers' }}</strong>
+        <span class="app-small cl-muted">
+          {{ batchSummary().succeeded }} concluídos · {{ batchSummary().failed }} com falha · {{ batchSummary().indeterminate }} indeterminados · {{ batchSummary().pending }} em andamento
+        </span>
+        <span style="flex: 1"></span>
+        @if (actions.running() && batchSummary().pending && !facade.loading()) {
+          <button dok-button variant="text" size="xs" type="button" (click)="actions.retryUnsubmitted()">Reenviar não enviados</button>
+        }
+        @if (!actions.running()) {
+          <button dok-button variant="ghost" size="xs" icon="x" type="button" aria-label="Fechar andamento do lote" (click)="actions.dismiss()"></button>
+        }
+      </div>
+      <ul class="cl-batch__list">
+        @for (item of batch.items; track item.environmentId + item.containerId) {
+          <li>
+            <span class="cl-batch__name">{{ item.name }}</span>
+            <span class="cl-muted">{{ item.environmentName }}</span>
+            <dok-status-chip
+              size="sm"
+              [color]="item.state === 'succeeded' ? 'success' : item.state === 'failed' ? 'error' : item.state === 'indeterminate' ? 'warning' : 'info'"
+              [label]="item.state === 'succeeded' ? 'Concluído' : item.state === 'failed' ? 'Falhou' + (item.failureCode ? ': ' + item.failureCode : '') : item.state === 'indeterminate' ? 'Indeterminado' : item.state === 'queued' ? 'Na fila' : 'Em andamento'"
+            />
+          </li>
+        }
+      </ul>
+    </section>
+  }
+
+  @if (facade.newRows()) {
+    <button dok-button variant="text" size="xs" startIcon="refresh" type="button" (click)="facade.reload()">{{ facade.newRows() }} {{ facade.newRows() === 1 ? 'novo container' : 'novos containers' }} · atualizar lista</button>
+  }
+
+  @if (facade.error(); as e) {
+    <dok-empty-state [kind]="e.status === 403 ? 'forbidden' : 'error'" [code]="e.status ? 'Erro ' + e.status : null" [title]="e.title" [detail]="e.detail">
+      <button dok-button variant="outline" size="sm" startIcon="refresh" type="button" (click)="facade.reload()">Tentar novamente</button>
+    </dok-empty-state>
+  } @else {
+    <dok-data-grid
+      title="Containers"
+      [entityLabel]="['container', 'containers']"
+      [rows]="rows()"
+      [columns]="columns"
+      [statusTones]="tones"
+      [rowActionsFor]="rowActionsFor"
+      [rowLabel]="rowLabel"
+      [(selection)]="selection"
+      [(search)]="search"
+      [(sort)]="gridSort"
+      [clientSide]="false"
+      [loading]="facade.loading()"
+      [hasMore]="!!facade.nextCursor()"
+      [loadingMore]="facade.loadingMore()"
+      [totalCount]="facade.summary()?.total ?? null"
+      [updatedAt]="updatedAt()"
+      searchPlaceholder="Nome, imagem, host ou porta"
+      exportName="containers"
+      height="600px"
+      emptyTitle="Nenhum container encontrado com os filtros aplicados."
+      (rowAction)="onRowAction($event)"
+      (rowOpen)="openRow($event)"
+      (loadMore)="facade.loadMore()"
+    >
+      <ng-template dokCell="engine" let-row>
+        @if (row.item.engine) {
+          <dok-engine-badge [engine]="row.item.engine" />
+        } @else {
+          —
+        }
+      </ng-template>
+    </dok-data-grid>
+  }
+</div>
+
+@if (pending(); as p) {
+  <app-confirm-action-drawer
+    [open]="true"
+    [action]="p.action"
+    [eligibility]="p.eligibility"
+    [production]="pendingProduction()"
+    [busy]="submitting()"
+    (cancelled)="pending.set(null)"
+    (confirmed)="confirm()"
+  />
+}

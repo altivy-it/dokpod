@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Campo de texto</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="altivy-app.css">
+<link rel="stylesheet" href="ds/altivy/components/bundle.css">
+<script src="ds/altivy/components/bundle.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="display: flex; flex-direction: column; gap: 6px; min-width: 0; font-family: 'Outfit', system-ui, sans-serif; color: #e2e8f0">
+<sc-if value="{{hasLabel}}" hint-placeholder-val="{{ true }}">
+<label for="{{id}}" style="font-size: 12px; font-weight: 600; letter-spacing: 0.02em; color: #a0aec0">{{label}}</label>
+</sc-if>
+<div style="{{boxStyle}}">
+<input id="{{id}}" type="{{inputType}}" value="{{val}}" onChange="{{change}}" onFocus="{{focus}}" onBlur="{{blur}}" aria-label="{{aria}}" placeholder="{{placeholder}}" spellcheck="false" style="{{inputStyle}}">
+<sc-if value="{{hasSuffix}}" hint-placeholder-val="{{ false }}">
+<span style="font-size: 12px; color: #a0aec0; white-space: nowrap">{{suffix}}</span>
+</sc-if>
+<sc-if value="{{isSecret}}" hint-placeholder-val="{{ false }}">
+<button type="button" onClick="{{toggleReveal}}" aria-label="{{revealLabel}}" title="{{revealLabel}}" style="display: flex; align-items: center; justify-content: center; width: 26px; height: 26px; margin-right: -4px; border: 0; border-radius: 8px; background: transparent; color: #a0aec0; cursor: pointer; padding: 0">
+<x-import component-from-global-scope="Altivy.Icon" name="eye" size="{{iconSize}}"></x-import>
+</button>
+</sc-if>
+</div>
+<sc-if value="{{hasHelp}}" hint-placeholder-val="{{ false }}">
+<span style="font-size: 12px; color: #a0aec0">{{help}}</span>
+</sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"label":{"editor":"text","default":"Nome do container"},"value":{"editor":"text","default":"api-pedidos-b21e"},"help":{"editor":"text","default":""},"suffix":{"editor":"text","default":""},"placeholder":{"editor":"text","default":""},"mono":{"editor":"boolean","default":false},"secret":{"editor":"boolean","default":false},"size":{"editor":"enum","options":["md","sm"],"default":"md"},"ariaLabel":{"editor":"text","default":""},"$preview":{"width":360,"height":96}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.uid = 'cp-' + Math.random().toString(36).slice(2, 8);
+    this.state = { v: null, focused: false, reveal: false };
+  }
+  renderVals() {
+    const p = this.props;
+    const sm = (p.size ?? 'md') === 'sm';
+    const f = this.state.focused;
+    const secret = !!p.secret;
+    const label = p.label ?? 'Nome do container';
+    const boxStyle = [
+      'display: flex', 'align-items: center', 'gap: 8px',
+      'height: ' + (sm ? 34 : 40) + 'px', 'padding: 0 12px', 'box-sizing: border-box',
+      'border-radius: 12px', 'background: rgba(255, 255, 255, 0.04)',
+      'border: 1px solid ' + (f ? '#5eead4' : 'rgba(255, 255, 255, 0.14)'),
+      'box-shadow: ' + (f ? '0 0 0 4px rgba(94, 234, 212, 0.16)' : 'inset 0 1px 2px rgba(0, 0, 0, 0.25)'),
+      'transition: border-color .15s, box-shadow .15s'
+    ].join('; ');
+    const inputStyle = [
+      'flex: 1', 'min-width: 0', 'height: 100%', 'border: 0', 'outline: none', 'background: transparent', 'padding: 0',
+      'color: #e2e8f0', 'font-variant-numeric: tabular-nums',
+      'font-family: ' + (p.mono ? "'JetBrains Mono', ui-monospace, monospace" : "'Outfit', system-ui, sans-serif"),
+      'font-size: ' + (p.mono ? (sm ? 12.5 : 13) : (sm ? 13 : 14)) + 'px'
+    ].join('; ');
+    return {
+      id: this.uid, label, hasLabel: !!label,
+      val: this.state.v ?? p.value ?? '',
+      change: (e) => this.setState({ v: e.target.value }),
+      focus: () => this.setState({ focused: true }),
+      blur: () => this.setState({ focused: false }),
+      aria: p.ariaLabel || label || undefined,
+      placeholder: p.placeholder || '',
+      inputType: secret && !this.state.reveal ? 'password' : 'text',
+      isSecret: secret,
+      toggleReveal: () => this.setState({ reveal: !this.state.reveal }),
+      revealLabel: this.state.reveal ? 'Ocultar valor' : 'Mostrar valor',
+      iconSize: 15,
+      suffix: p.suffix || '', hasSuffix: !!p.suffix,
+      help: p.help || '', hasHelp: !!p.help,
+      boxStyle, inputStyle
+    };
+  }
+}
+</script>
+</body>
+</html>

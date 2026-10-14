@@ -188,11 +188,11 @@ Alvos: agente Linux em Docker e Worker Service Windows self-contained.
 Não publique; produza matriz de gates e recomendação GO/NO-GO.
 ```
 
-## Frontend Angular e PO UI
+## Frontend Angular e design system
 
-PO UI (`@po-ui/ng-components`) é a única biblioteca de componentes aprovada para o frontend. Antes de desenhar uma tela, consulte `https://po-ui.io/llms.txt` (índice), `https://po-ui.io/llms-full.txt` (documentação completa) ou, preferencialmente, o servidor MCP `po-ui` configurado em `.vscode/mcp.json` (ferramentas `list_components`, `search_docs`, `get_component_docs`, `get_guide`, `get_component_examples`). Regras completas em `.github/instructions/frontend-po-ui.instructions.md`.
+O frontend usa um design system próprio derivado do Altivy (ADR 2026-0005). Os mockups em `docs/design/app` são a fonte da verdade de UI. Antes de desenhar uma tela, abra o board correspondente e reutilize os componentes `dok-*` de `frontend/web/src/app/design-system/`. Regras completas em `.github/instructions/frontend-design-system.instructions.md`.
 
-Se nenhum componente do portfólio atender a necessidade, não invente substituto: registre a lacuna e pergunte antes de prosseguir.
+Se faltar um componente, crie-o no design system seguindo o kit Altivy, com testes de teclado e ARIA.
 
 Toda tela ou componente novo passa por um loop de screenshot, análise e ajuste (`frontend-visual-verification.instructions.md`) antes de ser considerado pronto, com no máximo 3 iterações antes de perguntar.
 

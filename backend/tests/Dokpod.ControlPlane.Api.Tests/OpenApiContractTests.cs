@@ -34,6 +34,12 @@ public sealed class OpenApiContractTests
         Assert.Contains("'404':", contract, StringComparison.Ordinal);
         Assert.Contains("'409':", contract, StringComparison.Ordinal);
         Assert.Contains("'503':", contract, StringComparison.Ordinal);
+        Assert.Contains("operationId: getOverview", contract, StringComparison.Ordinal);
+        Assert.Contains("operationId: listEvents", contract, StringComparison.Ordinal);
+        Assert.Contains("operationId: setEnvironmentStage", contract, StringComparison.Ordinal);
+        Assert.Contains("HostAgentView:", contract, StringComparison.Ordinal);
+        Assert.Contains("ContainerDisplayStatus:", contract, StringComparison.Ordinal);
+        Assert.DoesNotContain("operationId: listHosts", contract, StringComparison.Ordinal);
         Assert.DoesNotContain("AuditEventEntity", contract, StringComparison.Ordinal);
         Assert.DoesNotContain("EnvironmentRegistrationEntity", contract, StringComparison.Ordinal);
         Assert.DoesNotContain("fencingToken:", contract, StringComparison.Ordinal);

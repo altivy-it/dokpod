@@ -1,0 +1,161 @@
+<a class="dok-skip-link" href="#dok-main" (click)="skipToContent($event)">Pular para o conteúdo</a>
+<div class="alt-page alt-app dok-shell-page">
+  <div class="alt-app-shell dok-shell" [class.is-collapsed]="collapsed()">
+    <nav class="alt-app-shell__nav alt-glass" [class.is-collapsed]="collapsed()" aria-label="Menu principal">
+      <div class="alt-app-shell__brand">
+        <a routerLink="/" class="alt-brand dok-brand" aria-label="Dokpod, visão geral">
+          <svg width="24" height="24" viewBox="0 0 64 64" aria-hidden="true">
+            <rect x="2" y="2" width="60" height="60" rx="14" fill="var(--teal-light)" />
+            <path d="M16 14H35C46 14 52 21 52 32C52 43 46 50 35 50H16V14Z" fill="var(--ink)" />
+            <path d="M27 24H34C39 24 42 27 42 32C42 37 39 40 34 40H27V24Z" fill="var(--teal-light)" />
+            <rect x="10" y="27" width="11" height="10" fill="var(--teal-light)" stroke="var(--ink)" stroke-width="4" />
+          </svg>
+          @if (!collapsed()) {
+            <span>Dokpod</span>
+          }
+        </a>
+      </div>
+      @for (group of groups(); track group.section; let first = $first) {
+        @if (collapsed()) {
+          @if (!first) {
+            <div class="alt-app-shell__sep" role="separator"></div>
+          }
+        } @else {
+          <div class="alt-app-shell__section">{{ group.section }}</div>
+        }
+        @for (item of group.items; track item.id) {
+          <a
+            class="alt-app-shell__item"
+            [class.is-active]="item.id === active()"
+            [routerLink]="item.route"
+            queryParamsHandling="merge"
+            [attr.aria-current]="item.id === active() ? 'page' : null"
+            [attr.aria-label]="collapsed() ? item.label + (countFor(item.id) ? ', ' + countFor(item.id) + ' ' + (item.countLabel ?? '') : '') : null"
+          >
+            <dok-icon [name]="item.icon" [size]="18" />
+            @if (!collapsed()) {
+              <span class="alt-app-shell__label">{{ item.label }}</span>
+            }
+            @if (countFor(item.id); as count) {
+              @if (collapsed()) {
+                <span class="alt-app-shell__dot" aria-hidden="true"></span>
+              } @else {
+                <span class="alt-app-shell__count alt-num" [attr.aria-label]="count + ' ' + (item.countLabel ?? '')">{{ count }}</span>
+              }
+            }
+            @if (collapsed()) {
+              <span class="alt-app-shell__tip" role="tooltip" aria-hidden="true">{{ item.label }}</span>
+            }
+          </a>
+        }
+      }
+      <div style="flex: 1"></div>
+      <div class="alt-app-shell__me" [title]="userName()">
+        <span class="alt-app-shell__avatar" aria-hidden="true">{{ userInitials() }}</span>
+        @if (!collapsed()) {
+          <div>
+            <b>{{ userName() }}</b>
+            @if (userGroup()) {
+              <span>{{ userGroup() }}</span>
+            }
+          </div>
+        }
+      </div>
+    </nav>
+
+    <div class="alt-app-shell__main">
+      <header class="alt-app-header">
+        <div class="alt-app-header__bar alt-glass">
+          <button
+            type="button"
+            class="alt-app-header__btn"
+            [attr.aria-label]="collapsed() ? 'Expandir menu' : 'Recolher menu'"
+            [attr.aria-expanded]="!collapsed()"
+            (click)="toggleCollapsed()"
+          >
+            @if (collapsed()) {
+              <svg class="alt-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M9 4v16M13 10l2 2-2 2" /></svg>
+            } @else {
+              <dok-icon name="menu" [size]="20" />
+            }
+          </button>
+          <div class="alt-app-header__titles">
+            <h1 class="alt-app-header__title">{{ context.title() }}</h1>
+            @if (context.breadcrumbs().length) {
+              <nav class="alt-app-header__crumbs" aria-label="Trilha">
+                @for (crumb of context.breadcrumbs(); track $index; let last = $last; let first = $first) {
+                  @if (!first) {
+                    <dok-icon name="chevron-right" [size]="12" />
+                  }
+                  <span [class.alt-app-header__crumb--current]="last" [attr.aria-current]="last ? 'page' : null">{{ crumb }}</span>
+                }
+              </nav>
+            }
+          </div>
+          <div class="alt-app-header__user">
+            <span class="alt-app-header__user-name">{{ userName() }}</span>
+            @if (userGroup()) {
+              <span class="alt-app-header__user-group">{{ userGroup() }}</span>
+            }
+          </div>
+          <a
+            routerLink="/"
+            class="alt-app-header__btn alt-app-header__notif"
+            [attr.aria-label]="notifications() ? 'Eventos que pedem atenção, ' + notifications() + ' não vistos' : 'Eventos recentes'"
+          >
+            <dok-icon name="bell" [size]="20" />
+            @if (notifications()) {
+              <span class="alt-app-header__badge alt-num" aria-hidden="true">{{ notifications()! > 99 ? '99+' : notifications() }}</span>
+            }
+          </a>
+          <div class="alt-app-header__profile-wrap" #profileWrap>
+            <button
+              type="button"
+              class="alt-app-header__profile"
+              aria-label="Menu do usuário"
+              aria-haspopup="menu"
+              [attr.aria-expanded]="userMenuOpen()"
+              (click)="userMenuOpen.set(!userMenuOpen())"
+            >
+              <span class="alt-app-header__avatar">{{ userInitials() }}</span>
+              <dok-icon [name]="userMenuOpen() ? 'chevron-up' : 'chevron-down'" [size]="16" />
+            </button>
+            @if (userMenuOpen()) {
+              <div class="alt-app-header__menu alt-popover" role="menu" aria-label="Menu do usuário">
+                <div class="alt-app-header__menu-head">
+                  <span class="alt-app-header__avatar alt-app-header__avatar--lg">{{ userInitials() }}</span>
+                  <div>
+                    <b>{{ userName() }}</b>
+                    @if (userGroup()) {
+                      <span>{{ userGroup() }}</span>
+                    }
+                  </div>
+                </div>
+                <div class="alt-app-header__hr" role="separator"></div>
+                <button type="button" role="menuitem" class="alt-menu-item" (click)="doSignOut()">
+                  <dok-icon name="log-out" [size]="18" />Sair
+                </button>
+              </div>
+            }
+          </div>
+        </div>
+        <nav class="alt-app-header__shortcuts" aria-label="Estágio">
+          @for (stage of stages; track stage.id) {
+            <button
+              type="button"
+              class="alt-app-header__shortcut"
+              [class.is-active]="stageFilter.stage() === stage.id"
+              [attr.aria-pressed]="stageFilter.stage() === stage.id"
+              (click)="pickStage(stage.id)"
+            >
+              <dok-icon [name]="stage.icon" [size]="14" />{{ stage.label }}
+            </button>
+          }
+        </nav>
+      </header>
+      <main id="dok-main" class="alt-app-shell__content alt-scroll dok-shell__content" tabindex="-1">
+        <ng-content />
+      </main>
+    </div>
+  </div>
+</div>

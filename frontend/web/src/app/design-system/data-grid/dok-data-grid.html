@@ -1,0 +1,278 @@
+<section class="alt-panel alt-enhanced-data-grid" [class]="'alt-enhanced-data-grid--' + density()" [attr.aria-label]="title()" [attr.aria-busy]="loading() ? 'true' : null">
+  <div class="alt-enhanced-data-grid__tb" (keydown)="onToolbarKey($event)">
+    <div class="alt-enhanced-data-grid__tt">
+      <h3>{{ title() }}</h3>
+      <span class="alt-num">{{ subtitle() }}</span>
+    </div>
+    <div class="alt-enhanced-data-grid__sp"></div>
+    <dok-search-field
+      [placeholder]="searchPlaceholder()"
+      ariaLabel="Busca rápida"
+      shortcut="/"
+      width="260px"
+      [value]="search()"
+      (search)="onSearch($event)"
+    />
+    @if (filterColumns().length) {
+      <div class="alt-enhanced-data-grid__mb">
+        <button
+          type="button"
+          class="alt-tbtn"
+          aria-haspopup="true"
+          [attr.aria-expanded]="openMenu() === 'filters'"
+          [attr.aria-pressed]="openMenu() === 'filters' || activeFilters().length > 0"
+          (click)="toggleToolbarMenu('filters')"
+        >
+          <dok-icon name="filter" [size]="16" />Filtros
+          @if (activeFilters().length) {
+            <span class="alt-count">{{ activeFilters().length }}</span>
+          }
+        </button>
+        @if (openMenu() === 'filters') {
+          <div class="alt-popover alt-enhanced-data-grid__pop alt-enhanced-data-grid__pop--wide">
+            @for (column of filterColumns(); track column.field) {
+              <div class="alt-enhanced-data-grid__fgroup" role="group" [attr.aria-label]="column.header">
+                <div class="app-label alt-enhanced-data-grid__fhd">
+                  {{ column.header }}
+                  @if (filters()[column.field]?.length) {
+                    <button type="button" (click)="setFilter(column.field, [])">Limpar</button>
+                  }
+                </div>
+                @for (facet of facetValues(column); track facet.value) {
+                  <button
+                    type="button"
+                    role="menuitemcheckbox"
+                    class="alt-menu-item alt-enhanced-data-grid__fopt"
+                    [attr.aria-checked]="isFiltered(column.field, facet.value)"
+                    (click)="toggleFilter(column.field, facet.value)"
+                  >
+                    <span class="alt-enhanced-data-grid__cb" [class.is-on]="isFiltered(column.field, facet.value)" aria-hidden="true">
+                      @if (isFiltered(column.field, facet.value)) {
+                        <dok-icon name="check" [size]="11" [strokeWidth]="3" />
+                      }
+                    </span>
+                    @if (column.type === 'status') {
+                      <span class="alt-enhanced-data-grid__status"><span class="alt-dot" [style.color]="statusColor(facet.value)"></span>{{ facet.value }}</span>
+                    } @else {
+                      <span>{{ facet.value || '—' }}</span>
+                    }
+                    <span class="alt-enhanced-data-grid__fcount alt-num">{{ facet.count }}</span>
+                  </button>
+                }
+              </div>
+            }
+          </div>
+        }
+      </div>
+    }
+    <div class="alt-enhanced-data-grid__mb">
+      <button
+        type="button"
+        class="alt-tbtn alt-tbtn--icon"
+        aria-haspopup="true"
+        aria-label="Densidade das linhas"
+        title="Densidade das linhas"
+        [attr.aria-expanded]="openMenu() === 'density'"
+        (click)="toggleToolbarMenu('density')"
+      >
+        <dok-icon name="list" [size]="16" />
+      </button>
+      @if (openMenu() === 'density') {
+        <div class="alt-popover alt-enhanced-data-grid__pop" role="menu" aria-label="Densidade das linhas">
+          @for (option of densities; track option.id) {
+            <button
+              type="button"
+              role="menuitemradio"
+              class="alt-menu-item"
+              [attr.aria-checked]="density() === option.id"
+              [attr.aria-selected]="density() === option.id"
+              (click)="setDensity(option.id)"
+            >
+              {{ option.label }}
+            </button>
+          }
+        </div>
+      }
+    </div>
+    @if (exportName()) {
+      <button type="button" class="alt-tbtn" (click)="exportCsv()"><dok-icon name="download" [size]="16" />Exportar CSV</button>
+    }
+  </div>
+
+  @if (activeFilters().length) {
+    <div class="alt-enhanced-data-grid__chips">
+      @for (entry of activeFilters(); track entry[0]) {
+        <span class="alt-chip alt-enhanced-data-grid__fchip">
+          <span class="alt-enhanced-data-grid__fk">{{ headerFor(entry[0]) }}:</span>{{ entry[1].join(', ') }}
+          <button type="button" [attr.aria-label]="'Remover filtro ' + headerFor(entry[0])" (click)="setFilter(entry[0], [])"><dok-icon name="x" [size]="12" /></button>
+        </span>
+      }
+      <button type="button" class="alt-enhanced-data-grid__link" (click)="clearFilters()">Limpar filtros</button>
+    </div>
+  }
+
+  <div class="alt-scroll alt-enhanced-data-grid__wrap" [style.max-height]="height()">
+    <table class="alt-enhanced-data-grid__table">
+      <caption class="sr-only">{{ title() }}</caption>
+      <colgroup>
+        @if (selectable()) {
+          <col style="width: 44px" />
+        }
+        @for (column of columns(); track column.field) {
+          <col [style.width.px]="column.width ?? null" />
+        }
+        <col style="width: 52px" />
+      </colgroup>
+      <thead>
+        <tr>
+          @if (selectable()) {
+            <th class="alt-enhanced-data-grid__w" scope="col">
+              <button
+                type="button"
+                role="checkbox"
+                class="alt-enhanced-data-grid__cbb"
+                [attr.aria-checked]="headState()"
+                aria-label="Selecionar página"
+                [disabled]="!pageIds().length"
+                (click)="toggleAll()"
+              >
+                <span class="alt-enhanced-data-grid__cb" [class.is-on]="headState()" aria-hidden="true">
+                  @if (headState() === true) {
+                    <dok-icon name="check" [size]="11" [strokeWidth]="3" />
+                  } @else if (headState() === 'mixed') {
+                    <dok-icon name="minus" [size]="11" [strokeWidth]="3" />
+                  }
+                </span>
+              </button>
+            </th>
+          }
+          @for (column of columns(); track column.field) {
+            <th scope="col" [class.is-num]="column.type === 'number'" [class.is-sorted]="ariaSort(column) !== 'none'" [attr.aria-sort]="ariaSort(column)">
+              @if (column.sortable === false) {
+                <span>{{ column.header }}</span>
+              } @else {
+                <button type="button" [title]="'Ordenar por ' + column.header" (click)="toggleSort(column)">
+                  <span>{{ column.header }}</span>
+                  <span class="alt-enhanced-data-grid__arrow" [class.is-on]="sort()?.field === column.field" style="display: inline-flex">
+                    <dok-icon [name]="sort()?.field === column.field && sort()?.dir === 'desc' ? 'arrow-down' : 'arrow-up'" [size]="13" />
+                  </span>
+                </button>
+              }
+            </th>
+          }
+          <th class="alt-enhanced-data-grid__w alt-enhanced-data-grid__act" scope="col"><span class="sr-only">Ações</span></th>
+        </tr>
+      </thead>
+      <tbody>
+        @if (loading() && !rows().length) {
+          @for (i of [1, 2, 3, 4, 5, 6]; track i) {
+            <tr [style.height.px]="rowHeight()" aria-hidden="true">
+              <td [attr.colspan]="columns().length + (selectable() ? 2 : 1)"><div class="alt-skel" style="height: 14px; width: 60%"></div></td>
+            </tr>
+          }
+        } @else {
+          @for (row of pageRows(); track rowId()(row)) {
+            <tr
+              [class.is-selected]="isSelected(row)"
+              [attr.aria-selected]="selectable() ? isSelected(row) : null"
+              [style.height.px]="rowHeight()"
+              (click)="onRowClick($event, row)"
+            >
+              @if (selectable()) {
+                <td class="alt-enhanced-data-grid__w">
+                  <button
+                    type="button"
+                    role="checkbox"
+                    class="alt-enhanced-data-grid__cbb"
+                    [attr.aria-checked]="isSelected(row)"
+                    [attr.aria-label]="'Selecionar ' + rowLabel()(row)"
+                    (click)="toggleRow(row)"
+                  >
+                    <span class="alt-enhanced-data-grid__cb" [class.is-on]="isSelected(row)" aria-hidden="true">
+                      @if (isSelected(row)) {
+                        <dok-icon name="check" [size]="11" [strokeWidth]="3" />
+                      }
+                    </span>
+                  </button>
+                </td>
+              }
+              @for (column of columns(); track column.field) {
+                <td
+                  class="alt-num"
+                  [class.is-num]="column.type === 'number'"
+                  [class.is-muted]="column.type === 'datetime'"
+                  [class.is-key]="column.key"
+                  [class.ct-mono]="column.mono"
+                  [attr.title]="column.mono ? text(row, column) : null"
+                >
+                  @if (templates()[column.field]; as template) {
+                    <ng-container *ngTemplateOutlet="template; context: { $implicit: row }" />
+                  } @else if (column.type === 'status') {
+                    <span class="alt-enhanced-data-grid__status"><span class="alt-dot" [style.color]="statusColor(raw(row, column))" aria-hidden="true"></span>{{ text(row, column) }}</span>
+                  } @else {
+                    {{ text(row, column) }}
+                  }
+                </td>
+              }
+              <td class="alt-enhanced-data-grid__w alt-enhanced-data-grid__act">
+                @if (rowActions().length || rowActionsFor()) {
+                  <button
+                    type="button"
+                    class="alt-enhanced-data-grid__more"
+                    aria-haspopup="menu"
+                    [attr.aria-expanded]="rowMenu()?.id === rowId()(row)"
+                    [attr.aria-label]="'Ações de ' + rowLabel()(row)"
+                    (click)="openRowMenu($event, row)"
+                  >
+                    <dok-icon name="more" [size]="18" />
+                  </button>
+                }
+              </td>
+            </tr>
+          } @empty {
+            <tr class="alt-enhanced-data-grid__empty">
+              <td [attr.colspan]="columns().length + (selectable() ? 2 : 1)">
+                <dok-icon name="search" [size]="20" />
+                <div>{{ emptyTitle() ?? 'Nenhum ' + entityLabel()[0] + ' encontrado' + (search() ? ' para “' + search() + '”' : '') + '.' }}</div>
+                @if (search() || activeFilters().length) {
+                  <button type="button" class="alt-tbtn" (click)="onSearch(''); clearFilters()">Limpar busca e filtros</button>
+                }
+              </td>
+            </tr>
+          }
+        }
+      </tbody>
+    </table>
+  </div>
+
+  <div class="alt-enhanced-data-grid__ft alt-num">
+    <span class="alt-enhanced-data-grid__selcount" [class.is-on]="selection().length > 0" aria-live="polite">{{ selectable() ? selectionText() : '' }}</span>
+    @if (hasMore()) {
+      <button type="button" class="alt-tbtn" [disabled]="loadingMore()" (click)="loadMore.emit()">
+        <dok-icon name="arrow-down" [size]="14" />{{ loadingMore() ? 'Carregando…' : 'Carregar mais' }}
+      </button>
+    }
+    <span>{{ rangeText() }}</span>
+    <nav class="alt-enhanced-data-grid__pg" aria-label="Paginação">
+      <button type="button" aria-label="Página anterior" [disabled]="pageIndex() === 0" (click)="goTo(pageIndex() - 1)"><dok-icon name="chevron-left" [size]="15" /></button>
+      @for (item of pageList(); track $index) {
+        @if (isPageNumber(item)) {
+          <button type="button" [class.is-current]="item === pageIndex()" [attr.aria-current]="item === pageIndex() ? 'page' : null" (click)="goTo(item)">{{ item + 1 }}</button>
+        } @else {
+          <span class="alt-enhanced-data-grid__gap">…</span>
+        }
+      }
+      <button type="button" aria-label="Próxima página" [disabled]="pageIndex() >= pages() - 1" (click)="goTo(pageIndex() + 1)"><dok-icon name="chevron-right" [size]="15" /></button>
+    </nav>
+  </div>
+
+  @if (rowMenu(); as menu) {
+    <div #rowMenuEl role="menu" class="alt-popover alt-enhanced-data-grid__rowmenu" [style.top.px]="menu.top" [style.right.px]="menu.right" (keydown)="onRowMenuKey($event)">
+      @for (action of menu.actions; track action.id) {
+        <button type="button" role="menuitem" class="alt-menu-item" [style.color]="action.danger ? 'var(--signal-error)' : null" (click)="chooseRowAction(action)">
+          <dok-icon [name]="action.icon ?? 'circle'" [size]="16" />{{ action.label }}
+        </button>
+      }
+    </div>
+  }
+</section>

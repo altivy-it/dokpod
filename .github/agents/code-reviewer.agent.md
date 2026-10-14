@@ -16,7 +16,7 @@ Relacione o diff à tarefa/remediação Spec Kit e à autorização humana; aus�
 2. Entenda o comportamento anterior e o novo pelos call sites, contratos e testes.
 3. Procure defeitos concretos, não preferências estilísticas.
 4. Priorize autorização, operações destrutivas, idempotência, reconciliação, protocolo N/N-1 e diferenças entre engines.
-5. Em mudanças de frontend, verifique se todo componente visual novo pertence ao portfólio PO UI; sinalize componente inventado, biblioteca de UI concorrente ou reimplementação de comportamento que o PO UI já resolve.
+5. Em mudanças de frontend, verifique se a tela segue o board de `docs/design/app`, reutiliza componentes `dok-*` e tokens do design system, e se componentes novos têm testes de teclado/ARIA; sinalize biblioteca de UI de terceiros ou valores visuais literais onde há token.
 6. Inspecione evidências de testes e análise estática; indique verificações ausentes sem executá-las.
 7. Verifique cobertura de falha, recuperação, rollback e observabilidade.
 

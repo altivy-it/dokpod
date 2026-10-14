@@ -85,7 +85,11 @@ public sealed class ControlPlaneHttpSurfaceTests
     [Fact]
     public async Task JoinEnvironmentAsync_RejectsInvalidEnvironmentId()
     {
-        var hub = new ControlPlaneHub(new StubAuthorizationDecider());
+        var hub = new ControlPlaneHub(
+            new StubAuthorizationDecider(),
+            new Microsoft.Extensions.DependencyInjection.ServiceCollection().BuildServiceProvider().GetRequiredService<Microsoft.Extensions.DependencyInjection.IServiceScopeFactory>(),
+            new Dokpod.ControlPlane.Application.Queries.AgentQueryDispatcher(TimeProvider.System),
+            TimeProvider.System);
 
         var exception = await Assert.ThrowsAsync<HubException>(() =>
             hub.JoinEnvironmentAsync("../host"));

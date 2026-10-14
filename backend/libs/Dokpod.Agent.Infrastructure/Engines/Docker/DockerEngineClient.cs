@@ -12,8 +12,10 @@ public sealed class DockerEngineClient(HttpClient httpClient) : IContainerEngine
     private const int MaximumResponseBytes = 8 * 1024 * 1024;
     private static readonly Version MaximumApiVersion = new(1, 47);
     private readonly SemaphoreSlim negotiationLock = new(1, 1);
+    private const int InspectConcurrency = 8;
     private string? apiVersion;
     private string? engineVersion;
+    private string engineKind = "docker";
 
     public static HttpClient CreateUnixSocketClient(string socketPath, TimeSpan timeout)
     {
@@ -111,10 +113,416 @@ public sealed class DockerEngineClient(HttpClient httpClient) : IContainerEngine
             var image = item.GetProperty("Image").GetString() ?? string.Empty;
             var state = item.GetProperty("State").GetString() ?? "unknown";
             var created = item.GetProperty("Created").GetInt64();
-            containers.Add(new EngineContainer(id, name, image, state, $"{id}:{created}"));
+            containers.Add(new EngineContainer(id, name, image, state, $"{id}:{created}")
+            {
+                CreatedAtUtc = DateTimeOffset.FromUnixTimeSeconds(created),
+                Health = ParseHealthFromStatus(item.TryGetProperty("Status", out var status) ? status.GetString() : null),
+                Ports = ParseListPorts(item),
+            });
         }
 
-        return containers;
+        return await EnrichAsync(containers, cancellationToken);
+    }
+
+    /// <summary>Completa início, saúde, reinícios, código de saída e OOM por inspeção (concorrência limitada).</summary>
+    private async Task<IReadOnlyList<EngineContainer>> EnrichAsync(
+        List<EngineContainer> containers,
+        CancellationToken cancellationToken)
+    {
+        var enriched = new EngineContainer[containers.Count];
+        await Parallel.ForEachAsync(
+            Enumerable.Range(0, containers.Count),
+            new ParallelOptions { MaxDegreeOfParallelism = InspectConcurrency, CancellationToken = cancellationToken },
+            async (index, token) =>
+            {
+                var container = containers[index];
+                enriched[index] = container;
+                if (container.ContainerId.Length != 64 || container.ContainerId.Any(c => !Uri.IsHexDigit(c))) return;
+                try
+                {
+                    using var response = await httpClient.GetAsync(
+                        $"v{apiVersion}/containers/{container.ContainerId}/json",
+                        HttpCompletionOption.ResponseHeadersRead,
+                        token);
+                    if (!response.IsSuccessStatusCode) return;
+                    await using var content = await ReadLimitedAsync(response, token);
+                    using var document = await JsonDocument.ParseAsync(content, cancellationToken: token);
+                    var root = document.RootElement;
+                    if (!root.TryGetProperty("State", out var state) || state.ValueKind != JsonValueKind.Object) return;
+                    enriched[index] = container with
+                    {
+                        StartedAtUtc = ParseEngineTime(state, "StartedAt"),
+                        Health = state.TryGetProperty("Health", out var health) && health.ValueKind == JsonValueKind.Object &&
+                            health.TryGetProperty("Status", out var healthStatus)
+                            ? NormalizeHealth(healthStatus.GetString())
+                            : container.Health ?? "none",
+                        RestartCount = root.TryGetProperty("RestartCount", out var restarts) && restarts.ValueKind == JsonValueKind.Number
+                            ? restarts.GetInt32()
+                            : null,
+                        ExitCode = state.TryGetProperty("ExitCode", out var exit) && exit.ValueKind == JsonValueKind.Number &&
+                            !string.Equals(container.State, "running", StringComparison.OrdinalIgnoreCase)
+                            ? exit.GetInt32()
+                            : null,
+                        OomKilled = state.TryGetProperty("OOMKilled", out var oom) && oom.ValueKind is JsonValueKind.True or JsonValueKind.False
+                            ? oom.GetBoolean()
+                            : null,
+                        CpuLimitCores = CpuLimit(root),
+                    };
+                }
+                catch (Exception exception) when (exception is HttpRequestException or JsonException or InvalidDataException or KeyNotFoundException or InvalidOperationException or FormatException)
+                {
+                    // Inspeção é complementar: a listagem básica continua válida.
+                }
+            });
+        return enriched;
+    }
+
+    public async Task<EngineHostInfo?> DescribeHostAsync(CancellationToken cancellationToken)
+    {
+        await EnsureNegotiatedAsync(cancellationToken);
+        using var response = await httpClient.GetAsync($"v{apiVersion}/info", HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            return new EngineHostInfo(engineKind, null, null, null, null);
+        }
+
+        await using var content = await ReadLimitedAsync(response, cancellationToken);
+        using var document = await JsonDocument.ParseAsync(content, cancellationToken: cancellationToken);
+        var root = document.RootElement;
+        var rootless = false;
+        if (root.TryGetProperty("SecurityOptions", out var options) && options.ValueKind == JsonValueKind.Array)
+        {
+            rootless = options.EnumerateArray().Any(option => option.GetString()?.Contains("rootless", StringComparison.OrdinalIgnoreCase) == true);
+        }
+
+        return new EngineHostInfo(
+            engineKind,
+            root.TryGetProperty("Name", out var name) ? name.GetString() : null,
+            root.TryGetProperty("NCPU", out var cpus) && cpus.ValueKind == JsonValueKind.Number ? cpus.GetInt32() : null,
+            root.TryGetProperty("MemTotal", out var memory) && memory.ValueKind == JsonValueKind.Number ? memory.GetInt64() : null,
+            rootless);
+    }
+
+    /// <summary>Stream `/events` filtrado por tipo (container, image, volume); termina quando a conexão cai.</summary>
+    public async IAsyncEnumerable<EngineEventRecord> WatchEventsAsync(
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        await EnsureNegotiatedAsync(cancellationToken);
+        var filters = Uri.EscapeDataString("""{"type":["container","image","volume"]}""");
+        using var request = new HttpRequestMessage(HttpMethod.Get, $"v{apiVersion}/events?filters={filters}");
+        using var response = await httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+        response.EnsureSuccessStatusCode();
+        await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+        using var reader = new StreamReader(stream);
+        while (!cancellationToken.IsCancellationRequested)
+        {
+            var line = await reader.ReadLineAsync(cancellationToken);
+            if (line is null) yield break;
+            if (line.Length == 0 || line.Length > 64 * 1024) continue;
+            var record = ParseEvent(line);
+            if (record is not null) yield return record;
+        }
+    }
+
+    public static EngineEventRecord? ParseEvent(string line)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(line);
+            var root = document.RootElement;
+            var type = root.TryGetProperty("Type", out var typeElement) ? typeElement.GetString() : null;
+            var action = root.TryGetProperty("Action", out var actionElement) ? actionElement.GetString() : root.TryGetProperty("status", out var status) ? status.GetString() : null;
+            if (string.IsNullOrEmpty(type) || string.IsNullOrEmpty(action)) return null;
+            string? id = null;
+            Dictionary<string, string> attributes = new(StringComparer.Ordinal);
+            if (root.TryGetProperty("Actor", out var actor) && actor.ValueKind == JsonValueKind.Object)
+            {
+                id = actor.TryGetProperty("ID", out var actorId) ? actorId.GetString() : null;
+                if (actor.TryGetProperty("Attributes", out var attrs) && attrs.ValueKind == JsonValueKind.Object)
+                {
+                    foreach (var key in new[] { "name", "image", "exitCode" })
+                    {
+                        if (attrs.TryGetProperty(key, out var value) && value.ValueKind == JsonValueKind.String)
+                        {
+                            attributes[key] = value.GetString()!;
+                        }
+                    }
+                }
+            }
+
+            id ??= root.TryGetProperty("id", out var legacyId) ? legacyId.GetString() : null;
+            if (string.IsNullOrEmpty(id)) return null;
+            var timeNano = root.TryGetProperty("timeNano", out var nano) && nano.ValueKind == JsonValueKind.Number
+                ? nano.GetInt64()
+                : root.TryGetProperty("time", out var seconds) && seconds.ValueKind == JsonValueKind.Number ? seconds.GetInt64() * 1_000_000_000 : 0;
+            var occurredAt = timeNano > 0
+                ? DateTimeOffset.FromUnixTimeMilliseconds(timeNano / 1_000_000)
+                : DateTimeOffset.UtcNow;
+            return new EngineEventRecord(
+                type,
+                action,
+                id,
+                attributes.GetValueOrDefault("name"),
+                attributes.GetValueOrDefault("image"),
+                int.TryParse(attributes.GetValueOrDefault("exitCode"), out var exitCode) ? exitCode : null,
+                occurredAt,
+                timeNano);
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    public async Task<string?> GetContainerJsonAsync(string containerId, CancellationToken cancellationToken)
+    {
+        ValidateContainerId(containerId);
+        await EnsureNegotiatedAsync(cancellationToken);
+        using var response = await httpClient.GetAsync($"v{apiVersion}/containers/{containerId}/json", HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+        if (response.StatusCode == HttpStatusCode.NotFound) return null;
+        response.EnsureSuccessStatusCode();
+        await using var content = await ReadLimitedAsync(response, cancellationToken);
+        using var reader = new StreamReader(content);
+        return await reader.ReadToEndAsync(cancellationToken);
+    }
+
+    public async IAsyncEnumerable<EngineLogLine> ReadLogsAsync(
+        string containerId,
+        EngineLogRequest request,
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        ValidateContainerId(containerId);
+        var json = await GetContainerJsonAsync(containerId, cancellationToken)
+            ?? throw new KeyNotFoundException("container_not_found");
+        bool tty;
+        using (var document = JsonDocument.Parse(json))
+        {
+            tty = document.RootElement.TryGetProperty("Config", out var config) &&
+                config.TryGetProperty("Tty", out var ttyElement) && ttyElement.ValueKind == JsonValueKind.True;
+        }
+
+        var query = new List<string> { "stdout=1", "stderr=1", "timestamps=1" };
+        if (request.Follow) query.Add("follow=1");
+        query.Add($"tail={(request.Tail is > 0 ? request.Tail.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : request.Follow ? "0" : "all")}");
+        if (request.Since is not null) query.Add($"since={request.Since.Value.ToUnixTimeSeconds()}");
+        if (request.Until is not null) query.Add($"until={request.Until.Value.ToUnixTimeSeconds()}");
+        using var message = new HttpRequestMessage(HttpMethod.Get, $"v{apiVersion}/containers/{containerId}/logs?{string.Join('&', query)}");
+        using var response = await httpClient.SendAsync(message, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+        if (response.StatusCode == HttpStatusCode.NotFound) throw new KeyNotFoundException("container_not_found");
+        if (response.StatusCode == HttpStatusCode.NotImplemented || response.StatusCode == HttpStatusCode.BadRequest)
+        {
+            // Driver de log sem leitura (ex.: none, syslog remoto).
+            throw new NotSupportedException("log_driver_unreadable");
+        }
+
+        response.EnsureSuccessStatusCode();
+        await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+        await foreach (var line in (tty ? ReadPlainAsync(stream, cancellationToken) : ReadMultiplexedAsync(stream, cancellationToken)).WithCancellation(cancellationToken))
+        {
+            yield return line;
+        }
+    }
+
+    private static async IAsyncEnumerable<EngineLogLine> ReadPlainAsync(
+        Stream stream,
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        using var reader = new StreamReader(stream, System.Text.Encoding.UTF8);
+        while (await reader.ReadLineAsync(cancellationToken) is { } line)
+        {
+            yield return new EngineLogLine(1, line.Length > 64 * 1024 ? line[..(64 * 1024)] : line);
+        }
+    }
+
+    /// <summary>Formato multiplexado sem TTY: cabeçalho de 8 bytes [stream, 0, 0, 0, tamanho big-endian] + carga.</summary>
+    private static async IAsyncEnumerable<EngineLogLine> ReadMultiplexedAsync(
+        Stream stream,
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        var header = new byte[8];
+        var pending = new Dictionary<int, System.Text.StringBuilder> { [1] = new(), [2] = new() };
+        while (true)
+        {
+            if (!await ReadExactAsync(stream, header, cancellationToken)) break;
+            var streamId = header[0] is 2 ? 2 : 1;
+            var size = (header[4] << 24) | (header[5] << 16) | (header[6] << 8) | header[7];
+            if (size < 0 || size > 4 * 1024 * 1024) break;
+            var payload = new byte[size];
+            if (!await ReadExactAsync(stream, payload, cancellationToken)) break;
+            var buffer = pending[streamId];
+            buffer.Append(System.Text.Encoding.UTF8.GetString(payload));
+            var text = buffer.ToString();
+            var start = 0;
+            for (var newline = text.IndexOf('\n'); newline >= 0; newline = text.IndexOf('\n', start))
+            {
+                yield return new EngineLogLine(streamId, text[start..newline].TrimEnd('\r'));
+                start = newline + 1;
+            }
+
+            buffer.Clear();
+            if (start < text.Length)
+            {
+                var rest = text[start..];
+                buffer.Append(rest.Length > 64 * 1024 ? rest[..(64 * 1024)] : rest);
+            }
+        }
+
+        foreach (var (streamId, rest) in pending)
+        {
+            if (rest.Length > 0) yield return new EngineLogLine(streamId, rest.ToString());
+        }
+    }
+
+    private static async Task<bool> ReadExactAsync(Stream stream, byte[] buffer, CancellationToken cancellationToken)
+    {
+        var read = 0;
+        while (read < buffer.Length)
+        {
+            var count = await stream.ReadAsync(buffer.AsMemory(read), cancellationToken);
+            if (count == 0) return false;
+            read += count;
+        }
+
+        return true;
+    }
+
+    private static double? CpuLimit(JsonElement root)
+    {
+        if (!root.TryGetProperty("HostConfig", out var host) || host.ValueKind != JsonValueKind.Object) return null;
+        if (host.TryGetProperty("NanoCpus", out var nano) && nano.ValueKind == JsonValueKind.Number && nano.GetInt64() > 0)
+        {
+            return nano.GetInt64() / 1_000_000_000d;
+        }
+
+        if (host.TryGetProperty("CpuQuota", out var quota) && quota.ValueKind == JsonValueKind.Number && quota.GetInt64() > 0 &&
+            host.TryGetProperty("CpuPeriod", out var period) && period.ValueKind == JsonValueKind.Number && period.GetInt64() > 0)
+        {
+            return (double)quota.GetInt64() / period.GetInt64();
+        }
+
+        return null;
+    }
+
+    public async Task<EngineContainerStats?> GetContainerStatsAsync(string containerId, CancellationToken cancellationToken)
+    {
+        ValidateContainerId(containerId);
+        await EnsureNegotiatedAsync(cancellationToken);
+        using var response = await httpClient.GetAsync(
+            $"v{apiVersion}/containers/{containerId}/stats?stream=false&one-shot=true",
+            HttpCompletionOption.ResponseHeadersRead,
+            cancellationToken);
+        if (!response.IsSuccessStatusCode) return null;
+        await using var content = await ReadLimitedAsync(response, cancellationToken);
+        using var document = await JsonDocument.ParseAsync(content, cancellationToken: cancellationToken);
+        return ParseStats(document.RootElement);
+    }
+
+    /// <summary>Lê somente contadores numéricos; nenhum nome de processo, argumento ou label é lido.</summary>
+    public static EngineContainerStats? ParseStats(JsonElement root)
+    {
+        static ulong U(JsonElement element, params string[] path)
+        {
+            var current = element;
+            foreach (var name in path)
+            {
+                if (current.ValueKind != JsonValueKind.Object || !current.TryGetProperty(name, out current)) return 0;
+            }
+
+            return current.ValueKind == JsonValueKind.Number && current.TryGetUInt64(out var value) ? value : 0;
+        }
+
+        if (!root.TryGetProperty("cpu_stats", out var cpu) || cpu.ValueKind != JsonValueKind.Object) return null;
+        var memory = root.TryGetProperty("memory_stats", out var m) ? m : default;
+        var usage = memory.ValueKind == JsonValueKind.Object ? U(memory, "usage") : 0;
+        // cgroup v2: inactive_file; v1: total_inactive_file. Mesmo cálculo do `docker stats`.
+        var inactive = memory.ValueKind == JsonValueKind.Object ? Math.Max(U(memory, "stats", "inactive_file"), U(memory, "stats", "total_inactive_file")) : 0;
+        var limit = memory.ValueKind == JsonValueKind.Object ? U(memory, "limit") : 0;
+        ulong rx = 0, tx = 0;
+        if (root.TryGetProperty("networks", out var networks) && networks.ValueKind == JsonValueKind.Object)
+        {
+            foreach (var network in networks.EnumerateObject())
+            {
+                rx += U(network.Value, "rx_bytes");
+                tx += U(network.Value, "tx_bytes");
+            }
+        }
+
+        ulong read = 0, write = 0;
+        if (root.TryGetProperty("blkio_stats", out var blkio) && blkio.ValueKind == JsonValueKind.Object &&
+            blkio.TryGetProperty("io_service_bytes_recursive", out var io) && io.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var entry in io.EnumerateArray())
+            {
+                var op = entry.TryGetProperty("op", out var opElement) ? opElement.GetString()?.ToLowerInvariant() : null;
+                var value = U(entry, "value");
+                if (op == "read") read += value;
+                else if (op == "write") write += value;
+            }
+        }
+
+        var online = cpu.TryGetProperty("online_cpus", out var onlineElement) && onlineElement.ValueKind == JsonValueKind.Number ? onlineElement.GetInt32() : 0;
+        if (online <= 0 && cpu.TryGetProperty("cpu_usage", out var cpuUsage) && cpuUsage.TryGetProperty("percpu_usage", out var percpu) && percpu.ValueKind == JsonValueKind.Array)
+        {
+            online = percpu.GetArrayLength();
+        }
+
+        return new EngineContainerStats(
+            U(cpu, "cpu_usage", "total_usage"),
+            U(cpu, "system_cpu_usage"),
+            Math.Max(1, online),
+            usage > inactive ? usage - inactive : usage,
+            limit is > 0 and < 1UL << 60 ? limit : null,
+            rx,
+            tx,
+            read,
+            write);
+    }
+
+    private static string? ParseHealthFromStatus(string? status)
+    {
+        if (string.IsNullOrEmpty(status)) return null;
+        if (status.Contains("(healthy)", StringComparison.Ordinal)) return "healthy";
+        if (status.Contains("(unhealthy)", StringComparison.Ordinal)) return "unhealthy";
+        if (status.Contains("(health: starting)", StringComparison.Ordinal)) return "starting";
+        return null;
+    }
+
+    private static string NormalizeHealth(string? value) => value?.ToLowerInvariant() switch
+    {
+        "healthy" => "healthy",
+        "unhealthy" => "unhealthy",
+        "starting" => "starting",
+        _ => "none",
+    };
+
+    private static DateTimeOffset? ParseEngineTime(JsonElement element, string property)
+    {
+        if (!element.TryGetProperty(property, out var value) || value.ValueKind != JsonValueKind.String) return null;
+        return DateTimeOffset.TryParse(value.GetString(), System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.AssumeUniversal, out var parsed) &&
+            parsed.Year > 1
+            ? parsed.ToUniversalTime()
+            : null;
+    }
+
+    private static IReadOnlyList<EnginePortBinding> ParseListPorts(JsonElement item)
+    {
+        if (!item.TryGetProperty("Ports", out var ports) || ports.ValueKind != JsonValueKind.Array) return [];
+        var result = new List<EnginePortBinding>();
+        foreach (var port in ports.EnumerateArray().Take(64))
+        {
+            if (!port.TryGetProperty("PrivatePort", out var privatePort) || privatePort.ValueKind != JsonValueKind.Number) continue;
+            var publicPort = port.TryGetProperty("PublicPort", out var pub) && pub.ValueKind == JsonValueKind.Number ? pub.GetInt32() : 0;
+            var ip = port.TryGetProperty("IP", out var ipElement) ? ipElement.GetString() : null;
+            var protocol = port.TryGetProperty("Type", out var typeElement) ? typeElement.GetString() ?? "tcp" : "tcp";
+            var binding = new EnginePortBinding(ip, publicPort, privatePort.GetInt32(), protocol);
+            // Docker lista a mesma porta para IPv4 e IPv6; mantém uma por (host, container, protocolo).
+            if (!result.Any(existing => existing.HostPort == binding.HostPort && existing.ContainerPort == binding.ContainerPort && existing.Protocol == binding.Protocol))
+            {
+                result.Add(binding);
+            }
+        }
+
+        return result;
     }
 
     public async Task<EngineContainer?> InspectContainerAsync(
@@ -158,6 +566,8 @@ public sealed class DockerEngineClient(HttpClient httpClient) : IContainerEngine
             AgentCommandKind.StopContainer => new HttpRequestMessage(HttpMethod.Post, $"v{apiVersion}/containers/{containerId}/stop"),
             AgentCommandKind.RestartContainer => new HttpRequestMessage(HttpMethod.Post, $"v{apiVersion}/containers/{containerId}/restart"),
             AgentCommandKind.DeleteContainer => new HttpRequestMessage(HttpMethod.Delete, $"v{apiVersion}/containers/{containerId}?v=0&force=0"),
+            AgentCommandKind.PauseContainer => new HttpRequestMessage(HttpMethod.Post, $"v{apiVersion}/containers/{containerId}/pause"),
+            AgentCommandKind.UnpauseContainer => new HttpRequestMessage(HttpMethod.Post, $"v{apiVersion}/containers/{containerId}/unpause"),
             _ => throw new ArgumentOutOfRangeException(nameof(commandKind), commandKind, "Unsupported Docker command."),
         };
 
@@ -171,7 +581,14 @@ public sealed class DockerEngineClient(HttpClient httpClient) : IContainerEngine
 
             return new ContainerMutationResult(
                 false,
-                response.StatusCode == HttpStatusCode.NotFound ? "target_not_found" : "operation_failed");
+                response.StatusCode switch
+                {
+                    HttpStatusCode.NotFound => "target_not_found",
+                    // 409: pausa sem container em execução / retomada sem container pausado (spec 010).
+                    HttpStatusCode.Conflict when commandKind == AgentCommandKind.PauseContainer => "not_running",
+                    HttpStatusCode.Conflict when commandKind == AgentCommandKind.UnpauseContainer => "not_paused",
+                    _ => "operation_failed",
+                });
         }
     }
 
@@ -204,6 +621,15 @@ public sealed class DockerEngineClient(HttpClient httpClient) : IContainerEngine
 
             var selectedVersion = reportedApiVersion < MaximumApiVersion ? reportedApiVersion : MaximumApiVersion;
             engineVersion = document.RootElement.GetProperty("Version").GetString() ?? "unknown";
+            // Podman expõe a API compatível com Docker e se identifica em Components (008 D-007).
+            if (document.RootElement.TryGetProperty("Components", out var components) &&
+                components.ValueKind == JsonValueKind.Array &&
+                components.EnumerateArray().Any(component =>
+                    component.TryGetProperty("Name", out var componentName) &&
+                    componentName.GetString()?.Contains("Podman", StringComparison.OrdinalIgnoreCase) == true))
+            {
+                engineKind = "podman";
+            }
             apiVersion = $"{selectedVersion.Major}.{selectedVersion.Minor}";
         }
         finally

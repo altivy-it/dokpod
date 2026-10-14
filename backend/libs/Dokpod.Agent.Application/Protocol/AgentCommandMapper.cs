@@ -81,6 +81,8 @@ public static class AgentCommandMapper
         CommandKind.StopContainer => DomainCommandKind.StopContainer,
         CommandKind.RestartContainer => DomainCommandKind.RestartContainer,
         CommandKind.DeleteContainer => DomainCommandKind.DeleteContainer,
+        CommandKind.PauseContainer => DomainCommandKind.PauseContainer,
+        CommandKind.UnpauseContainer => DomainCommandKind.UnpauseContainer,
         _ => DomainCommandKind.Unknown,
     };
 }

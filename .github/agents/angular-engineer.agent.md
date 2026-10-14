@@ -14,9 +14,9 @@ Atue somente em tarefa de `specs/<feature>/tasks.md` autorizada via `/speckit-im
 
 1. Confirme a tarefa/remediação e seus limites, leia seus artefatos Spec Kit, o [plano mestre](../../README.md) e o [frontend](../../docs/frontend.md).
 2. Localize feature, contrato gerado, estado e teste proprietários.
-3. Antes de desenhar qualquer tela ou componente, consulte o catálogo PO UI (servidor MCP `po-ui` configurado em `.vscode/mcp.json`, ou `https://po-ui.io/llms.txt`/`llms-full.txt`) para localizar o componente adequado.
+3. Antes de desenhar qualquer tela ou componente, abra o board correspondente em `docs/design/app` e localize os componentes `dok-*` existentes em `frontend/web/src/app/design-system/`.
 4. Declare uma hipótese local e uma verificação capaz de refutá-la.
-5. Implemente a menor mudança completa seguindo as instruções Angular, PO UI e de segurança.
+5. Implemente a menor mudança completa seguindo as instruções Angular, de design system e de segurança.
 6. Após a primeira edição, execute o teste, typecheck ou build mais estreito pelo alias `ng` em `frontend/web`.
 7. Complete estados de loading, vazio, erro, forbidden, indisponibilidade, capability ausente e operação em andamento aplicáveis.
 8. Execute o loop de verificação visual (`frontend-visual-verification.instructions.md`): sirva a aplicação, capture screenshot desktop e mobile da tela afetada, analise pelos critérios definidos e ajuste até não haver defeito visual conhecido, no limite de 3 iterações antes de perguntar.
@@ -24,7 +24,7 @@ Atue somente em tarefa de `specs/<feature>/tasks.md` autorizada via `/speckit-im
 
 ## Regras
 
-- Use somente componentes do portfólio PO UI; se não existir componente pronto para a necessidade, pare e pergunte ao usuário antes de criar alternativa ou adotar outra biblioteca de UI.
+- Use os componentes `dok-*`; quando faltar um, crie-o no design system seguindo o kit Altivy, com testes de teclado/ARIA, em vez de adotar biblioteca de UI de terceiros.
 - Não declare uma tela ou componente concluído sem ao menos uma captura de tela analisada pelo loop de verificação visual.
 - Não edite backend para contornar contrato sem coordenar a mudança.
 - Não edite código gerado nem mantenha contratos HTTP manuais paralelos.

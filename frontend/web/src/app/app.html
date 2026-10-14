@@ -1,19 +1,45 @@
-@if (loading()) {
-  <main class="session-state" aria-live="polite"><p class="eyebrow">DOKPOD / SESSÃO</p><h1>Carregando sessão…</h1></main>
-} @else if (errorMessage()) {
-  <main class="session-state error"><p class="eyebrow">FALHA DE SESSÃO</p><h1>{{ errorMessage() }}</h1><button type="button" (click)="loadSession()">Tentar novamente</button></main>
-} @else if (session()?.authenticated) {
-  <header class="app-header">
-    <a routerLink="/" class="brand" aria-label="Dokpod, ambientes"><picture><source srcset="brand/dokpod-logo-dark.svg" media="(prefers-color-scheme: dark)" /><img src="brand/dokpod-logo-light.svg" alt="Dokpod" /></picture></a>
-    <div class="session-actions">
-      <div class="session-user"><span>SESSÃO ATIVA</span><strong>{{ session()?.name ?? session()?.subject ?? 'usuário' }}</strong></div>
-      <button type="button" class="secondary" (click)="logout()">Sair</button>
-    </div>
-  </header>
-  <router-outlet />
-} @else {
-  <main class="login-shell">
-    <div class="brand-panel"><picture><source srcset="brand/dokpod-logo-dark.svg" media="(prefers-color-scheme: dark)" /><img src="brand/dokpod-logo-light.svg" alt="Dokpod" /></picture><p>PLANO DE CONTROLE / 01</p></div>
-    <section><p class="eyebrow">CONSOLE OPERACIONAL</p><h1>Controle operacional, sem atalhos.</h1><p>Acesse ambientes e containers conforme as permissões definidas no Keycloak.</p><button type="button" (click)="login()">Entrar com Keycloak</button></section>
-  </main>
+@switch (sessionService.state()) {
+  @case ('loading') {
+    <main class="alt-page alt-app dok-entry">
+      <dok-empty-state kind="loading" title="Carregando sessão" detail="Verificando sua sessão no Keycloak." />
+    </main>
+  }
+  @case ('error') {
+    <main class="alt-page alt-app dok-entry">
+      <dok-empty-state kind="offline" title="Não foi possível carregar a sessão" detail="O BFF não respondeu. Verifique a conexão e tente novamente.">
+        <button dok-button variant="outline" size="sm" startIcon="refresh" type="button" (click)="loadSession()">Tentar novamente</button>
+      </dok-empty-state>
+    </main>
+  }
+  @case ('authenticated') {
+    <dok-app-shell
+      [userName]="sessionService.displayName()"
+      [userGroup]="sessionService.session()?.displayGroup ?? null"
+      [userInitials]="sessionService.initials()"
+      [scopes]="directory.scopes()"
+      (signOut)="logout()"
+    >
+      <router-outlet />
+    </dok-app-shell>
+  }
+  @default {
+    <main class="alt-page alt-app dok-entry">
+      <section class="dok-entry__card alt-glass" aria-labelledby="entry-title">
+        <div class="dok-entry__brand">
+          <svg width="40" height="40" viewBox="0 0 64 64" aria-hidden="true">
+            <rect x="2" y="2" width="60" height="60" rx="14" fill="var(--teal-light)" />
+            <path d="M16 14H35C46 14 52 21 52 32C52 43 46 50 35 50H16V14Z" fill="var(--ink)" />
+            <path d="M27 24H34C39 24 42 27 42 32C42 37 39 40 34 40H27V24Z" fill="var(--teal-light)" />
+            <rect x="10" y="27" width="11" height="10" fill="var(--teal-light)" stroke="var(--ink)" stroke-width="4" />
+          </svg>
+          <span>Dokpod</span>
+        </div>
+        <span class="eyebrow">Console operacional</span>
+        <h1 id="entry-title">Docker e Podman sob uma única operação</h1>
+        <p class="app-body">Acesse hosts e containers conforme as permissões definidas no Keycloak.</p>
+        <button dok-button variant="primary" size="md" startIcon="lock" type="button" (click)="login()">Entrar com Keycloak</button>
+      </section>
+    </main>
+  }
 }
+<dok-toast-host />

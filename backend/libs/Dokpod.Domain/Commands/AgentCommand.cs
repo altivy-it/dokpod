@@ -7,6 +7,8 @@ public enum AgentCommandKind
     StopContainer = 2,
     RestartContainer = 3,
     DeleteContainer = 4,
+    PauseContainer = 5,
+    UnpauseContainer = 6,
 }
 
 public sealed record AgentCommand(

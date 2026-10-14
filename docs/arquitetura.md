@@ -110,6 +110,6 @@ Não adicionar broker, cache distribuído ou microsserviço antes de métricas d
 - matriz de Windows Server, RID, conta de serviço e versões de Docker suportadas;
 - limites de retenção para inventário e auditoria;
 - estratégia de atualização segura do agente;
-- suporte futuro a criação declarativa, Compose e stacks.
+- suporte futuro a criação declarativa de Compose e stacks. A criação de container único foi retirada desta lista em 2026-10-13 (aprovação registrada em `specs/README.md`; spec 013), condicionada ao threat model em `docs/seguranca.md`.
 
 Esses itens não alteram a arquitetura aceita. Cada capability permanece desabilitada até cumprir seu gate, e mudanças de protocolo incompatíveis ou escala horizontal exigem ADR próprio.

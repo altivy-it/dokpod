@@ -2,6 +2,8 @@ using Dokpod.ControlPlane.Application.Auditing;
 using Dokpod.ControlPlane.Application.Agents;
 using Dokpod.ControlPlane.Application.Commands;
 using Dokpod.ControlPlane.Application.Environments;
+using Dokpod.ControlPlane.Application.Events;
+using Dokpod.ControlPlane.Application.Hosts;
 using Dokpod.ControlPlane.Application.Inventory;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -32,6 +34,12 @@ public static class ControlPlaneInfrastructureServiceCollectionExtensions
         services.AddScoped<IAuditEventWriter, PostgresAuditEventWriter>();
         services.AddScoped<IEnvironmentRegistrationStore, PostgresEnvironmentRegistrationStore>();
         services.AddScoped<IInventoryProjectionStore, PostgresInventoryProjectionStore>();
+        services.AddScoped<PostgresAgentHostStore>();
+        services.AddScoped<IAgentHostStore>(provider => provider.GetRequiredService<PostgresAgentHostStore>());
+        services.AddScoped<IInventoryStatisticsStore>(provider => provider.GetRequiredService<PostgresAgentHostStore>());
+        services.AddScoped<IEnvironmentStageStore>(provider => provider.GetRequiredService<PostgresAgentHostStore>());
+        services.AddScoped<IOperationalEventStore, PostgresOperationalEventStore>();
+        services.AddScoped<IContainerSearchStore, PostgresContainerSearchStore>();
 
         return services;
     }

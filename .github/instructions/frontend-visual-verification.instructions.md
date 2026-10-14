@@ -10,9 +10,9 @@ applyTo: "frontend/**"
 - Sirva a aplicação em container e abra a rota afetada somente pela borda de um nginx também containerizado (`open_browser_page`, `navigate_page`). Para o E2E real, use o gateway documentado em `deploy/e2e/README.md`; com respostas simuladas, configure nginx antes de testar. O alias `ng serve` pode iniciar o Angular em container, mas sua porta não é URL de navegador ou Playwright. Não reutilize servidor sem confirmar que o acesso passa pelo proxy.
 - Capture screenshot em pelo menos dois viewports por iteração: desktop (largura ≥ 1280px) e mobile (largura ≤ 480px), com `screenshot_page`. Capture também qualquer estado relevante da tela (loading, vazio, erro, forbidden, foco, validação) antes de concluir.
 - Analise cada screenshot contra estes critérios antes de decidir que a tela está correta:
-  - usa exclusivamente componentes PO UI, conforme `frontend-po-ui.instructions.md`; nenhum elemento parece reimplementado ou de outra biblioteca;
+  - usa os componentes `dok-*` e tokens do design system, conforme `frontend-design-system.instructions.md`, e confere com o board correspondente em `docs/design/app`;
   - layout sem sobreposição, corte de texto, quebra inesperada ou espaçamento inconsistente em nenhum dos viewports capturados;
-  - hierarquia visual, contraste e densidade coerentes com o tema PO UI do Dokpod (`docs/frontend.md`), sem estética genérica de SaaS;
+  - hierarquia visual, contraste e densidade coerentes com o mockup e com o design system Altivy do Dokpod (`docs/frontend.md`);
   - estados de loading, vazio, erro, forbidden, indisponibilidade e operação pendente são visualmente distintos e legíveis quando aplicáveis;
   - foco visível e ordem de navegação plausível, cruzando a captura com `read_page`;
   - console e rede sem erro novo introduzido pela mudança.
@@ -22,4 +22,4 @@ applyTo: "frontend/**"
 - Este loop é verificação de desenvolvimento; não substitui Vitest nem Playwright exigidos por `testing.instructions.md`.
 - Nunca capture nem registre token, secret, container real, ambiente de produção ou log sensível; use somente dados sintéticos do ambiente de desenvolvimento local.
 
-Consulte `frontend-angular.instructions.md`, `frontend-po-ui.instructions.md` e `docs/frontend.md`.
+Consulte `frontend-angular.instructions.md`, `frontend-design-system.instructions.md` e `docs/frontend.md`.

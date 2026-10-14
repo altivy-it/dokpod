@@ -433,6 +433,8 @@ public sealed class PostgresAgentCommandStore(
             AgentCommandKind.StopContainer => "container.stop",
             AgentCommandKind.RestartContainer => "container.restart",
             AgentCommandKind.DeleteContainer => "container.delete",
+            AgentCommandKind.PauseContainer => "container.pause",
+            AgentCommandKind.UnpauseContainer => "container.unpause",
             _ => throw new ArgumentOutOfRangeException(nameof(kind)),
         };
 }

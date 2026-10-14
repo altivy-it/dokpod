@@ -192,6 +192,27 @@ paths:
             minimum: 1
             maximum: 100
             default: 20
+        - name: stage
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/Stage'
+        - name: engine
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/EngineKind'
+        - name: situation
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/HostSituation'
+        - name: q
+          in: query
+          required: false
+          schema:
+            type: string
+            maxLength: 128
         - $ref: '#/components/parameters/CorrelationId'
       responses:
         '200':
@@ -268,6 +289,405 @@ paths:
           $ref: '#/components/responses/NotFound'
         '503':
           $ref: '#/components/responses/DependencyUnavailable'
+  /api/v1/environments/{environmentId}/stage:
+    put:
+      operationId: setEnvironmentStage
+      summary: Define o estágio do ambiente (idempotente; mesmo estágio não audita)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: environmentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/CorrelationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetEnvironmentStageRequest'
+      responses:
+        '200':
+          description: Estágio aplicado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EnvironmentStageChanged'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '403':
+          $ref: '#/components/responses/AccessDenied'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '503':
+          $ref: '#/components/responses/DependencyUnavailable'
+  /api/v1/overview:
+    get:
+      operationId: getOverview
+      summary: Resumo agregado dos hosts autorizados e habilitados
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: stage
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/Stage'
+        - $ref: '#/components/parameters/CorrelationId'
+      responses:
+        '200':
+          description: Resumo da visão geral.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OverviewSummary'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '503':
+          $ref: '#/components/responses/DependencyUnavailable'
+  /api/v1/events:
+    get:
+      operationId: listEvents
+      summary: Eventos operacionais dos hosts autorizados, mais recentes primeiro
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: stage
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/Stage'
+        - name: environmentId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: severity
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/EventSeverity'
+        - name: since
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: until
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+        - $ref: '#/components/parameters/CorrelationId'
+      responses:
+        '200':
+          description: Página de eventos.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperationalEventPage'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '403':
+          $ref: '#/components/responses/AccessDenied'
+        '503':
+          $ref: '#/components/responses/DependencyUnavailable'
+  /api/v1/containers:
+    get:
+      operationId: listContainers
+      summary: Lista unificada de containers dos hosts autorizados (hosts sem permissão são excluídos)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: stage
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/Stage'
+        - name: environmentId
+          in: query
+          required: false
+          style: form
+          explode: true
+          schema:
+            type: array
+            items:
+              type: string
+              format: uuid
+        - name: engine
+          in: query
+          required: false
+          style: form
+          explode: true
+          schema:
+            type: array
+            items:
+              $ref: '#/components/schemas/EngineKind'
+        - name: displayStatus
+          in: query
+          required: false
+          style: form
+          explode: true
+          schema:
+            type: array
+            items:
+              $ref: '#/components/schemas/ContainerDisplayStatus'
+        - name: q
+          in: query
+          required: false
+          schema:
+            type: string
+            minLength: 2
+            maxLength: 128
+        - name: sort
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [name, -name, displayStatus, environment, createdAt, -createdAt]
+            default: name
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+        - $ref: '#/components/parameters/CorrelationId'
+      responses:
+        '200':
+          description: Página da lista unificada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContainerListPage'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '503':
+          $ref: '#/components/responses/DependencyUnavailable'
+  /api/v1/environments/{environmentId}/containers/{containerId}:
+    get:
+      operationId: getContainer
+      summary: Detalhe do container (projeção, host, engine, reinícios 24 h)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: environmentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: containerId
+          in: path
+          required: true
+          schema:
+            type: string
+            maxLength: 128
+        - $ref: '#/components/parameters/CorrelationId'
+      responses:
+        '200':
+          description: Resultado autorizado (conteúdo nunca persistido).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContainerDetail'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '503':
+          $ref: '#/components/responses/DependencyUnavailable'
+  /api/v1/environments/{environmentId}/containers/{containerId}/summary:
+    get:
+      operationId: getContainerSummary
+      summary: Resumo de configuração sanitizado no agente (container:inspect)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: environmentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: containerId
+          in: path
+          required: true
+          schema:
+            type: string
+            maxLength: 128
+        - $ref: '#/components/parameters/CorrelationId'
+      responses:
+        '200':
+          description: Resultado autorizado (conteúdo nunca persistido).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContainerConfigSummary'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '403':
+          $ref: '#/components/responses/AccessDenied'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/InvalidRequest'
+        '429':
+          $ref: '#/components/responses/InvalidRequest'
+        '503':
+          $ref: '#/components/responses/DependencyUnavailable'
+        '504':
+          $ref: '#/components/responses/DependencyUnavailable'
+  /api/v1/environments/{environmentId}/containers/{containerId}/inspect:
+    get:
+      operationId: inspectContainer
+      summary: Inspeção sanitizada no agente (container:inspect)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: environmentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: containerId
+          in: path
+          required: true
+          schema:
+            type: string
+            maxLength: 128
+        - $ref: '#/components/parameters/CorrelationId'
+      responses:
+        '200':
+          description: Resultado autorizado (conteúdo nunca persistido).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContainerInspection'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '403':
+          $ref: '#/components/responses/AccessDenied'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/InvalidRequest'
+        '429':
+          $ref: '#/components/responses/InvalidRequest'
+        '503':
+          $ref: '#/components/responses/DependencyUnavailable'
+        '504':
+          $ref: '#/components/responses/DependencyUnavailable'
+  /api/v1/environments/{environmentId}/containers/{containerId}/logs:
+    get:
+      operationId: getContainerLogs
+      summary: Trecho de logs sob demanda, mascarado no agente (container:logs)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: environmentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: containerId
+          in: path
+          required: true
+          schema:
+            type: string
+            maxLength: 128
+        - name: tail
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 5000
+            default: 500
+        - name: since
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: until
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: contains
+          in: query
+          required: false
+          description: Texto literal (sem regex); removido dos logs de acesso.
+          schema:
+            type: string
+            maxLength: 128
+        - $ref: '#/components/parameters/CorrelationId'
+      responses:
+        '200':
+          description: Resultado autorizado (conteúdo nunca persistido).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContainerLogPage'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '403':
+          $ref: '#/components/responses/AccessDenied'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/InvalidRequest'
+        '429':
+          $ref: '#/components/responses/InvalidRequest'
+        '503':
+          $ref: '#/components/responses/DependencyUnavailable'
+        '504':
+          $ref: '#/components/responses/DependencyUnavailable'
 components:
   securitySchemes:
     bearerAuth:
@@ -291,7 +711,7 @@ components:
       properties:
         action:
           type: string
-          enum: [start, stop, restart, delete]
+          enum: [start, stop, restart, delete, pause, unpause]
         expectedContainerRevision:
           type: string
           minLength: 1
@@ -332,7 +752,7 @@ components:
           format: uuid
         action:
           type: string
-          enum: [start, stop, restart, delete]
+          enum: [start, stop, restart, delete, pause, unpause]
         containerId:
           type: string
           pattern: '^[0-9a-fA-F]{64}$'
@@ -384,15 +804,11 @@ components:
           type: array
           uniqueItems: true
           items:
-            type: string
-            enum:
-              - environment:read
-              - environment:manage
-              - container:start
-              - container:stop
-              - container:restart
-              - container:delete
-              - audit:read
+            $ref: '#/components/schemas/ResourceScope'
+        stage:
+          oneOf:
+            - $ref: '#/components/schemas/Stage'
+            - type: 'null'
     EnvironmentCreated:
       type: object
       required: [environmentId]
@@ -423,15 +839,20 @@ components:
           type: array
           uniqueItems: true
           items:
-            type: string
-            enum:
-              - environment:read
-              - environment:manage
-              - container:start
-              - container:stop
-              - container:restart
-              - container:delete
-              - audit:read
+            $ref: '#/components/schemas/ResourceScope'
+        stage:
+          oneOf:
+            - $ref: '#/components/schemas/Stage'
+            - type: 'null'
+        situation:
+          $ref: '#/components/schemas/HostSituation'
+        containerCount:
+          type: [integer, 'null']
+          minimum: 0
+        agent:
+          oneOf:
+            - $ref: '#/components/schemas/HostAgentView'
+            - type: 'null'
     EnvironmentPage:
       type: object
       required: [environments]
@@ -488,6 +909,429 @@ components:
         observedAt:
           type: string
           format: date-time
+        displayStatus:
+          $ref: '#/components/schemas/ContainerDisplayStatus'
+        createdAt:
+          type: [string, 'null']
+          format: date-time
+        startedAt:
+          type: [string, 'null']
+          format: date-time
+        health:
+          type: [string, 'null']
+          enum: [none, starting, healthy, unhealthy, null]
+        restartCount:
+          type: [integer, 'null']
+          minimum: 0
+        exitCode:
+          type: [integer, 'null']
+        oomKilled:
+          type: [boolean, 'null']
+        ports:
+          type: array
+          maxItems: 64
+          items:
+            $ref: '#/components/schemas/PortBinding'
+    ContainerListItem:
+      allOf:
+        - $ref: '#/components/schemas/ContainerInventory'
+        - type: object
+          required: [environmentId, environmentName, hostConnected, allowedActions]
+          properties:
+            environmentId:
+              type: string
+              format: uuid
+            environmentName:
+              type: string
+            stage:
+              oneOf:
+                - $ref: '#/components/schemas/Stage'
+                - type: 'null'
+            engine:
+              type: [string, 'null']
+              enum: [docker, podman, null]
+            engineVersion:
+              type: [string, 'null']
+            hostConnected:
+              type: boolean
+            allowedActions:
+              type: array
+              items:
+                type: string
+                enum: [start, stop, restart, delete, pause, unpause]
+    ContainerListPage:
+      type: object
+      required: [containers, summary]
+      additionalProperties: false
+      properties:
+        containers:
+          type: array
+          maxItems: 100
+          items:
+            $ref: '#/components/schemas/ContainerListItem'
+        summary:
+          type: object
+          required: [total, byDisplayStatus]
+          additionalProperties: false
+          properties:
+            total:
+              type: integer
+            byDisplayStatus:
+              $ref: '#/components/schemas/CountMap'
+        observedAt:
+          type: [string, 'null']
+          format: date-time
+        nextCursor:
+          type: [string, 'null']
+    ContainerDetail:
+      allOf:
+        - $ref: '#/components/schemas/ContainerListItem'
+        - type: object
+          required: [restartsLast24h, hostName, capabilities]
+          properties:
+            restartsLast24h:
+              type: integer
+              minimum: 0
+            hostName:
+              type: string
+            capabilities:
+              type: array
+              items:
+                type: string
+    ContainerConfigSummary:
+      type: object
+      properties:
+        command:
+          type: string
+        user:
+          type: string
+        workingDir:
+          type: string
+        healthcheck:
+          type: [object, 'null']
+          properties:
+            test:
+              type: string
+            intervalSeconds:
+              type: [number, 'null']
+            timeoutSeconds:
+              type: [number, 'null']
+            retries:
+              type: [integer, 'null']
+        labels:
+          type: object
+          additionalProperties:
+            type: string
+        logging:
+          type: [object, 'null']
+          properties:
+            driver:
+              type: string
+            options:
+              type: object
+              additionalProperties:
+                type: string
+        networks:
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+              ipAddress:
+                type: string
+        volumes:
+          type: array
+          items:
+            type: object
+            properties:
+              type:
+                type: string
+              name:
+                type: string
+              destination:
+                type: string
+              readOnly:
+                type: boolean
+        restartPolicy:
+          type: [object, 'null']
+          properties:
+            name:
+              type: string
+            maximumRetryCount:
+              type: integer
+        cpuLimitCores:
+          type: [number, 'null']
+        memoryLimitBytes:
+          type: [integer, 'null']
+          format: int64
+        environmentVariableCount:
+          type: integer
+        secretCount:
+          type: integer
+    ContainerInspection:
+      type: object
+      required: [json, truncated, redactedPaths]
+      properties:
+        json:
+          type: object
+        truncated:
+          type: boolean
+        redactedPaths:
+          type: array
+          items:
+            type: string
+    LogLineView:
+      type: object
+      required: [stream, text]
+      properties:
+        timestamp:
+          type: [string, 'null']
+          format: date-time
+        stream:
+          type: string
+          enum: [stdout, stderr]
+        level:
+          type: [string, 'null']
+        text:
+          type: string
+    ContainerLogPage:
+      type: object
+      required: [lines, truncated, omittedLines]
+      properties:
+        lines:
+          type: array
+          items:
+            $ref: '#/components/schemas/LogLineView'
+        truncated:
+          type: boolean
+        omittedLines:
+          type: integer
+    ResourceScope:
+      type: string
+      enum:
+        - environment:read
+        - environment:manage
+        - container:start
+        - container:stop
+        - container:restart
+        - container:delete
+        - audit:read
+        - container:pause
+        - container:inspect
+        - container:logs
+        - image:pull
+        - container:create
+        - container:exec
+    Stage:
+      type: string
+      enum: [production, staging, development]
+    EngineKind:
+      type: string
+      enum: [docker, podman]
+    HostSituation:
+      type: string
+      enum: [disabled, disconnected, stale, update_required, unknown, up_to_date]
+    ContainerDisplayStatus:
+      type: string
+      enum: [running, starting, failed, restarting, paused, stopped]
+    EventSeverity:
+      type: string
+      enum: [success, info, warning, error, neutral]
+    PortBinding:
+      type: object
+      required: [hostPort, containerPort, protocol]
+      additionalProperties: false
+      properties:
+        hostIp:
+          type: [string, 'null']
+        hostPort:
+          type: integer
+          minimum: 0
+          maximum: 65535
+        containerPort:
+          type: integer
+          minimum: 1
+          maximum: 65535
+        protocol:
+          type: string
+          enum: [tcp, udp, sctp]
+    HostAgentView:
+      type: object
+      required: [connected, capabilities]
+      additionalProperties: false
+      properties:
+        connected:
+          type: boolean
+        sessionStartedAt:
+          type: [string, 'null']
+          format: date-time
+        lastSeenAt:
+          type: [string, 'null']
+          format: date-time
+        agentVersion:
+          type: [string, 'null']
+        engine:
+          type: [string, 'null']
+          enum: [docker, podman, null]
+        engineVersion:
+          type: [string, 'null']
+        engineApiVersion:
+          type: [string, 'null']
+        engineRootless:
+          type: [boolean, 'null']
+        operatingSystem:
+          type: [string, 'null']
+        operatingSystemVersion:
+          type: [string, 'null']
+        architecture:
+          type: [string, 'null']
+        hostName:
+          type: [string, 'null']
+        cpuCount:
+          type: [integer, 'null']
+        memoryBytes:
+          type: [integer, 'null']
+          format: int64
+        capabilities:
+          type: array
+          items:
+            type: string
+    SetEnvironmentStageRequest:
+      type: object
+      required: [stage]
+      additionalProperties: false
+      properties:
+        stage:
+          oneOf:
+            - $ref: '#/components/schemas/Stage'
+            - type: 'null'
+    EnvironmentStageChanged:
+      type: object
+      required: [environmentId, stage, changed]
+      additionalProperties: false
+      properties:
+        environmentId:
+          type: string
+          format: uuid
+        stage:
+          oneOf:
+            - $ref: '#/components/schemas/Stage'
+            - type: 'null'
+        changed:
+          type: boolean
+    CountMap:
+      type: object
+      additionalProperties:
+        type: integer
+        minimum: 0
+    OverviewSummary:
+      type: object
+      required: [hosts, containers, engines, attentionEvents24h]
+      additionalProperties: false
+      properties:
+        stage:
+          oneOf:
+            - $ref: '#/components/schemas/Stage'
+            - type: 'null'
+        observedAt:
+          type: [string, 'null']
+          format: date-time
+        hosts:
+          type: object
+          required: [total, bySituation]
+          additionalProperties: false
+          properties:
+            total:
+              type: integer
+            bySituation:
+              $ref: '#/components/schemas/CountMap'
+        containers:
+          type: object
+          required: [total, byDisplayStatus]
+          additionalProperties: false
+          properties:
+            total:
+              type: integer
+            byDisplayStatus:
+              $ref: '#/components/schemas/CountMap'
+        engines:
+          type: array
+          items:
+            type: object
+            required: [engine, hosts, containers, versions]
+            additionalProperties: false
+            properties:
+              engine:
+                $ref: '#/components/schemas/EngineKind'
+              hosts:
+                type: integer
+              containers:
+                type: integer
+              versions:
+                type: array
+                items:
+                  type: object
+                  required: [version, hosts]
+                  additionalProperties: false
+                  properties:
+                    version:
+                      type: string
+                    hosts:
+                      type: integer
+        attentionEvents24h:
+          type: integer
+          minimum: 0
+    OperationalEvent:
+      type: object
+      required: [eventId, environmentId, type, severity, occurredAt, receivedAt, clockSkewDetected, parameters, aggregatedCount]
+      additionalProperties: false
+      properties:
+        eventId:
+          type: string
+          format: uuid
+        environmentId:
+          type: string
+          format: uuid
+        environmentName:
+          type: [string, 'null']
+        type:
+          type: string
+        severity:
+          $ref: '#/components/schemas/EventSeverity'
+        occurredAt:
+          type: string
+          format: date-time
+        receivedAt:
+          type: string
+          format: date-time
+        clockSkewDetected:
+          type: boolean
+        subjectKind:
+          type: [string, 'null']
+        subjectId:
+          type: [string, 'null']
+        subjectName:
+          type: [string, 'null']
+        parameters:
+          type: object
+          additionalProperties:
+            type: string
+        aggregatedCount:
+          type: integer
+          minimum: 1
+    OperationalEventPage:
+      type: object
+      required: [events]
+      additionalProperties: false
+      properties:
+        events:
+          type: array
+          maxItems: 100
+          items:
+            $ref: '#/components/schemas/OperationalEvent'
+        nextCursor:
+          type: [string, 'null']
     ProblemDetails:
       type: object
       required: [type, title, status, detail]

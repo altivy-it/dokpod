@@ -224,9 +224,11 @@ public static class ContainerCommandEndpoints
             "stop" => AgentCommandKind.StopContainer,
             "restart" => AgentCommandKind.RestartContainer,
             "delete" => AgentCommandKind.DeleteContainer,
+            "pause" => AgentCommandKind.PauseContainer,
+            "unpause" => AgentCommandKind.UnpauseContainer,
             _ => default,
         };
-        return action is "start" or "stop" or "restart" or "delete";
+        return action is "start" or "stop" or "restart" or "delete" or "pause" or "unpause";
     }
 
     private static string MapKind(AgentCommandKind kind) => kind switch
@@ -235,6 +237,8 @@ public static class ContainerCommandEndpoints
         AgentCommandKind.StopContainer => "stop",
         AgentCommandKind.RestartContainer => "restart",
         AgentCommandKind.DeleteContainer => "delete",
+        AgentCommandKind.PauseContainer => "pause",
+        AgentCommandKind.UnpauseContainer => "unpause",
         _ => throw new ArgumentOutOfRangeException(nameof(kind)),
     };
 

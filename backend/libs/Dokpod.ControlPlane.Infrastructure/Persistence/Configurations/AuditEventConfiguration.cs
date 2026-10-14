@@ -59,6 +59,8 @@ internal sealed class AuditEventConfiguration : IEntityTypeConfiguration<AuditEv
         entity.Property(x => x.FailureCode)
             .HasColumnName("failure_code")
             .HasMaxLength(128);
+        entity.Property(x => x.SubjectId).HasColumnName("subject_id").HasMaxLength(255);
+        entity.Property(x => x.Details).HasColumnName("details").HasColumnType("jsonb");
 
         entity.HasIndex(x => x.CorrelationId)
             .HasDatabaseName("ix_audit_events_correlation_id");

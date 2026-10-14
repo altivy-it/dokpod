@@ -1,0 +1,44 @@
+# Tarefas: Terminal Interativo no Container
+
+**Entrada**: [spec.md](spec.md), [plan.md](plan.md), [research.md](research.md), [data-model.md](data-model.md), [contracts/](contracts/contracts-delta.md).
+
+**Estado**: `approved-for-implementation` - execução autorizada em 2026-10-13 (specs/README.md); T001 e T002 continuam bloqueantes.
+
+**Pré-requisitos**: T001-T003 aprovadas; 011 concluída (página de detalhe, hub, BFF).
+
+## Fase 1: Governança e segurança (bloqueante)
+
+- [ ] T001 Criar `docs/adr/2026-0006-terminal-interativo.md` (`proposed`): fronteira de exec, canal separado, sem gravação de conteúdo, exceção ao modelo de comando durável (D-006), dependência xterm.js (licença MIT compatível com AGPL-3.0-only verificada, versão fixada), revisor humano.
+- [ ] T002 Threat model do terminal em `docs/seguranca.md` (abuso de shell, escalada, sessão órfã e processos em segundo plano como risco residual, sequências maliciosas, DoS do agente, janela de revogação, justificativa com segredo) e lista de testes negativos; registrar aprovação.
+- [ ] T003 Confirmar limites padrão, justificativa e MFA (D-005); documentar em `docs/configuracao-keycloak.md` a vida útil curta do access token (≤ 5 min) e a janela de revogação (D-008).
+
+## Fase 2: Contratos
+
+- [ ] T004 [P] Proto: `rpc Exec`, `ExecOpenRequest` (16), `ExecFrame`, capability 15; testes N/N-1 e de vínculo fencing.
+- [ ] T005 [P] OpenAPI `getTerminalPolicy` e scope `container:exec`; provisionar scope no Keycloak.
+
+## Fase 3: Agente (US1, US3)
+
+- [ ] T006 [US1] `ExecClient` Docker/Podman (create com `Cmd` fixo e `Tty`, fallback `/bin/bash` → `/bin/sh` por erro de executável (D-003), start hijacked, resize, término por fechamento do TTY e verificação `Running=false` em até 5 s) com testes reais.
+- [ ] T007 [US1] `ExecSessionManager` + `AgentExecClient`: abrir RPC `Exec` após `ExecOpenRequest`, handshake com sessão/fencing, limites de taxa e de sessões, término em perda de stream/container parado, deduplicação por `exec_session_id` e recusa após `expires_at`, persistência de execs ativos em `<data>/exec-sessions.json` e verificação de órfãos após reinício (`orphan_suspected`); nunca anunciar `CAPABILITY_CONTAINER_EXEC` no agente Windows; testes.
+
+## Fase 4: API (US1-US3)
+
+- [ ] T008 [US2] `TerminalPolicy` e `getTerminalPolicy` (scope, label, estágio, MFA, limites, container em execução, capability).
+- [ ] T009 [US1] `AgentExecService` (servidor do RPC `Exec`) + `ExecSessionRegistry` (pendentes/ativas, validação de handshake).
+- [ ] T010 [US2] `TerminalSessionService` + `OpenTerminal` no hub: justificativa, auditoria `requested/started/ended/denied`, ociosidade, duração, aviso de 1 min, reavaliação de autorização a cada 60 s via `StreamingAuthorizationMonitor` compartilhado com a 011 (D-008), término em logout/revogação; justificativa mascarada e exceção `justification` na allowlist de `details` (D-009); exigir WebSocket (`websocket_required`); keepalive 15 s/timeout 30 s (D-010); testes.
+
+## Fase 5: Frontend (US1)
+
+- [ ] T011 [US1] Adicionar xterm.js (versão fixada, após aprovação) e `terminal.tab.*` + `terminal.facade.ts` em `features/container-detail/`, conforme a aba Terminal de `Detalhe.dc.html` (painel escuro monoespaçado, mínimo 360 px, sessão abre ao ativar a aba, sem confirmação): estados conectando/conectado/encerrado, diálogo de justificativa em Produção, alerta de usuário root, colar multi-linha com confirmação, atalho para sair do foco, modo leitor de tela, configuração restritiva (sem OSC 52/links).
+- [ ] T012 [US1] Habilitar "Abrir terminal" no cabeçalho do detalhe (011) e na ação de linha (010) conforme `allowedActions`, navegando para o detalhe com `?tab=terminal`; substituir o "em breve" da 011 por "sem permissão" (sem scope), "não suportado pelo agente" (sem capability) ou habilitado.
+
+## Fase 6: Verificação
+
+- [ ] T013 Playwright com terminal real (Docker/Podman), testes negativos (SC-003), término em todos os motivos com verificação por inspeção do exec (SC-002), queda do navegador em ≤ 30 s, medição do SC-001 (prompt ≤ 3 s, eco ≤ 150 ms p95) com evidência registrada, acessibilidade.
+- [ ] T014 Carga com 4 sessões por agente (SC-004) e canários (SC-005); evidência registrada.
+- [ ] T015 Loop visual desktop/mobile da aba Terminal e diálogos; comparar com `Detalhe.dc.html` (estado tab 4).
+
+## Dependências e Ordem de Execução
+
+T001-T003 (gates) -> T004/T005 -> T006/T007 -> T008-T010 -> T011/T012 -> T013-T015.

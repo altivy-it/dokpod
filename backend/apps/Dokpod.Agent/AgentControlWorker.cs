@@ -2,6 +2,7 @@ using System.Runtime.InteropServices;
 using System.Security.Cryptography.X509Certificates;
 using System.Threading.Channels;
 using Dokpod.Agent.Application.Engines;
+using Dokpod.Agent.Application.Events;
 using Dokpod.Agent.Application.Protocol;
 using Dokpod.Agent.Contracts.V1;
 using AgentGrpcClient = Dokpod.Agent.Infrastructure.Protocol.AgentControlClient;
@@ -71,8 +72,9 @@ public sealed class AgentControlWorker(
         CancellationToken stoppingToken)
     {
         var descriptor = await engine.InspectAsync(stoppingToken);
+        var hostInfo = await TryDescribeHostAsync(stoppingToken);
         using var call = connect(stoppingToken);
-        await call.RequestStream.WriteAsync(CreateHello(descriptor), stoppingToken);
+        await call.RequestStream.WriteAsync(CreateHello(descriptor, hostInfo), stoppingToken);
         if (!await call.ResponseStream.MoveNext(stoppingToken) ||
             call.ResponseStream.Current.PayloadCase != ControlPlaneMessage.PayloadOneofCase.SessionEstablished)
         {
@@ -98,21 +100,33 @@ public sealed class AgentControlWorker(
             SingleWriter = false,
             FullMode = BoundedChannelFullMode.Wait,
         });
+        // Fila de baixa prioridade para consultas e logs (spec 011 D-002): comandos, heartbeat e inventário saem antes.
+        var background = Channel.CreateBounded<AgentMessage>(new BoundedChannelOptions(64)
+        {
+            SingleReader = true,
+            SingleWriter = false,
+            FullMode = BoundedChannelFullMode.Wait,
+        });
         var writer = WriteMessagesAsync(
             call.RequestStream,
             outbound.Reader,
+            background.Reader,
             sessionId,
             established.FencingToken,
             sessionCancellation.Token);
-        ulong inventoryRevision = await SendInventorySnapshotAsync(
-            outbound.Writer,
-            0,
-            sessionCancellation.Token);
+        var inventory = new InventoryPublisher(this, outbound.Writer);
+        await inventory.SendAsync(sessionCancellation.Token);
         var heartbeat = SendHeartbeatsAsync(
             outbound.Writer,
-            () => inventoryRevision,
+            () => inventory.Revision,
             TimeSpan.FromSeconds(established.HeartbeatIntervalSeconds),
             sessionCancellation.Token);
+        // Agente N só envia payloads novos com capability confirmada pelo servidor (008 D-009).
+        var eventsAccepted = established.AcceptedCapabilities.Contains(Capability.EngineEvents);
+        var events = WatchEngineEventsAsync(outbound.Writer, inventory, eventsAccepted, sessionCancellation.Token);
+        var queries = new Dokpod.Agent.Application.Queries.ContainerQueryHandler(engine, TimeProvider.System);
+        var logStreams = new Dokpod.Agent.Application.Queries.LogStreamManager(engine, TimeProvider.System);
+        Task SendBackground(AgentMessage outgoing) => background.Writer.WriteAsync(outgoing, sessionCancellation.Token).AsTask();
 
         ulong serverSequence = 1;
         try
@@ -142,17 +156,20 @@ public sealed class AgentControlWorker(
                             new AgentMessage { CommandResult = result },
                             cancellationToken).AsTask(),
                         sessionCancellation.Token);
-                    inventoryRevision = await SendInventorySnapshotAsync(
-                        outbound.Writer,
-                        inventoryRevision,
-                        sessionCancellation.Token);
+                    await inventory.SendAsync(sessionCancellation.Token);
                 }
                 else if (message.PayloadCase == ControlPlaneMessage.PayloadOneofCase.SnapshotRequest)
                 {
-                    inventoryRevision = await SendInventorySnapshotAsync(
-                        outbound.Writer,
-                        inventoryRevision,
-                        sessionCancellation.Token);
+                    await inventory.SendAsync(sessionCancellation.Token);
+                }
+                else if (message.PayloadCase == ControlPlaneMessage.PayloadOneofCase.ContainerQuery)
+                {
+                    var request = message.ContainerQuery;
+                    _ = Task.Run(() => IgnoreCancellationAsync(queries.HandleAsync(request, SendBackground, sessionCancellation.Token)), CancellationToken.None);
+                }
+                else if (message.PayloadCase == ControlPlaneMessage.PayloadOneofCase.LogStreamControl)
+                {
+                    await logStreams.HandleAsync(message.LogStreamControl, SendBackground, sessionCancellation.Token);
                 }
             }
         }
@@ -160,21 +177,34 @@ public sealed class AgentControlWorker(
         {
             await sessionCancellation.CancelAsync();
             outbound.Writer.TryComplete();
+            background.Writer.TryComplete();
             await IgnoreCancellationAsync(writer);
             await IgnoreCancellationAsync(heartbeat);
+            await IgnoreCancellationAsync(events);
         }
     }
 
     private static async Task WriteMessagesAsync(
         IClientStreamWriter<AgentMessage> requestStream,
         ChannelReader<AgentMessage> messages,
+        ChannelReader<AgentMessage> background,
         Guid sessionId,
         ulong fencingToken,
         CancellationToken cancellationToken)
     {
         ulong sequence = 0;
-        await foreach (var message in messages.ReadAllAsync(cancellationToken))
+        while (true)
         {
+            // Alta prioridade sempre drena primeiro; a fila de consultas/logs só é lida quando a outra está vazia.
+            if (!messages.TryRead(out var message) && !background.TryRead(out message))
+            {
+                var high = messages.WaitToReadAsync(cancellationToken).AsTask();
+                var low = background.WaitToReadAsync(cancellationToken).AsTask();
+                await Task.WhenAny(high, low);
+                if (high.IsCompleted && !await high && (!low.IsCompleted || !await low)) return;
+                continue;
+            }
+
             message.Metadata = new MessageMetadata
             {
                 ProtocolVersion = "1",
@@ -233,19 +263,145 @@ public sealed class AgentControlWorker(
             page.Containers.AddRange(orderedContainers
                 .Skip(pageNumber * SnapshotPageSize)
                 .Take(SnapshotPageSize)
-                .Select(container => new ContainerState
-                {
-                    ContainerId = container.ContainerId,
-                    Name = container.Name,
-                    ImageReference = container.ImageReference,
-                    State = MapContainerState(container.State),
-                    Revision = container.Revision,
-                    ObservedAt = Timestamp.FromDateTimeOffset(observedAt),
-                }));
+                .Select(container => MapContainer(container, observedAt)));
             await messages.WriteAsync(new AgentMessage { SnapshotPage = page }, cancellationToken);
         }
 
         return revision;
+    }
+
+    private static ContainerState MapContainer(EngineContainer container, DateTimeOffset observedAt)
+    {
+        var state = new ContainerState
+        {
+            ContainerId = container.ContainerId,
+            Name = container.Name,
+            ImageReference = container.ImageReference,
+            State = MapContainerState(container.State),
+            Revision = container.Revision,
+            ObservedAt = Timestamp.FromDateTimeOffset(observedAt),
+            Health = container.Health switch
+            {
+                "none" => ContainerHealth.None,
+                "starting" => ContainerHealth.Starting,
+                "healthy" => ContainerHealth.Healthy,
+                "unhealthy" => ContainerHealth.Unhealthy,
+                _ => ContainerHealth.Unspecified,
+            },
+            RestartCount = container.RestartCount is > 0 ? (uint)container.RestartCount.Value : 0,
+            OomKilled = container.OomKilled ?? false,
+        };
+        if (container.CreatedAtUtc is not null) state.CreatedAt = Timestamp.FromDateTimeOffset(container.CreatedAtUtc.Value);
+        if (container.StartedAtUtc is not null) state.StartedAt = Timestamp.FromDateTimeOffset(container.StartedAtUtc.Value);
+        if (container.ExitCode is not null) state.ExitCode = container.ExitCode.Value;
+        state.Ports.AddRange(container.Ports.Take(64).Select(port => new PortBinding
+        {
+            HostIp = port.HostIp ?? string.Empty,
+            HostPort = (uint)Math.Clamp(port.HostPort, 0, 65535),
+            ContainerPort = (uint)Math.Clamp(port.ContainerPort, 0, 65535),
+            Protocol = port.Protocol switch
+            {
+                "udp" => TransportProtocol.Udp,
+                "sctp" => TransportProtocol.Sctp,
+                _ => TransportProtocol.Tcp,
+            },
+        }));
+        return state;
+    }
+
+    private async Task<EngineHostInfo?> TryDescribeHostAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await engine.DescribeHostAsync(cancellationToken);
+        }
+        catch (Exception exception) when (exception is HttpRequestException or IOException or InvalidDataException or System.Text.Json.JsonException)
+        {
+            logger.LogWarning(exception, "Engine host description unavailable");
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Assina eventos do engine (reconectando), envia lotes a cada segundo quando aceitos e
+    /// republica o inventário 2 s depois da última mudança de container.
+    /// </summary>
+    private async Task WatchEngineEventsAsync(
+        ChannelWriter<AgentMessage> messages,
+        InventoryPublisher inventory,
+        bool sendEvents,
+        CancellationToken cancellationToken)
+    {
+        var publisher = new EngineEventPublisher(TimeProvider.System);
+        long dirtySince = 0;
+        var pump = Task.Run(async () =>
+        {
+            using var timer = new PeriodicTimer(TimeSpan.FromSeconds(1));
+            while (await timer.WaitForNextTickAsync(cancellationToken))
+            {
+                var batch = publisher.Drain();
+                if (sendEvents && batch is not null)
+                {
+                    await messages.WriteAsync(new AgentMessage { EngineEvents = batch }, cancellationToken);
+                }
+
+                var since = Interlocked.Read(ref dirtySince);
+                if (since != 0 && Environment.TickCount64 - since >= 2000 &&
+                    Interlocked.CompareExchange(ref dirtySince, 0, since) == since)
+                {
+                    await inventory.SendAsync(cancellationToken);
+                }
+            }
+        }, cancellationToken);
+
+        while (!cancellationToken.IsCancellationRequested)
+        {
+            try
+            {
+                await foreach (var record in engine.WatchEventsAsync(cancellationToken))
+                {
+                    if (publisher.Observe(record))
+                    {
+                        Interlocked.Exchange(ref dirtySince, Environment.TickCount64);
+                    }
+                }
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                break;
+            }
+            catch (Exception exception) when (exception is HttpRequestException or IOException or InvalidDataException or NotSupportedException)
+            {
+                logger.LogWarning(exception, "Engine event stream interrupted");
+            }
+
+            await Task.Delay(ReconnectDelay, cancellationToken);
+        }
+
+        await IgnoreCancellationAsync(pump);
+    }
+
+    /// <summary>Serializa os envios de snapshot (comandos, pedidos do servidor e eventos).</summary>
+    private sealed class InventoryPublisher(AgentControlWorker worker, ChannelWriter<AgentMessage> messages)
+    {
+        private readonly SemaphoreSlim gate = new(1, 1);
+        private ulong revision;
+
+        public ulong Revision => Interlocked.Read(ref revision);
+
+        public async Task SendAsync(CancellationToken cancellationToken)
+        {
+            await gate.WaitAsync(cancellationToken);
+            try
+            {
+                var next = await worker.SendInventorySnapshotAsync(messages, Revision, cancellationToken);
+                Interlocked.Exchange(ref revision, next);
+            }
+            finally
+            {
+                gate.Release();
+            }
+        }
     }
 
     private static ContainerLifecycleState MapContainerState(string state) => state.ToLowerInvariant() switch
@@ -259,13 +415,18 @@ public sealed class AgentControlWorker(
         _ => ContainerLifecycleState.Unspecified,
     };
 
-    private static AgentMessage CreateHello(EngineDescriptor descriptor)
+    private static AgentMessage CreateHello(EngineDescriptor descriptor, EngineHostInfo? hostInfo)
     {
         var hello = new AgentHello
         {
             AgentVersion = typeof(AgentControlWorker).Assembly.GetName().Version?.ToString() ?? "0.0.0",
-            Engine = EngineKind.Docker,
+            Engine = hostInfo?.Engine == "podman" ? EngineKind.Podman : EngineKind.Docker,
             EngineVersion = descriptor.EngineVersion,
+            EngineApiVersion = descriptor.ApiVersion,
+            EngineRootless = hostInfo?.Rootless ?? false,
+            HostName = hostInfo?.HostName ?? System.Environment.MachineName,
+            CpuCount = hostInfo?.CpuCount is > 0 ? (uint)hostInfo.CpuCount.Value : (uint)System.Environment.ProcessorCount,
+            MemoryBytes = hostInfo?.MemoryBytes is > 0 ? (ulong)hostInfo.MemoryBytes.Value : 0,
             OperatingSystem = System.OperatingSystem.IsWindows()
                 ? Dokpod.Agent.Contracts.V1.OperatingSystem.Windows
                 : Dokpod.Agent.Contracts.V1.OperatingSystem.Linux,
@@ -280,6 +441,11 @@ public sealed class AgentControlWorker(
                 Capability.ContainerStop,
                 Capability.ContainerRestart,
                 Capability.ContainerDelete,
+                Capability.EngineEvents,
+                Capability.ContainerPause,
+                Capability.ContainerUnpause,
+                Capability.ContainerInspect,
+                Capability.ContainerLogs,
             },
             SupportedProtocolVersions = { "1" },
         };

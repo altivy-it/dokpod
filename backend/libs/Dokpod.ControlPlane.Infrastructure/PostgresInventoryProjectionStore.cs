@@ -1,4 +1,5 @@
 using System.Data;
+using System.Text.Json;
 using Dokpod.ControlPlane.Application.Inventory;
 using Dokpod.Domain.Inventory;
 using Microsoft.EntityFrameworkCore;
@@ -71,13 +72,7 @@ public sealed class PostgresInventoryProjectionStore(ControlPlaneDbContext dbCon
                 checked((ulong)projection.Revision),
                 projection.Containers.ToDictionary(
                     container => container.ContainerId,
-                    container => new ContainerInventory(
-                        container.ContainerId,
-                        container.Name,
-                        container.ImageReference,
-                        container.State,
-                        container.Revision,
-                        container.ObservedAtUtc),
+                    ToDomain,
                     StringComparer.Ordinal));
 
         var result = InventoryReconciler.Apply(current, delta);
@@ -120,11 +115,7 @@ public sealed class PostgresInventoryProjectionStore(ControlPlaneDbContext dbCon
                 continue;
             }
 
-            entity.Name = container.Name;
-            entity.ImageReference = container.ImageReference;
-            entity.State = container.State;
-            entity.Revision = container.Revision;
-            entity.ObservedAtUtc = container.ObservedAtUtc;
+            ApplyToEntity(entity, container);
         }
 
         await dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
@@ -191,17 +182,16 @@ public sealed class PostgresInventoryProjectionStore(ControlPlaneDbContext dbCon
         return new InventoryReconciliationResult(snapshot, InventoryReconciliationOutcome.Accepted);
     }
 
-    private static InventoryContainerEntity ToEntity(Guid environmentId, ContainerInventory container) =>
-        new()
+    private static InventoryContainerEntity ToEntity(Guid environmentId, ContainerInventory container)
+    {
+        var entity = new InventoryContainerEntity
         {
             EnvironmentId = environmentId,
             ContainerId = container.ContainerId,
-            Name = container.Name,
-            ImageReference = container.ImageReference,
-            State = container.State,
-            Revision = container.Revision,
-            ObservedAtUtc = container.ObservedAtUtc,
         };
+        ApplyToEntity(entity, container);
+        return entity;
+    }
 
     private static void ApplyToEntity(InventoryContainerEntity entity, ContainerInventory container)
     {
@@ -210,16 +200,51 @@ public sealed class PostgresInventoryProjectionStore(ControlPlaneDbContext dbCon
         entity.State = container.State;
         entity.Revision = container.Revision;
         entity.ObservedAtUtc = container.ObservedAtUtc;
+        entity.CreatedAtUtc = container.CreatedAtUtc;
+        entity.StartedAtUtc = container.StartedAtUtc;
+        entity.Health = container.Health switch
+        {
+            ContainerHealth.None => "none",
+            ContainerHealth.Starting => "starting",
+            ContainerHealth.Healthy => "healthy",
+            ContainerHealth.Unhealthy => "unhealthy",
+            _ => null,
+        };
+        entity.RestartCount = container.RestartCount;
+        entity.ExitCode = container.ExitCode;
+        entity.OomKilled = container.OomKilled;
+        entity.Ports = container.Ports.Count == 0
+            ? null
+            : JsonSerializer.Serialize(container.Ports.Take(ContainerPortBinding.MaxPerContainer));
+        entity.DisplayStatus = ContainerDisplayStatuses.ToValue(container.DisplayStatus);
     }
 
-    private static ContainerInventory ToDomain(InventoryContainerEntity container) =>
+    internal static ContainerInventory ToDomain(InventoryContainerEntity container) =>
         new(
             container.ContainerId,
             container.Name,
             container.ImageReference,
             container.State,
             container.Revision,
-            container.ObservedAtUtc);
+            container.ObservedAtUtc)
+        {
+            CreatedAtUtc = container.CreatedAtUtc,
+            StartedAtUtc = container.StartedAtUtc,
+            Health = container.Health switch
+            {
+                "none" => ContainerHealth.None,
+                "starting" => ContainerHealth.Starting,
+                "healthy" => ContainerHealth.Healthy,
+                "unhealthy" => ContainerHealth.Unhealthy,
+                _ => null,
+            },
+            RestartCount = container.RestartCount,
+            ExitCode = container.ExitCode,
+            OomKilled = container.OomKilled,
+            Ports = string.IsNullOrEmpty(container.Ports)
+                ? []
+                : JsonSerializer.Deserialize<ContainerPortBinding[]>(container.Ports) ?? [],
+        };
 
     private static InventorySnapshot ToSnapshot(InventoryProjectionEntity projection) =>
         new(

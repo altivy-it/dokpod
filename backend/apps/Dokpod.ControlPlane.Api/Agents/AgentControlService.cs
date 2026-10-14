@@ -3,6 +3,7 @@ using Dokpod.Agent.Contracts.V1;
 using Dokpod.ControlPlane.Application.Agents;
 using Dokpod.ControlPlane.Application.Commands;
 using Dokpod.ControlPlane.Application.Inventory;
+using Dokpod.ControlPlane.Application.Realtime;
 using Dokpod.ControlPlane.Api.Realtime;
 using Dokpod.Domain.Inventory;
 using Google.Protobuf.WellKnownTypes;
@@ -21,6 +22,9 @@ public sealed class AgentControlService(
     AgentCommandStatusService commandStatusService,
     InventoryProjectionService inventoryProjection,
     IHubContext<ControlPlaneHub> hubContext,
+    AgentHostActivity hostActivity,
+    IControlPlaneNotifier notifier,
+    Dokpod.ControlPlane.Application.Queries.AgentQueryDispatcher queryDispatcher,
     ILogger<AgentControlService> logger) : AgentControl.AgentControlBase
 {
     private const int MaximumMessageBytes = 1_048_576;
@@ -46,11 +50,12 @@ public sealed class AgentControlService(
         }
 
         AgentSession session;
+        var hello = requestStream.Current.Hello;
         try
         {
             session = await negotiator.NegotiateAsync(
                 certificate,
-                requestStream.Current.Hello,
+                hello,
                 context.CancellationToken);
         }
         catch (AgentSessionRejectedException exception)
@@ -88,10 +93,19 @@ public sealed class AgentControlService(
                     SelectedProtocolVersion = AgentSessionNegotiator.ProtocolVersion,
                     SessionId = session.SessionId.ToString("D"),
                     FencingToken = session.FencingToken,
-                    HeartbeatIntervalSeconds = 30,
+                    HeartbeatIntervalSeconds = 15,
                     MaximumMessageBytes = MaximumMessageBytes,
+                    AcceptedCapabilities = { AgentHostActivity.Accept(hello) },
                 },
             });
+            await hostActivity.OnSessionStartedAsync(session, hello, context.CancellationToken);
+            var sessionOutbound = System.Threading.Channels.Channel.CreateBounded<ControlPlaneMessage>(64);
+            using var queryRegistration = queryDispatcher.Register(
+                session.EnvironmentId,
+                session.SessionId,
+                hello.Capabilities,
+                sessionOutbound.Writer);
+            Task<ControlPlaneMessage>? nextOutbound = null;
 
             ulong lastSequence = 0;
             ulong serverSequence = 1;
@@ -113,7 +127,17 @@ public sealed class AgentControlService(
                     : commandDeliveryQueue
                         .DequeueAsync(session.EnvironmentId, sessionCancellation.Token)
                         .AsTask();
-                var completed = await Task.WhenAny(nextMessage, nextCommand, invalidated, heartbeatExpired);
+                nextOutbound ??= sessionOutbound.Reader.ReadAsync(sessionCancellation.Token).AsTask();
+                var completed = await Task.WhenAny(nextMessage, nextCommand, nextOutbound, invalidated, heartbeatExpired);
+                if (completed == nextOutbound)
+                {
+                    var outgoing = await nextOutbound;
+                    nextOutbound = null;
+                    outgoing.Metadata = CreateServerMetadata(session, ++serverSequence);
+                    await responseStream.WriteAsync(outgoing);
+                    continue;
+                }
+
                 if (completed == invalidated)
                 {
                     throw new RpcException(new Status(StatusCode.Aborted, "agent_session_fenced"));
@@ -149,6 +173,19 @@ public sealed class AgentControlService(
                             DateTimeOffset.UtcNow,
                             context.CancellationToken));
                     }
+                    if (!AgentSupports(hello, command.Command.Kind))
+                    {
+                        // Regra de negociação (008 D-009): comando novo só vai a agente que anunciou a capability.
+                        await commandStatusService.RecordAcceptanceAsync(
+                            session.EnvironmentId,
+                            command.Command.CommandId,
+                            false,
+                            "capability_not_supported",
+                            DateTimeOffset.UtcNow,
+                            context.CancellationToken);
+                        continue;
+                    }
+
                     await responseStream.WriteAsync(new ControlPlaneMessage
                     {
                         Metadata = CreateServerMetadata(session, ++serverSequence),
@@ -188,6 +225,28 @@ public sealed class AgentControlService(
                 switch (requestStream.Current.PayloadCase)
                 {
                     case AgentMessage.PayloadOneofCase.Heartbeat:
+                        await hostActivity.OnHeartbeatAsync(
+                            session.EnvironmentId,
+                            requestStream.Current.Heartbeat.InventoryRevision,
+                            context.CancellationToken);
+                        break;
+
+                    case AgentMessage.PayloadOneofCase.ContainerQueryResponse
+                        when hello.Capabilities.Contains(Capability.ContainerInspect) || hello.Capabilities.Contains(Capability.ContainerLogs):
+                        queryDispatcher.OnResponse(session.EnvironmentId, requestStream.Current.ContainerQueryResponse);
+                        break;
+
+                    case AgentMessage.PayloadOneofCase.LogChunk
+                        when hello.Capabilities.Contains(Capability.ContainerLogs):
+                        queryDispatcher.OnLogChunk(session.EnvironmentId, requestStream.Current.LogChunk);
+                        break;
+
+                    case AgentMessage.PayloadOneofCase.EngineEvents
+                        when hello.Capabilities.Contains(Capability.EngineEvents):
+                        await hostActivity.OnEngineEventsAsync(
+                            session.EnvironmentId,
+                            requestStream.Current.EngineEvents,
+                            context.CancellationToken);
                         break;
 
                     case AgentMessage.PayloadOneofCase.InventoryDelta:
@@ -209,6 +268,7 @@ public sealed class AgentControlService(
                         }
                         else
                         {
+                            hostActivity.OnSnapshotApplied(session.EnvironmentId, result.Snapshot.Revision);
                             await NotifyInventoryChangedAsync(
                                 session.EnvironmentId,
                                 result.Snapshot.Revision,
@@ -238,6 +298,7 @@ public sealed class AgentControlService(
                                     snapshotResult.FailureCode ?? "inventory_snapshot_stale"));
                             }
 
+                            hostActivity.OnSnapshotApplied(session.EnvironmentId, snapshotResult.Snapshot.Revision);
                             await NotifyInventoryChangedAsync(
                                 session.EnvironmentId,
                                 snapshotResult.Snapshot.Revision,
@@ -259,6 +320,14 @@ public sealed class AgentControlService(
                             session.EnvironmentId,
                             requestStream.Current.CommandResult,
                             context.CancellationToken);
+                        if (Guid.TryParse(requestStream.Current.CommandResult.CommandId, out var completedCommandId))
+                        {
+                            await hostActivity.OnCommandResultAsync(
+                                session.EnvironmentId,
+                                completedCommandId,
+                                context.CancellationToken);
+                        }
+
                         break;
 
                     default:
@@ -271,9 +340,20 @@ public sealed class AgentControlService(
         finally
         {
             await sessionCancellation.CancelAsync();
+            var wasActive = sessionStore.IsActive(session);
             await sessionStore.DeactivateAsync(session, CancellationToken.None);
+            var replaced = !wasActive &&
+                await sessionStore.FindActiveAsync(session.EnvironmentId, CancellationToken.None) is not null;
+            await hostActivity.OnSessionEndedAsync(session, replaced);
         }
     }
+
+    private static bool AgentSupports(AgentHello hello, Dokpod.Domain.Commands.AgentCommandKind kind) => kind switch
+    {
+        Dokpod.Domain.Commands.AgentCommandKind.PauseContainer => hello.Capabilities.Contains(Capability.ContainerPause),
+        Dokpod.Domain.Commands.AgentCommandKind.UnpauseContainer => hello.Capabilities.Contains(Capability.ContainerUnpause),
+        _ => true,
+    };
 
     private static bool IsValidTimestamp(Timestamp? timestamp)
         => timestamp is not null &&
@@ -323,13 +403,7 @@ public sealed class AgentControlService(
 
             var container = change.Container is null
                 ? null
-                : new ContainerInventory(
-                    containerId,
-                    change.Container.Name,
-                    change.Container.ImageReference,
-                    change.Container.State.ToString(),
-                    change.Container.Revision,
-                    change.Container.ObservedAt.ToDateTimeOffset());
+                : MapContainerFields(containerId, change.Container);
             return new InventoryChange(kind.Value, containerId, container);
         }).ToArray();
 
@@ -346,6 +420,8 @@ public sealed class AgentControlService(
                 Dokpod.Domain.Commands.AgentCommandKind.StopContainer => CommandKind.StopContainer,
                 Dokpod.Domain.Commands.AgentCommandKind.RestartContainer => CommandKind.RestartContainer,
                 Dokpod.Domain.Commands.AgentCommandKind.DeleteContainer => CommandKind.DeleteContainer,
+                Dokpod.Domain.Commands.AgentCommandKind.PauseContainer => CommandKind.PauseContainer,
+                Dokpod.Domain.Commands.AgentCommandKind.UnpauseContainer => CommandKind.UnpauseContainer,
                 _ => CommandKind.Unspecified,
             },
             ContainerId = command.ContainerId,
@@ -450,16 +526,57 @@ public sealed class AgentControlService(
             throw new RpcException(new Status(StatusCode.InvalidArgument, "inventory_container_invalid"));
         }
 
-        return new ContainerInventory(
-            container.ContainerId,
+        return MapContainerFields(container.ContainerId, container);
+    }
+
+    private static ContainerInventory MapContainerFields(string containerId, ContainerState container) =>
+        new(
+            containerId,
             container.Name,
             container.ImageReference,
             container.State.ToString(),
             container.Revision,
-            container.ObservedAt.ToDateTimeOffset());
+            container.ObservedAt.ToDateTimeOffset())
+        {
+            CreatedAtUtc = IsValidTimestamp(container.CreatedAt) && container.CreatedAt.Seconds > 0 ? container.CreatedAt.ToDateTimeOffset() : null,
+            StartedAtUtc = IsValidTimestamp(container.StartedAt) && container.StartedAt.Seconds > 0 ? container.StartedAt.ToDateTimeOffset() : null,
+            Health = container.Health switch
+            {
+                Dokpod.Agent.Contracts.V1.ContainerHealth.None => Dokpod.Domain.Inventory.ContainerHealth.None,
+                Dokpod.Agent.Contracts.V1.ContainerHealth.Starting => Dokpod.Domain.Inventory.ContainerHealth.Starting,
+                Dokpod.Agent.Contracts.V1.ContainerHealth.Healthy => Dokpod.Domain.Inventory.ContainerHealth.Healthy,
+                Dokpod.Agent.Contracts.V1.ContainerHealth.Unhealthy => Dokpod.Domain.Inventory.ContainerHealth.Unhealthy,
+                _ => null,
+            },
+            RestartCount = container.RestartCount == 0 && container.CreatedAt is null ? null : (int)Math.Min(container.RestartCount, int.MaxValue),
+            ExitCode = container.HasExitCode ? container.ExitCode : null,
+            OomKilled = container.CreatedAt is null ? null : container.OomKilled,
+            Ports = container.Ports
+                .Take(ContainerPortBinding.MaxPerContainer)
+                .Where(port => port.ContainerPort is > 0 and <= 65535 && port.HostPort <= 65535)
+                .Select(port => new ContainerPortBinding(
+                    string.IsNullOrWhiteSpace(port.HostIp) ? null : port.HostIp[..Math.Min(port.HostIp.Length, 64)],
+                    (int)port.HostPort,
+                    (int)port.ContainerPort,
+                    port.Protocol switch
+                    {
+                        TransportProtocol.Udp => "udp",
+                        TransportProtocol.Sctp => "sctp",
+                        _ => "tcp",
+                    }))
+                .ToArray(),
+        };
+
+    private async Task NotifyInventoryChangedAsync(
+        Guid environmentId,
+        ulong revision,
+        CancellationToken cancellationToken)
+    {
+        await notifier.NotifyAsync(environmentId, InvalidationKinds.Inventory, cancellationToken);
+        await SendInventoryChangedAsync(environmentId, revision, cancellationToken);
     }
 
-    private Task NotifyInventoryChangedAsync(
+    private Task SendInventoryChangedAsync(
         Guid environmentId,
         ulong revision,
         CancellationToken cancellationToken) =>

@@ -67,6 +67,21 @@ public sealed class EnvironmentAccessService(
             correlationId,
             cancellationToken);
 
+    public Task<EnvironmentAccessDecisionResult> ChangeStageAsync(
+        Guid environmentId,
+        AuthenticatedActor actor,
+        string accessToken,
+        Guid correlationId,
+        CancellationToken cancellationToken) => AuthorizeAndAuditAsync(
+            environmentId,
+            EnvironmentResourceScopes.Manage,
+            actor,
+            accessToken,
+            AuditActorKind.User,
+            "environment.stage_changed",
+            correlationId,
+            cancellationToken);
+
     private async Task<EnvironmentAccessDecisionResult> AuthorizeAndAuditAsync(
         Guid environmentId,
         string requiredScope,

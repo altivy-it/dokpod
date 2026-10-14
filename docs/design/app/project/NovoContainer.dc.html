@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Novo container</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="altivy-app.css">
+<link rel="stylesheet" href="ds/altivy/components/bundle.css">
+<script src="ds/altivy/components/bundle.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#5eead4}a:hover{color:#e2e8f0}
+</style>
+</helmet>
+<x-import component-from-global-scope="Altivy.Page" class-name="alt-app" style="min-height: 1000px; padding: 16px; box-sizing: border-box">
+<div style="position: relative; border-radius: 22px; overflow: hidden">
+<x-import component-from-global-scope="Altivy.AppShell" height="{{shellH}}" menu="{{menu}}" default-active="containers" title="Containers" breadcrumbs="{{crumbs}}" user="{{user}}" shortcuts="{{envs}}" header-props="{{headerProps}}">
+<div style="display: flex; flex-direction: column; gap: 16px; padding: 8px">
+<div style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px">
+<div style="display: flex; flex-direction: column; gap: 4px">
+<span class="eyebrow" style="color: #5eead4">Operação · Produção</span>
+<h1 class="app-title" style="margin: 0; color: #ffffff">Containers em todos os hosts</h1>
+</div>
+<x-import component-from-global-scope="Altivy.Button" variant="primary" size="sm" start-icon="plus">Novo container</x-import>
+</div>
+<div class="alt-panel" style="overflow: hidden">
+<sc-for list="{{bg}}" as="r" hint-placeholder-count="8">
+<div class="ct-row app-small" style="grid-template-columns: 1.4fr 1fr 1fr 2fr">
+<span style="color: #ffffff; font-weight: 500">{{r.n}}</span>
+<span><x-import component-from-global-scope="Altivy.StatusCircle" color="{{r.tone}}" text="{{r.s}}" size="small"></x-import></span>
+<span style="color: #a0aec0">{{r.h}}</span>
+<span class="ct-mono" style="color: #a0aec0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{r.i}}</span>
+</div>
+</sc-for>
+</div>
+</div>
+</x-import>
+
+<x-import component-from-global-scope="Altivy.CorporateDrawer" contained="{{yes}}" open="{{open}}" on-close="{{close}}" on-primary="{{close}}" auto-focus="{{no}}" width="{{drawerW}}" eyebrow="Novo container · Produção" title="Criar e iniciar container" subtitle="A imagem é baixada do registro se não existir no host" chips="{{chips}}" primary-label="Criar e iniciar" cancel-label="Cancelar">
+<form style="display: flex; flex-direction: column; gap: 18px" onSubmit="{{prevent}}">
+
+<dc-import name="Campo" label="Imagem" value="registry.empresa.com/pedidos/api:3.14.2" mono="{{yes}}" help="Assinatura verificada · 184 MB · publicada em 09/10/2026" hint-size="100%,88px"></dc-import>
+
+<dc-import name="Campo" label="Nome do container" value="api-pedidos-b21e" hint-size="100%,66px"></dc-import>
+
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px">
+<dc-import name="Selecao" label="Engine" options="{{engineOpts}}" value="podman" hint-size="100%,66px"></dc-import>
+<dc-import name="Selecao" label="Host" options="{{hostOpts}}" value="srv-prod-03" hint-size="100%,66px"></dc-import>
+</div>
+
+<fieldset style="border: 0; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px">
+<legend class="alt-field__label" style="padding: 0; margin-bottom: 8px">Portas · host → container</legend>
+<div style="display: grid; grid-template-columns: minmax(0, 1fr) 16px minmax(0, 1fr) 90px 36px; gap: 8px; align-items: center">
+<dc-import name="Campo" label="" aria-label="Porta do host" value="8081" size="sm" hint-size="100%,34px"></dc-import>
+<span style="color: #a0aec0; text-align: center">→</span>
+<dc-import name="Campo" label="" aria-label="Porta do container" value="80" size="sm" hint-size="100%,34px"></dc-import>
+<dc-import name="Selecao" label="" aria-label="Protocolo" options="{{protoOpts}}" value="tcp" size="sm" hint-size="100%,34px"></dc-import>
+<x-import component-from-global-scope="Altivy.Button" variant="ghost" size="xs" icon="x" aria-label="Remover porta"></x-import>
+</div>
+<x-import component-from-global-scope="Altivy.Button" variant="text" size="xs" start-icon="plus">Adicionar porta</x-import>
+</fieldset>
+
+<fieldset style="border: 0; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px">
+<legend class="alt-field__label" style="padding: 0; margin-bottom: 8px">Variáveis de ambiente</legend>
+<sc-for list="{{envVars}}" as="v" hint-placeholder-count="3">
+<div style="display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr) 36px; gap: 8px; align-items: center">
+<dc-import name="Campo" label="" aria-label="Nome da variável" value="{{v.k}}" mono="{{yes}}" size="sm" hint-size="100%,34px"></dc-import>
+<dc-import name="Campo" label="" aria-label="Valor da variável" value="{{v.v}}" secret="{{v.secret}}" mono="{{yes}}" size="sm" hint-size="100%,34px"></dc-import>
+<x-import component-from-global-scope="Altivy.Button" variant="ghost" size="xs" icon="x" aria-label="Remover variável"></x-import>
+</div>
+</sc-for>
+<x-import component-from-global-scope="Altivy.Button" variant="text" size="xs" start-icon="key">Usar segredo do cofre</x-import>
+</fieldset>
+
+<dc-import name="Campo" label="Volume" value="vol-pedidos-uploads:/srv/app/uploads:rw" mono="{{yes}}" size="sm" hint-size="100%,60px"></dc-import>
+
+<div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px">
+<dc-import name="Campo" label="Limite de CPU" value="2" suffix="vCPU" size="sm" hint-size="100%,60px"></dc-import>
+<dc-import name="Campo" label="Limite de memória" value="512" suffix="MiB" size="sm" hint-size="100%,60px"></dc-import>
+<dc-import name="Selecao" label="Reinício" options="{{restartOpts}}" value="unless-stopped" size="sm" hint-size="100%,60px"></dc-import>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 6px">
+<dc-import name="Marcador" label="Ativar health check em GET /healthz" help="A cada 15 s, 3 tentativas antes de reiniciar" checked="{{yes}}" hint-size="100%,48px"></dc-import>
+<dc-import name="Marcador" label="Remover automaticamente ao parar" checked="{{no}}" hint-size="100%,28px"></dc-import>
+</div>
+
+<div style="display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; border-radius: 16px; background: rgba(125, 211, 252, 0.14)">
+<span style="color: #7dd3fc; flex: none; margin-top: 1px"><x-import component-from-global-scope="Altivy.Icon" name="info" size="{{infoSize}}"></x-import></span>
+<span class="app-small" style="color: #e2e8f0">Equivalente a <span class="ct-mono">podman run -d --name api-pedidos-b21e -p 8081:80 …</span>. O comando completo fica no registro de auditoria.</span>
+</div>
+
+</form>
+</x-import>
+</div>
+</x-import>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1000}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { open: true }; }
+  renderVals() {
+    return {
+      shellH: 968, drawerW: 520, infoSize: 16,
+      yes: true, no: false,
+      open: this.state.open,
+      close: () => { this.setState({ open: false }); setTimeout(() => this.setState({ open: true }), 1200); },
+      prevent: (e) => e.preventDefault(),
+      chips: [
+        { tone: 'accent', icon: 'monitor', label: 'srv-prod-03' },
+        { tone: 'neutral', icon: 'box', label: 'Podman 5.2.3' }
+      ],
+      envVars: [
+        { k: 'NODE_ENV', v: 'production', secret: false },
+        { k: 'DATABASE_URL', v: 'postgres://pedidos@postgres-principal:5432/pedidos', secret: false },
+        { k: 'JWT_SECRET', v: 'segredo-do-cofre', secret: true }
+      ],
+      engineOpts: [
+        { value: 'podman', label: 'Podman 5.2.3', caption: 'rootless', dot: '#fb923c' },
+        { value: 'docker', label: 'Docker 27.3.1', caption: 'daemon', dot: '#60a5fa' }
+      ],
+      hostOpts: [
+        { value: 'srv-prod-03', label: 'srv-prod-03', caption: '44% CPU' },
+        { value: 'srv-prod-04', label: 'srv-prod-04', caption: '37% CPU' },
+        { value: 'srv-batch-01', label: 'srv-batch-01', caption: '28% CPU' }
+      ],
+      protoOpts: [
+        { value: 'tcp', label: 'tcp' },
+        { value: 'udp', label: 'udp' }
+      ],
+      restartOpts: [
+        { value: 'unless-stopped', label: 'unless-stopped' },
+        { value: 'always', label: 'always' },
+        { value: 'on-failure', label: 'on-failure' },
+        { value: 'no', label: 'no' }
+      ],
+      bg: [
+        { n: 'api-pedidos-7f9c', s: 'Reiniciando', tone: 'warning', h: 'srv-prod-02', i: 'registry.empresa.com/pedidos/api:3.14.2' },
+        { n: 'gateway-01', s: 'Em execução', tone: 'success', h: 'srv-prod-01', i: 'registry.empresa.com/edge/gateway:2.8.1' },
+        { n: 'checkout-web', s: 'Em execução', tone: 'success', h: 'srv-prod-03', i: 'registry.empresa.com/loja/checkout:5.2.0' },
+        { n: 'postgres-principal', s: 'Em execução', tone: 'success', h: 'srv-prod-01', i: 'docker.io/library/postgres:16.4' },
+        { n: 'redis-sessoes', s: 'Em execução', tone: 'success', h: 'srv-prod-04', i: 'docker.io/library/redis:7.4-alpine' },
+        { n: 'worker-relatorios', s: 'Com falha', tone: 'error', h: 'srv-batch-01', i: 'registry.empresa.com/bi/relatorios:1.9.0' },
+        { n: 'migracao-catalogo', s: 'Parado', tone: 'neutral', h: 'srv-prod-02', i: 'registry.empresa.com/loja/catalogo-migrate:2.1.0' },
+        { n: 'prometheus', s: 'Em execução', tone: 'success', h: 'srv-prod-04', i: 'quay.io/prometheus/prometheus:v2.54.1' }
+      ],
+      menu: [
+        { section: 'Operação', items: [
+          { id: 'overview', label: 'Visão geral', icon: 'gauge' },
+          { id: 'containers', label: 'Containers', icon: 'box' },
+          { id: 'pods', label: 'Pods', icon: 'grid' },
+          { id: 'images', label: 'Imagens', icon: 'package' },
+          { id: 'volumes', label: 'Volumes', icon: 'columns' },
+          { id: 'networks', label: 'Redes', icon: 'link' }
+        ] },
+        { section: 'Infraestrutura', items: [
+          { id: 'hosts', label: 'Hosts', icon: 'monitor' },
+          { id: 'registries', label: 'Registros', icon: 'inbox' }
+        ] },
+        { section: 'Governança', items: [
+          { id: 'alerts', label: 'Alertas', icon: 'alert', count: 3, countLabel: 'alertas abertos' },
+          { id: 'audit', label: 'Auditoria', icon: 'shield' },
+          { id: 'settings', label: 'Configurações', icon: 'settings' }
+        ] }
+      ],
+      crumbs: ['Operação', 'Containers', 'Novo'],
+      user: { name: 'Mariana Costa', group: 'Plataforma · SRE', initials: 'MC' },
+      envs: [
+        { id: 'prod', label: 'Produção', icon: 'shield' },
+        { id: 'hml', label: 'Homologação', icon: 'flag' },
+        { id: 'dev', label: 'Desenvolvimento', icon: 'tool' }
+      ],
+      headerProps: { env: null, notifications: 4, defaultShortcut: 'prod', showDarkMode: false }
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -230,7 +230,25 @@ public sealed class PostgresAuditSchemaIntegrationTests
                 """)
             .ToListAsync(TestContext.Current.CancellationToken);
 
-        Assert.Equal([10, 11], argumentCounts);
+        Assert.Equal([10, 11, 13], argumentCounts);
+    }
+
+    [Fact]
+    public async Task Writer_WithSubjectAndDetails_PersistsMetadataOnly()
+    {
+        await using var context = CreateContextOrSkip();
+        var auditEvent = Dokpod.Domain.Auditing.AuditEvent.Create(
+            Guid.NewGuid(), DateTimeOffset.UtcNow, Guid.NewGuid(), Dokpod.Domain.Auditing.AuditActorKind.User, "user-1",
+            "container.logs.read", Guid.NewGuid(), Dokpod.Domain.Auditing.AuditOutcome.Succeeded)
+            .WithSubject("abc", new Dictionary<string, string> { ["tail"] = "500", ["filtered"] = "true", ["lines"] = "12" });
+
+        await new PostgresAuditEventWriter(context).AppendAsync(auditEvent, TestContext.Current.CancellationToken);
+        await new PostgresAuditEventWriter(context).AppendAsync(auditEvent, TestContext.Current.CancellationToken);
+
+        var stored = await context.AuditEvents.AsNoTracking().SingleAsync(x => x.EventId == auditEvent.EventId, TestContext.Current.CancellationToken);
+        Assert.Equal("abc", stored.SubjectId);
+        Assert.Contains("\"filtered\": \"true\"", stored.Details, StringComparison.Ordinal);
+        Assert.Throws<ArgumentException>(() => auditEvent.WithSubject("abc", new Dictionary<string, string> { ["contains"] = "secret" }));
     }
 
     [Fact]

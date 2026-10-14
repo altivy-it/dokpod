@@ -2,7 +2,7 @@
 
 import type { Client, Options as Options2, TDataShape } from './client';
 import { client } from './client.gen';
-import type { GetContainerCommandData, GetContainerCommandErrors, GetContainerCommandResponses, GetEnvironmentData, GetEnvironmentErrors, GetEnvironmentResponses, ListEnvironmentContainersData, ListEnvironmentContainersErrors, ListEnvironmentContainersResponses, ListEnvironmentsData, ListEnvironmentsErrors, ListEnvironmentsResponses, RegisterEnvironmentData, RegisterEnvironmentErrors, RegisterEnvironmentResponses, RevokeAgentIdentityData, RevokeAgentIdentityErrors, RevokeAgentIdentityResponses, SubmitContainerCommandData, SubmitContainerCommandErrors, SubmitContainerCommandResponses } from './types.gen';
+import type { GetContainerCommandData, GetContainerCommandErrors, GetContainerCommandResponses, GetContainerData, GetContainerErrors, GetContainerLogsData, GetContainerLogsErrors, GetContainerLogsResponses, GetContainerResponses, GetContainerSummaryData, GetContainerSummaryErrors, GetContainerSummaryResponses, GetEnvironmentData, GetEnvironmentErrors, GetEnvironmentResponses, GetOverviewData, GetOverviewErrors, GetOverviewResponses, InspectContainerData, InspectContainerErrors, InspectContainerResponses, ListContainersData, ListContainersErrors, ListContainersResponses, ListEnvironmentContainersData, ListEnvironmentContainersErrors, ListEnvironmentContainersResponses, ListEnvironmentsData, ListEnvironmentsErrors, ListEnvironmentsResponses, ListEventsData, ListEventsErrors, ListEventsResponses, RegisterEnvironmentData, RegisterEnvironmentErrors, RegisterEnvironmentResponses, RevokeAgentIdentityData, RevokeAgentIdentityErrors, RevokeAgentIdentityResponses, SetEnvironmentStageData, SetEnvironmentStageErrors, SetEnvironmentStageResponses, SubmitContainerCommandData, SubmitContainerCommandErrors, SubmitContainerCommandResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -86,5 +86,81 @@ export const registerEnvironment = <ThrowOnError extends boolean = false>(option
 export const revokeAgentIdentity = <ThrowOnError extends boolean = false>(options: Options<RevokeAgentIdentityData, ThrowOnError>) => (options.client ?? client).post<RevokeAgentIdentityResponses, RevokeAgentIdentityErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
     url: '/api/v1/environments/{environmentId}/agent-identity/revoke',
+    ...options
+});
+
+/**
+ * Define o estágio do ambiente (idempotente; mesmo estágio não audita)
+ */
+export const setEnvironmentStage = <ThrowOnError extends boolean = false>(options: Options<SetEnvironmentStageData, ThrowOnError>) => (options.client ?? client).put<SetEnvironmentStageResponses, SetEnvironmentStageErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/environments/{environmentId}/stage',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Resumo agregado dos hosts autorizados e habilitados
+ */
+export const getOverview = <ThrowOnError extends boolean = false>(options?: Options<GetOverviewData, ThrowOnError>) => (options?.client ?? client).get<GetOverviewResponses, GetOverviewErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/overview',
+    ...options
+});
+
+/**
+ * Eventos operacionais dos hosts autorizados, mais recentes primeiro
+ */
+export const listEvents = <ThrowOnError extends boolean = false>(options?: Options<ListEventsData, ThrowOnError>) => (options?.client ?? client).get<ListEventsResponses, ListEventsErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/events',
+    ...options
+});
+
+/**
+ * Lista unificada de containers dos hosts autorizados (hosts sem permissão são excluídos)
+ */
+export const listContainers = <ThrowOnError extends boolean = false>(options?: Options<ListContainersData, ThrowOnError>) => (options?.client ?? client).get<ListContainersResponses, ListContainersErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/containers',
+    ...options
+});
+
+/**
+ * Detalhe do container (projeção, host, engine, reinícios 24 h)
+ */
+export const getContainer = <ThrowOnError extends boolean = false>(options: Options<GetContainerData, ThrowOnError>) => (options.client ?? client).get<GetContainerResponses, GetContainerErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/environments/{environmentId}/containers/{containerId}',
+    ...options
+});
+
+/**
+ * Resumo de configuração sanitizado no agente (container:inspect)
+ */
+export const getContainerSummary = <ThrowOnError extends boolean = false>(options: Options<GetContainerSummaryData, ThrowOnError>) => (options.client ?? client).get<GetContainerSummaryResponses, GetContainerSummaryErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/environments/{environmentId}/containers/{containerId}/summary',
+    ...options
+});
+
+/**
+ * Inspeção sanitizada no agente (container:inspect)
+ */
+export const inspectContainer = <ThrowOnError extends boolean = false>(options: Options<InspectContainerData, ThrowOnError>) => (options.client ?? client).get<InspectContainerResponses, InspectContainerErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/environments/{environmentId}/containers/{containerId}/inspect',
+    ...options
+});
+
+/**
+ * Trecho de logs sob demanda, mascarado no agente (container:logs)
+ */
+export const getContainerLogs = <ThrowOnError extends boolean = false>(options: Options<GetContainerLogsData, ThrowOnError>) => (options.client ?? client).get<GetContainerLogsResponses, GetContainerLogsErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/environments/{environmentId}/containers/{containerId}/logs',
     ...options
 });

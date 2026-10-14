@@ -1,0 +1,104 @@
+<div class="dok-stack">
+  <div class="dok-page-head">
+    <div class="dok-page-head__text">
+      <span class="eyebrow">Infraestrutura · {{ stageName() }}</span>
+      <h1 class="app-title">Hosts e engines</h1>
+      <p class="app-small">Docker e Podman gerenciados pelos agentes. A situação usa a sessão e o heartbeat do agente.</p>
+    </div>
+    <div class="dok-actions">
+      <button dok-button variant="outline" size="sm" startIcon="refresh" type="button" (click)="load(stageFilter.stage(), true)">Atualizar</button>
+      @if (canManage()) {
+        <button dok-button variant="primary" size="sm" startIcon="plus" type="button" (click)="openRegister()">Cadastrar host</button>
+      }
+    </div>
+  </div>
+
+  @if (error(); as e) {
+    <dok-empty-state [kind]="e.status === 403 ? 'forbidden' : 'error'" [code]="e.status ? 'Erro ' + e.status : null" [title]="e.title" [detail]="e.detail">
+      <button dok-button variant="outline" size="sm" startIcon="refresh" type="button" (click)="load(stageFilter.stage())">Tentar novamente</button>
+    </dok-empty-state>
+  } @else {
+    <dok-data-grid
+      title="Hosts"
+      [entityLabel]="['host', 'hosts']"
+      [rows]="rows()"
+      [columns]="columns"
+      [statusTones]="tones"
+      [rowActionsFor]="rowActionsFor"
+      [rowLabel]="rowLabel"
+      [selectable]="false"
+      [loading]="loading()"
+      [updatedAt]="updatedAt()"
+      [(search)]="search"
+      searchPlaceholder="Host, engine ou sistema"
+      exportName="hosts"
+      emptyTitle="Nenhum host encontrado."
+      (rowAction)="onRowAction($event)"
+    >
+      <ng-template dokCell="engine" let-row>
+        @if (row.source.agent?.engine) {
+          <dok-engine-badge [engine]="row.source.agent.engine" [version]="row.engineVersion" />
+        } @else {
+          —
+        }
+      </ng-template>
+      <ng-template dokCell="situation" let-row>
+        <dok-status-circle [text]="row.situation" [color]="tones[row.situation]" size="small" />
+      </ng-template>
+    </dok-data-grid>
+  }
+</div>
+
+<dok-drawer
+  [open]="registerOpen()"
+  eyebrow="Infraestrutura"
+  title="Cadastrar host"
+  subtitle="O ambiente e a permissão de gestão devem estar provisionados no Keycloak."
+  primaryLabel="Cadastrar host"
+  [primaryLoading]="registering()"
+  (closed)="registerOpen.set(false)"
+  (primary)="register()"
+>
+  <form [formGroup]="registerForm" (ngSubmit)="register()" style="display: flex; flex-direction: column; gap: 16px">
+    <dok-field label="Identificador provisionado" [mono]="true" formControlName="environmentId" [error]="fieldError('environmentId')" help="UUID do recurso do ambiente no Keycloak." />
+    <dok-field label="Nome" formControlName="name" [error]="fieldError('name')" />
+    <dok-field label="Host" [mono]="true" formControlName="host" [error]="fieldError('host')" placeholder="srv-prod-01" />
+    <dok-select label="Estágio" [options]="stageOptions" formControlName="stage" />
+    <dok-checkbox label="Host habilitado" help="Hosts desabilitados não recebem comandos." formControlName="enabled" />
+    @if (registerError()) {
+      <span class="alt-field__error" role="alert">{{ registerError() }}</span>
+    }
+  </form>
+</dok-drawer>
+
+<dok-drawer
+  [open]="!!stageTarget()"
+  eyebrow="Host"
+  title="Alterar estágio"
+  [subtitle]="stageTarget()?.name ?? null"
+  primaryLabel="Salvar estágio"
+  [primaryLoading]="stageSaving()"
+  width="440px"
+  (closed)="stageTarget.set(null)"
+  (primary)="saveStage()"
+>
+  <dok-select label="Estágio" [options]="stageOptions" [formControl]="stageControl" />
+  <p class="app-small" style="margin: 0; color: var(--muted)">A mudança aparece nos atalhos de estágio e é registrada na auditoria.</p>
+</dok-drawer>
+
+<dok-drawer
+  [open]="!!revokeTarget()"
+  eyebrow="Ação destrutiva"
+  title="Revogar identidade do agente"
+  [subtitle]="revokeTarget()?.name ?? null"
+  primaryLabel="Revogar identidade"
+  primaryIcon="lock"
+  primaryVariant="danger"
+  [primaryLoading]="revoking()"
+  width="440px"
+  [chips]="[{ tone: 'error', label: 'Irreversível' }]"
+  (closed)="revokeTarget.set(null)"
+  (primary)="revoke()"
+>
+  <p class="app-small" style="margin: 0">A sessão ativa do agente é encerrada e o certificado deixa de ser aceito. Para reconectar, é preciso provisionar uma nova identidade.</p>
+</dok-drawer>

@@ -11,6 +11,12 @@ public static class EnvironmentResourceScopes
     public const string RestartContainer = "container:restart";
     public const string DeleteContainer = "container:delete";
     public const string AuditRead = "audit:read";
+    public const string PauseContainer = "container:pause";
+    public const string InspectContainer = "container:inspect";
+    public const string ReadContainerLogs = "container:logs";
+    public const string PullImage = "image:pull";
+    public const string CreateContainer = "container:create";
+    public const string ExecContainer = "container:exec";
 
     public static IReadOnlySet<string> Supported { get; } = new HashSet<string>(
     [
@@ -21,6 +27,12 @@ public static class EnvironmentResourceScopes
         RestartContainer,
         DeleteContainer,
         AuditRead,
+        PauseContainer,
+        InspectContainer,
+        ReadContainerLogs,
+        PullImage,
+        CreateContainer,
+        ExecContainer,
     ], StringComparer.Ordinal).ToFrozenSet(StringComparer.Ordinal);
 }
 
@@ -31,6 +43,8 @@ public sealed record EnvironmentRegistration(
     bool Enabled,
     IReadOnlySet<string> Scopes)
 {
+    public EnvironmentStage? Stage { get; init; }
+
     public const int MaxNameLength = 128;
     public const int MaxHostLength = 255;
 
@@ -39,7 +53,8 @@ public sealed record EnvironmentRegistration(
         string name,
         string host,
         bool enabled,
-        IEnumerable<string> scopes)
+        IEnumerable<string> scopes,
+        EnvironmentStage? stage = null)
     {
         if (environmentId == Guid.Empty)
         {
@@ -70,7 +85,10 @@ public sealed record EnvironmentRegistration(
             name.Trim(),
             host.Trim(),
             enabled,
-            resolvedScopes.ToFrozenSet(StringComparer.Ordinal));
+            resolvedScopes.ToFrozenSet(StringComparer.Ordinal))
+        {
+            Stage = stage,
+        };
     }
 }
 

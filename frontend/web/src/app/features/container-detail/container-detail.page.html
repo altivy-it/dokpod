@@ -1,0 +1,157 @@
+<div class="dok-stack">
+  @if (removed()) {
+    <dok-empty-state kind="empty" icon="trash" title="Container removido" detail="O container não existe mais no host. Os dados abaixo não são mais atualizados.">
+      <a dok-button variant="outline" size="sm" startIcon="arrow-left" routerLink="/containers" queryParamsHandling="merge">Voltar à lista</a>
+    </dok-empty-state>
+  }
+
+  @if (error(); as e) {
+    <dok-empty-state [kind]="e.status === 403 ? 'forbidden' : e.status === 404 ? 'empty' : 'error'" [code]="e.status ? 'Erro ' + e.status : null" [title]="e.title" [detail]="e.detail">
+      <a dok-button variant="outline" size="sm" startIcon="arrow-left" routerLink="/containers" queryParamsHandling="merge">Voltar à lista</a>
+    </dok-empty-state>
+  } @else {
+    <section class="cd-head alt-glass" aria-labelledby="cd-title">
+      <div class="cd-identity">
+        <div class="cd-icon"><dok-icon name="box" [size]="24" /></div>
+        <div class="cd-text">
+          @if (detail(); as d) {
+            <div class="cd-title-row">
+              <h1 id="cd-title" class="app-title">{{ d.name }}</h1>
+              <dok-status-chip [color]="status().tone" [label]="status().label" [icon]="true" />
+              @if (d.engine) {
+                <dok-engine-badge [engine]="d.engine" [version]="d.engineVersion ?? null" />
+              }
+            </div>
+            <p class="ct-mono cd-image">{{ d.imageReference }} · ID {{ shortId() }}</p>
+            <p class="app-small alt-num cd-facts">{{ facts() }}</p>
+          } @else {
+            <div class="alt-skel" style="height: 24px; width: 260px"></div>
+            <div class="alt-skel" style="height: 14px; width: 380px; margin-top: 10px"></div>
+          }
+        </div>
+      </div>
+      <div class="dok-actions">
+        <button dok-button variant="secondary" size="sm" startIcon="command" type="button" [disabled]="true" title="Terminal em breve">Abrir terminal</button>
+        @if (allowed().has('start')) {
+          <button dok-button variant="outline" size="sm" startIcon="play" type="button" (click)="run('start')">Iniciar</button>
+        }
+        @if (allowed().has('restart')) {
+          <button dok-button variant="outline" size="sm" startIcon="refresh" type="button" (click)="run('restart')">Reiniciar</button>
+        }
+        @if (allowed().has('unpause')) {
+          <button dok-button variant="outline" size="sm" startIcon="play" type="button" (click)="run('unpause')">Retomar</button>
+        }
+        @if (allowed().has('pause')) {
+          <button dok-button variant="outline" size="sm" startIcon="pause" type="button" (click)="run('pause')">Pausar</button>
+        }
+        @if (allowed().has('stop')) {
+          <button dok-button variant="outline" size="sm" startIcon="pause" type="button" (click)="run('stop')">Parar</button>
+        }
+        <button
+          dok-button
+          variant="danger"
+          size="sm"
+          startIcon="trash"
+          type="button"
+          [disabled]="!allowed().has('delete')"
+          [attr.title]="allowed().has('delete') ? null : 'Pare o container antes de remover, ou verifique sua permissão'"
+          (click)="run('delete')"
+        >
+          Remover container
+        </button>
+      </div>
+    </section>
+
+    <div class="dok-row" style="align-items: flex-start">
+      <div class="dok-row__main cd-main">
+        <dok-tabs [tabs]="tabs" [value]="tab()" (valueChange)="selectTab($event)" ariaLabel="Seções do container" />
+        <div role="tabpanel" [attr.aria-label]="tab()">
+          @switch (tab()) {
+            @case ('logs') {
+              @if (detail(); as d) {
+                <app-logs-panel [environmentId]="environmentId()" [containerId]="containerId()" [containerName]="d.name" />
+              }
+            }
+            @case ('resumo') {
+              @switch (summary().state) {
+                @case ('ready') {
+                  <div class="alt-panel cd-pad"><dok-key-value [items]="summaryItems()" /></div>
+                }
+                @case ('loading') {
+                  <div class="alt-panel cd-pad"><div class="alt-skel" style="height: 120px"></div></div>
+                }
+                @default {
+                  <dok-empty-state [kind]="summary().state === 'forbidden' ? 'forbidden' : 'offline'" [title]="summary().state === 'forbidden' ? 'Sem permissão' : 'Resumo indisponível'" [detail]="summary().message ?? null" [compact]="true" />
+                }
+              }
+            }
+            @case ('inspecionar') {
+              @switch (inspection().state) {
+                @case ('ready') {
+                  <div class="cd-inspect-bar">
+                    <span class="app-caption cd-muted">
+                      {{ inspection().value!.redactedPaths.length }} campos ocultos ou mascarados no agente{{ inspection().value!.truncated ? ' · resposta truncada no limite de 256 KiB' : '' }}
+                    </span>
+                    <button dok-button variant="ghost" size="xs" startIcon="copy" type="button" (click)="copyInspect()">Copiar</button>
+                  </div>
+                  <pre class="alt-panel ct-mono cd-json">{{ inspectText() }}</pre>
+                }
+                @case ('loading') {
+                  <div class="alt-panel cd-pad"><div class="alt-skel" style="height: 220px"></div></div>
+                }
+                @default {
+                  <dok-empty-state [kind]="inspection().state === 'forbidden' ? 'forbidden' : 'offline'" [title]="inspection().state === 'forbidden' ? 'Sem permissão' : 'Inspeção indisponível'" [detail]="inspection().message ?? null" [compact]="true">
+                    @if (inspection().state !== 'forbidden') {
+                      <button dok-button variant="outline" size="xs" startIcon="refresh" type="button" (click)="loadInspection()">Tentar novamente</button>
+                    }
+                  </dok-empty-state>
+                }
+              }
+            }
+            @case ('estatisticas') {
+              <dok-line-chart
+                title="CPU e memória do container"
+                subtitle="% do limite · últimos 30 minutos"
+                [height]="260"
+                unavailable="Métricas indisponíveis: o agente deste host ainda não publica amostras de recursos."
+              />
+            }
+          }
+        </div>
+      </div>
+      <div class="dok-row__side cd-side">
+        <dok-card title="Recursos agora">
+          <div class="cd-resources">
+            @for (resource of [{ label: 'CPU · ' + limits().cpu }, { label: 'Memória · ' + limits().memory }, { label: 'Rede · entrada / saída' }, { label: 'Disco · leitura / escrita' }]; track resource.label) {
+              <div class="cd-resource">
+                <div class="cd-resource__row"><span class="app-small cd-muted">{{ resource.label }}</span><span class="app-small alt-num">—</span></div>
+                <div class="ct-bar"><span style="width: 0%"></span></div>
+              </div>
+            }
+            <p class="app-caption cd-muted" style="margin: 0">Valores indisponíveis até o agente publicar métricas de recursos.</p>
+          </div>
+        </dok-card>
+        <dok-card title="Rede e armazenamento">
+          @if (summary().state === 'forbidden') {
+            <dok-key-value [items]="networkItems()" [labelWidth]="96" />
+            <p class="app-caption cd-muted">Rede, volumes e variáveis exigem permissão de inspeção.</p>
+          } @else {
+            <dok-key-value [items]="networkItems()" [labelWidth]="96" />
+          }
+        </dok-card>
+      </div>
+    </div>
+  }
+</div>
+
+@if (pending(); as p) {
+  <app-confirm-action-drawer
+    [open]="true"
+    [action]="p.action"
+    [eligibility]="p.eligibility"
+    [production]="detail()?.stage === 'production'"
+    [busy]="submitting()"
+    (cancelled)="pending.set(null)"
+    (confirmed)="confirm()"
+  />
+}

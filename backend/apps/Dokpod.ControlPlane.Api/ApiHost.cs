@@ -1,3 +1,7 @@
+using Dokpod.ControlPlane.Application.Events;
+using Dokpod.ControlPlane.Application.Hosts;
+using Dokpod.ControlPlane.Application.Overview;
+using Dokpod.ControlPlane.Application.Realtime;
 using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
 using System.Security.Cryptography;
@@ -148,6 +152,28 @@ public static class ApiHost
         builder.Services.AddHostedService<AgentCommandExpirationWorker>();
         builder.Services.AddScoped<InventoryProjectionService>();
         builder.Services.AddScoped<InventoryQueryService>();
+        var engineSupport = builder.Configuration.GetSection(EngineSupportOptions.SectionName).Get<EngineSupportOptions>() ?? new EngineSupportOptions();
+        if (!engineSupport.IsValid()) throw new InvalidOperationException("EngineSupport minimum versions are invalid.");
+        builder.Services.AddSingleton(engineSupport);
+        builder.Services.AddSingleton<AgentLivenessTracker>();
+        builder.Services.AddSingleton<IControlPlaneNotifier, SignalRControlPlaneNotifier>();
+        builder.Services.AddScoped<UnavailableAgentHostStore>();
+        builder.Services.AddScoped<IAgentHostStore>(provider => provider.GetRequiredService<UnavailableAgentHostStore>());
+        builder.Services.AddScoped<IInventoryStatisticsStore>(provider => provider.GetRequiredService<UnavailableAgentHostStore>());
+        builder.Services.AddScoped<IEnvironmentStageStore>(provider => provider.GetRequiredService<UnavailableAgentHostStore>());
+        builder.Services.AddScoped<IOperationalEventStore, UnavailableOperationalEventStore>();
+        builder.Services.AddScoped<AuthorizedEnvironmentsService>();
+        builder.Services.AddScoped<HostQueryService>();
+        builder.Services.AddScoped<EnvironmentStageService>();
+        builder.Services.AddScoped<OperationalEventService>();
+        builder.Services.AddScoped<OverviewQueryService>();
+        builder.Services.AddScoped<IContainerSearchStore, UnavailableContainerSearchStore>();
+        builder.Services.AddScoped<ContainerSearchService>();
+        builder.Services.AddSingleton<Dokpod.ControlPlane.Application.Queries.AgentQueryDispatcher>();
+        builder.Services.AddScoped<Dokpod.ControlPlane.Application.Queries.ContainerInsightsService>();
+        builder.Services.AddScoped<AgentHostActivity>();
+        builder.Services.AddHostedService<AgentConnectionSweeper>();
+        builder.Services.AddHostedService<EventRetentionWorker>();
         var databaseConnectionString = builder.Configuration.GetConnectionString("ControlPlane");
         if (!string.IsNullOrWhiteSpace(databaseConnectionString))
         {
@@ -194,6 +220,8 @@ public static class ApiHost
         })).RequireAuthorization();
         EnvironmentEndpoints.Map(app);
         InventoryEndpoints.Map(app);
+        ConsoleEndpoints.Map(app);
+        ContainerDetailEndpoints.Map(app);
         ContainerCommandEndpoints.Map(app);
         app.MapHub<ControlPlaneHub>("/hubs/control-plane").RequireAuthorization();
     }
