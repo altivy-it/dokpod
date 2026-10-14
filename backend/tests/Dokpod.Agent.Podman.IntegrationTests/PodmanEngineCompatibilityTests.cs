@@ -283,6 +283,40 @@ public sealed class PodmanEngineCompatibilityTests : IAsyncLifetime
         TestContext.Current.SendDiagnosticMessage($"podman policy restart events: {string.Join(",", actions)}");
     }
 
+    [Fact]
+    public async Task Images_ListAndContainerImageIdMatch()
+    {
+        RequirePodman();
+        var id = await CreateAsync(new { Image = FixtureImage });
+
+        var images = await Engine.ListImagesAsync(Token);
+        var container = (await Engine.ListContainersAsync(Token)).Single(c => c.ContainerId == id);
+
+        Assert.NotNull(container.ImageId);
+        var image = Assert.Single(images, i => i.ImageId.EndsWith(container.ImageId!.Replace("sha256:", string.Empty), StringComparison.Ordinal));
+        Assert.Contains(image.RepoTags, t => t.Contains("nginx", StringComparison.Ordinal));
+        Assert.True(image.SizeBytes > 0);
+    }
+
+    [Fact]
+    public async Task Pull_PublicImageResolvesDigestAndMissingRepositoryIsNotFound()
+    {
+        RequirePodman();
+        if (Environment.GetEnvironmentVariable("DOKPOD_TEST_REGISTRY_NETWORK") != "1") Assert.Skip("Sem acesso a registro público (DOKPOD_TEST_REGISTRY_NETWORK=1).");
+        Assert.True(Dokpod.Domain.Images.ImageReference.TryParse("quay.io/podman/hello:latest", out var hello));
+        Assert.True(Dokpod.Domain.Images.ImageReference.TryParse("quay.io/dokpod-inexistente/nada-aqui-12345:1", out var missing));
+
+        var pulled = await Engine.PullImageAsync(hello, Token);
+        var failed = await Engine.PullImageAsync(missing, Token);
+
+        Assert.True(pulled.Succeeded, pulled.FailureCode);
+        Assert.StartsWith("sha256:", pulled.ResolvedDigest);
+        Assert.True(pulled.SizeBytes > 0);
+        Assert.False(failed.Succeeded);
+        Assert.Contains(failed.FailureCode, new[] { "image_not_found", "registry_unauthorized" });
+        TestContext.Current.SendDiagnosticMessage($"pull inexistente: {failed.FailureCode}");
+    }
+
     private async Task<string> CreateAsync(object spec)
     {
         using var content = new StringContent(JsonSerializer.Serialize(spec), Encoding.UTF8, "application/json");

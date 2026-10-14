@@ -20,7 +20,20 @@ public sealed record EngineContainer(
     public bool? OomKilled { get; init; }
     public IReadOnlyList<EnginePortBinding> Ports { get; init; } = [];
     public double? CpuLimitCores { get; init; }
+    /// <summary>`ImageID` do engine (spec 012), base de "imagem em uso".</summary>
+    public string? ImageId { get; init; }
 }
+
+/// <summary>Imagem local do engine (spec 012); somente metadados, nunca camadas ou conteúdo.</summary>
+public sealed record EngineImage(
+    string ImageId,
+    IReadOnlyList<string> RepoTags,
+    IReadOnlyList<string> RepoDigests,
+    long SizeBytes,
+    DateTimeOffset? CreatedAtUtc);
+
+/// <summary>Resultado do pull: digest resolvido e tamanho, ou código de falha do contrato da 012.</summary>
+public sealed record ImagePullResult(bool Succeeded, string? FailureCode, string? ResolvedDigest = null, long? SizeBytes = null);
 
 public sealed record EnginePortBinding(string? HostIp, int HostPort, int ContainerPort, string Protocol);
 
@@ -66,6 +79,14 @@ public interface IContainerEngine
     /// <summary>Linhas de log (com timestamp do engine) de stdout e stderr; `Follow` mantém o stream aberto.</summary>
     IAsyncEnumerable<EngineLogLine> ReadLogsAsync(string containerId, EngineLogRequest request, CancellationToken cancellationToken) =>
         AsyncEnumerable.Empty<EngineLogLine>();
+
+    /// <summary>Imagens locais (`/images/json`, spec 012).</summary>
+    Task<IReadOnlyList<EngineImage>> ListImagesAsync(CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<EngineImage>>([]);
+
+    /// <summary>Baixa a imagem (`/images/create`); credenciais, se houver, ficam no host (spec 012).</summary>
+    Task<ImagePullResult> PullImageAsync(Dokpod.Domain.Images.ImageReference reference, CancellationToken cancellationToken) =>
+        Task.FromResult(new ImagePullResult(false, "not_supported"));
 
     /// <summary>Contadores brutos de `/containers/{id}/stats?stream=false` (spec 009); nulo se indisponível.</summary>
     Task<EngineContainerStats?> GetContainerStatsAsync(string containerId, CancellationToken cancellationToken) =>

@@ -119,14 +119,19 @@ public sealed class AgentControlWorker(
             sessionCancellation.Token);
         var inventory = new InventoryPublisher(this, outbound.Writer);
         await inventory.SendAsync(sessionCancellation.Token);
+        // Spec 012: inventário de imagens somente com a capability confirmada pelo servidor.
+        var imagesAccepted = established.AcceptedCapabilities.Contains(Capability.ImageInventory);
+        var images = new ImagePublisher(this, outbound.Writer, imagesAccepted);
+        await images.SendAsync(force: true, sessionCancellation.Token);
         var heartbeat = SendHeartbeatsAsync(
             outbound.Writer,
             () => inventory.Revision,
+            () => images.Revision,
             TimeSpan.FromSeconds(established.HeartbeatIntervalSeconds),
             sessionCancellation.Token);
         // Agente N só envia payloads novos com capability confirmada pelo servidor (008 D-009).
         var eventsAccepted = established.AcceptedCapabilities.Contains(Capability.EngineEvents);
-        var events = WatchEngineEventsAsync(outbound.Writer, inventory, eventsAccepted, sessionCancellation.Token);
+        var events = WatchEngineEventsAsync(outbound.Writer, inventory, images, eventsAccepted, sessionCancellation.Token);
         var metricsAccepted = established.AcceptedCapabilities.Contains(Capability.ResourceMetrics);
         var metrics = metricsAccepted
             ? SendResourceSamplesAsync(background.Writer, sessionCancellation.Token)
@@ -164,10 +169,12 @@ public sealed class AgentControlWorker(
                             cancellationToken).AsTask(),
                         sessionCancellation.Token);
                     await inventory.SendAsync(sessionCancellation.Token);
+                    if (message.Command.Kind == CommandKind.PullImage) await images.SendAsync(force: false, sessionCancellation.Token);
                 }
                 else if (message.PayloadCase == ControlPlaneMessage.PayloadOneofCase.SnapshotRequest)
                 {
-                    await inventory.SendAsync(sessionCancellation.Token);
+                    if (message.SnapshotRequest.Scope == SnapshotScope.Images) await images.SendAsync(force: true, sessionCancellation.Token);
+                    else await inventory.SendAsync(sessionCancellation.Token);
                 }
                 else if (message.PayloadCase == ControlPlaneMessage.PayloadOneofCase.ContainerQuery)
                 {
@@ -264,6 +271,7 @@ public sealed class AgentControlWorker(
     private static async Task SendHeartbeatsAsync(
         ChannelWriter<AgentMessage> messages,
         Func<ulong> getInventoryRevision,
+        Func<ulong> getImageRevision,
         TimeSpan interval,
         CancellationToken cancellationToken)
     {
@@ -273,7 +281,7 @@ public sealed class AgentControlWorker(
             await messages.WriteAsync(
                 new AgentMessage
                 {
-                    Heartbeat = new Heartbeat { InventoryRevision = getInventoryRevision() },
+                    Heartbeat = new Heartbeat { InventoryRevision = getInventoryRevision(), ImageRevision = getImageRevision() },
                 },
                 cancellationToken);
         }
@@ -337,6 +345,7 @@ public sealed class AgentControlWorker(
             },
             RestartCount = container.RestartCount is > 0 ? (uint)container.RestartCount.Value : 0,
             OomKilled = container.OomKilled ?? false,
+            ImageId = container.ImageId ?? string.Empty,
         };
         if (container.CreatedAtUtc is not null) state.CreatedAt = Timestamp.FromDateTimeOffset(container.CreatedAtUtc.Value);
         if (container.StartedAtUtc is not null) state.StartedAt = Timestamp.FromDateTimeOffset(container.StartedAtUtc.Value);
@@ -376,11 +385,13 @@ public sealed class AgentControlWorker(
     private async Task WatchEngineEventsAsync(
         ChannelWriter<AgentMessage> messages,
         InventoryPublisher inventory,
+        ImagePublisher images,
         bool sendEvents,
         CancellationToken cancellationToken)
     {
         var publisher = new EngineEventPublisher(TimeProvider.System);
         long dirtySince = 0;
+        long imagesDirtySince = 0;
         var pump = Task.Run(async () =>
         {
             using var timer = new PeriodicTimer(TimeSpan.FromSeconds(1));
@@ -398,6 +409,13 @@ public sealed class AgentControlWorker(
                 {
                     await inventory.SendAsync(cancellationToken);
                 }
+
+                var imagesSince = Interlocked.Read(ref imagesDirtySince);
+                if (imagesSince != 0 && Environment.TickCount64 - imagesSince >= 2000 &&
+                    Interlocked.CompareExchange(ref imagesDirtySince, 0, imagesSince) == imagesSince)
+                {
+                    await images.SendAsync(force: false, cancellationToken);
+                }
             }
         }, cancellationToken);
 
@@ -410,6 +428,11 @@ public sealed class AgentControlWorker(
                     if (publisher.Observe(record))
                     {
                         Interlocked.Exchange(ref dirtySince, Environment.TickCount64);
+                    }
+
+                    if (record.Type == "image")
+                    {
+                        Interlocked.Exchange(ref imagesDirtySince, Environment.TickCount64);
                     }
                 }
             }
@@ -429,6 +452,47 @@ public sealed class AgentControlWorker(
     }
 
     /// <summary>Serializa os envios de snapshot (comandos, pedidos do servidor e eventos).</summary>
+    private Task<IReadOnlyList<EngineImage>> ListImagesAsync(CancellationToken cancellationToken) => engine.ListImagesAsync(cancellationToken);
+
+    private void LogImageInventoryUnavailable(Exception exception) => logger.LogWarning(exception, "Engine image inventory unavailable");
+
+    /// <summary>Snapshot do inventário de imagens quando o conjunto muda (spec 012); revisão vai no heartbeat.</summary>
+    private sealed class ImagePublisher(AgentControlWorker worker, ChannelWriter<AgentMessage> messages, bool enabled)
+    {
+        private readonly SemaphoreSlim gate = new(1, 1);
+        private readonly Dokpod.Agent.Application.Images.ImageInventoryBuilder builder = new(TimeProvider.System);
+
+        public ulong Revision => enabled ? builder.Revision : 0;
+
+        public async Task SendAsync(bool force, CancellationToken cancellationToken)
+        {
+            if (!enabled) return;
+            await gate.WaitAsync(cancellationToken);
+            try
+            {
+                IReadOnlyList<EngineImage> list;
+                try
+                {
+                    list = await worker.ListImagesAsync(cancellationToken);
+                }
+                catch (Exception exception) when (exception is HttpRequestException or IOException or InvalidDataException or System.Text.Json.JsonException)
+                {
+                    worker.LogImageInventoryUnavailable(exception);
+                    return;
+                }
+
+                foreach (var page in builder.Build(list, force))
+                {
+                    await messages.WriteAsync(new AgentMessage { ImageSnapshotPage = page }, cancellationToken);
+                }
+            }
+            finally
+            {
+                gate.Release();
+            }
+        }
+    }
+
     private sealed class InventoryPublisher(AgentControlWorker worker, ChannelWriter<AgentMessage> messages)
     {
         private readonly SemaphoreSlim gate = new(1, 1);
@@ -493,6 +557,8 @@ public sealed class AgentControlWorker(
                 Capability.ContainerUnpause,
                 Capability.ContainerInspect,
                 Capability.ContainerLogs,
+                Capability.ImageInventory,
+                Capability.ImagePull,
             },
             SupportedProtocolVersions = { "1" },
         };

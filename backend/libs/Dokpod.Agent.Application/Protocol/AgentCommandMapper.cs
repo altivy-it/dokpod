@@ -31,16 +31,39 @@ public static class AgentCommandMapper
             return false;
         }
 
-        if (!IsImmutableContainerId(message.ContainerId))
+        var kind = MapKind(message.Kind);
+        Dokpod.Domain.Commands.AgentCommandParameters? parameters = null;
+        if (Dokpod.Domain.Commands.AgentCommandKinds.IsHostTarget(kind))
         {
-            failureCode = "container_id_invalid";
-            return false;
-        }
+            // Alvo de host (spec 012): sem container; referência revalidada no agente (defesa em profundidade).
+            if (message.ContainerId.Length != 0 || message.ExpectedContainerRevision.Length != 0)
+            {
+                failureCode = "command_target_invalid";
+                return false;
+            }
 
-        if (string.IsNullOrWhiteSpace(message.ExpectedContainerRevision))
+            if (message.ParametersCase != Dokpod.Agent.Contracts.V1.AgentCommand.ParametersOneofCase.PullImage ||
+                !Dokpod.Domain.Images.ImageReference.TryParse(message.PullImage.Reference, out var reference))
+            {
+                failureCode = "invalid_reference";
+                return false;
+            }
+
+            parameters = new Dokpod.Domain.Commands.PullImageParameters(reference);
+        }
+        else
         {
-            failureCode = "container_revision_invalid";
-            return false;
+            if (!IsImmutableContainerId(message.ContainerId))
+            {
+                failureCode = "container_id_invalid";
+                return false;
+            }
+
+            if (string.IsNullOrWhiteSpace(message.ExpectedContainerRevision))
+            {
+                failureCode = "container_revision_invalid";
+                return false;
+            }
         }
 
         if (message.PayloadHash.Length != 32)
@@ -63,12 +86,15 @@ public static class AgentCommandMapper
         command = new DomainCommand(
             environmentId,
             commandId,
-            MapKind(message.Kind),
+            kind,
             message.ContainerId,
             message.ExpectedContainerRevision,
             Convert.ToHexString(message.PayloadHash.Span),
             deadlineUtc,
-            (long)metadata.FencingToken);
+            (long)metadata.FencingToken)
+        {
+            Parameters = parameters,
+        };
         return true;
     }
 
@@ -83,6 +109,7 @@ public static class AgentCommandMapper
         CommandKind.DeleteContainer => DomainCommandKind.DeleteContainer,
         CommandKind.PauseContainer => DomainCommandKind.PauseContainer,
         CommandKind.UnpauseContainer => DomainCommandKind.UnpauseContainer,
+        CommandKind.PullImage => DomainCommandKind.PullImage,
         _ => DomainCommandKind.Unknown,
     };
 }

@@ -7,7 +7,7 @@ using Dokpod.Domain.Commands;
 
 namespace Dokpod.Agent.Infrastructure.Engines.Docker;
 
-public sealed class DockerEngineClient(HttpClient httpClient) : IContainerEngine
+public sealed class DockerEngineClient(HttpClient httpClient, RegistryCredentialFile? registryCredentials = null) : IContainerEngine
 {
     private const int MaximumResponseBytes = 8 * 1024 * 1024;
     private static readonly Version MaximumApiVersion = new(1, 47);
@@ -118,6 +118,7 @@ public sealed class DockerEngineClient(HttpClient httpClient) : IContainerEngine
                 CreatedAtUtc = DateTimeOffset.FromUnixTimeSeconds(created),
                 Health = ParseHealthFromStatus(item.TryGetProperty("Status", out var status) ? status.GetString() : null),
                 Ports = ParseListPorts(item),
+                ImageId = item.TryGetProperty("ImageID", out var imageId) ? imageId.GetString() : null,
             });
         }
 
@@ -201,6 +202,110 @@ public sealed class DockerEngineClient(HttpClient httpClient) : IContainerEngine
             root.TryGetProperty("NCPU", out var cpus) && cpus.ValueKind == JsonValueKind.Number ? cpus.GetInt32() : null,
             root.TryGetProperty("MemTotal", out var memory) && memory.ValueKind == JsonValueKind.Number ? memory.GetInt64() : null,
             rootless);
+    }
+
+    public async Task<IReadOnlyList<EngineImage>> ListImagesAsync(CancellationToken cancellationToken)
+    {
+        await EnsureNegotiatedAsync(cancellationToken);
+        using var response = await httpClient.GetAsync($"v{apiVersion}/images/json", HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+        response.EnsureSuccessStatusCode();
+        await using var content = await ReadLimitedAsync(response, cancellationToken);
+        using var document = await JsonDocument.ParseAsync(content, cancellationToken: cancellationToken);
+        var images = new List<EngineImage>();
+        foreach (var item in document.RootElement.EnumerateArray())
+        {
+            var id = item.TryGetProperty("Id", out var idElement) ? idElement.GetString() : null;
+            if (string.IsNullOrEmpty(id)) continue;
+            images.Add(new EngineImage(
+                id,
+                Strings(item, "RepoTags").Where(tag => tag != "<none>:<none>").ToArray(),
+                Strings(item, "RepoDigests").Where(digest => digest != "<none>@<none>").ToArray(),
+                item.TryGetProperty("Size", out var size) && size.ValueKind == JsonValueKind.Number ? size.GetInt64() : 0,
+                item.TryGetProperty("Created", out var created) && created.ValueKind == JsonValueKind.Number ? DateTimeOffset.FromUnixTimeSeconds(created.GetInt64()) : null));
+        }
+
+        return images;
+
+        static IEnumerable<string> Strings(JsonElement item, string property) =>
+            item.TryGetProperty(property, out var array) && array.ValueKind == JsonValueKind.Array
+                ? array.EnumerateArray().Select(value => value.GetString()).Where(value => !string.IsNullOrEmpty(value)).Select(value => value!)
+                : [];
+    }
+
+    /// <summary>
+    /// Pull por `/images/create` com nome e tag/digest codificados como parâmetros (nunca concatenados ao caminho);
+    /// lê o stream de progresso até o fim e mapeia erros para os códigos do contrato da 012.
+    /// </summary>
+    public async Task<ImagePullResult> PullImageAsync(Dokpod.Domain.Images.ImageReference reference, CancellationToken cancellationToken)
+    {
+        await EnsureNegotiatedAsync(cancellationToken);
+        var tag = reference.Digest ?? reference.Tag ?? "latest";
+        using var request = new HttpRequestMessage(
+            HttpMethod.Post,
+            $"v{apiVersion}/images/create?fromImage={Uri.EscapeDataString(reference.Name)}&tag={Uri.EscapeDataString(tag)}");
+        var auth = registryCredentials?.HeaderFor(reference.Registry);
+        if (auth is not null) request.Headers.TryAddWithoutValidation("X-Registry-Auth", auth);
+
+        string? error = null;
+        using (var response = await httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken))
+        {
+            if (!response.IsSuccessStatusCode)
+            {
+                await using var failure = await ReadLimitedAsync(response, cancellationToken);
+                using var reader = new StreamReader(failure);
+                return new ImagePullResult(false, MapPullFailure((int)response.StatusCode, await reader.ReadToEndAsync(cancellationToken)));
+            }
+
+            await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+            using var lines = new StreamReader(stream);
+            while (await lines.ReadLineAsync(cancellationToken) is { } line)
+            {
+                if (line.Length == 0 || line.Length > 64 * 1024) continue;
+                try
+                {
+                    using var progress = JsonDocument.Parse(line);
+                    if (progress.RootElement.TryGetProperty("error", out var message)) error = message.GetString() ?? "erro";
+                }
+                catch (JsonException)
+                {
+                }
+            }
+        }
+
+        if (error is not null) return new ImagePullResult(false, MapPullFailure(200, error));
+
+        using var inspect = await httpClient.GetAsync($"v{apiVersion}/images/{Uri.EscapeDataString(reference.Canonical)}/json", HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+        if (!inspect.IsSuccessStatusCode) return new ImagePullResult(true, null, reference.Digest);
+        await using var content = await ReadLimitedAsync(inspect, cancellationToken);
+        using var document = await JsonDocument.ParseAsync(content, cancellationToken: cancellationToken);
+        var root = document.RootElement;
+        var digest = reference.Digest;
+        if (digest is null && root.TryGetProperty("RepoDigests", out var digests) && digests.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var candidate in digests.EnumerateArray().Select(d => d.GetString()))
+            {
+                if (Dokpod.Domain.Images.ImageReference.TryParse(candidate, out var parsed) && parsed.Name == reference.Name)
+                {
+                    digest = parsed.Digest;
+                    break;
+                }
+            }
+        }
+
+        return new ImagePullResult(true, null, digest, root.TryGetProperty("Size", out var size) && size.ValueKind == JsonValueKind.Number ? size.GetInt64() : null);
+    }
+
+    /// <summary>Mensagens do Docker e do Podman para os códigos de falha do contrato (sem repassar o texto do engine).</summary>
+    public static string MapPullFailure(int status, string message)
+    {
+        var text = message.ToLowerInvariant();
+        // "pull access denied ..., repository does not exist" (Docker Hub) é inexistência, não falta de credencial.
+        if (status == 404 || text.Contains("manifest unknown") || text.Contains("does not exist") || text.Contains("not found")) return "image_not_found";
+        if (status is 401 or 403 || text.Contains("unauthorized") || text.Contains("denied") || text.Contains("authentication required")) return "registry_unauthorized";
+        if (text.Contains("no space left")) return "insufficient_storage";
+        if (text.Contains("no matching manifest") || text.Contains("does not match the specified platform") || text.Contains("choosing an image from manifest list")) return "platform_mismatch";
+        if (text.Contains("no such host") || text.Contains("connection refused") || text.Contains("timeout") || text.Contains("i/o timeout") || text.Contains("dial tcp") || text.Contains("tls")) return "registry_unreachable";
+        return "image_pull_failed";
     }
 
     /// <summary>Stream `/events` filtrado por tipo (container, image, volume); termina quando a conexão cai.</summary>

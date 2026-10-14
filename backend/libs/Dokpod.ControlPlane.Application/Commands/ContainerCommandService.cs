@@ -197,11 +197,8 @@ public sealed class ContainerCommandService(
     private static string ComputePayloadHash(
         AgentCommandKind kind,
         string containerId,
-        string expectedContainerRevision)
-    {
-        var payload = string.Join('\n', "v1", (int)kind, containerId, expectedContainerRevision);
-        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(payload)));
-    }
+        string expectedContainerRevision) =>
+        AgentCommandKinds.PayloadHash(kind, containerId, expectedContainerRevision, null);
 
     private static void ValidateRequest(
         Guid environmentId,

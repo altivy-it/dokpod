@@ -53,6 +53,8 @@ public sealed class AgentCommandProtocolHandler(AgentCommandProcessor processor)
                 State = MapResultState(result.State),
                 FailureCode = result.FailureCode ?? string.Empty,
                 ObservedContainerRevision = result.ObservedContainerRevision ?? string.Empty,
+                ResolvedImageDigest = result.Output?.ResolvedImageDigest ?? string.Empty,
+                ImageSizeBytes = result.Output?.ImageSizeBytes is > 0 ? (ulong)result.Output.ImageSizeBytes.Value : 0,
                 CompletedAt = Timestamp.FromDateTimeOffset(result.CompletedAtUtc),
             },
             cancellationToken);

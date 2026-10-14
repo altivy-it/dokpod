@@ -35,6 +35,9 @@ message AgentMessage {
     ResourceSampleBatch resource_samples = 18;
     ContainerQueryResponse container_query_response = 19;
     LogChunk log_chunk = 20;
+    // Spec 012: inventário de imagens (capability 12 confirmada).
+    ImageSnapshotPage image_snapshot_page = 21;
+    ImageDelta image_delta = 22;
   }
 }
 
@@ -81,6 +84,8 @@ message SessionEstablished {
 message Heartbeat {
   uint64 last_applied_command_sequence = 1;
   uint64 inventory_revision = 2;
+  // Spec 012: revisão do inventário de imagens (0 = agente sem inventário de imagens).
+  uint64 image_revision = 3;
 }
 
 message InventorySnapshotPage {
@@ -118,6 +123,8 @@ message ContainerState {
   bool oom_killed = 12;
   repeated PortBinding ports = 13;
   // tag 14 não alocada: pods ficam para o adapter Libpod futuro.
+  // Spec 012: ImageID do engine (sha256:...), base de "imagem em uso".
+  string image_id = 15;
 }
 
 message PortBinding {
@@ -230,6 +237,16 @@ message AgentCommand {
   string expected_container_revision = 4;
   bytes payload_hash = 5;
   google.protobuf.Timestamp deadline = 6;
+  // Spec 012 D-001: parâmetros de comandos com alvo de host; 8 reservado para a 013.
+  oneof parameters {
+    PullImageParameters pull_image = 7;
+  }
+}
+
+// Plataforma vazia = plataforma do host; a API não expõe `platform` nesta spec.
+message PullImageParameters {
+  string reference = 1;
+  string platform = 2;
 }
 
 message CommandAccepted {
@@ -244,10 +261,53 @@ message CommandResult {
   string failure_code = 3;
   string observed_container_revision = 4;
   google.protobuf.Timestamp completed_at = 5;
+  // Spec 012: resultado do pull.
+  string resolved_image_digest = 6;
+  uint64 image_size_bytes = 7;
 }
 
 message SnapshotRequest {
   string reason_code = 1;
+  // Spec 012: ausente = containers (servidor N-1).
+  SnapshotScope scope = 2;
+}
+
+enum SnapshotScope {
+  SNAPSHOT_SCOPE_UNSPECIFIED = 0;
+  SNAPSHOT_SCOPE_CONTAINERS = 1;
+  SNAPSHOT_SCOPE_IMAGES = 2;
+}
+
+// Spec 012 D-007: página ≤ 256 KiB e ≤ 200 imagens; tags e digests limitados a 64 cada.
+message ImageSnapshotPage {
+  string snapshot_id = 1;
+  uint64 image_revision = 2;
+  uint32 page_number = 3;
+  bool is_last_page = 4;
+  repeated ImageState images = 5;
+}
+
+message ImageDelta {
+  uint64 base_revision = 1;
+  uint64 image_revision = 2;
+  repeated ImageChange changes = 3;
+}
+
+message ImageChange {
+  ChangeKind kind = 1;
+  ImageState image = 2;
+  string image_id = 3;
+}
+
+message ImageState {
+  string image_id = 1;
+  repeated string repo_tags = 2;
+  repeated string repo_digests = 3;
+  uint64 size_bytes = 4;
+  google.protobuf.Timestamp created_at = 5;
+  string architecture = 6;
+  string os = 7;
+  bool truncated = 8;
 }
 
 message ReconciliationRequest {
@@ -289,6 +349,8 @@ enum Capability {
   CAPABILITY_CONTAINER_UNPAUSE = 9;
   CAPABILITY_CONTAINER_INSPECT = 10;
   CAPABILITY_CONTAINER_LOGS = 11;
+  CAPABILITY_IMAGE_INVENTORY = 12;
+  CAPABILITY_IMAGE_PULL = 13;
 }
 
 enum ContainerQueryKind {
@@ -372,6 +434,7 @@ enum CommandKind {
   COMMAND_KIND_DELETE_CONTAINER = 4;
   COMMAND_KIND_PAUSE_CONTAINER = 5;
   COMMAND_KIND_UNPAUSE_CONTAINER = 6;
+  COMMAND_KIND_PULL_IMAGE = 7;
 }
 
 enum CommandAcceptance {
