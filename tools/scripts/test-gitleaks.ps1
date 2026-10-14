@@ -80,6 +80,15 @@ $cases = @(
     @{ Name = 'empty single-quoted value'; Text = New-CredentialAssignment 'Password' "''"; Rule = $null }
     @{ Name = 'empty double-quoted value'; Text = New-CredentialAssignment 'Password' '""'; Rule = $null }
     @{ Name = 'documented placeholder'; Text = New-CredentialAssignment 'Password' '"<certificate-secret>"'; Rule = $null }
+    @{ Name = 'C# await expression'; Text = 'using (var secret = await http.PostAsync("v4.0.0/libpod/secrets/create", content))'; Rule = $null }
+    @{ Name = 'C# range indexing'; Text = 'new { username = decoded[..separator], password = decoded[(separator + 1)..] }'; Rule = $null }
+    @{ Name = 'JS function call'; Text = "var password = h(Section, { title: 'Senha' })"; Rule = $null }
+    @{ Name = 'JS boolean coercion'; Text = 'const secret = !!p.secret;'; Rule = $null }
+    @{ Name = 'template placeholder'; Text = '<dc-import secret="{{v.secret}}" mono="{{yes}}">'; Rule = $null }
+    @{ Name = 'documented key list'; Text = 'Mascaramento (`password=`, `secret=`, `token=`)'; Rule = $null }
+    @{ Name = 'synthetic canary'; Text = '"DATABASE_PASSWORD={{Canary}}-env"'; Rule = $null }
+    @{ Name = 'literal with parenthesis'; Text = New-CredentialAssignment 'Password' ('Ab' + $credential + '(1'); Rule = $connectionRule }
+    @{ Name = 'literal with bracket'; Text = New-CredentialAssignment 'Password' ('Ab' + $credential + '[x'); Rule = $connectionRule }
 )
 
 $reportDirectory = Join-Path ([IO.Path]::GetTempPath()) ([IO.Path]::GetRandomFileName())
