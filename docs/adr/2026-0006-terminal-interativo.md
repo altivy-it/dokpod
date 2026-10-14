@@ -1,10 +1,11 @@
 # ADR 2026-0006: Terminal interativo no container
 
-- **Status:** proposed
+- **Status:** accepted
 - **Data:** 2026-10-14
 - **Origem:** IA assistida, a pedido do solicitante (spec 014)
-- **Revisor humano:** zocatel (solicitante e responsável pelo produto); revisão de segurança pendente antes de release
-- **Aprovação de execução:** 2026-10-13, registrada em `specs/README.md` ("Aprovação humana"); este ADR permanece `proposed` até a revisão de segurança.
+- **Revisor humano:** zocatel (solicitante e responsável pelo produto)
+- **Aprovação de execução:** 2026-10-13, registrada em `specs/README.md` ("Aprovação humana").
+- **Aprovação:** 2026-10-14, decisão explícita do solicitante na sessão de trabalho: "ADR revisado e aprovado".
 
 ## Contexto
 

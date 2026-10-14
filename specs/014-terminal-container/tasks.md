@@ -2,13 +2,13 @@
 
 **Entrada**: [spec.md](spec.md), [plan.md](plan.md), [research.md](research.md), [data-model.md](data-model.md), [contracts/](contracts/contracts-delta.md).
 
-**Estado**: `implemented` - concluída em 2026-10-14; ADR 2026-0006 `proposed` e revisão humana de segurança pendentes antes de release. `NOT RUN`: Docker real, terminal real pelo navegador (Playwright com Keycloak/BFF/hub; o mock não tem SignalR), eco ponta a ponta no navegador (SC-001 medido no agente com Podman real), carga com 4 sessões (SC-004) e varredura de canários nos logs de processo da stack real.
+**Estado**: `implemented` - concluída em 2026-10-14; ADR 2026-0006 `accepted` em 2026-10-14; revisão humana de segurança pendente antes de release. `NOT RUN`: Docker real, terminal real pelo navegador (Playwright com Keycloak/BFF/hub; o mock não tem SignalR), eco ponta a ponta no navegador (SC-001 medido no agente com Podman real), carga com 4 sessões (SC-004) e varredura de canários nos logs de processo da stack real.
 
 **Pré-requisitos**: T001-T003 aprovadas; 011 concluída (página de detalhe, hub, BFF).
 
 ## Fase 1: Governança e segurança (bloqueante)
 
-- [x] T001 Criar `docs/adr/2026-0006-terminal-interativo.md` (`proposed`): fronteira de exec, canal separado, sem gravação de conteúdo, exceção ao modelo de comando durável (D-006), dependência xterm.js (licença MIT compatível com AGPL-3.0-only verificada, versão fixada), revisor humano. — `docs/adr/2026-0006-terminal-interativo.md` (`proposed`): fronteira, canal separado, sem gravação, exceção ao princípio IV, xterm.js 6.0.0/addon-fit 0.11.0 (MIT, versões exatas, registrado em `docs/licenciamento.md`).
+- [x] T001 Criar `docs/adr/2026-0006-terminal-interativo.md` (`proposed`): fronteira de exec, canal separado, sem gravação de conteúdo, exceção ao modelo de comando durável (D-006), dependência xterm.js (licença MIT compatível com AGPL-3.0-only verificada, versão fixada), revisor humano. — `docs/adr/2026-0006-terminal-interativo.md` (`proposed`): fronteira, canal separado, sem gravação, exceção ao princípio IV, xterm.js 6.0.0/addon-fit 0.11.0 (MIT, versões exatas, registrado em `docs/licenciamento.md`). Aprovado pelo revisor humano em 2026-10-14 (`accepted`).
 - [x] T002 Threat model do terminal em `docs/seguranca.md` (abuso de shell, escalada, sessão órfã e processos em segundo plano como risco residual, sequências maliciosas, DoS do agente, janela de revogação, justificativa com segredo) e lista de testes negativos; registrar aprovação. — threat model e testes negativos em `docs/seguranca.md`; aprovação de execução em `specs/README.md` (revisão de segurança pendente).
 - [x] T003 Confirmar limites padrão, justificativa e MFA (D-005); documentar em `docs/configuracao-keycloak.md` a vida útil curta do access token (≤ 5 min) e a janela de revogação (D-008). — limites padrão em `TerminalOptions`; justificativa só em Produção; MFA opcional (`Terminal__RequireRecentMfa`); token ≤ 5 min e janela de revogação em `docs/configuracao-keycloak.md`.
 
