@@ -54,8 +54,11 @@ public sealed record AgentOptions(
     }
 
     private static string GetDockerSocketPath() =>
-        Environment.GetEnvironmentVariable("DOKPOD_AGENT_DOCKER_SOCKET")
-        ?? (OperatingSystem.IsWindows() ? "docker_engine" : "/run/docker.sock");
+        Dokpod.Agent.Infrastructure.Engines.EngineSocketResolver.Resolve(
+            Environment.GetEnvironmentVariable("DOKPOD_AGENT_DOCKER_SOCKET"),
+            OperatingSystem.IsWindows(),
+            Environment.GetEnvironmentVariable("XDG_RUNTIME_DIR"),
+            File.Exists);
 
     private static string? GetOptionalAbsolutePath(string variableName)
     {

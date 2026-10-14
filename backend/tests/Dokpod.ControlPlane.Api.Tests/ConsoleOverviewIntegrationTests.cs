@@ -102,6 +102,101 @@ public sealed class ConsoleOverviewIntegrationTests
         }
     }
 
+    [Fact]
+    public async Task Retention_RemovesOnlyExpiredEventsAndRefusesOtherTables()
+    {
+        await using var context = CreateContextOrSkip();
+        var ct = TestContext.Current.CancellationToken;
+        var environmentId = Guid.NewGuid();
+        var store = new PostgresOperationalEventStore(context);
+        var now = DateTimeOffset.UtcNow;
+        try
+        {
+            var old = OperationalEvent.Create(environmentId, OperationalEventTypes.ContainerDied, now.AddDays(-120), now, "container", "x", "old", null);
+            var recent = OperationalEvent.Create(environmentId, OperationalEventTypes.ContainerDied, now.AddDays(-2), now, "container", "y", "recent", null);
+            Assert.Equal(2, await store.AppendAsync([old, recent], ct));
+
+            Assert.True(await store.ApplyRetentionAsync(TimeSpan.FromDays(90), ct) >= 0);
+
+            var remaining = await context.EnvironmentEvents.Where(e => e.EnvironmentId == environmentId).Select(e => e.SubjectName).ToListAsync(ct);
+            Assert.Equal(["recent"], remaining);
+
+            foreach (var (table, column) in new[] { ("dokpod.audit_events", "occurred_at_utc"), ("dokpod.environment_events", "event_id") })
+            {
+                var error = await Assert.ThrowsAsync<Npgsql.PostgresException>(() => context.Database
+                    .SqlQuery<long>($"SELECT dokpod.dokpod_apply_temporal_retention({table}::text::regclass, {column}, interval '30 days') AS \"Value\"")
+                    .ToListAsync(ct));
+                Assert.Contains("not eligible for temporal retention", error.MessageText);
+            }
+        }
+        finally
+        {
+            await context.EnvironmentEvents.Where(item => item.EnvironmentId == environmentId).ExecuteDeleteAsync(ct);
+        }
+    }
+
+    [Fact]
+    public async Task Partitions_EnvironmentEventsHaveMonthlyPartitionsCreatedAhead()
+    {
+        await using var context = CreateContextOrSkip();
+        var nextMonth = DateTime.UtcNow.AddMonths(1);
+        var partition = $"dokpod.environment_events_{nextMonth:yyyy_MM}";
+
+        var found = await context.Database
+            .SqlQuery<string>($"SELECT coalesce(to_regclass({partition})::text, '') AS \"Value\"")
+            .SingleAsync(TestContext.Current.CancellationToken);
+
+        Assert.False(string.IsNullOrEmpty(found), $"partição {partition} ausente");
+    }
+
+    [Fact]
+    public async Task Overview_With56HostsAnd1120ContainersAnswersWithinBudget()
+    {
+        await using var context = CreateContextOrSkip();
+        var ct = TestContext.Current.CancellationToken;
+        var ids = Enumerable.Range(0, 56).Select(_ => Guid.NewGuid()).ToArray();
+        var registrations = new PostgresEnvironmentRegistrationStore(context);
+        var hosts = new PostgresAgentHostStore(context);
+        var inventory = new PostgresInventoryProjectionStore(context);
+        var now = DateTimeOffset.UtcNow;
+        try
+        {
+            for (var i = 0; i < ids.Length; i++)
+            {
+                var id = ids[i];
+                await registrations.CreateAsync(
+                    EnvironmentRegistration.Create(id, $"perf-{i:D2}-{id:N}"[..24], $"perf-{i}.local", true, [EnvironmentResourceScopes.Read], i % 2 == 0 ? EnvironmentStage.Production : EnvironmentStage.Staging),
+                    ct);
+                await hosts.UpsertDescriptorAsync(new AgentDescriptor(
+                    id, i % 3 == 0 ? "podman" : "docker", i % 3 == 0 ? "5.2.3" : "27.3.1", "1.47", false, "linux", "24.04", "amd64", "0.9.0", [], $"perf-{i}", 8, 1L << 34, now), ct);
+                var containers = Enumerable.Range(0, 20).ToDictionary(
+                    c => $"{id:N}{c:D4}",
+                    c => new ContainerInventory($"{id:N}{c:D4}", $"c-{c}", "img", c % 5 == 0 ? "Exited" : "Running", $"r{c}", now) { ExitCode = c % 10 == 0 ? 1 : 0 });
+                await inventory.ReplaceSnapshotAsync(new InventorySnapshot(id, 1, containers), ct);
+            }
+
+            var events = new PostgresOperationalEventStore(context);
+            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+            var authorized = new List<EnvironmentRegistration>();
+            foreach (var id in ids) authorized.Add((await registrations.GetAsync(id, ct))!);
+            var hostQuery = new HostQueryService(
+                hosts, hosts, new Dokpod.ControlPlane.Api.Agents.InMemoryAgentSessionStore(), new AgentLivenessTracker(TimeProvider.System), new EngineSupportOptions());
+            var views = await hostQuery.DescribeAsync(authorized, ct);
+            var summary = await new Dokpod.ControlPlane.Application.Overview.OverviewQueryService(events, TimeProvider.System).SummarizeAsync(null, views, ct);
+            stopwatch.Stop();
+
+            Assert.Equal(56, summary.HostsTotal);
+            Assert.Equal(1120, summary.ContainersTotal);
+            Assert.Equal(56 * 4, summary.ContainersByDisplayStatus["stopped"] + summary.ContainersByDisplayStatus["failed"]);
+            Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(2), $"overview em {stopwatch.ElapsedMilliseconds} ms");
+        }
+        finally
+        {
+            await context.InventoryProjections.Where(item => ids.Contains(item.EnvironmentId)).ExecuteDeleteAsync(ct);
+            await context.EnvironmentRegistrations.Where(item => ids.Contains(item.EnvironmentId)).ExecuteDeleteAsync(ct);
+        }
+    }
+
     private static ControlPlaneDbContext CreateContextOrSkip()
     {
         var connectionString = Environment.GetEnvironmentVariable("DOKPOD_TEST_POSTGRES_CONNECTION");

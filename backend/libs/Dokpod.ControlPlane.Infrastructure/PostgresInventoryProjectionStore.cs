@@ -51,7 +51,49 @@ public sealed class PostgresInventoryProjectionStore(ControlPlaneDbContext dbCon
             hasMore ? page[^1].ContainerId : null);
     }
 
-    public async Task<InventoryReconciliationResult> ApplyDeltaAsync(
+    public Task<InventoryReconciliationResult> ApplyDeltaAsync(
+        Guid environmentId,
+        InventoryDelta delta,
+        CancellationToken cancellationToken) =>
+        RetrySerializableAsync(() => ApplyDeltaOnceAsync(environmentId, delta, cancellationToken), cancellationToken);
+
+    public Task<InventoryReconciliationResult> ReplaceSnapshotAsync(
+        InventorySnapshot snapshot,
+        CancellationToken cancellationToken) =>
+        RetrySerializableAsync(() => ReplaceSnapshotOnceAsync(snapshot, cancellationToken), cancellationToken);
+
+    /// <summary>
+    /// Transações SERIALIZABLE de agentes diferentes podem falhar por conflito de predicado (40001/40P01)
+    /// mesmo sem tocar as mesmas linhas; a transação inteira é repetida com recuo curto (spec 008 T016).
+    /// </summary>
+    private async Task<T> RetrySerializableAsync<T>(Func<Task<T>> operation, CancellationToken cancellationToken)
+    {
+        const int maxAttempts = 5;
+        for (var attempt = 1; ; attempt++)
+        {
+            try
+            {
+                return await operation().ConfigureAwait(false);
+            }
+            catch (Exception exception) when (attempt < maxAttempts && IsSerializationFailure(exception))
+            {
+                dbContext.ChangeTracker.Clear();
+                await Task.Delay(TimeSpan.FromMilliseconds(Random.Shared.Next(10, 50) * attempt), cancellationToken).ConfigureAwait(false);
+            }
+        }
+    }
+
+    private static bool IsSerializationFailure(Exception exception)
+    {
+        for (var current = exception; current is not null; current = current.InnerException)
+        {
+            if (current is Npgsql.PostgresException { SqlState: "40001" or "40P01" }) return true;
+        }
+
+        return false;
+    }
+
+    private async Task<InventoryReconciliationResult> ApplyDeltaOnceAsync(
         Guid environmentId,
         InventoryDelta delta,
         CancellationToken cancellationToken)
@@ -123,7 +165,7 @@ public sealed class PostgresInventoryProjectionStore(ControlPlaneDbContext dbCon
         return result;
     }
 
-    public async Task<InventoryReconciliationResult> ReplaceSnapshotAsync(
+    private async Task<InventoryReconciliationResult> ReplaceSnapshotOnceAsync(
         InventorySnapshot snapshot,
         CancellationToken cancellationToken)
     {

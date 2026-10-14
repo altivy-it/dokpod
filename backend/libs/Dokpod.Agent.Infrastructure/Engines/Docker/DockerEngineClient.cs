@@ -560,6 +560,15 @@ public sealed class DockerEngineClient(HttpClient httpClient) : IContainerEngine
         ValidateContainerId(containerId);
         await EnsureNegotiatedAsync(cancellationToken);
 
+        // Podman recusa `stop` em container pausado ("refusing to clean up"); o Docker aceita.
+        // Para manter o mesmo comportamento nas duas engines, retoma antes de parar (spec 008 T011).
+        if (commandKind == AgentCommandKind.StopContainer && engineKind == "podman" &&
+            (await InspectContainerAsync(containerId, cancellationToken))?.State == "paused")
+        {
+            using var unpause = new HttpRequestMessage(HttpMethod.Post, $"v{apiVersion}/containers/{containerId}/unpause");
+            using var unpaused = await httpClient.SendAsync(unpause, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+        }
+
         var request = commandKind switch
         {
             AgentCommandKind.StartContainer => new HttpRequestMessage(HttpMethod.Post, $"v{apiVersion}/containers/{containerId}/start"),
@@ -579,16 +588,36 @@ public sealed class DockerEngineClient(HttpClient httpClient) : IContainerEngine
                 return new ContainerMutationResult(true, null);
             }
 
+            // Docker sinaliza estado incompatível com 409; Podman com 500 e `cause` "container state improper".
+            var stateConflict = response.StatusCode == HttpStatusCode.Conflict ||
+                (response.StatusCode == HttpStatusCode.InternalServerError && engineKind == "podman" &&
+                 await HasCauseAsync(response, "container state improper", cancellationToken));
             return new ContainerMutationResult(
                 false,
                 response.StatusCode switch
                 {
                     HttpStatusCode.NotFound => "target_not_found",
-                    // 409: pausa sem container em execução / retomada sem container pausado (spec 010).
-                    HttpStatusCode.Conflict when commandKind == AgentCommandKind.PauseContainer => "not_running",
-                    HttpStatusCode.Conflict when commandKind == AgentCommandKind.UnpauseContainer => "not_paused",
+                    // Pausa sem container em execução / retomada sem container pausado (spec 010).
+                    _ when stateConflict && commandKind == AgentCommandKind.PauseContainer => "not_running",
+                    _ when stateConflict && commandKind == AgentCommandKind.UnpauseContainer => "not_paused",
                     _ => "operation_failed",
                 });
+        }
+    }
+
+    private static async Task<bool> HasCauseAsync(HttpResponseMessage response, string cause, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await using var content = await ReadLimitedAsync(response, cancellationToken);
+            using var document = await JsonDocument.ParseAsync(content, cancellationToken: cancellationToken);
+            return document.RootElement.ValueKind == JsonValueKind.Object &&
+                document.RootElement.TryGetProperty("cause", out var value) &&
+                string.Equals(value.GetString(), cause, StringComparison.Ordinal);
+        }
+        catch (Exception exception) when (exception is JsonException or InvalidDataException)
+        {
+            return false;
         }
     }
 
