@@ -4,7 +4,7 @@
 
 **Criada em**: 2026-10-14
 
-**Estado**: `draft` - esclarecida em 2026-10-14; aguardando aprovação humana para `/speckit-plan`.
+**Estado**: `approved` - esclarecida e aprovada pelo solicitante em 2026-10-14 ("spec aprovada, siga com o plano e implemente").
 
 **Entrada**: Pedido do solicitante em 2026-10-14, sobre captura da Visão geral na stack real (Homologação, 1 host Podman, 15 containers): "Os cards precisam ser clicáveis como o último, devem abrir a tela de containers, os dados de estatística precisam ser populados, com os dados dos containers". Board `01 · Visão geral` (seis `Altivy.InfoKPI`, gráfico "Uso de recursos do cluster" e donut "Containers por engine") e board `02 · Containers` (filtros, colunas CPU e Memória).
 
