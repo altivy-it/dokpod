@@ -56,6 +56,10 @@ public sealed class AgentControlClient : IAsyncDisposable
     public AsyncDuplexStreamingCall<AgentMessage, ControlPlaneMessage> Connect(
         CancellationToken cancellationToken) => client.Connect(cancellationToken: cancellationToken);
 
+    /// <summary>Canal separado do terminal (spec 014 D-001), no mesmo canal mTLS.</summary>
+    public AsyncDuplexStreamingCall<ExecFrame, ExecFrame> Exec(CancellationToken cancellationToken) =>
+        client.Exec(cancellationToken: cancellationToken);
+
     public ValueTask DisposeAsync()
     {
         channel.Dispose();

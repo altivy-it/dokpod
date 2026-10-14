@@ -26,7 +26,7 @@ jobs:
       DOKPOD_CONTROLPLANE_CONNECTION: ${{ github.event_name == 'pull_request' && 'Host=postgres;Port=5432;Database=keycloak;Username=keycloak;Search Path=dokpod;Command Timeout=300' || secrets.DOKPOD_CI_CONTROLPLANE_CONNECTION }}
       DOKPOD_TEST_POSTGRES_CONNECTION: ${{ github.event_name == 'pull_request' && 'Host=postgres;Port=5432;Database=keycloak;Username=keycloak;Search Path=dokpod;Command Timeout=300' || secrets.DOKPOD_CI_TEST_POSTGRES_CONNECTION }}
     container:
-      image: lzocateli/dotnet-sdk:10.0.400-noble
+      image: lzocateli/dotnet-sdk:10.0.402-noble-v1
       options: --user 0
     services:
       postgres:

@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-FROM lzocateli/dotnet-sdk:10.0.400-noble AS build
+FROM lzocateli/dotnet-sdk:10.0.402-noble-v1 AS build
 USER root
 WORKDIR /src
 
@@ -25,7 +25,7 @@ FROM build AS publish
 
 RUN dotnet publish backend/apps/Dokpod.ControlPlane.Api/Dokpod.ControlPlane.Api.csproj --configuration Release --no-restore --output /app/publish /p:UseAppHost=false
 
-FROM lzocateli/dotnet-aspnet:10.0.11-noble AS runtime
+FROM lzocateli/dotnet-aspnet:10.0.13-noble-v1 AS runtime
 LABEL org.opencontainers.image.title="dokpod-api" \
     org.opencontainers.image.description="API do plano de controle Dokpod para protocolo de agentes e health do laboratório." \
     org.opencontainers.image.source="https://github.com/lzocateli/dokpod" \

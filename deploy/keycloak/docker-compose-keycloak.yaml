@@ -2,7 +2,7 @@ name: altivy-keycloak-lab
 
 services:
   nginx-proxy:
-    image: lzocateli/nginx:1.28.0-bookworm
+    image: lzocateli/nginx:1.28.0-bookworm-v1
     container_name: altivy-nginx-proxy
     restart: unless-stopped
     ports:

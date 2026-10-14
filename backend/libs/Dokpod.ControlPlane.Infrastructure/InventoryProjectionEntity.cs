@@ -17,5 +17,14 @@ public sealed class InventoryContainerEntity
     public string State { get; set; } = string.Empty;
     public string Revision { get; set; } = string.Empty;
     public DateTimeOffset ObservedAtUtc { get; set; }
+    public DateTimeOffset? CreatedAtUtc { get; set; }
+    public DateTimeOffset? StartedAtUtc { get; set; }
+    public string? Health { get; set; }
+    public int? RestartCount { get; set; }
+    public int? ExitCode { get; set; }
+    public bool? OomKilled { get; set; }
+    public string? Ports { get; set; }
+    public string? ImageId { get; set; }
+    public string DisplayStatus { get; set; } = "stopped";
     public InventoryProjectionEntity Projection { get; set; } = null!;
 }

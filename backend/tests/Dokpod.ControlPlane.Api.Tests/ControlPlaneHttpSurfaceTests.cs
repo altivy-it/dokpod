@@ -64,6 +64,45 @@ public sealed class ControlPlaneHttpSurfaceTests
                 or "/hubs/control-plane"),
             endpoint => Assert.NotNull(endpoint.Metadata.GetMetadata<IAuthorizeData>()));
 
+        // Rotas do console (specs 008-011): todas exigem usuário autenticado; autorização por ambiente é feita nos serviços.
+        string[] consoleRoutes =
+        [
+            "/api/v1/overview",
+            "/api/v1/events",
+            "/api/v1/containers",
+            "/api/v1/environments/{environmentId:guid}/stage",
+            "/api/v1/environments/{environmentId:guid}/containers/{containerId}",
+            "/api/v1/environments/{environmentId:guid}/containers/{containerId}/summary",
+            "/api/v1/environments/{environmentId:guid}/containers/{containerId}/inspect",
+            "/api/v1/environments/{environmentId:guid}/containers/{containerId}/logs",
+            "/api/v1/metrics/overview",
+            "/api/v1/metrics/hosts",
+            "/api/v1/environments/{environmentId:guid}/containers/{containerId}/metrics",
+            "/api/v1/images",
+            "/api/v1/environments/{environmentId:guid}/images/lookup",
+            "/api/v1/environments/{environmentId:guid}/images/pull",
+            "/api/v1/environments/{environmentId:guid}/create-options",
+            "/api/v1/environments/{environmentId:guid}/containers/{containerId}/terminal-policy",
+            "/api/v1/terminal-sessions/{sessionId:guid}/renew",
+        ];
+        Assert.Contains(endpoints, endpoint => endpoint.RoutePattern.RawText == "/api/v1/environments/{environmentId:guid}/containers" &&
+            endpoint.Metadata.GetMetadata<Microsoft.AspNetCore.Routing.IHttpMethodMetadata>()?.HttpMethods.Contains("POST") == true);
+        using (var scope = app.Services.CreateScope())
+        {
+            // Specs 012/013: serviços e o protetor de parâmetros (key ring próprio da API) resolvem pelo DI.
+            Assert.NotNull(scope.ServiceProvider.GetRequiredService<Dokpod.ControlPlane.Application.Containers.ContainerCreationService>());
+            Assert.NotNull(scope.ServiceProvider.GetRequiredService<Dokpod.ControlPlane.Application.Images.ImagePullService>());
+            var protector = scope.ServiceProvider.GetRequiredService<Dokpod.ControlPlane.Application.Commands.ICommandParameterProtector>();
+            Assert.Equal("x"u8.ToArray(), protector.TryUnprotect(protector.Protect("x"u8.ToArray())));
+            Assert.Null(protector.TryUnprotect([1, 2, 3]));
+        }
+        foreach (var route in consoleRoutes)
+        {
+            var matches = endpoints.Where(endpoint => endpoint.RoutePattern.RawText == route).ToArray();
+            Assert.True(matches.Length > 0, $"rota {route} ausente");
+            Assert.All(matches, endpoint => Assert.NotNull(endpoint.Metadata.GetMetadata<IAuthorizeData>()));
+        }
+
         var healthChecks = app.Services
             .GetRequiredService<IOptions<HealthCheckServiceOptions>>()
             .Value.Registrations
@@ -85,7 +124,11 @@ public sealed class ControlPlaneHttpSurfaceTests
     [Fact]
     public async Task JoinEnvironmentAsync_RejectsInvalidEnvironmentId()
     {
-        var hub = new ControlPlaneHub(new StubAuthorizationDecider());
+        var hub = new ControlPlaneHub(
+            new StubAuthorizationDecider(),
+            new Microsoft.Extensions.DependencyInjection.ServiceCollection().BuildServiceProvider().GetRequiredService<Microsoft.Extensions.DependencyInjection.IServiceScopeFactory>(),
+            new Dokpod.ControlPlane.Application.Queries.AgentQueryDispatcher(TimeProvider.System),
+            TimeProvider.System);
 
         var exception = await Assert.ThrowsAsync<HubException>(() =>
             hub.JoinEnvironmentAsync("../host"));

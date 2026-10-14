@@ -36,7 +36,7 @@ A implementação segue a mesma separação de responsabilidades validada no Alt
 | `/health/live` | anônimo | liveness sem dependências externas |
 | `/health/ready` | anônimo | readiness incluindo discovery do Keycloak |
 | `/bff/login` | anônimo, limitado | inicia o login OIDC |
-| `/bff/session` | anônimo | retorna o estado sanitizado da sessão |
+| `/bff/session` | anônimo | retorna o estado sanitizado da sessão (`authenticated`, `subject`, `name`, `displayGroup` opcional) |
 | `/bff/antiforgery` | autenticado | emite token antiforgery |
 | `/bff/logout` | autenticado + antiforgery | encerra sessão local e no Keycloak |
 
@@ -118,6 +118,7 @@ Os valores sensíveis são injetados por secret provider ou arquivo montado fora
 - `Downstream:Api:TimeoutSeconds`, `Downstream:Api:MaxRequestContentLengthBytes` e `Downstream:Api:MaxResponseContentLengthBytes`: timeout e limites do relay para a API;
 - `Downstream:Api:TimeoutSeconds` aceita no máximo 120 segundos; cada limite de corpo aceita no máximo 32 MiB. No WebSocket, o timeout vale somente para o handshake; a conexão permanece ativa até cancelamento ou encerramento de uma das pontas;
 - `Bff:LoginRateLimitPermitLimit`, `Bff:LoginRateLimitWindowSeconds` e `Bff:LoginRateLimitQueueLimit`: política de login.
+- `Bff:Session:DisplayGroupClaim`: claim opcional cujo primeiro valor é devolvido como `displayGroup` em `/bff/session` (até 80 caracteres) e exibido abaixo do nome no console; vazio desativa. Configure no Keycloak um mapper de atributo de usuário (ex.: `dokpod_display_group`) em vez de expor a lista de grupos.
 
 ## Validação
 
@@ -127,7 +128,7 @@ Na raiz do repositório, com Docker disponível:
 docker run --rm --group-add 0 `
   --volume "${PWD}:/workspace" `
   --workdir /workspace `
-  lzocateli/dotnet-sdk:10.0.400-noble `
+  lzocateli/dotnet-sdk:10.0.402-noble-v1 `
   dotnet test backend/tests/Dokpod.Bff.Tests/Dokpod.Bff.Tests.csproj `
   --configuration Release --verbosity minimal
 ```

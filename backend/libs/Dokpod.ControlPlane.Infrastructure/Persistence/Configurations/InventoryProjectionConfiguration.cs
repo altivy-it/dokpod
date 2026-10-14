@@ -32,5 +32,14 @@ public sealed class InventoryContainerConfiguration : IEntityTypeConfiguration<I
         builder.Property(container => container.State).HasColumnName("state").HasMaxLength(32);
         builder.Property(container => container.Revision).HasColumnName("revision").HasMaxLength(255);
         builder.Property(container => container.ObservedAtUtc).HasColumnName("observed_at_utc").IsRequired();
+        builder.Property(container => container.CreatedAtUtc).HasColumnName("created_at_utc");
+        builder.Property(container => container.StartedAtUtc).HasColumnName("started_at_utc");
+        builder.Property(container => container.Health).HasColumnName("health").HasMaxLength(16);
+        builder.Property(container => container.RestartCount).HasColumnName("restart_count");
+        builder.Property(container => container.ExitCode).HasColumnName("exit_code");
+        builder.Property(container => container.OomKilled).HasColumnName("oom_killed");
+        builder.Property(container => container.Ports).HasColumnName("ports").HasColumnType("jsonb");
+        builder.Property(container => container.ImageId).HasColumnName("image_id").HasMaxLength(160);
+        builder.Property(container => container.DisplayStatus).HasColumnName("display_status").HasMaxLength(16).IsRequired();
     }
 }

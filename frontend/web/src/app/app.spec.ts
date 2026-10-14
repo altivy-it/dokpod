@@ -36,7 +36,7 @@ describe('App', () => {
     expect(antiforgeryRequest.request.method).toBe('GET');
     antiforgeryRequest.flush({ requestToken: 'csrf-token' });
 
-    await Promise.resolve();
+    for (let i = 0; i < 5; i++) await Promise.resolve();
 
     const logoutRequest = httpMock.expectOne('bff/logout');
     expect(logoutRequest.request.method).toBe('POST');

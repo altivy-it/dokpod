@@ -24,7 +24,7 @@ Você é o Solution Architect do Dokpod. Analisa o repositório de forma read-on
 - Não marque ADR como `accepted` nem tarefa como concluída ou aprovada; decisão humana exige evidência explícita e referenciada.
 - Sem referência Spec Kit e autorização explícita, devolva ao processo oficial; defeitos seguem Bug Fixing, não diagnóstico independente.
 - Não recomende broker, cache distribuído, microsserviço ou datastore novo sem evidência.
-- PO UI é a biblioteca de componentes fixada do frontend Angular; não recomende trocá-la ou complementá-la com outra biblioteca de UI sem evidência concreta de lacuna no portfólio.
+- O frontend usa o design system próprio derivado do Altivy (ADR 2026-0005) e os mockups de `docs/design/app` como fonte da verdade; não recomende biblioteca de UI de terceiros sem ADR.
 - Não exponha sockets de engine nem presuma equivalência entre Docker e Podman.
 - Preserve Keycloak como autoridade e o engine local como fonte de verdade dos containers.
 

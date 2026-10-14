@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
-ARG DOTNET_SDK_IMAGE=lzocateli/dotnet-sdk:10.0.400-noble
-ARG DOTNET_RUNTIME_IMAGE=lzocateli/dotnet-aspnet:10.0.11-noble
+ARG DOTNET_SDK_IMAGE=lzocateli/dotnet-sdk:10.0.402-noble-v1
+ARG DOTNET_RUNTIME_IMAGE=lzocateli/dotnet-aspnet:10.0.13-noble-v1
 FROM ${DOTNET_SDK_IMAGE} AS build
 WORKDIR /src
 COPY --chown=${APP_UID}:${APP_UID} backend/Directory.Build.props backend/Directory.Packages.props backend/

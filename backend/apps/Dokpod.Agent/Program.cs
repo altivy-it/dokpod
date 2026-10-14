@@ -18,8 +18,19 @@ builder.Services.AddSingleton<ICommandJournal>(_ => new FileCommandJournal(optio
 builder.Services.AddSingleton(_ => OperatingSystem.IsWindows()
     ? DockerEngineClient.CreateNamedPipeClient(options.DockerSocketPath, options.EngineTimeout)
     : DockerEngineClient.CreateUnixSocketClient(options.DockerSocketPath, options.EngineTimeout));
+builder.Services.AddSingleton(new Dokpod.Agent.Infrastructure.Engines.RegistryCredentialFile(options.RegistryAuthFile));
+builder.Services.AddSingleton(new Dokpod.Agent.Infrastructure.Engines.Docker.EngineRawConnector(options.DockerSocketPath));
 builder.Services.AddSingleton<IContainerEngine, DockerEngineClient>();
+if (!OperatingSystem.IsWindows())
+{
+    builder.Services.AddSingleton<Dokpod.Agent.Application.Terminal.IActiveExecStore>(new Dokpod.Agent.Infrastructure.Terminal.FileActiveExecStore(options.DataDirectory));
+    builder.Services.AddSingleton<Dokpod.Agent.Application.Terminal.ExecSessionManager>();
+}
+builder.Services.AddSingleton<Dokpod.Agent.Application.Metrics.IHostResourceProbe, Dokpod.Agent.Infrastructure.Metrics.ProcHostProbe>();
 builder.Services.AddSingleton<AgentCommandGate>();
+builder.Services.AddSingleton<Dokpod.Agent.Application.Containers.IHostSecretFiles>(new Dokpod.Agent.Infrastructure.Secrets.HostSecretFileStore(options.SecretsDirectory));
+builder.Services.AddSingleton(new Dokpod.Agent.Application.Containers.ContainerCreationPolicy(options.BindMountAllowlist ?? [], options.DockerSocketPath));
+builder.Services.AddSingleton<Dokpod.Agent.Application.Containers.ContainerCreator>();
 builder.Services.AddSingleton<AgentCommandProcessor>();
 builder.Services.AddSingleton<AgentCommandProtocolHandler>();
 builder.Services.AddHostedService<AgentWorker>();

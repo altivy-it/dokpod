@@ -81,6 +81,7 @@ public sealed class PostgresEnvironmentRegistrationStore(ControlPlaneDbContext d
             Enabled = registration.Enabled,
             Scopes = JsonSerializer.Serialize(registration.Scopes.Order(StringComparer.Ordinal)),
             CreatedAtUtc = DateTimeOffset.UtcNow,
+            Stage = registration.Stage is null ? null : EnvironmentStages.ToValue(registration.Stage.Value),
         });
 
         try
@@ -102,6 +103,7 @@ public sealed class PostgresEnvironmentRegistrationStore(ControlPlaneDbContext d
             entity.Name,
             entity.Host,
             entity.Enabled,
-            scopes);
+            scopes,
+            EnvironmentStages.ParseNullable(entity.Stage));
     }
 }

@@ -22,20 +22,31 @@ public sealed class AgentCommandQueueService(
             throw new ArgumentException("Command and environment IDs are required.", nameof(command));
         }
 
-        if (command.Kind is < AgentCommandKind.StartContainer or > AgentCommandKind.DeleteContainer)
+        if (command.Kind is < AgentCommandKind.StartContainer or > AgentCommandKind.CreateContainer)
         {
             throw new ArgumentException("Command kind is not supported.", nameof(command));
         }
 
-        if (command.ContainerId.Length != 64 || !command.ContainerId.All(Uri.IsHexDigit))
+        if (AgentCommandKinds.IsHostTarget(command.Kind))
         {
-            throw new ArgumentException("Command container ID is invalid.", nameof(command));
+            // Alvo de host (spec 012): sem container e com parâmetros obrigatórios.
+            if (command.ContainerId.Length != 0 || command.ExpectedContainerRevision.Length != 0 || command.Parameters is null)
+            {
+                throw new ArgumentException("Host command target or parameters are invalid.", nameof(command));
+            }
         }
-
-        if (string.IsNullOrWhiteSpace(command.ExpectedContainerRevision) ||
-            command.ExpectedContainerRevision.Length > 255)
+        else
         {
-            throw new ArgumentException("Command container revision is invalid.", nameof(command));
+            if (command.ContainerId.Length != 64 || !command.ContainerId.All(Uri.IsHexDigit))
+            {
+                throw new ArgumentException("Command container ID is invalid.", nameof(command));
+            }
+
+            if (string.IsNullOrWhiteSpace(command.ExpectedContainerRevision) ||
+                command.ExpectedContainerRevision.Length > 255)
+            {
+                throw new ArgumentException("Command container revision is invalid.", nameof(command));
+            }
         }
 
         if (command.PayloadHash.Length != 64 ||

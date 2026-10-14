@@ -1,0 +1,121 @@
+<div class="dok-stack">
+  <div class="dok-page-head">
+    <div class="dok-page-head__text">
+      <span class="eyebrow">Desenvolvimento</span>
+      <h1 class="app-title">Catálogo de componentes</h1>
+      <p class="app-small">Componentes do design system com dados sintéticos. Não faz parte do build de produção.</p>
+    </div>
+    <div class="dok-actions">
+      <button dok-button variant="outline" size="sm" startIcon="refresh" type="button">Atualizar</button>
+      <button dok-button variant="danger" size="sm" startIcon="trash" type="button">Remover</button>
+      <button dok-button variant="ghost" size="sm" icon="more" type="button" aria-label="Mais ações"></button>
+      <button dok-button variant="primary" size="sm" startIcon="plus" type="button" (click)="drawerOpen.set(true)">Novo container</button>
+    </div>
+  </div>
+
+  <div class="dok-actions" style="align-items: center">
+    <dok-status-chip variant="filter" field="Engine" label="Docker, Podman" [removable]="true" />
+    <dok-status-chip variant="outlined" color="success" label="142 em execução" size="sm" />
+    <dok-status-chip variant="outlined" color="warning" label="2 reiniciando" size="sm" />
+    <dok-status-chip color="success" label="Em execução" [icon]="true" />
+    <dok-status-circle color="success" text="Em dia" />
+    <dok-status-circle color="accent" text="Ao vivo" [pulse]="true" />
+    <dok-engine-badge engine="docker" version="27.3.1" />
+    <dok-engine-badge engine="podman" version="5.2.3" />
+  </div>
+
+  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px">
+    <dok-info-kpi [value]="142" description="Em execução" icon="play" color="success" />
+    <dok-info-kpi [value]="46.8" [decimals]="1" unit="%" description="CPU média do cluster" icon="gauge" color="primary" />
+    <dok-info-kpi [value]="null" description="Imagens sem uso" icon="package" color="warning" />
+    <dok-info-kpi [loading]="true" description="Carregando" />
+  </div>
+
+  <div class="dok-row">
+    <div class="dok-row__main">
+      <dok-line-chart
+        title="Uso de recursos do cluster"
+        subtitle="% da capacidade · últimas 12 horas"
+        [x]="hours"
+        [series]="series"
+        [reference]="{ value: 80, label: 'Limite 80%' }"
+        [yMin]="0"
+        [yMax]="100"
+        [format]="pct"
+        [height]="190"
+        note="Limite operacional de 80%."
+      />
+    </div>
+    <div class="dok-row__side">
+      <dok-donut-chart title="Containers por engine" subtitle="Ativos e parados · agora" [items]="engines" center="154" centerLabel="containers" />
+    </div>
+  </div>
+
+  <div class="dok-row">
+    <div class="dok-row__main">
+      <dok-card title="Recursos agora" color="warning" statusLabel="Memória acima de 80%" actionLabel="Ver todos">
+        <div style="display: flex; flex-direction: column; gap: 10px">
+          <dok-progress-bar [value]="38" label="CPU" />
+          <dok-progress-bar [value]="80.5" label="Memória" />
+          <dok-key-value [items]="kv" />
+        </div>
+      </dok-card>
+    </div>
+    <div class="dok-row__side">
+      <dok-card title="Formulário">
+        <div style="display: flex; flex-direction: column; gap: 12px">
+          <dok-field label="Nome do container" [(ngModel)]="name" />
+          <dok-field label="Imagem" [mono]="true" help="184 MB · publicada em 09/10/2026" />
+          <dok-field label="Limite de memória" suffix="MiB" size="sm" error="Informe um valor entre 6 e 65536." />
+          <dok-field ariaLabel="Valor da variável" [secret]="true" [mono]="true" size="sm" [(ngModel)]="secret" />
+          <dok-select label="Engine" [options]="engineOptions" [(ngModel)]="engine" />
+          <dok-checkbox label="Ativar health check em GET /healthz" help="A cada 15 s, 3 tentativas" [(ngModel)]="healthcheck" />
+          <dok-search-field placeholder="Filtrar logs" width="100%" />
+        </div>
+      </dok-card>
+    </div>
+  </div>
+
+  <dok-tabs [tabs]="tabs" [(value)]="tab" ariaLabel="Seções do container" />
+
+  <dok-data-grid
+    title="Containers"
+    [entityLabel]="['container', 'containers']"
+    [rows]="rows"
+    [columns]="columns"
+    [statusTones]="tones"
+    [rowActions]="rowActions"
+    [(selection)]="selection"
+    updatedAt="10/10/2026 15:12"
+    searchPlaceholder="Nome, imagem, host ou porta"
+    exportName="containers-producao"
+    (rowAction)="toast.success('Ação ' + $event.action + ' em ' + $event.row.name)"
+  />
+
+  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px">
+    <dok-empty-state kind="loading" title="Carregando hosts" />
+    <dok-empty-state kind="forbidden" code="Erro 403" detail="Você não tem acesso a este host." />
+    <dok-empty-state kind="empty" detail="Nenhum container corresponde aos filtros." />
+    <dok-empty-state kind="stale" detail="Inventário observado há 3 min." />
+  </div>
+
+  <div class="dok-actions">
+    <button dok-button variant="outline" size="sm" type="button" (click)="toast.success('Container reiniciado.')">Toast de sucesso</button>
+    <button dok-button variant="outline" size="sm" type="button" (click)="toast.error('O agente não respondeu.', 'Falha ao reiniciar')">Toast de erro</button>
+  </div>
+</div>
+
+<dok-drawer
+  [open]="drawerOpen()"
+  eyebrow="Novo container · Produção"
+  title="Criar e iniciar container"
+  subtitle="A imagem é baixada do registro se não existir no host"
+  [chips]="[{ tone: 'accent', icon: 'monitor', label: 'srv-prod-03' }, { icon: 'box', label: 'Podman 5.2.3' }]"
+  primaryLabel="Criar e iniciar"
+  (closed)="drawerOpen.set(false)"
+  (primary)="drawerOpen.set(false)"
+>
+  <dok-field label="Imagem" [mono]="true" />
+  <dok-field label="Nome do container" />
+  <dok-select label="Engine" [options]="engineOptions" [(ngModel)]="engine" />
+</dok-drawer>

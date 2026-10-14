@@ -15,6 +15,7 @@ public sealed class EnvironmentRegistrationConfiguration : IEntityTypeConfigurat
         entity.Property(environment => environment.Enabled).HasColumnName("enabled").IsRequired();
         entity.Property(environment => environment.Scopes).HasColumnName("scopes").HasMaxLength(2048).IsRequired();
         entity.Property(environment => environment.CreatedAtUtc).HasColumnName("created_at_utc").IsRequired();
+        entity.Property(environment => environment.Stage).HasColumnName("stage").HasMaxLength(16);
         entity.HasIndex(environment => environment.Name).IsUnique();
     }
 }

@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Lista de containers</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="altivy-app.css">
+<link rel="stylesheet" href="ds/altivy/components/bundle.css">
+<script src="ds/altivy/components/bundle.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#5eead4}a:hover{color:#e2e8f0}
+</style>
+</helmet>
+<x-import component-from-global-scope="Altivy.Page" class-name="alt-app" style="min-height: 1000px; padding: 16px; box-sizing: border-box">
+<x-import component-from-global-scope="Altivy.AppShell" height="{{shellH}}" menu="{{menu}}" default-active="containers" title="Containers" breadcrumbs="{{crumbs}}" user="{{user}}" shortcuts="{{envs}}" header-props="{{headerProps}}">
+<div style="display: flex; flex-direction: column; gap: 16px; padding: 8px">
+
+<div style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px">
+<div style="display: flex; flex-direction: column; gap: 4px; min-width: 0">
+<span class="eyebrow" style="color: #5eead4">Operação · Produção</span>
+<h1 class="app-title" style="margin: 0; color: #ffffff">Containers em todos os hosts</h1>
+<p class="app-small" style="margin: 0; color: #a0aec0">Docker e Podman na mesma lista. Selecione linhas para ações em lote.</p>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 8px">
+<x-import component-from-global-scope="Altivy.Button" variant="outline" size="sm" start-icon="play">Iniciar</x-import>
+<x-import component-from-global-scope="Altivy.Button" variant="outline" size="sm" start-icon="pause">Parar</x-import>
+<x-import component-from-global-scope="Altivy.Button" variant="outline" size="sm" start-icon="refresh">Reiniciar</x-import>
+<x-import component-from-global-scope="Altivy.Button" variant="danger" size="sm" start-icon="trash">Remover</x-import>
+<x-import component-from-global-scope="Altivy.Button" variant="primary" size="sm" start-icon="plus" href="NovoContainer.dc.html">Novo container</x-import>
+</div>
+</div>
+
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center">
+<x-import component-from-global-scope="Altivy.StatusChip" variant="filter" field="Engine" label="Docker, Podman" on-delete="{{noop}}"></x-import>
+<x-import component-from-global-scope="Altivy.StatusChip" variant="filter" field="Ambiente" label="Produção" on-delete="{{noop}}"></x-import>
+<span class="app-small" style="color: #a0aec0; margin-left: 4px">Resumo:</span>
+<x-import component-from-global-scope="Altivy.StatusChip" variant="outlined" color="success" label="142 em execução" size="sm"></x-import>
+<x-import component-from-global-scope="Altivy.StatusChip" variant="outlined" color="neutral" label="9 parados" size="sm"></x-import>
+<x-import component-from-global-scope="Altivy.StatusChip" variant="outlined" color="warning" label="2 reiniciando" size="sm"></x-import>
+<x-import component-from-global-scope="Altivy.StatusChip" variant="outlined" color="error" label="1 com falha" size="sm"></x-import>
+</div>
+
+<x-import component-from-global-scope="Altivy.EnhancedDataGrid" title="Containers" entity-label="{{entity}}" rows="{{rows}}" columns="{{columns}}" status-tones="{{tones}}" row-actions="{{rowActions}}" default-selection="{{selection}}" default-sort="{{sort}}" default-density="standard" page-size="{{pageSize}}" updated-at="10/10/2026 15:12" search-placeholder="Nome, imagem, host ou porta" export-name="containers-producao" height="{{gridH}}"></x-import>
+
+</div>
+</x-import>
+</x-import>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1000}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const raw = [
+      ['c01', 'api-pedidos-7f9c', 'registry.empresa.com/pedidos/api:3.14.2', 'Docker', 'srv-prod-02', 'Reiniciando', 0.0, 412, '8080→80/tcp', '10/10/2026 15:08'],
+      ['c02', 'gateway-01', 'registry.empresa.com/edge/gateway:2.8.1', 'Docker', 'srv-prod-01', 'Em execução', 18.4, 286, '443→8443/tcp', '10/10/2026 14:20'],
+      ['c03', 'gateway-02', 'registry.empresa.com/edge/gateway:2.8.1', 'Docker', 'srv-prod-02', 'Em execução', 16.9, 279, '443→8443/tcp', '10/10/2026 14:20'],
+      ['c04', 'checkout-web', 'registry.empresa.com/loja/checkout:5.2.0', 'Podman', 'srv-prod-03', 'Em execução', 22.1, 512, '3000/tcp', '10/10/2026 13:52'],
+      ['c05', 'checkout-sidecar', 'docker.io/envoyproxy/envoy:v1.31.2', 'Podman', 'srv-prod-03', 'Em execução', 3.2, 96, '9901/tcp', '10/10/2026 13:52'],
+      ['c06', 'postgres-principal', 'docker.io/library/postgres:16.4', 'Docker', 'srv-prod-01', 'Em execução', 34.7, 3890, '5432/tcp', '02/10/2026 09:15'],
+      ['c07', 'postgres-replica', 'docker.io/library/postgres:16.4', 'Docker', 'srv-prod-02', 'Em execução', 12.3, 3120, '5432/tcp', '02/10/2026 09:16'],
+      ['c08', 'redis-sessoes', 'docker.io/library/redis:7.4-alpine', 'Podman', 'srv-prod-04', 'Em execução', 4.8, 640, '6379/tcp', '28/09/2026 18:40'],
+      ['c09', 'worker-relatorios', 'registry.empresa.com/bi/relatorios:1.9.0', 'Podman', 'srv-batch-01', 'Com falha', 0.0, 0, '—', '10/10/2026 14:56'],
+      ['c10', 'worker-faturas', 'registry.empresa.com/fin/faturas:4.0.3', 'Podman', 'srv-batch-01', 'Em execução', 41.5, 1180, '—', '09/10/2026 22:00'],
+      ['c11', 'rabbitmq', 'docker.io/library/rabbitmq:3.13-management', 'Docker', 'srv-prod-01', 'Em execução', 7.6, 720, '5672/tcp, 15672/tcp', '30/09/2026 11:02'],
+      ['c12', 'prometheus', 'quay.io/prometheus/prometheus:v2.54.1', 'Podman', 'srv-prod-04', 'Em execução', 9.1, 1450, '9090/tcp', '25/09/2026 08:30'],
+      ['c13', 'grafana', 'docker.io/grafana/grafana:11.2.2', 'Podman', 'srv-prod-04', 'Em execução', 2.4, 210, '3001→3000/tcp', '25/09/2026 08:31'],
+      ['c14', 'edge-cache', 'docker.io/library/nginx:1.27-alpine', 'Docker', 'srv-edge-01', 'Em execução', 26.8, 154, '80/tcp, 443/tcp', '07/10/2026 16:44'],
+      ['c15', 'migracao-catalogo', 'registry.empresa.com/loja/catalogo-migrate:2.1.0', 'Docker', 'srv-prod-02', 'Parado', 0.0, 0, '—', '08/10/2026 03:00'],
+      ['c16', 'debug-rede', 'docker.io/nicolaka/netshoot:v0.13', 'Podman', 'srv-prod-03', 'Pausado', 0.0, 18, '—', '10/10/2026 11:27']
+    ];
+    const rows = raw.map((r) => ({ id: r[0], name: r[1], image: r[2], engine: r[3], host: r[4], status: r[5], cpu: r[6], mem: r[7], ports: r[8], created: r[9] }));
+    return {
+      shellH: 968, pageSize: 25, gridH: 600,
+      noop: () => {},
+      menu: [
+        { section: 'Operação', items: [
+          { id: 'overview', label: 'Visão geral', icon: 'gauge' },
+          { id: 'containers', label: 'Containers', icon: 'box' },
+          { id: 'pods', label: 'Pods', icon: 'grid' },
+          { id: 'images', label: 'Imagens', icon: 'package' },
+          { id: 'volumes', label: 'Volumes', icon: 'columns' },
+          { id: 'networks', label: 'Redes', icon: 'link' }
+        ] },
+        { section: 'Infraestrutura', items: [
+          { id: 'hosts', label: 'Hosts', icon: 'monitor' },
+          { id: 'registries', label: 'Registros', icon: 'inbox' }
+        ] },
+        { section: 'Governança', items: [
+          { id: 'alerts', label: 'Alertas', icon: 'alert', count: 3, countLabel: 'alertas abertos' },
+          { id: 'audit', label: 'Auditoria', icon: 'shield' },
+          { id: 'settings', label: 'Configurações', icon: 'settings' }
+        ] }
+      ],
+      crumbs: ['Operação', 'Containers'],
+      user: { name: 'Mariana Costa', group: 'Plataforma · SRE', initials: 'MC' },
+      envs: [
+        { id: 'prod', label: 'Produção', icon: 'shield' },
+        { id: 'hml', label: 'Homologação', icon: 'flag' },
+        { id: 'dev', label: 'Desenvolvimento', icon: 'tool' }
+      ],
+      headerProps: { env: null, notifications: 4, defaultShortcut: 'prod', showDarkMode: false },
+      entity: ['container', 'containers'],
+      rows,
+      columns: [
+        { field: 'name', headerName: 'Nome', width: 190, locked: true },
+        { field: 'status', headerName: 'Situação', type: 'status', width: 140, filterable: true, groupable: true },
+        { field: 'engine', headerName: 'Engine', width: 100, filterable: true, groupable: true },
+        { field: 'host', headerName: 'Host', width: 130, filterable: true, groupable: true },
+        { field: 'image', headerName: 'Imagem', width: 320, mono: true },
+        { field: 'cpu', headerName: 'CPU', type: 'number', decimals: 1, sub: '%', width: 80 },
+        { field: 'mem', headerName: 'Memória', type: 'number', decimals: 0, sub: 'MiB', width: 100 },
+        { field: 'ports', headerName: 'Portas', width: 170, mono: true },
+        { field: 'created', headerName: 'Criado em', width: 150 }
+      ],
+      tones: { 'Em execução': 'success', 'Parado': 'neutral', 'Pausado': 'info', 'Reiniciando': 'warning', 'Com falha': 'error' },
+      rowActions: [
+        { id: 'logs', label: 'Ver logs', icon: 'list' },
+        { id: 'terminal', label: 'Abrir terminal', icon: 'command' },
+        { id: 'inspect', label: 'Inspecionar', icon: 'eye' },
+        { id: 'restart', label: 'Reiniciar', icon: 'refresh' },
+        { id: 'stop', label: 'Parar', icon: 'pause' },
+        { id: 'remove', label: 'Remover', icon: 'trash' }
+      ],
+      selection: ['c09', 'c15'],
+      sort: null
+    };
+  }
+}
+</script>
+</body>
+</html>

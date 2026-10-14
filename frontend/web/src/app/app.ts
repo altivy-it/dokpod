@@ -1,69 +1,42 @@
-import { HttpClient } from '@angular/common/http';
-import { Component, inject, OnInit, signal } from '@angular/core';
-import { RouterLink, RouterOutlet } from '@angular/router';
-import { firstValueFrom } from 'rxjs';
-
-interface AntiforgeryResponse {
-  requestToken: string;
-}
-
-interface BffSession {
-  authenticated: boolean;
-  subject?: string | null;
-  name?: string | null;
-}
+import { ChangeDetectionStrategy, Component, effect, inject, OnInit } from '@angular/core';
+import { RouterOutlet } from '@angular/router';
+import { EnvironmentDirectoryService } from './core/environment-directory.service';
+import { SessionService } from './core/session.service';
+import { DokButton } from './design-system/button/dok-button';
+import { DokEmptyState } from './design-system/empty-state/dok-empty-state';
+import { DokToastHost } from './design-system/toast/dok-toast';
+import { DokAppShell } from './shell/dok-app-shell';
 
 @Component({
-  imports: [RouterLink, RouterOutlet],
   selector: 'app-root',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [DokAppShell, DokButton, DokEmptyState, DokToastHost, RouterOutlet],
   styleUrl: './app.css',
   templateUrl: './app.html',
 })
 export class App implements OnInit {
-  private readonly http = inject(HttpClient);
+  protected readonly sessionService = inject(SessionService);
+  protected readonly directory = inject(EnvironmentDirectoryService);
 
-  protected readonly session = signal<BffSession | null>(null);
-  protected readonly loading = signal(true);
-  protected readonly errorMessage = signal<string | null>(null);
+  constructor() {
+    effect(() => {
+      if (this.sessionService.state() === 'authenticated') void this.directory.load();
+    });
+  }
 
   ngOnInit(): void {
     this.loadSession();
   }
 
   protected loadSession(): void {
-    this.loading.set(true);
-    this.errorMessage.set(null);
-
-    this.http.get<BffSession>('bff/session').subscribe({
-      next: session => {
-        this.session.set(session);
-        this.loading.set(false);
-      },
-      error: () => {
-        this.errorMessage.set('Não foi possível carregar a sessão do BFF.');
-        this.session.set(null);
-        this.loading.set(false);
-      },
-    });
+    this.sessionService.load();
   }
 
   protected login(): void {
-    const returnUrl = `${window.location.pathname}${window.location.search}`;
-    window.location.assign(`bff/login?returnUrl=${encodeURIComponent(returnUrl)}`);
+    this.sessionService.login();
   }
 
   protected async logout(): Promise<void> {
-    const { requestToken } = await firstValueFrom(
-      this.http.get<AntiforgeryResponse>('bff/antiforgery'),
-    );
-
-    await firstValueFrom(
-      this.http.post<void>('bff/logout', null, {
-        headers: { 'X-Dokpod-Antiforgery': requestToken },
-      }),
-    );
-
-    this.session.set(null);
-    window.location.assign('/');
+    await this.sessionService.logout();
   }
 }

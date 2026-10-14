@@ -55,6 +55,8 @@ public sealed class PostgresAuditEventWriter(
                 CommandId = auditEvent.CommandId,
                 Outcome = (int)auditEvent.Outcome,
                 FailureCode = auditEvent.FailureCode,
+                SubjectId = auditEvent.SubjectId,
+                Details = auditEvent.Details is null ? null : System.Text.Json.JsonSerializer.Serialize(auditEvent.Details),
             });
             dbContext.AuditEventKeys.Add(new AuditEventKeyEntity
             {
@@ -107,8 +109,24 @@ public sealed class PostgresAuditEventWriter(
     private Task ExecuteAppendAsync(
         AuditEvent auditEvent,
         byte[] payloadHash,
-        CancellationToken cancellationToken) =>
-        dbContext.Database.ExecuteSqlInterpolatedAsync($"""
+        CancellationToken cancellationToken) => auditEvent.SubjectId is not null
+        ? dbContext.Database.ExecuteSqlInterpolatedAsync($"""
+            SELECT dokpod.dokpod_append_audit_event(
+                {auditEvent.EventId},
+                {auditEvent.OccurredAtUtc},
+                {auditEvent.CorrelationId},
+                {(short)auditEvent.ActorKind},
+                {auditEvent.ActorId},
+                {auditEvent.Action},
+                {auditEvent.EnvironmentId},
+                {auditEvent.CommandId},
+                {(short)auditEvent.Outcome},
+                {auditEvent.FailureCode},
+                {payloadHash},
+                {auditEvent.SubjectId},
+                {System.Text.Json.JsonSerializer.Serialize(auditEvent.Details ?? new Dictionary<string, string>())}::jsonb)
+            """, cancellationToken)
+        : dbContext.Database.ExecuteSqlInterpolatedAsync($"""
             SELECT dokpod.dokpod_append_audit_event(
                 {auditEvent.EventId},
                 {auditEvent.OccurredAtUtc},
@@ -154,6 +172,13 @@ public sealed class PostgresAuditEventWriter(
 
         fields.Add((int)auditEvent.Outcome);
         fields.Add(auditEvent.FailureCode ?? string.Empty);
+        if (auditEvent.SubjectId is not null)
+        {
+            fields.Add(auditEvent.SubjectId);
+            fields.Add(string.Join(";", (auditEvent.Details ?? new Dictionary<string, string>())
+                .OrderBy(pair => pair.Key, StringComparer.Ordinal)
+                .Select(pair => $"{pair.Key}={pair.Value}")));
+        }
         var payload = string.Join("\u001f", fields);
 
         return SHA256.HashData(Encoding.UTF8.GetBytes(payload));

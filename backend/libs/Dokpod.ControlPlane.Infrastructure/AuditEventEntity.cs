@@ -14,4 +14,6 @@ public sealed class AuditEventEntity
     public Guid? CommandId { get; set; }
     public int Outcome { get; set; }
     public string? FailureCode { get; set; }
+    public string? SubjectId { get; set; }
+    public string? Details { get; set; }
 }

@@ -148,6 +148,21 @@ O período de tolerância e o SLA serão definidos no contrato antes da implemen
 - demonstrar suporte para 100 nodes na matriz publicada;
 - separar artefatos, SBOMs, avisos e pipelines das duas edições.
 
+## Componentes de terceiros no console web
+
+Registro exigido pela spec 007 (T006/T027) e pelo ADR 2026-0005. Toda inclusão nova exige licença permissiva compatível com `AGPL-3.0-only`, versão fixada e necessidade demonstrada.
+
+| Componente | Uso | Licença | Versão | Local | Distribuído |
+| --- | --- | --- | --- | --- | --- |
+| Outfit (400/500/600, latin) | fonte da interface | SIL OFL 1.1 | `@fontsource/outfit` 5.3.0 (woff2 versionado) | `frontend/web/src/styles/fonts/` + `OFL-Outfit.txt` | sim |
+| JetBrains Mono (400/500, latin) | fonte de dados técnicos | SIL OFL 1.1 | `@fontsource/jetbrains-mono` 5.3.0 (woff2 versionado) | `frontend/web/src/styles/fonts/` + `OFL-JetBrainsMono.txt` | sim |
+| Geometria de ícones | ícones `dok-icon` | própria do kit Altivy (`docs/design/app/project/ds/altivy`), traço no estilo Lucide redesenhado no kit | — | `frontend/web/src/app/design-system/icon/icon-paths.ts` | sim |
+| `axe-core` | auditoria de acessibilidade no E2E | MPL-2.0 | 4.14.0 (devDependency exata em `frontend/web/package.json`) | `axe.min.js` injetado pelo runner `frontend/tests/e2e/` | não |
+| `@xterm/xterm` | emulador do terminal interativo (spec 014, ADR 2026-0006) | MIT | 6.0.0 (dependency exata em `frontend/web/package.json`) | chunk lazy do detalhe do container | sim (aviso de copyright MIT no bundle) |
+| `@xterm/addon-fit` | ajuste do terminal ao tamanho do painel | MIT | 0.11.0 (dependency exata) | chunk lazy do detalhe do container | sim |
+
+Fontes OFL podem ser empacotadas com software sob qualquer licença desde que acompanhadas do texto da licença e sem venda isolada das fontes; os arquivos `OFL-*.txt` acompanham os `woff2`. `axe-core` é usado apenas no runner de testes e não integra artefatos distribuídos.
+
 ## Referências
 
 - [ADR 2026-0003](adr/2026-0003-licenciamento-e-edicoes.md)

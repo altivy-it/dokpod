@@ -4,6 +4,8 @@
 
 A migration `202609220001_PartitionAgentCommands` converte `dokpod.agent_commands` em uma tabela particionada mensalmente por `created_at_utc`. A tabela `dokpod.agent_command_keys` mantém a identidade global `(environment_id, command_id)` separada das partições para preservar deduplicação entre meses.
 
+Tipos aceitos por `ck_agent_commands_kind`: 1 `start`, 2 `stop`, 3 `restart`, 4 `delete`, 5 `pause` e 6 `unpause` (spec 010); a 012 e a 013 ampliam para 7 e 8. Pausa e retomada só são despachadas a agentes que anunciaram `CAPABILITY_CONTAINER_PAUSE`/`CAPABILITY_CONTAINER_UNPAUSE`; no Podman, parar um container pausado é feito retomando antes de parar.
+
 A partição `dokpod.agent_commands_default` é uma proteção contra perda de escrita quando a faixa mensal ainda não existe. Linhas nessa partição indicam falha de rollover e exigem correção operacional.
 
 ## Sinais
@@ -54,16 +56,15 @@ Não anexe uma nova partição enquanto a `DEFAULT` contiver linhas da mesma fai
 
 ## Retenção
 
-A duração de retenção é uma decisão operacional humana ainda não aprovada. Até essa aprovação:
+Política adotada na spec 012 (D-008, proposta de 90 dias aplicada como recomendação; revisão humana pendente antes de release):
 
-- não descarte partições de comandos;
-- não remova linhas de `agent_command_keys`;
-- preserve comandos terminais e não terminais em backup e restore;
+- o `AgentCommandExpirationWorker` remove, a cada hora e em lotes de 5.000, comandos `Succeeded` e `Failed` com `created_at_utc` anterior a `Commands:Retention` (padrão 90 dias); `agent_command_parameters` sai junto por `ON DELETE CASCADE`;
+- comandos `Pending`, `Dispatched`, `Accepted` e `Indeterminate` nunca são removidos; indeterminados exigem reconciliação manual antes;
+- a remoção é por linha, então o gatilho `dokpod_release_agent_command_key` libera a chave em `agent_command_keys`: um replay com a mesma chave após a retenção cria um comando novo. A janela de 90 dias é muito maior que a de retry dos clientes (chaves por sessão do navegador);
+- não descarte partições inteiras manualmente: isso deixaria tombstones em `agent_command_keys` e poderia remover indeterminados;
 - nunca use retenção para resolver fila acumulada ou comando indeterminado.
 
-Quando uma política for aprovada, descarte somente partições compostas integralmente por comandos terminais e anteriores ao limite aprovado. Comandos `Pending`, `Dispatched`, `Accepted` ou `Indeterminate` bloqueiam o descarte até reconciliação.
-
-A remoção de uma partição não executa triggers por linha. Por isso, os registros correspondentes em `agent_command_keys` permanecem como tombstones e impedem reutilização silenciosa de IDs. A expiração desses tombstones exige política separada, backup verificado e teste explícito da janela máxima de replay.
+Tipo 7 (`pull`, spec 012) tem `container_id` e `expected_container_revision` nulos (`ck_agent_commands_target`) e parâmetros em `dokpod.agent_command_parameters`, particionada por mês com a mesma função de rollover.
 
 ## Verificação
 

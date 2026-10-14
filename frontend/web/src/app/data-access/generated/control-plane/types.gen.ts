@@ -5,9 +5,157 @@ export type ClientOptions = {
 };
 
 export type SubmitContainerCommandRequest = {
-    action: 'start' | 'stop' | 'restart' | 'delete';
+    action: 'start' | 'stop' | 'restart' | 'delete' | 'pause' | 'unpause';
     expectedContainerRevision: string;
     deadlineUtc: string;
+};
+
+export type ImageListPage = {
+    images: Array<ImageItem>;
+    summary: {
+        total: number;
+        unused: number;
+        totalSizeBytes: number;
+        partial: boolean;
+    };
+    nextCursor: string | null;
+};
+
+export type ImageItem = {
+    environmentId: string;
+    environmentName: string;
+    stage?: Stage | null;
+    engine?: EngineKind | null;
+    imageId: string;
+    repository?: string | null;
+    tag?: string | null;
+    repoTags: Array<string>;
+    repoDigests: Array<string>;
+    sizeBytes: number;
+    createdAt?: string | null;
+    architecture?: string | null;
+    os?: string | null;
+    truncated: boolean;
+    containers: number;
+    inUse: boolean;
+    observedAt: string;
+    canPull: boolean;
+};
+
+export type ImageLookup = {
+    reference: string;
+    mutableTag: boolean;
+    present: boolean;
+    imageId?: string | null;
+    sizeBytes?: number | null;
+    createdAt?: string | null;
+    digest?: string | null;
+};
+
+export type PullImageRequest = {
+    reference: string;
+    deadlineUtc: string;
+};
+
+export type PullImageAccepted = {
+    commandId: string;
+    reference?: string | null;
+};
+
+/**
+ * Allowlist fechada (spec 013); qualquer outro campo resulta em 400.
+ */
+export type ContainerCreationRequest = {
+    image: string;
+    name: string;
+    ports?: Array<{
+        hostIp?: string | null;
+        hostPort: number;
+        containerPort: number;
+        protocol: 'tcp' | 'udp';
+    }>;
+    environment?: Array<{
+        name: string;
+        value?: string | null;
+        secret?: null | {
+            kind: 'podman_secret' | 'file';
+            name: string;
+        };
+        sensitive?: boolean;
+    }>;
+    volumes?: Array<{
+        type: 'volume' | 'bind';
+        source: string;
+        target: string;
+        readOnly?: boolean;
+    }>;
+    network?: string | null;
+    cpuLimitCores?: number | null;
+    memoryLimitBytes?: number | null;
+    restartPolicy?: {
+        name: 'no' | 'on-failure' | 'always' | 'unless-stopped';
+        maximumRetryCount?: number | null;
+    };
+    healthcheck?: null | {
+        test: Array<string>;
+        intervalSeconds: number;
+        timeoutSeconds: number;
+        retries: number;
+        startPeriodSeconds: number;
+        onFailure: 'none' | 'restart';
+    };
+    autoRemove?: boolean;
+    deadlineUtc?: string | null;
+};
+
+export type ContainerCreationAccepted = {
+    commandId: string;
+    equivalentCommand?: string | null;
+};
+
+export type ContainerCreateOptions = {
+    engine: EngineKind;
+    engineVersion: string;
+    rootless?: boolean | null;
+    secrets: Array<{
+        kind: 'podman_secret' | 'file';
+        name: string;
+    }>;
+    networks: Array<{
+        name: string;
+        driver?: string | null;
+    }>;
+    volumes: Array<{
+        name: string;
+    }>;
+    allowedRegistries: Array<string>;
+    bindMountsAllowed: boolean;
+    partial: boolean;
+    limits: {
+        ports: number;
+        environment: number;
+        volumes: number;
+        valueBytes: number;
+    };
+};
+
+export type TerminalPolicy = {
+    allowed: boolean;
+    /**
+     * scope, not_running, not_supported, agent_disconnected, mfa_required, not_found.
+     */
+    reason?: string | null;
+    requiresJustification: boolean;
+    requiresRecentMfa: boolean;
+    limits: {
+        idleTimeoutSeconds: number;
+        maxDurationSeconds: number;
+        maxPerUser: number;
+        maxPerUserPerContainer: number;
+        maxPerAgent: number;
+        justificationMinLength: number;
+        justificationMaxLength: number;
+    };
 };
 
 export type ContainerCommandAccepted = {
@@ -17,9 +165,32 @@ export type ContainerCommandAccepted = {
 export type ContainerCommandStatus = {
     environmentId: string;
     commandId: string;
-    action: 'start' | 'stop' | 'restart' | 'delete';
-    containerId: string;
-    expectedContainerRevision: string;
+    action: 'start' | 'stop' | 'restart' | 'delete' | 'pause' | 'unpause' | 'pull' | 'create';
+    /**
+     * Alvo do comando (spec 012); `image` para pull com alvo de host.
+     */
+    kind?: 'container' | 'image';
+    /**
+     * Nulo para comandos com alvo de host.
+     */
+    containerId: string | null;
+    expectedContainerRevision: string | null;
+    /**
+     * Referência canônica da imagem do pull (012) ou da criação (013).
+     */
+    reference?: string | null;
+    /**
+     * Nome pedido na criação (spec 013).
+     */
+    containerName?: string | null;
+    result?: null | {
+        resolvedImageDigest?: string | null;
+        imageSizeBytes?: number | null;
+        /**
+         * Container criado (spec 013); presente também em `start_failed`.
+         */
+        createdContainerId?: string | null;
+    };
     state: 'pending' | 'dispatched' | 'accepted' | 'succeeded' | 'failed' | 'indeterminate';
     failureCode: string | null;
     observedContainerRevision: string | null;
@@ -34,7 +205,8 @@ export type RegisterEnvironmentRequest = {
     name: string;
     host: string;
     enabled?: boolean;
-    scopes?: Array<'environment:read' | 'environment:manage' | 'container:start' | 'container:stop' | 'container:restart' | 'container:delete' | 'audit:read'>;
+    scopes?: Array<ResourceScope>;
+    stage?: Stage | null;
 };
 
 export type EnvironmentCreated = {
@@ -46,7 +218,11 @@ export type EnvironmentState = {
     name: string;
     host: string;
     enabled: boolean;
-    scopes: Array<'environment:read' | 'environment:manage' | 'container:start' | 'container:stop' | 'container:restart' | 'container:delete' | 'audit:read'>;
+    scopes: Array<ResourceScope>;
+    stage?: Stage | null;
+    situation?: HostSituation;
+    containerCount?: number | null;
+    agent?: HostAgentView | null;
 };
 
 export type EnvironmentPage = {
@@ -70,6 +246,275 @@ export type ContainerInventory = {
     state: string;
     revision: string;
     observedAt: string;
+    displayStatus?: ContainerDisplayStatus;
+    createdAt?: string | null;
+    startedAt?: string | null;
+    health?: 'none' | 'starting' | 'healthy' | 'unhealthy' | null;
+    restartCount?: number | null;
+    exitCode?: number | null;
+    oomKilled?: boolean | null;
+    ports?: Array<PortBinding>;
+    resources?: ContainerResources;
+};
+
+/**
+ * Uso atual (spec 009); ausente para container parado ou sem amostra recente.
+ */
+export type ContainerResources = {
+    /**
+     * % do limite de CPU (ou do host sem limite), limitado a 100 para exibição.
+     */
+    cpuPercent?: number | null;
+    cpuPercentOfHost?: number | null;
+    cpuLimitCores?: number | null;
+    memoryUsedBytes?: number | null;
+    memoryLimitBytes?: number | null;
+    sampledAt: string;
+};
+
+export type MetricsWindow = '30m' | '1h' | '6h' | '12h' | '24h';
+
+export type MetricsStep = '1m' | '5m' | '15m' | '1h';
+
+export type MetricsSeries = {
+    x: Array<string>;
+    cpu: Array<number | null>;
+    /**
+     * Memória em % (do total do host, ou do limite do container).
+     */
+    memory: Array<number | null>;
+};
+
+export type StageMetrics = {
+    current: {
+        cpuPercent?: number | null;
+        memoryPercent?: number | null;
+        hostsSampled: number;
+        hostsTotal: number;
+        sampledAt?: string | null;
+    };
+    series: MetricsSeries;
+    operationalLimitPercent: number;
+};
+
+export type HostMetricsPage = {
+    hosts: Array<{
+        environmentId: string;
+        cpuPercent?: number | null;
+        memoryUsedBytes?: number | null;
+        memoryTotalBytes?: number | null;
+        sampledAt?: string | null;
+    }>;
+    operationalLimitPercent: number;
+};
+
+export type ContainerMetrics = {
+    current?: null | {
+        cpuPercent?: number | null;
+        cpuPercentOfLimit?: number | null;
+        cpuPercentOfHost?: number | null;
+        cpuLimitCores?: number | null;
+        memoryUsedBytes?: number | null;
+        memoryLimitBytes?: number | null;
+        netRxBps?: number | null;
+        netTxBps?: number | null;
+        blkReadBps?: number | null;
+        blkWriteBps?: number | null;
+        sampledAt: string;
+    };
+    series: MetricsSeries;
+    operationalLimitPercent: number;
+};
+
+export type ContainerListItem = ContainerInventory & {
+    environmentId: string;
+    environmentName: string;
+    stage?: Stage | null;
+    engine?: 'docker' | 'podman' | null;
+    engineVersion?: string | null;
+    hostConnected: boolean;
+    allowedActions: Array<'start' | 'stop' | 'restart' | 'delete' | 'pause' | 'unpause' | 'exec'>;
+};
+
+export type ContainerListPage = {
+    containers: Array<ContainerListItem>;
+    summary: {
+        total: number;
+        byDisplayStatus: CountMap;
+    };
+    observedAt?: string | null;
+    nextCursor?: string | null;
+};
+
+export type ContainerDetail = ContainerListItem & {
+    restartsLast24h: number;
+    hostName: string;
+    capabilities: Array<string>;
+};
+
+export type ContainerConfigSummary = {
+    command?: string;
+    user?: string;
+    workingDir?: string;
+    healthcheck?: {
+        test?: string;
+        intervalSeconds?: number | null;
+        timeoutSeconds?: number | null;
+        retries?: number | null;
+    } | null;
+    labels?: {
+        [key: string]: string;
+    };
+    logging?: {
+        driver?: string;
+        options?: {
+            [key: string]: string;
+        };
+    } | null;
+    networks?: Array<{
+        name?: string;
+        ipAddress?: string;
+    }>;
+    volumes?: Array<{
+        type?: string;
+        name?: string;
+        destination?: string;
+        readOnly?: boolean;
+    }>;
+    restartPolicy?: {
+        name?: string;
+        maximumRetryCount?: number;
+    } | null;
+    cpuLimitCores?: number | null;
+    memoryLimitBytes?: number | null;
+    environmentVariableCount?: number;
+    secretCount?: number;
+};
+
+export type ContainerInspection = {
+    json: {
+        [key: string]: unknown;
+    };
+    truncated: boolean;
+    redactedPaths: Array<string>;
+};
+
+export type LogLineView = {
+    timestamp?: string | null;
+    stream: 'stdout' | 'stderr';
+    level?: string | null;
+    text: string;
+};
+
+export type ContainerLogPage = {
+    lines: Array<LogLineView>;
+    truncated: boolean;
+    omittedLines: number;
+};
+
+export type ResourceScope = 'environment:read' | 'environment:manage' | 'container:start' | 'container:stop' | 'container:restart' | 'container:delete' | 'audit:read' | 'container:pause' | 'container:inspect' | 'container:logs' | 'image:pull' | 'container:create' | 'container:exec';
+
+export type Stage = 'production' | 'staging' | 'development';
+
+export type EngineKind = 'docker' | 'podman';
+
+export type HostSituation = 'disabled' | 'disconnected' | 'stale' | 'update_required' | 'unknown' | 'up_to_date';
+
+export type ContainerDisplayStatus = 'running' | 'starting' | 'failed' | 'restarting' | 'paused' | 'stopped';
+
+export type EventSeverity = 'success' | 'info' | 'warning' | 'error' | 'neutral';
+
+export type PortBinding = {
+    hostIp?: string | null;
+    hostPort: number;
+    containerPort: number;
+    protocol: 'tcp' | 'udp' | 'sctp';
+};
+
+export type HostAgentView = {
+    connected: boolean;
+    sessionStartedAt?: string | null;
+    lastSeenAt?: string | null;
+    agentVersion?: string | null;
+    engine?: 'docker' | 'podman' | null;
+    engineVersion?: string | null;
+    engineApiVersion?: string | null;
+    engineRootless?: boolean | null;
+    operatingSystem?: string | null;
+    operatingSystemVersion?: string | null;
+    architecture?: string | null;
+    hostName?: string | null;
+    cpuCount?: number | null;
+    memoryBytes?: number | null;
+    capabilities: Array<string>;
+};
+
+export type SetEnvironmentStageRequest = {
+    stage: Stage | null;
+};
+
+export type EnvironmentStageChanged = {
+    environmentId: string;
+    stage: Stage | null;
+    changed: boolean;
+};
+
+export type CountMap = {
+    [key: string]: number;
+};
+
+export type OverviewSummary = {
+    stage?: Stage | null;
+    observedAt?: string | null;
+    hosts: {
+        total: number;
+        bySituation: CountMap;
+    };
+    containers: {
+        total: number;
+        byDisplayStatus: CountMap;
+    };
+    engines: Array<{
+        engine: EngineKind;
+        hosts: number;
+        containers: number;
+        versions: Array<{
+            version: string;
+            hosts: number;
+        }>;
+    }>;
+    /**
+     * Inventário de imagens (spec 012); `partial` indica host sem inventário ou agente N-1.
+     */
+    images?: {
+        total: number;
+        unused: number;
+        partial: boolean;
+    };
+    attentionEvents24h: number;
+};
+
+export type OperationalEvent = {
+    eventId: string;
+    environmentId: string;
+    environmentName?: string | null;
+    type: string;
+    severity: EventSeverity;
+    occurredAt: string;
+    receivedAt: string;
+    clockSkewDetected: boolean;
+    subjectKind?: string | null;
+    subjectId?: string | null;
+    subjectName?: string | null;
+    parameters: {
+        [key: string]: string;
+    };
+    aggregatedCount: number;
+};
+
+export type OperationalEventPage = {
+    events: Array<OperationalEvent>;
+    nextCursor?: string | null;
 };
 
 export type ProblemDetails = {
@@ -250,6 +695,196 @@ export type ListEnvironmentContainersResponses = {
 
 export type ListEnvironmentContainersResponse = ListEnvironmentContainersResponses[keyof ListEnvironmentContainersResponses];
 
+export type CreateContainerData = {
+    body: ContainerCreationRequest;
+    headers: {
+        'Idempotency-Key': string;
+        /**
+         * Identificador técnico opcional para correlação server-side.
+         */
+        'X-Correlation-Id'?: string;
+    };
+    path: {
+        environmentId: string;
+    };
+    query?: never;
+    url: '/api/v1/environments/{environmentId}/containers';
+};
+
+export type CreateContainerErrors = {
+    /**
+     * Requisição inválida.
+     */
+    400: ProblemDetails;
+    /**
+     * Autenticação ausente ou inválida.
+     */
+    401: ProblemDetails;
+    /**
+     * Decisão do Keycloak negou o cadastro.
+     */
+    403: ProblemDetails;
+    /**
+     * O ambiente não foi encontrado após autorização.
+     */
+    404: ProblemDetails;
+    /**
+     * O ambiente já existe.
+     */
+    409: ProblemDetails;
+    /**
+     * Requisição inválida.
+     */
+    422: ProblemDetails;
+    /**
+     * Autorização ou persistência indisponível.
+     */
+    503: ProblemDetails;
+};
+
+export type CreateContainerError = CreateContainerErrors[keyof CreateContainerErrors];
+
+export type CreateContainerResponses = {
+    /**
+     * Comando de criação aceito.
+     */
+    202: ContainerCreationAccepted;
+};
+
+export type CreateContainerResponse = CreateContainerResponses[keyof CreateContainerResponses];
+
+export type GetTerminalPolicyData = {
+    body?: never;
+    headers?: {
+        /**
+         * Identificador técnico opcional para correlação server-side.
+         */
+        'X-Correlation-Id'?: string;
+    };
+    path: {
+        environmentId: string;
+        containerId: string;
+    };
+    query?: never;
+    url: '/api/v1/environments/{environmentId}/containers/{containerId}/terminal-policy';
+};
+
+export type GetTerminalPolicyErrors = {
+    /**
+     * Requisição inválida.
+     */
+    400: ProblemDetails;
+    /**
+     * Autenticação ausente ou inválida.
+     */
+    401: ProblemDetails;
+    /**
+     * Autorização ou persistência indisponível.
+     */
+    503: ProblemDetails;
+};
+
+export type GetTerminalPolicyError = GetTerminalPolicyErrors[keyof GetTerminalPolicyErrors];
+
+export type GetTerminalPolicyResponses = {
+    /**
+     * Se o terminal pode ser aberto e o motivo quando não pode.
+     */
+    200: TerminalPolicy;
+};
+
+export type GetTerminalPolicyResponse = GetTerminalPolicyResponses[keyof GetTerminalPolicyResponses];
+
+export type RenewTerminalSessionData = {
+    body?: never;
+    headers?: {
+        /**
+         * Identificador técnico opcional para correlação server-side.
+         */
+        'X-Correlation-Id'?: string;
+    };
+    path: {
+        sessionId: string;
+    };
+    query?: never;
+    url: '/api/v1/terminal-sessions/{sessionId}/renew';
+};
+
+export type RenewTerminalSessionErrors = {
+    /**
+     * Autenticação ausente ou inválida.
+     */
+    401: ProblemDetails;
+    /**
+     * Decisão do Keycloak negou o cadastro.
+     */
+    403: ProblemDetails;
+};
+
+export type RenewTerminalSessionError = RenewTerminalSessionErrors[keyof RenewTerminalSessionErrors];
+
+export type RenewTerminalSessionResponses = {
+    /**
+     * Autorização renovada.
+     */
+    204: void;
+};
+
+export type RenewTerminalSessionResponse = RenewTerminalSessionResponses[keyof RenewTerminalSessionResponses];
+
+export type GetContainerCreateOptionsData = {
+    body?: never;
+    headers?: {
+        /**
+         * Identificador técnico opcional para correlação server-side.
+         */
+        'X-Correlation-Id'?: string;
+    };
+    path: {
+        environmentId: string;
+    };
+    query?: never;
+    url: '/api/v1/environments/{environmentId}/create-options';
+};
+
+export type GetContainerCreateOptionsErrors = {
+    /**
+     * Autenticação ausente ou inválida.
+     */
+    401: ProblemDetails;
+    /**
+     * Decisão do Keycloak negou o cadastro.
+     */
+    403: ProblemDetails;
+    /**
+     * O ambiente não foi encontrado após autorização.
+     */
+    404: ProblemDetails;
+    /**
+     * O ambiente já existe.
+     */
+    409: ProblemDetails;
+    /**
+     * Requisição inválida.
+     */
+    422: ProblemDetails;
+    /**
+     * Autorização ou persistência indisponível.
+     */
+    503: ProblemDetails;
+};
+
+export type GetContainerCreateOptionsError = GetContainerCreateOptionsErrors[keyof GetContainerCreateOptionsErrors];
+
+export type GetContainerCreateOptionsResponses = {
+    /**
+     * Opções do host.
+     */
+    200: ContainerCreateOptions;
+};
+
+export type GetContainerCreateOptionsResponse = GetContainerCreateOptionsResponses[keyof GetContainerCreateOptionsResponses];
+
 export type GetEnvironmentData = {
     body?: never;
     headers?: {
@@ -314,6 +949,10 @@ export type ListEnvironmentsData = {
          */
         cursor?: string;
         limit?: number;
+        stage?: Stage;
+        engine?: EngineKind;
+        situation?: HostSituation;
+        q?: string;
     };
     url: '/api/v1/environments';
 };
@@ -439,3 +1078,728 @@ export type RevokeAgentIdentityResponses = {
 };
 
 export type RevokeAgentIdentityResponse = RevokeAgentIdentityResponses[keyof RevokeAgentIdentityResponses];
+
+export type SetEnvironmentStageData = {
+    body: SetEnvironmentStageRequest;
+    headers?: {
+        /**
+         * Identificador técnico opcional para correlação server-side.
+         */
+        'X-Correlation-Id'?: string;
+    };
+    path: {
+        environmentId: string;
+    };
+    query?: never;
+    url: '/api/v1/environments/{environmentId}/stage';
+};
+
+export type SetEnvironmentStageErrors = {
+    /**
+     * Requisição inválida.
+     */
+    400: ProblemDetails;
+    /**
+     * Autenticação ausente ou inválida.
+     */
+    401: ProblemDetails;
+    /**
+     * Decisão do Keycloak negou o cadastro.
+     */
+    403: ProblemDetails;
+    /**
+     * O ambiente não foi encontrado após autorização.
+     */
+    404: ProblemDetails;
+    /**
+     * Autorização ou persistência indisponível.
+     */
+    503: ProblemDetails;
+};
+
+export type SetEnvironmentStageError = SetEnvironmentStageErrors[keyof SetEnvironmentStageErrors];
+
+export type SetEnvironmentStageResponses = {
+    /**
+     * Estágio aplicado.
+     */
+    200: EnvironmentStageChanged;
+};
+
+export type SetEnvironmentStageResponse = SetEnvironmentStageResponses[keyof SetEnvironmentStageResponses];
+
+export type GetOverviewData = {
+    body?: never;
+    headers?: {
+        /**
+         * Identificador técnico opcional para correlação server-side.
+         */
+        'X-Correlation-Id'?: string;
+    };
+    path?: never;
+    query?: {
+        stage?: Stage;
+    };
+    url: '/api/v1/overview';
+};
+
+export type GetOverviewErrors = {
+    /**
+     * Requisição inválida.
+     */
+    400: ProblemDetails;
+    /**
+     * Autenticação ausente ou inválida.
+     */
+    401: ProblemDetails;
+    /**
+     * Autorização ou persistência indisponível.
+     */
+    503: ProblemDetails;
+};
+
+export type GetOverviewError = GetOverviewErrors[keyof GetOverviewErrors];
+
+export type GetOverviewResponses = {
+    /**
+     * Resumo da visão geral.
+     */
+    200: OverviewSummary;
+};
+
+export type GetOverviewResponse = GetOverviewResponses[keyof GetOverviewResponses];
+
+export type ListEventsData = {
+    body?: never;
+    headers?: {
+        /**
+         * Identificador técnico opcional para correlação server-side.
+         */
+        'X-Correlation-Id'?: string;
+    };
+    path?: never;
+    query?: {
+        stage?: Stage;
+        environmentId?: string;
+        severity?: EventSeverity;
+        since?: string;
+        until?: string;
+        cursor?: string;
+        limit?: number;
+    };
+    url: '/api/v1/events';
+};
+
+export type ListEventsErrors = {
+    /**
+     * Requisição inválida.
+     */
+    400: ProblemDetails;
+    /**
+     * Autenticação ausente ou inválida.
+     */
+    401: ProblemDetails;
+    /**
+     * Decisão do Keycloak negou o cadastro.
+     */
+    403: ProblemDetails;
+    /**
+     * Autorização ou persistência indisponível.
+     */
+    503: ProblemDetails;
+};
+
+export type ListEventsError = ListEventsErrors[keyof ListEventsErrors];
+
+export type ListEventsResponses = {
+    /**
+     * Página de eventos.
+     */
+    200: OperationalEventPage;
+};
+
+export type ListEventsResponse = ListEventsResponses[keyof ListEventsResponses];
+
+export type ListContainersData = {
+    body?: never;
+    headers?: {
+        /**
+         * Identificador técnico opcional para correlação server-side.
+         */
+        'X-Correlation-Id'?: string;
+    };
+    path?: never;
+    query?: {
+        stage?: Stage;
+        environmentId?: Array<string>;
+        engine?: Array<EngineKind>;
+        displayStatus?: Array<ContainerDisplayStatus>;
+        q?: string;
+        sort?: 'name' | '-name' | 'displayStatus' | 'environment' | 'createdAt' | '-createdAt';
+        cursor?: string;
+        limit?: number;
+    };
+    url: '/api/v1/containers';
+};
+
+export type ListContainersErrors = {
+    /**
+     * Requisição inválida.
+     */
+    400: ProblemDetails;
+    /**
+     * Autenticação ausente ou inválida.
+     */
+    401: ProblemDetails;
+    /**
+     * Autorização ou persistência indisponível.
+     */
+    503: ProblemDetails;
+};
+
+export type ListContainersError = ListContainersErrors[keyof ListContainersErrors];
+
+export type ListContainersResponses = {
+    /**
+     * Página da lista unificada.
+     */
+    200: ContainerListPage;
+};
+
+export type ListContainersResponse = ListContainersResponses[keyof ListContainersResponses];
+
+export type ListImagesData = {
+    body?: never;
+    headers?: {
+        /**
+         * Identificador técnico opcional para correlação server-side.
+         */
+        'X-Correlation-Id'?: string;
+    };
+    path?: never;
+    query?: {
+        stage?: Stage;
+        environmentId?: Array<string>;
+        engine?: Array<EngineKind>;
+        unused?: boolean;
+        q?: string;
+        sort?: 'name' | '-name' | 'size' | '-size' | 'createdAt' | '-createdAt';
+        cursor?: string;
+        limit?: number;
+    };
+    url: '/api/v1/images';
+};
+
+export type ListImagesErrors = {
+    /**
+     * Requisição inválida.
+     */
+    400: ProblemDetails;
+    /**
+     * Autenticação ausente ou inválida.
+     */
+    401: ProblemDetails;
+    /**
+     * Autorização ou persistência indisponível.
+     */
+    503: ProblemDetails;
+};
+
+export type ListImagesError = ListImagesErrors[keyof ListImagesErrors];
+
+export type ListImagesResponses = {
+    /**
+     * Página do inventário de imagens com resumo.
+     */
+    200: ImageListPage;
+};
+
+export type ListImagesResponse = ListImagesResponses[keyof ListImagesResponses];
+
+export type LookupImageData = {
+    body?: never;
+    headers?: {
+        /**
+         * Identificador técnico opcional para correlação server-side.
+         */
+        'X-Correlation-Id'?: string;
+    };
+    path: {
+        environmentId: string;
+    };
+    query: {
+        reference: string;
+    };
+    url: '/api/v1/environments/{environmentId}/images/lookup';
+};
+
+export type LookupImageErrors = {
+    /**
+     * Requisição inválida.
+     */
+    400: ProblemDetails;
+    /**
+     * Autenticação ausente ou inválida.
+     */
+    401: ProblemDetails;
+    /**
+     * Decisão do Keycloak negou o cadastro.
+     */
+    403: ProblemDetails;
+    /**
+     * Autorização ou persistência indisponível.
+     */
+    503: ProblemDetails;
+};
+
+export type LookupImageError = LookupImageErrors[keyof LookupImageErrors];
+
+export type LookupImageResponses = {
+    /**
+     * Resultado da consulta pela referência normalizada.
+     */
+    200: ImageLookup;
+};
+
+export type LookupImageResponse = LookupImageResponses[keyof LookupImageResponses];
+
+export type PullImageData = {
+    body: PullImageRequest;
+    headers: {
+        /**
+         * Uma chave por host; o retry com a mesma chave e a mesma referência é idempotente.
+         */
+        'Idempotency-Key': string;
+        /**
+         * Identificador técnico opcional para correlação server-side.
+         */
+        'X-Correlation-Id'?: string;
+    };
+    path: {
+        environmentId: string;
+    };
+    query?: never;
+    url: '/api/v1/environments/{environmentId}/images/pull';
+};
+
+export type PullImageErrors = {
+    /**
+     * Requisição inválida.
+     */
+    400: ProblemDetails;
+    /**
+     * Autenticação ausente ou inválida.
+     */
+    401: ProblemDetails;
+    /**
+     * Decisão do Keycloak negou o cadastro.
+     */
+    403: ProblemDetails;
+    /**
+     * O ambiente não foi encontrado após autorização.
+     */
+    404: ProblemDetails;
+    /**
+     * O ambiente já existe.
+     */
+    409: ProblemDetails;
+    /**
+     * Requisição inválida.
+     */
+    422: ProblemDetails;
+    /**
+     * Autorização ou persistência indisponível.
+     */
+    503: ProblemDetails;
+};
+
+export type PullImageError = PullImageErrors[keyof PullImageErrors];
+
+export type PullImageResponses = {
+    /**
+     * Comando de pull aceito.
+     */
+    202: PullImageAccepted;
+};
+
+export type PullImageResponse = PullImageResponses[keyof PullImageResponses];
+
+export type GetContainerData = {
+    body?: never;
+    headers?: {
+        /**
+         * Identificador técnico opcional para correlação server-side.
+         */
+        'X-Correlation-Id'?: string;
+    };
+    path: {
+        environmentId: string;
+        containerId: string;
+    };
+    query?: never;
+    url: '/api/v1/environments/{environmentId}/containers/{containerId}';
+};
+
+export type GetContainerErrors = {
+    /**
+     * Autenticação ausente ou inválida.
+     */
+    401: ProblemDetails;
+    /**
+     * O ambiente não foi encontrado após autorização.
+     */
+    404: ProblemDetails;
+    /**
+     * Autorização ou persistência indisponível.
+     */
+    503: ProblemDetails;
+};
+
+export type GetContainerError = GetContainerErrors[keyof GetContainerErrors];
+
+export type GetContainerResponses = {
+    /**
+     * Resultado autorizado (conteúdo nunca persistido).
+     */
+    200: ContainerDetail;
+};
+
+export type GetContainerResponse = GetContainerResponses[keyof GetContainerResponses];
+
+export type GetContainerSummaryData = {
+    body?: never;
+    headers?: {
+        /**
+         * Identificador técnico opcional para correlação server-side.
+         */
+        'X-Correlation-Id'?: string;
+    };
+    path: {
+        environmentId: string;
+        containerId: string;
+    };
+    query?: never;
+    url: '/api/v1/environments/{environmentId}/containers/{containerId}/summary';
+};
+
+export type GetContainerSummaryErrors = {
+    /**
+     * Autenticação ausente ou inválida.
+     */
+    401: ProblemDetails;
+    /**
+     * Decisão do Keycloak negou o cadastro.
+     */
+    403: ProblemDetails;
+    /**
+     * O ambiente não foi encontrado após autorização.
+     */
+    404: ProblemDetails;
+    /**
+     * O ambiente já existe.
+     */
+    409: ProblemDetails;
+    /**
+     * Requisição inválida.
+     */
+    422: ProblemDetails;
+    /**
+     * Requisição inválida.
+     */
+    429: ProblemDetails;
+    /**
+     * Autorização ou persistência indisponível.
+     */
+    503: ProblemDetails;
+    /**
+     * Autorização ou persistência indisponível.
+     */
+    504: ProblemDetails;
+};
+
+export type GetContainerSummaryError = GetContainerSummaryErrors[keyof GetContainerSummaryErrors];
+
+export type GetContainerSummaryResponses = {
+    /**
+     * Resultado autorizado (conteúdo nunca persistido).
+     */
+    200: ContainerConfigSummary;
+};
+
+export type GetContainerSummaryResponse = GetContainerSummaryResponses[keyof GetContainerSummaryResponses];
+
+export type InspectContainerData = {
+    body?: never;
+    headers?: {
+        /**
+         * Identificador técnico opcional para correlação server-side.
+         */
+        'X-Correlation-Id'?: string;
+    };
+    path: {
+        environmentId: string;
+        containerId: string;
+    };
+    query?: never;
+    url: '/api/v1/environments/{environmentId}/containers/{containerId}/inspect';
+};
+
+export type InspectContainerErrors = {
+    /**
+     * Autenticação ausente ou inválida.
+     */
+    401: ProblemDetails;
+    /**
+     * Decisão do Keycloak negou o cadastro.
+     */
+    403: ProblemDetails;
+    /**
+     * O ambiente não foi encontrado após autorização.
+     */
+    404: ProblemDetails;
+    /**
+     * O ambiente já existe.
+     */
+    409: ProblemDetails;
+    /**
+     * Requisição inválida.
+     */
+    422: ProblemDetails;
+    /**
+     * Requisição inválida.
+     */
+    429: ProblemDetails;
+    /**
+     * Autorização ou persistência indisponível.
+     */
+    503: ProblemDetails;
+    /**
+     * Autorização ou persistência indisponível.
+     */
+    504: ProblemDetails;
+};
+
+export type InspectContainerError = InspectContainerErrors[keyof InspectContainerErrors];
+
+export type InspectContainerResponses = {
+    /**
+     * Resultado autorizado (conteúdo nunca persistido).
+     */
+    200: ContainerInspection;
+};
+
+export type InspectContainerResponse = InspectContainerResponses[keyof InspectContainerResponses];
+
+export type GetContainerLogsData = {
+    body?: never;
+    headers?: {
+        /**
+         * Identificador técnico opcional para correlação server-side.
+         */
+        'X-Correlation-Id'?: string;
+    };
+    path: {
+        environmentId: string;
+        containerId: string;
+    };
+    query?: {
+        tail?: number;
+        since?: string;
+        until?: string;
+        /**
+         * Texto literal (sem regex); removido dos logs de acesso.
+         */
+        contains?: string;
+    };
+    url: '/api/v1/environments/{environmentId}/containers/{containerId}/logs';
+};
+
+export type GetContainerLogsErrors = {
+    /**
+     * Requisição inválida.
+     */
+    400: ProblemDetails;
+    /**
+     * Autenticação ausente ou inválida.
+     */
+    401: ProblemDetails;
+    /**
+     * Decisão do Keycloak negou o cadastro.
+     */
+    403: ProblemDetails;
+    /**
+     * O ambiente não foi encontrado após autorização.
+     */
+    404: ProblemDetails;
+    /**
+     * O ambiente já existe.
+     */
+    409: ProblemDetails;
+    /**
+     * Requisição inválida.
+     */
+    422: ProblemDetails;
+    /**
+     * Requisição inválida.
+     */
+    429: ProblemDetails;
+    /**
+     * Autorização ou persistência indisponível.
+     */
+    503: ProblemDetails;
+    /**
+     * Autorização ou persistência indisponível.
+     */
+    504: ProblemDetails;
+};
+
+export type GetContainerLogsError = GetContainerLogsErrors[keyof GetContainerLogsErrors];
+
+export type GetContainerLogsResponses = {
+    /**
+     * Resultado autorizado (conteúdo nunca persistido).
+     */
+    200: ContainerLogPage;
+};
+
+export type GetContainerLogsResponse = GetContainerLogsResponses[keyof GetContainerLogsResponses];
+
+export type GetStageMetricsData = {
+    body?: never;
+    headers?: {
+        /**
+         * Identificador técnico opcional para correlação server-side.
+         */
+        'X-Correlation-Id'?: string;
+    };
+    path?: never;
+    query?: {
+        stage?: Stage;
+        window?: MetricsWindow;
+        step?: MetricsStep;
+    };
+    url: '/api/v1/metrics/overview';
+};
+
+export type GetStageMetricsErrors = {
+    /**
+     * Requisição inválida.
+     */
+    400: ProblemDetails;
+    /**
+     * Autenticação ausente ou inválida.
+     */
+    401: ProblemDetails;
+    /**
+     * Autorização ou persistência indisponível.
+     */
+    503: ProblemDetails;
+};
+
+export type GetStageMetricsError = GetStageMetricsErrors[keyof GetStageMetricsErrors];
+
+export type GetStageMetricsResponses = {
+    /**
+     * Agregado do estágio; valores nulos são lacunas.
+     */
+    200: StageMetrics;
+};
+
+export type GetStageMetricsResponse = GetStageMetricsResponses[keyof GetStageMetricsResponses];
+
+export type ListHostMetricsData = {
+    body?: never;
+    headers?: {
+        /**
+         * Identificador técnico opcional para correlação server-side.
+         */
+        'X-Correlation-Id'?: string;
+    };
+    path?: never;
+    query?: {
+        stage?: Stage;
+    };
+    url: '/api/v1/metrics/hosts';
+};
+
+export type ListHostMetricsErrors = {
+    /**
+     * Requisição inválida.
+     */
+    400: ProblemDetails;
+    /**
+     * Autenticação ausente ou inválida.
+     */
+    401: ProblemDetails;
+    /**
+     * Autorização ou persistência indisponível.
+     */
+    503: ProblemDetails;
+};
+
+export type ListHostMetricsError = ListHostMetricsErrors[keyof ListHostMetricsErrors];
+
+export type ListHostMetricsResponses = {
+    /**
+     * Último valor por host; ausência de amostra recente resulta em valores nulos.
+     */
+    200: HostMetricsPage;
+};
+
+export type ListHostMetricsResponse = ListHostMetricsResponses[keyof ListHostMetricsResponses];
+
+export type GetContainerMetricsData = {
+    body?: never;
+    headers?: {
+        /**
+         * Identificador técnico opcional para correlação server-side.
+         */
+        'X-Correlation-Id'?: string;
+    };
+    path: {
+        environmentId: string;
+        containerId: string;
+    };
+    query?: {
+        /**
+         * Somente `30m`; janelas maiores retornam 400.
+         */
+        window?: MetricsWindow;
+        step?: MetricsStep;
+    };
+    url: '/api/v1/environments/{environmentId}/containers/{containerId}/metrics';
+};
+
+export type GetContainerMetricsErrors = {
+    /**
+     * Requisição inválida.
+     */
+    400: ProblemDetails;
+    /**
+     * Autenticação ausente ou inválida.
+     */
+    401: ProblemDetails;
+    /**
+     * Decisão do Keycloak negou o cadastro.
+     */
+    403: ProblemDetails;
+    /**
+     * O ambiente não foi encontrado após autorização.
+     */
+    404: ProblemDetails;
+    /**
+     * Autorização ou persistência indisponível.
+     */
+    503: ProblemDetails;
+};
+
+export type GetContainerMetricsError = GetContainerMetricsErrors[keyof GetContainerMetricsErrors];
+
+export type GetContainerMetricsResponses = {
+    /**
+     * Série possivelmente parcial após reinício da API.
+     */
+    200: ContainerMetrics;
+};
+
+export type GetContainerMetricsResponse = GetContainerMetricsResponses[keyof GetContainerMetricsResponses];

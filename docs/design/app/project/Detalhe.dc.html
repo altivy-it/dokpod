@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Detalhe do container</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="altivy-app.css">
+<link rel="stylesheet" href="ds/altivy/components/bundle.css">
+<script src="ds/altivy/components/bundle.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#5eead4}a:hover{color:#e2e8f0}
+</style>
+</helmet>
+<x-import component-from-global-scope="Altivy.Page" class-name="alt-app" style="min-height: 1000px; padding: 16px; box-sizing: border-box">
+<x-import component-from-global-scope="Altivy.AppShell" height="{{shellH}}" menu="{{menu}}" default-active="containers" title="api-pedidos-7f9c" breadcrumbs="{{crumbs}}" user="{{user}}" shortcuts="{{envs}}" header-props="{{headerProps}}">
+<div style="display: flex; flex-direction: column; gap: 16px; padding: 8px">
+
+<div class="alt-glass" style="border-radius: 22px; padding: 20px; display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start; justify-content: space-between">
+<div style="display: flex; gap: 16px; align-items: flex-start; min-width: 0; flex: 1 1 420px">
+<div style="width: 48px; height: 48px; border-radius: 12px; background: rgba(94, 234, 212, 0.10); border: 1px solid rgba(94, 234, 212, 0.26); display: flex; align-items: center; justify-content: center; color: #5eead4; flex: none">
+<x-import component-from-global-scope="Altivy.Icon" name="box" size="{{iconSize}}"></x-import>
+</div>
+<div style="display: flex; flex-direction: column; gap: 8px; min-width: 0">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px">
+<h1 class="app-title" style="margin: 0; color: #ffffff">api-pedidos-7f9c</h1>
+<x-import component-from-global-scope="Altivy.StatusChip" color="success" label="Em execução" icon="{{yes}}"></x-import>
+<span class="ct-engine"><i></i>Docker 27.3.1</span>
+</div>
+<p class="ct-mono" style="margin: 0; color: #a0aec0; overflow-wrap: anywhere">registry.empresa.com/pedidos/api:3.14.2 · ID 7f9c2e1a84b3</p>
+<p class="app-small alt-num" style="margin: 0; color: #a0aec0">srv-prod-02 · ativo há 4 min · 2 reinícios nas últimas 24 h · health check: saudável</p>
+</div>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 8px">
+<x-import component-from-global-scope="Altivy.Button" variant="secondary" size="sm" start-icon="command">Abrir terminal</x-import>
+<x-import component-from-global-scope="Altivy.Button" variant="outline" size="sm" start-icon="refresh">Reiniciar</x-import>
+<x-import component-from-global-scope="Altivy.Button" variant="outline" size="sm" start-icon="pause">Parar</x-import>
+<x-import component-from-global-scope="Altivy.Button" variant="danger" size="sm" start-icon="trash">Remover container</x-import>
+</div>
+</div>
+
+<div style="display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start">
+<div style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 12px">
+<x-import component-from-global-scope="Altivy.Tabs" tabs="{{tabs}}" value="{{tab}}" on-change="{{pickTab}}" variant="plain" panels="{{no}}" aria-label="Seções do container"></x-import>
+
+<sc-if value="{{showLogs}}" hint-placeholder-val="{{ true }}">
+<div class="alt-panel" style="display: flex; flex-direction: column; overflow: hidden">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 12px 14px; border-bottom: 1px solid rgba(255, 255, 255, 0.09)">
+<x-import component-from-global-scope="Altivy.CampoBusca" label="{{nil}}" placeholder="Filtrar logs" shortcut="{{nil}}" width="{{searchW}}" size="sm"></x-import>
+<x-import component-from-global-scope="Altivy.StatusChip" variant="filter" field="Nível" label="Todos" on-delete="{{noop}}"></x-import>
+<span style="flex: 1"></span>
+<x-import component-from-global-scope="Altivy.StatusCircle" color="accent" text="Ao vivo" size="small" pulse="{{yes}}"></x-import>
+<x-import component-from-global-scope="Altivy.Button" variant="ghost" size="xs" start-icon="download">Baixar</x-import>
+</div>
+<div class="ct-mono alt-scroll" style="padding: 12px 14px; max-height: 470px; overflow: auto; display: flex; flex-direction: column; gap: 2px">
+<sc-for list="{{logs}}" as="l" hint-placeholder-count="14">
+<div style="display: grid; grid-template-columns: 96px 56px minmax(0, 1fr); gap: 12px">
+<span style="color: #718096">{{l.t}}</span>
+<span style="{{l.levelStyle}}">{{l.level}}</span>
+<span style="color: #e2e8f0; overflow-wrap: anywhere">{{l.msg}}</span>
+</div>
+</sc-for>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{showSummary}}" hint-placeholder-val="{{ false }}">
+<div class="alt-panel" style="padding: 18px">
+<dl class="ct-kv">
+<dt>Comando</dt><dd class="ct-mono">node dist/server.js --port 80</dd>
+<dt>Usuário</dt><dd class="ct-mono">app (uid 1001)</dd>
+<dt>Diretório</dt><dd class="ct-mono">/srv/app</dd>
+<dt>Health check</dt><dd>GET /healthz a cada 15 s · 3 tentativas · tempo limite 5 s</dd>
+<dt>Labels</dt><dd class="ct-mono">time=pedidos · tier=api · owner=squad-checkout</dd>
+<dt>Logs</dt><dd>Driver json-file · rotação a cada 50 MB, máx. 5 arquivos</dd>
+</dl>
+</div>
+</sc-if>
+
+<sc-if value="{{showInspect}}" hint-placeholder-val="{{ false }}">
+<pre class="alt-panel ct-mono" style="margin: 0; padding: 18px; color: #e2e8f0; overflow: auto; max-height: 520px">{{inspect}}</pre>
+</sc-if>
+
+<sc-if value="{{showStats}}" hint-placeholder-val="{{ false }}">
+<x-import component-from-global-scope="Altivy.Graphics" type="line" title="CPU e memória do container" subtitle="% do limite · últimos 30 minutos" x="{{minutes}}" series="{{statSeries}}" format="{{pct}}" tip-format="{{pct}}" y-min="{{zero}}" y-max="{{hundred}}" height="{{chartH}}"></x-import>
+</sc-if>
+
+<sc-if value="{{showTerm}}" hint-placeholder-val="{{ false }}">
+<div class="alt-panel ct-mono" style="padding: 16px; min-height: 360px; color: #e2e8f0; white-space: pre-wrap">{{term}}</div>
+</sc-if>
+</div>
+
+<div style="flex: 1 1 340px; min-width: 0; display: flex; flex-direction: column; gap: 16px">
+<x-import component-from-global-scope="Altivy.CardBase" title="Recursos agora">
+<div style="display: flex; flex-direction: column; gap: 14px">
+<sc-for list="{{res}}" as="r" hint-placeholder-count="4">
+<div style="display: flex; flex-direction: column; gap: 6px">
+<div style="display: flex; justify-content: space-between; gap: 8px">
+<span class="app-small" style="color: #a0aec0">{{r.label}}</span>
+<span class="app-small alt-num" style="color: #e2e8f0">{{r.value}}</span>
+</div>
+<div class="{{r.barClass}}"><span style="{{r.barStyle}}"></span></div>
+</div>
+</sc-for>
+</div>
+</x-import>
+<x-import component-from-global-scope="Altivy.CardBase" title="Rede e armazenamento">
+<dl class="ct-kv" style="grid-template-columns: 96px minmax(0, 1fr)">
+<dt>Portas</dt><dd class="ct-mono">0.0.0.0:8080 → 80/tcp</dd>
+<dt>Rede</dt><dd class="ct-mono">rede-pedidos (bridge)</dd>
+<dt>IP</dt><dd class="ct-mono">172.20.0.14</dd>
+<dt>Volumes</dt><dd class="ct-mono">vol-pedidos-uploads → /srv/app/uploads</dd>
+<dt>Reinício</dt><dd>unless-stopped</dd>
+<dt>Variáveis</dt><dd>14 definidas · 3 segredos ocultos</dd>
+</dl>
+</x-import>
+</div>
+</div>
+
+</div>
+</x-import>
+</x-import>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1000}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { tab: 1 }; }
+  renderVals() {
+    const tab = this.state.tab;
+    const levelColor = { INFO: '#7dd3fc', WARN: '#fbbf24', ERROR: '#f87171', DEBUG: '#a0aec0' };
+    const logs = [
+      ['15:08:02.114', 'ERROR', 'health check falhou: GET /healthz retornou 503 (3 de 3)'],
+      ['15:08:02.120', 'WARN', 'container marcado como unhealthy; política unless-stopped aplicada'],
+      ['15:08:04.981', 'INFO', 'iniciando api-pedidos 3.14.2 (node 20.17.0)'],
+      ['15:08:05.402', 'INFO', 'conectado ao postgres-principal:5432 (pool 20)'],
+      ['15:08:05.418', 'INFO', 'conectado ao rabbitmq:5672, fila pedidos.criados'],
+      ['15:08:05.611', 'INFO', 'servidor ouvindo em 0.0.0.0:80'],
+      ['15:08:20.007', 'INFO', 'GET /healthz 200 3 ms'],
+      ['15:09:11.532', 'INFO', 'POST /v2/pedidos 201 84 ms'],
+      ['15:09:12.020', 'DEBUG', 'cache miss catalogo:sku:88213, consultando origem'],
+      ['15:09:44.870', 'WARN', 'latência p95 acima de 400 ms na rota /v2/pedidos/:id'],
+      ['15:10:03.155', 'INFO', 'POST /v2/pedidos 201 91 ms'],
+      ['15:10:35.007', 'INFO', 'GET /healthz 200 2 ms'],
+      ['15:11:18.646', 'INFO', 'GET /v2/pedidos/88213 200 37 ms'],
+      ['15:12:05.007', 'INFO', 'GET /healthz 200 2 ms']
+    ].map((l) => ({ t: l[0], level: l[1], msg: l[2], levelStyle: 'color: ' + levelColor[l[1]] + '; font-weight: 500' }));
+    const res = [
+      { label: 'CPU · limite 2 vCPU', value: '38,4%', pct: 38 },
+      { label: 'Memória · 412 MiB de 512 MiB', value: '80,5%', pct: 80.5 },
+      { label: 'Rede · entrada / saída', value: '1,8 / 2,4 MB/s', pct: 24 },
+      { label: 'Disco · leitura / escrita', value: '0,3 / 1,1 MB/s', pct: 11 }
+    ].map((r) => ({ ...r, barClass: r.pct >= 80 ? 'ct-bar ct-bar--warn' : 'ct-bar', barStyle: 'width: ' + r.pct + '%' }));
+    const nf1 = (v) => v.toLocaleString('pt-BR', { maximumFractionDigits: 1 });
+    return {
+      shellH: 968, iconSize: 24, searchW: 240, chartH: 260, zero: 0, hundred: 100,
+      yes: true, no: false, nil: null, noop: () => {},
+      tab,
+      pickTab: (i) => this.setState({ tab: i }),
+      showSummary: tab === 0, showLogs: tab === 1, showInspect: tab === 2, showStats: tab === 3, showTerm: tab === 4,
+      tabs: [
+        { label: 'Resumo', icon: 'info' },
+        { label: 'Logs', icon: 'list' },
+        { label: 'Inspecionar', icon: 'eye' },
+        { label: 'Estatísticas', icon: 'chart-line' },
+        { label: 'Terminal', icon: 'command' }
+      ],
+      logs, res,
+      minutes: ['14:42', '14:45', '14:48', '14:51', '14:54', '14:57', '15:00', '15:03', '15:06', '15:09', '15:12'],
+      statSeries: [
+        { name: 'CPU', data: [31, 33, 35, 34, 38, 41, 44, 52, 0, 36, 38.4], area: true },
+        { name: 'Memória', data: [70, 72, 74, 76, 79, 83, 88, 97, 12, 74, 80.5] }
+      ],
+      pct: (v) => nf1(v) + '%',
+      inspect: '{\n  "Id": "7f9c2e1a84b3…",\n  "Name": "/api-pedidos-7f9c",\n  "State": {\n    "Status": "running",\n    "Health": { "Status": "healthy", "FailingStreak": 0 },\n    "StartedAt": "2026-10-10T18:08:04Z"\n  },\n  "RestartCount": 2,\n  "HostConfig": {\n    "Memory": 536870912,\n    "NanoCpus": 2000000000,\n    "RestartPolicy": { "Name": "unless-stopped" }\n  },\n  "NetworkSettings": {\n    "Networks": { "rede-pedidos": { "IPAddress": "172.20.0.14" } }\n  }\n}',
+      term: 'app@7f9c2e1a84b3:/srv/app$ node --version\nv20.17.0\napp@7f9c2e1a84b3:/srv/app$ ls\ndist  node_modules  package.json  uploads\napp@7f9c2e1a84b3:/srv/app$ ▍',
+      menu: [
+        { section: 'Operação', items: [
+          { id: 'overview', label: 'Visão geral', icon: 'gauge' },
+          { id: 'containers', label: 'Containers', icon: 'box' },
+          { id: 'pods', label: 'Pods', icon: 'grid' },
+          { id: 'images', label: 'Imagens', icon: 'package' },
+          { id: 'volumes', label: 'Volumes', icon: 'columns' },
+          { id: 'networks', label: 'Redes', icon: 'link' }
+        ] },
+        { section: 'Infraestrutura', items: [
+          { id: 'hosts', label: 'Hosts', icon: 'monitor' },
+          { id: 'registries', label: 'Registros', icon: 'inbox' }
+        ] },
+        { section: 'Governança', items: [
+          { id: 'alerts', label: 'Alertas', icon: 'alert', count: 3, countLabel: 'alertas abertos' },
+          { id: 'audit', label: 'Auditoria', icon: 'shield' },
+          { id: 'settings', label: 'Configurações', icon: 'settings' }
+        ] }
+      ],
+      crumbs: ['Operação', 'Containers', 'api-pedidos-7f9c'],
+      user: { name: 'Mariana Costa', group: 'Plataforma · SRE', initials: 'MC' },
+      envs: [
+        { id: 'prod', label: 'Produção', icon: 'shield' },
+        { id: 'hml', label: 'Homologação', icon: 'flag' },
+        { id: 'dev', label: 'Desenvolvimento', icon: 'tool' }
+      ],
+      headerProps: { env: null, notifications: 4, defaultShortcut: 'prod', showDarkMode: false }
+    };
+  }
+}
+</script>
+</body>
+</html>

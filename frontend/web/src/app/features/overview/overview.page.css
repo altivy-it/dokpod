@@ -1,0 +1,112 @@
+.ov-kpis {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 12px;
+}
+
+@media (max-width: 1100px) {
+  .ov-kpis {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 560px) {
+  .ov-kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.ov-center ::ng-deep .alt-graphics__body {
+  flex: 1 1 auto;
+}
+
+.ov-scroll {
+  overflow-x: auto;
+}
+
+.ov-table {
+  min-width: 640px;
+}
+
+.ov-grid {
+  grid-template-columns: 1.4fr 1.2fr 1fr 0.8fr 1.4fr;
+}
+
+.ov-head {
+  color: var(--muted);
+  padding-top: 4px;
+  padding-bottom: 8px;
+}
+
+.ov-num {
+  text-align: right;
+}
+
+.ov-host {
+  color: var(--text-strong);
+  font-weight: 500;
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ov-host:hover {
+  color: var(--teal-light);
+}
+
+.ov-engine,
+.ov-cpu {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.ov-cpu__value {
+  width: 44px;
+  text-align: right;
+  color: var(--foreground);
+}
+
+.ov-muted {
+  color: var(--muted);
+}
+
+.ov-pad {
+  margin: 8px 0;
+}
+
+.ov-events {
+  display: flex;
+  flex-direction: column;
+}
+
+.ov-event {
+  grid-template-columns: 48px minmax(0, 1fr) auto;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.ov-event__text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.ov-event__where {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ov-event__title {
+  color: var(--foreground);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ov-kpi-link { display: block; color: inherit; text-decoration: none; border-radius: var(--radius-lg, 12px); }
+.ov-kpi-link:focus-visible { outline: 2px solid var(--teal-light); outline-offset: 2px; }
+.ov-kpi-link > dok-info-kpi { display: block; height: 100%; }

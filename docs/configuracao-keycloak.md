@@ -65,6 +65,14 @@ Scopes iniciais:
 | `container:delete` | excluir container sem remover volumes implicitamente |
 | `audit:read` | consultar auditoria do ambiente |
 | `environment:manage` | aprovar, suspender e configurar o ambiente |
+| `container:pause` | pausar e retomar container (spec 010) |
+| `container:inspect` | resumo e inspeção sanitizada do container (spec 011) |
+| `container:logs` | logs sob demanda e ao vivo, mascarados no agente (spec 011) |
+| `image:pull` | baixar imagem no host (spec 012) |
+| `container:create` | criar e iniciar container pela allowlist de parâmetros (spec 013) |
+| `container:exec` | abrir terminal interativo no container (spec 014) |
+
+Os scopes são criados por `tools/scripts/configure-keycloak.ps1` no resource server `dokpod-api` e concedidos por ambiente com `tools/scripts/provision-environment-authorization.ps1 -Scope <scope>`. Scopes de operações privilegiadas (`container:create`, `container:exec`) devem ser concedidos a grupos restritos e revisados periodicamente.
 
 Roles podem agrupar permissões para administração, operação e auditoria, mas a decisão final continua associada ao recurso e scope. O Dokpod não persiste cópia de role ou membership como autorização local.
 
@@ -201,3 +209,10 @@ simultaneamente `OwnerUsername` e `GroupPath`.
 O deployment deve incluir health/readiness do Keycloak sem transformar indisponibilidade em bypass. Backups do banco do Keycloak e do banco do Dokpod são independentes e ambos precisam de testes de restauração. Atualizações seguem release notes, compatibilidade, migration, rollback, scan de vulnerabilidades e teste dos fluxos autenticados.
 
 Para o laboratório local, consulte [deploy/keycloak/README.md](../deploy/keycloak/README.md). Valores de sessão, tokens e URLs de produção serão fixados com evidência do ambiente de implantação. Atualizações da imagem seguem a matriz e os gates definidos em [Distribuição e operação](distribuicao.md#imagens-base-e-toolchains).
+
+## Terminal interativo (spec 014)
+
+- **Vida útil do access token**: mantenha `Access Token Lifespan` do realm em **≤ 5 min**. O terminal e os logs ao vivo reavaliam a autorização a cada 60 s com o token atual renovado pelo BFF; a revogação de `container:exec` passa a valer em até 60 s mais a vida útil restante do token.
+- **MFA recente** (opcional, `Terminal__RequireRecentMfa=true`): configure um fluxo de autenticação que exija segundo fator e publique `acr` no token; a API recusa a abertura com `mfa_required` quando o token não traz `acr` de MFA ou o `auth_time` passa de `Terminal__RecentMfaMaxAgeMinutes` (padrão 15).
+- `container:exec` deve ser concedido somente a grupos restritos, com revisão periódica.
+

@@ -8,7 +8,8 @@ public sealed class AgentCommandProcessor(
     AgentCommandGate gate,
     ICommandJournal journal,
     IContainerEngine engine,
-    TimeProvider timeProvider)
+    TimeProvider timeProvider,
+    Dokpod.Agent.Application.Containers.ContainerCreator? creator = null)
 {
     private readonly ConcurrentDictionary<(Guid EnvironmentId, string ContainerId), SemaphoreSlim> mutationLocks = [];
 
@@ -63,8 +64,14 @@ public sealed class AgentCommandProcessor(
             return rejection;
         }
 
+        var lockKey = command.Parameters switch
+        {
+            PullImageParameters pull => "image:" + pull.Reference.Name,
+            CreateContainerParameters create => "create:" + create.Spec.Name,
+            _ => command.ContainerId,
+        };
         var mutationLock = mutationLocks.GetOrAdd(
-            (command.EnvironmentId, command.ContainerId),
+            (command.EnvironmentId, lockKey),
             static _ => new SemaphoreSlim(1, 1));
         await mutationLock.WaitAsync(cancellationToken);
 
@@ -73,6 +80,68 @@ public sealed class AgentCommandProcessor(
             if (command.DeadlineUtc <= timeProvider.GetUtcNow())
             {
                 return await SaveAsync(CreateResult(command, CommandExecutionState.Failed, "expired_command", null));
+            }
+
+            if (command.Kind == AgentCommandKind.PullImage)
+            {
+                // Pull é idempotente: um comando já aceito e sem resultado (queda após o aceite) é refeito (012 D-003).
+                if (command.Parameters is not PullImageParameters parameters)
+                {
+                    return await SaveAsync(CreateResult(command, CommandExecutionState.Failed, "invalid_reference", null));
+                }
+
+                using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                deadline.CancelAfter(command.DeadlineUtc - timeProvider.GetUtcNow());
+                try
+                {
+                    var pulled = await engine.PullImageAsync(parameters.Reference, deadline.Token);
+                    return await SaveAsync(CreateResult(
+                        command,
+                        pulled.Succeeded ? CommandExecutionState.Succeeded : CommandExecutionState.Failed,
+                        pulled.FailureCode,
+                        null) with
+                    {
+                        Output = pulled.Succeeded ? new AgentCommandOutput(pulled.ResolvedDigest, pulled.SizeBytes) : null,
+                    });
+                }
+                catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+                {
+                    return await SaveAsync(CreateResult(command, CommandExecutionState.Failed, "deadline_exceeded", null));
+                }
+                catch (Exception exception) when (exception is HttpRequestException or IOException)
+                {
+                    return await SaveAsync(CreateResult(command, CommandExecutionState.Failed, "engine_unavailable", null));
+                }
+            }
+
+            if (command.Kind == AgentCommandKind.CreateContainer)
+            {
+                if (command.Parameters is not CreateContainerParameters create || creator is null)
+                {
+                    return await SaveAsync(CreateResult(command, CommandExecutionState.Failed, creator is null ? "unsupported_command" : "invalid_spec", null));
+                }
+
+                using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                deadline.CancelAfter(command.DeadlineUtc - timeProvider.GetUtcNow());
+                try
+                {
+                    var (state, failure, containerId) = await creator.CreateAsync(command, create.Spec, deadline.Token);
+                    return await SaveAsync(CreateResult(command, state, failure, null) with
+                    {
+                        Output = containerId is null ? null : new AgentCommandOutput(CreatedContainerId: containerId),
+                    });
+                }
+                catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+                {
+                    return await SaveAsync(CreateResult(command, CommandExecutionState.Indeterminate, "deadline_exceeded", null));
+                }
+                catch (Exception exception) when (exception is HttpRequestException or IOException or System.Text.Json.JsonException or InvalidDataException)
+                {
+                    // Efeito desconhecido: indeterminado; o label `dokpod.command-id` permite reconciliar no host.
+                    var unknown = CreateResult(command, CommandExecutionState.Indeterminate, "engine_result_unknown", null);
+                    await journal.SaveResultAsync(unknown, CancellationToken.None);
+                    return unknown;
+                }
             }
 
             var container = await engine.InspectContainerAsync(command.ContainerId, cancellationToken);

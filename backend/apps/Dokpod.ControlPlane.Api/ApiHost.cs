@@ -1,3 +1,7 @@
+using Dokpod.ControlPlane.Application.Events;
+using Dokpod.ControlPlane.Application.Hosts;
+using Dokpod.ControlPlane.Application.Overview;
+using Dokpod.ControlPlane.Application.Realtime;
 using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
 using System.Security.Cryptography;
@@ -8,6 +12,7 @@ using Dokpod.ControlPlane.Api.Agents;
 using Dokpod.ControlPlane.Api.Commands;
 using Dokpod.ControlPlane.Application.Agents;
 using Dokpod.ControlPlane.Infrastructure;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.AspNetCore.Server.Kestrel.Https;
@@ -43,6 +48,10 @@ public static class ApiHost
         ApiHostOptions? options = null)
     {
         var builder = WebApplication.CreateBuilder(args);
+        // URLs com query não vão aos logs: `contains` dos logs sob demanda (spec 011) e demais filtros
+        // apareceriam em "Request starting ..." e no log do HttpClient em nível Information.
+        builder.Logging.AddFilter("Microsoft.AspNetCore.Hosting.Diagnostics", LogLevel.Warning);
+        builder.Logging.AddFilter("System.Net.Http.HttpClient", LogLevel.Warning);
         options ??= LoadOptionsFromEnvironment();
         ArgumentNullException.ThrowIfNull(
             options.ServerCertificate,
@@ -113,7 +122,18 @@ public static class ApiHost
             .SetFallbackPolicy(new AuthorizationPolicyBuilder()
                 .RequireAuthenticatedUser()
                 .Build());
-        builder.Services.AddSignalR();
+        var terminalOptions = builder.Configuration.GetSection(Dokpod.ControlPlane.Application.Terminal.TerminalOptions.SectionName).Get<Dokpod.ControlPlane.Application.Terminal.TerminalOptions>()
+            ?? new Dokpod.ControlPlane.Application.Terminal.TerminalOptions();
+        if (!terminalOptions.IsValid()) throw new InvalidOperationException("Terminal options are invalid.");
+        builder.Services.AddSingleton(terminalOptions);
+        builder.Services.AddSingleton<Dokpod.ControlPlane.Application.Terminal.TerminalSessionRegistry>();
+        builder.Services.AddScoped<Dokpod.ControlPlane.Application.Terminal.TerminalSessionService>();
+        // Spec 014 D-010: queda do navegador detectada em até 30 s (terminal e logs ao vivo).
+        builder.Services.AddSignalR(options =>
+        {
+            options.KeepAliveInterval = TimeSpan.FromSeconds(15);
+            options.ClientTimeoutInterval = TimeSpan.FromSeconds(30);
+        });
         builder.Services.AddSingleton<IValidateOptions<KeycloakAuthorizationOptions>, KeycloakAuthorizationOptionsValidator>();
         builder.Services.AddHttpClient<IEnvironmentAuthorizationDecider, KeycloakAuthorizationDecisionService>(
             (provider, client) =>
@@ -145,9 +165,60 @@ public static class ApiHost
         builder.Services.AddScoped<ContainerCommandService>();
         builder.Services.AddScoped<ContainerCommandQueryService>();
         builder.Services.AddScoped<AgentCommandStatusService>();
+        var commandRetention = builder.Configuration.GetSection(CommandRetentionOptions.SectionName).Get<CommandRetentionOptions>() ?? new CommandRetentionOptions();
+        if (!commandRetention.IsValid()) throw new InvalidOperationException("Commands:Retention is invalid.");
+        builder.Services.AddSingleton(commandRetention);
         builder.Services.AddHostedService<AgentCommandExpirationWorker>();
+        var imagePullPolicy = builder.Configuration.GetSection("Images").Get<Dokpod.ControlPlane.Application.Images.ImagePullPolicy>() ?? new Dokpod.ControlPlane.Application.Images.ImagePullPolicy();
+        builder.Services.AddSingleton(imagePullPolicy);
+        builder.Services.AddScoped<Dokpod.ControlPlane.Application.Images.IImageInventoryStore, UnavailableImageInventoryStore>();
+        builder.Services.AddScoped<Dokpod.ControlPlane.Application.Images.ImagePullService>();
+        // Spec 013 D-006: key ring próprio da API (separado do BFF) para valores de comandos.
+        var dataProtection = builder.Services.AddDataProtection().SetApplicationName("Dokpod.ControlPlane.Api");
+        var keysPath = builder.Configuration["DataProtection:KeysPath"];
+        if (!string.IsNullOrWhiteSpace(keysPath))
+        {
+            if (!Path.IsPathFullyQualified(keysPath)) throw new InvalidOperationException("DataProtection:KeysPath must be an absolute path.");
+            dataProtection.PersistKeysToFileSystem(new DirectoryInfo(keysPath));
+        }
+
+        builder.Services.AddSingleton<Dokpod.ControlPlane.Application.Commands.ICommandParameterProtector, DataProtectionCommandParameterProtector>();
+        builder.Services.AddScoped<Dokpod.ControlPlane.Application.Containers.ContainerCreationService>();
         builder.Services.AddScoped<InventoryProjectionService>();
         builder.Services.AddScoped<InventoryQueryService>();
+        var engineSupport = builder.Configuration.GetSection(EngineSupportOptions.SectionName).Get<EngineSupportOptions>() ?? new EngineSupportOptions();
+        if (!engineSupport.IsValid()) throw new InvalidOperationException("EngineSupport minimum versions are invalid.");
+        builder.Services.AddSingleton(engineSupport);
+        builder.Services.AddSingleton<AgentLivenessTracker>();
+        builder.Services.AddSingleton<IControlPlaneNotifier, SignalRControlPlaneNotifier>();
+        builder.Services.AddScoped<UnavailableAgentHostStore>();
+        builder.Services.AddScoped<IAgentHostStore>(provider => provider.GetRequiredService<UnavailableAgentHostStore>());
+        builder.Services.AddScoped<IInventoryStatisticsStore>(provider => provider.GetRequiredService<UnavailableAgentHostStore>());
+        builder.Services.AddScoped<IEnvironmentStageStore>(provider => provider.GetRequiredService<UnavailableAgentHostStore>());
+        builder.Services.AddScoped<IOperationalEventStore, UnavailableOperationalEventStore>();
+        builder.Services.AddScoped<AuthorizedEnvironmentsService>();
+        builder.Services.AddScoped<HostQueryService>();
+        builder.Services.AddScoped<EnvironmentStageService>();
+        builder.Services.AddScoped<OperationalEventService>();
+        builder.Services.AddScoped<OverviewQueryService>();
+        builder.Services.AddScoped<IContainerSearchStore, UnavailableContainerSearchStore>();
+        builder.Services.AddScoped<ContainerSearchService>();
+        builder.Services.AddSingleton<Dokpod.ControlPlane.Application.Queries.AgentQueryDispatcher>();
+        builder.Services.AddScoped<Dokpod.ControlPlane.Application.Queries.ContainerInsightsService>();
+        builder.Services.AddScoped<AgentHostActivity>();
+        builder.Services.AddHostedService<AgentConnectionSweeper>();
+        builder.Services.AddHostedService<EventRetentionWorker>();
+        var metricsOptions = builder.Configuration.GetSection(Dokpod.ControlPlane.Application.Metrics.MetricsOptions.SectionName)
+            .Get<Dokpod.ControlPlane.Application.Metrics.MetricsOptions>() ?? new Dokpod.ControlPlane.Application.Metrics.MetricsOptions();
+        if (!metricsOptions.IsValid()) throw new InvalidOperationException("Metrics options are invalid.");
+        builder.Services.AddSingleton(metricsOptions);
+        builder.Services.AddSingleton<Dokpod.ControlPlane.Application.Metrics.LatestMetricsCache>();
+        builder.Services.AddSingleton<Dokpod.ControlPlane.Application.Metrics.ContainerMetricsBuffer>();
+        builder.Services.AddSingleton<Dokpod.ControlPlane.Application.Metrics.HostMinuteAggregator>();
+        builder.Services.AddScoped<Dokpod.ControlPlane.Application.Metrics.IHostMetricsStore, UnavailableHostMetricsStore>();
+        builder.Services.AddScoped<Dokpod.ControlPlane.Application.Metrics.MetricsIngestionService>();
+        builder.Services.AddScoped<Dokpod.ControlPlane.Application.Metrics.MetricsQueryService>();
+        builder.Services.AddHostedService<Dokpod.ControlPlane.Api.Metrics.MetricsMaintenanceWorker>();
         var databaseConnectionString = builder.Configuration.GetConnectionString("ControlPlane");
         if (!string.IsNullOrWhiteSpace(databaseConnectionString))
         {
@@ -194,6 +265,12 @@ public static class ApiHost
         })).RequireAuthorization();
         EnvironmentEndpoints.Map(app);
         InventoryEndpoints.Map(app);
+        ConsoleEndpoints.Map(app);
+        ImageEndpoints.Map(app);
+        ContainerCreationEndpoints.Map(app);
+        TerminalEndpoints.Map(app);
+        ContainerDetailEndpoints.Map(app);
+        MetricsEndpoints.Map(app);
         ContainerCommandEndpoints.Map(app);
         app.MapHub<ControlPlaneHub>("/hubs/control-plane").RequireAuthorization();
     }

@@ -28,6 +28,23 @@ regexes = [
 	'''^\s*keycloak\.ClientSecret\s*$''',
 	'''^\s*(?:os\.environ\.get|os\.getenv)\(['"][A-Z][A-Z0-9_]*['"]\)\s*$''',
 	'''^\s*_?require_credentials\(\)\s*$''',
+	# Código, não valor: construção de objeto (`secret = new HostSecretRef`) e números de campo/enum do protobuf.
+	'''^\s*new [A-Z][A-Za-z0-9_.]*(?:\(.*|\s*\{?)\s*;?\s*$''',
+	'''^\s*\d+\s*;?\s*$''',
+	# Código, não valor: `await`, indexação, chamada de função, `!!`, construtor seguido de texto e JS minificado.
+	'''^\s*await\s+[A-Za-z_]''',
+	'''^\s*[A-Za-z_][A-Za-z0-9_]*\[\(''',
+	'''^\s*[A-Za-z_$][A-Za-z0-9_$.]*\(\s*(?:[A-Za-z_$][A-Za-z0-9_$.]*|'[^']*'|"[^"]*")?\s*[,)]''',
+	'''^\s*!!''',
+	'''^\s*new [A-Z][A-Za-z0-9_.]*`''',
+	'''^\s*""\s*,''',
+	'''^\s*[A-Za-z_$][A-Za-z0-9_$]*\s*,\s*this\.''',
+	# Placeholder de template (`{{v.secret}}`) e lista de chaves em documentação (`password=`, `secret=`).
+	'''^\s*['"]?\{\{[A-Za-z_][A-Za-z0-9_.]*\}\}''',
+	'''^`,\s*`''',
+	# Valores sintéticos dos testes de mascaramento e do catálogo de desenvolvimento.
+	'''^'segredo-do-cofre'$''',
+	'''(?i)\bhunter2\b''',
 ]
 
 [[rules]]
@@ -58,3 +75,16 @@ regexes = ['''\$\{\{\s*secrets\.[A-Za-z0-9_]+\s*\}\}''']
 [[allowlists]]
 description = "Allow documented non-secret placeholders"
 regexes = ['''(?i)(?:CHANGE_ME|REPLACE_ME|YOUR_[A-Z0-9_]+|<your-[^>]+>)''']
+
+[[allowlists]]
+description = "Canários sintéticos dos testes de mascaramento (specs 011-014): não são credenciais"
+regexes = [
+	'''\{\{Canary\}\}''',
+	'''(?i)\bcanar(?:y|io)-[a-z]''',
+	'''eyJhbGciOiJIUzI1NiJ9\.eyJzdWIiOiIxMjM0NTY3ODkwIn0\.''',
+]
+
+[[allowlists]]
+description = "Certificado e chave de teste públicos da biblioteca Happy DOM (O=Happy DOM, autoassinado) embutidos no bundle exportado de docs/design/app"
+regexTarget = "line"
+regexes = ['''-----END CERTIFICATE-----`,key:`-----BEGIN [A-Z ]*PRIVATE KEY-----''']

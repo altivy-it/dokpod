@@ -179,6 +179,7 @@ public sealed class ContainerCommandService(
         AgentCommandKind.StopContainer => EnvironmentResourceScopes.StopContainer,
         AgentCommandKind.RestartContainer => EnvironmentResourceScopes.RestartContainer,
         AgentCommandKind.DeleteContainer => EnvironmentResourceScopes.DeleteContainer,
+        AgentCommandKind.PauseContainer or AgentCommandKind.UnpauseContainer => EnvironmentResourceScopes.PauseContainer,
         _ => throw new ArgumentOutOfRangeException(nameof(kind)),
     };
 
@@ -188,17 +189,16 @@ public sealed class ContainerCommandService(
         AgentCommandKind.StopContainer => "container.stop",
         AgentCommandKind.RestartContainer => "container.restart",
         AgentCommandKind.DeleteContainer => "container.delete",
+        AgentCommandKind.PauseContainer => "container.pause",
+        AgentCommandKind.UnpauseContainer => "container.unpause",
         _ => throw new ArgumentOutOfRangeException(nameof(kind)),
     };
 
     private static string ComputePayloadHash(
         AgentCommandKind kind,
         string containerId,
-        string expectedContainerRevision)
-    {
-        var payload = string.Join('\n', "v1", (int)kind, containerId, expectedContainerRevision);
-        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(payload)));
-    }
+        string expectedContainerRevision) =>
+        AgentCommandKinds.PayloadHash(kind, containerId, expectedContainerRevision, null);
 
     private static void ValidateRequest(
         Guid environmentId,
@@ -214,7 +214,7 @@ public sealed class ContainerCommandService(
         ArgumentNullException.ThrowIfNull(actor);
         if (environmentId == Guid.Empty || commandId == Guid.Empty || correlationId == Guid.Empty ||
             string.IsNullOrWhiteSpace(accessToken) ||
-            kind is < AgentCommandKind.StartContainer or > AgentCommandKind.DeleteContainer ||
+            kind is < AgentCommandKind.StartContainer or > AgentCommandKind.UnpauseContainer ||
             containerId?.Length != 64 || !containerId.All(Uri.IsHexDigit) ||
             string.IsNullOrWhiteSpace(expectedContainerRevision) ||
             expectedContainerRevision.Length > 255 ||

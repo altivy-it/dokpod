@@ -8,8 +8,14 @@ namespace Dokpod.ControlPlane.Infrastructure;
 
 public sealed class PostgresAgentCommandStore(
     ControlPlaneDbContext dbContext,
-    IAuditEventWriter auditEventWriter) : IAgentCommandStore
+    IAuditEventWriter auditEventWriter,
+    ICommandParameterProtector? protector = null) : IAgentCommandStore
 {
+    private static readonly System.Text.Json.JsonSerializerOptions ParametersJson = new(System.Text.Json.JsonSerializerDefaults.Web)
+    {
+        DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull,
+    };
+
     private const int MaximumDispatchBatchSize = 100;
     private const int MaximumExpirationBatchSize = 100;
 
@@ -18,7 +24,7 @@ public sealed class PostgresAgentCommandStore(
     {
     }
 
-    public Task<AgentCommandStatusSnapshot?> GetAsync(
+    public async Task<AgentCommandStatusSnapshot?> GetAsync(
         Guid environmentId,
         Guid commandId,
         CancellationToken cancellationToken)
@@ -28,25 +34,46 @@ public sealed class PostgresAgentCommandStore(
             throw new ArgumentException("Command identity is required.");
         }
 
-        return dbContext.AgentCommands
+        var row = await dbContext.AgentCommands
             .AsNoTracking()
             .Where(command =>
                 command.EnvironmentId == environmentId &&
                 command.CommandId == commandId)
-            .Select(command => new AgentCommandStatusSnapshot(
-                command.EnvironmentId,
-                command.CommandId,
-                command.Kind,
-                command.ContainerId,
-                command.ExpectedContainerRevision,
-                command.State,
-                command.FailureCode,
-                command.ObservedContainerRevision,
-                command.DeadlineUtc,
-                command.CreatedAtUtc,
-                command.UpdatedAtUtc,
-                command.CompletedAtUtc))
-            .SingleOrDefaultAsync(cancellationToken);
+            .SingleOrDefaultAsync(cancellationToken)
+            .ConfigureAwait(false);
+        if (row is null)
+        {
+            return null;
+        }
+
+        var parameters = AgentCommandKinds.IsHostTarget(row.Kind)
+            ? await LoadParametersAsync(environmentId, [commandId], cancellationToken).ConfigureAwait(false)
+            : new Dictionary<Guid, AgentCommandParameters>();
+        return new AgentCommandStatusSnapshot(
+            row.EnvironmentId,
+            row.CommandId,
+            row.Kind,
+            row.ContainerId ?? string.Empty,
+            row.ExpectedContainerRevision ?? string.Empty,
+            row.State,
+            row.FailureCode,
+            row.ObservedContainerRevision,
+            row.DeadlineUtc,
+            row.CreatedAtUtc,
+            row.UpdatedAtUtc,
+            row.CompletedAtUtc)
+        {
+            Output = row.ResolvedImageDigest is null && row.ImageSizeBytes is null && row.CreatedContainerId is null
+                ? null
+                : new AgentCommandOutput(row.ResolvedImageDigest, row.ImageSizeBytes, row.CreatedContainerId),
+            ImageReference = parameters.GetValueOrDefault(commandId) switch
+            {
+                PullImageParameters pull => pull.Reference.Canonical,
+                CreateContainerParameters create => create.Spec.Image.Canonical,
+                _ => null,
+            },
+            ContainerName = parameters.GetValueOrDefault(commandId) is CreateContainerParameters created ? created.Spec.Name : null,
+        };
     }
 
     public async Task<AgentCommandEnqueueResult> EnqueueAsync(
@@ -58,6 +85,9 @@ public sealed class PostgresAgentCommandStore(
         var agentCommand = command.Command;
         var kind = (short)agentCommand.Kind;
         var state = (short)command.State;
+        var hostTarget = AgentCommandKinds.IsHostTarget(agentCommand.Kind);
+        string? containerId = hostTarget ? null : agentCommand.ContainerId;
+        string? expectedRevision = hostTarget ? null : agentCommand.ExpectedContainerRevision;
         var inserted = await dbContext.Database.ExecuteSqlInterpolatedAsync($"""
             INSERT INTO dokpod.agent_commands (
                 environment_id,
@@ -75,8 +105,8 @@ public sealed class PostgresAgentCommandStore(
                 {agentCommand.EnvironmentId},
                 {agentCommand.CommandId},
                 {kind},
-                {agentCommand.ContainerId},
-                {agentCommand.ExpectedContainerRevision},
+                {containerId},
+                {expectedRevision},
                 {agentCommand.PayloadHash},
                 {agentCommand.DeadlineUtc},
                 {agentCommand.FencingToken},
@@ -88,6 +118,21 @@ public sealed class PostgresAgentCommandStore(
 
         if (inserted == 1)
         {
+            if (agentCommand.Parameters is { } parameters)
+            {
+                dbContext.AgentCommandParameters.Add(new AgentCommandParametersEntity
+                {
+                    EnvironmentId = agentCommand.EnvironmentId,
+                    CommandId = agentCommand.CommandId,
+                    CreatedAtUtc = command.CreatedAtUtc,
+                    Kind = ParametersKind(parameters),
+                    Parameters = SerializeParameters(parameters),
+                    ProtectedValues = ProtectValues(parameters),
+                });
+                await dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+                dbContext.ChangeTracker.Clear();
+            }
+
             return AgentCommandEnqueueResult.Created;
         }
 
@@ -100,9 +145,9 @@ public sealed class PostgresAgentCommandStore(
             .ConfigureAwait(false);
 
         var sameEnvelope = persisted.Kind == agentCommand.Kind &&
-            string.Equals(persisted.ContainerId, agentCommand.ContainerId, StringComparison.Ordinal) &&
+            string.Equals(persisted.ContainerId ?? string.Empty, agentCommand.ContainerId, StringComparison.Ordinal) &&
             string.Equals(
-                persisted.ExpectedContainerRevision,
+                persisted.ExpectedContainerRevision ?? string.Empty,
                 agentCommand.ExpectedContainerRevision,
                 StringComparison.Ordinal) &&
             string.Equals(persisted.PayloadHash, agentCommand.PayloadHash, StringComparison.Ordinal) &&
@@ -163,6 +208,9 @@ public sealed class PostgresAgentCommandStore(
                     .SetProperty(command => command.FailureCode, update.FailureCode)
                     .SetProperty(command => command.ObservedContainerRevision, update.ObservedContainerRevision)
                     .SetProperty(command => command.CompletedAtUtc, completedAtUtc)
+                    .SetProperty(command => command.ResolvedImageDigest, update.Output == null ? null : update.Output.ResolvedImageDigest)
+                    .SetProperty(command => command.ImageSizeBytes, update.Output == null ? null : update.Output.ImageSizeBytes)
+                    .SetProperty(command => command.CreatedContainerId, update.Output == null ? null : update.Output.CreatedContainerId)
                     .SetProperty(
                         command => command.UpdatedAtUtc,
                         command => command.UpdatedAtUtc > update.UpdatedAtUtc
@@ -172,6 +220,12 @@ public sealed class PostgresAgentCommandStore(
             .ConfigureAwait(false);
         if (updated == 1)
         {
+            if (terminal)
+            {
+                // FR-004: valores protegidos saem do armazenamento assim que o comando termina.
+                await PurgeProtectedValuesAsync(update.EnvironmentId, update.CommandId, update.UpdatedAtUtc, cancellationToken).ConfigureAwait(false);
+            }
+
             return AgentCommandStatusUpdateResult.Applied;
         }
 
@@ -306,16 +360,23 @@ public sealed class PostgresAgentCommandStore(
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 
+        var hostCommandIds = claimed.Where(command => AgentCommandKinds.IsHostTarget(command.Kind)).Select(command => command.CommandId).ToArray();
+        var parameters = hostCommandIds.Length == 0
+            ? new Dictionary<Guid, AgentCommandParameters>()
+            : await LoadParametersAsync(environmentId, hostCommandIds, cancellationToken).ConfigureAwait(false);
         return claimed.Select(command => new PersistedAgentCommand(
                 new Dokpod.Domain.Commands.AgentCommand(
                     command.EnvironmentId,
                     command.CommandId,
                     command.Kind,
-                    command.ContainerId,
-                    command.ExpectedContainerRevision,
+                    command.ContainerId ?? string.Empty,
+                    command.ExpectedContainerRevision ?? string.Empty,
                     command.PayloadHash,
                     command.DeadlineUtc,
-                    activeFencingToken),
+                    activeFencingToken)
+                {
+                    Parameters = parameters.GetValueOrDefault(command.CommandId),
+                },
                 command.State,
                 command.CreatedAtUtc,
                 command.UpdatedAtUtc))
@@ -406,6 +467,146 @@ public sealed class PostgresAgentCommandStore(
         }
     }
 
+    public async Task<int> PurgeTerminalAsync(DateTimeOffset cutoffUtc, int batchSize, CancellationToken cancellationToken)
+    {
+        if (cutoffUtc.Offset != TimeSpan.Zero || batchSize is < 1 or > 50_000)
+        {
+            throw new ArgumentException("Retention cutoff must be UTC and batch size within limits.");
+        }
+
+        // Somente Succeeded/Failed: Indeterminate exige reconciliação antes (runbook de comandos).
+        // Parâmetros saem por ON DELETE CASCADE; a chave de idempotência é liberada pelo gatilho existente.
+        var total = 0;
+        while (true)
+        {
+            var deleted = await dbContext.Database.ExecuteSqlInterpolatedAsync($"""
+                WITH doomed AS (
+                    SELECT environment_id, command_id, created_at_utc
+                    FROM dokpod.agent_commands
+                    WHERE created_at_utc < {cutoffUtc} AND state IN (3, 4)
+                    LIMIT {batchSize})
+                DELETE FROM dokpod.agent_commands command
+                USING doomed
+                WHERE command.environment_id = doomed.environment_id
+                  AND command.command_id = doomed.command_id
+                  AND command.created_at_utc = doomed.created_at_utc
+                """, cancellationToken).ConfigureAwait(false);
+            total += deleted;
+            if (deleted < batchSize)
+            {
+                return total;
+            }
+        }
+    }
+
+    /// <summary>Zera valores protegidos de comandos terminais (inclusive expirados); idempotente.</summary>
+    public async Task<int> PurgeProtectedValuesAsync(CancellationToken cancellationToken) =>
+        await dbContext.Database.ExecuteSqlInterpolatedAsync($"""
+            UPDATE dokpod.agent_command_parameters p
+            SET protected_values = NULL, purged_at = {DateTimeOffset.UtcNow}
+            FROM dokpod.agent_commands c
+            WHERE p.protected_values IS NOT NULL
+              AND c.environment_id = p.environment_id AND c.command_id = p.command_id AND c.created_at_utc = p.created_at_utc
+              AND c.state IN (3, 4, 5)
+            """, cancellationToken).ConfigureAwait(false);
+
+    private Task<int> PurgeProtectedValuesAsync(Guid environmentId, Guid commandId, DateTimeOffset atUtc, CancellationToken cancellationToken) =>
+        dbContext.Database.ExecuteSqlInterpolatedAsync($"""
+            UPDATE dokpod.agent_command_parameters
+            SET protected_values = NULL, purged_at = {atUtc}
+            WHERE environment_id = {environmentId} AND command_id = {commandId} AND protected_values IS NOT NULL
+            """, cancellationToken);
+
+    private byte[]? ProtectValues(AgentCommandParameters parameters)
+    {
+        if (parameters is not CreateContainerParameters create)
+        {
+            return null;
+        }
+
+        var values = create.Spec.LiteralValues();
+        if (values.Count == 0)
+        {
+            return null;
+        }
+
+        if (protector is null)
+        {
+            throw new InvalidOperationException("Command parameter protection is not configured.");
+        }
+
+        return protector.Protect(System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(values));
+    }
+
+    private Dictionary<string, string>? UnprotectValues(AgentCommandParametersEntity row)
+    {
+        if (row.ProtectedValues is null || row.PurgedAt is not null || protector is null)
+        {
+            return null;
+        }
+
+        var plaintext = protector.TryUnprotect(row.ProtectedValues);
+        return plaintext is null ? null : System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string>>(plaintext);
+    }
+
+    private async Task<Dictionary<Guid, AgentCommandParameters>> LoadParametersAsync(
+        Guid environmentId,
+        Guid[] commandIds,
+        CancellationToken cancellationToken)
+    {
+        var rows = await dbContext.AgentCommandParameters
+            .AsNoTracking()
+            .Where(parameters => parameters.EnvironmentId == environmentId && commandIds.Contains(parameters.CommandId))
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+        var result = new Dictionary<Guid, AgentCommandParameters>();
+        foreach (var row in rows)
+        {
+            var parameters = DeserializeParameters(row.Kind, row.Parameters);
+            if (parameters is CreateContainerParameters create && UnprotectValues(row) is { } values)
+            {
+                // Valores só voltam à memória para a reentrega ao agente; purgados ou sem chave → spec sem valores.
+                parameters = new CreateContainerParameters(create.Spec.WithValues(values));
+            }
+
+            if (parameters is not null)
+            {
+                result[row.CommandId] = parameters;
+            }
+        }
+
+        return result;
+    }
+
+    private static string ParametersKind(AgentCommandParameters parameters) => parameters switch
+    {
+        PullImageParameters => "pull_image",
+        CreateContainerParameters => "create_container",
+        _ => throw new ArgumentOutOfRangeException(nameof(parameters)),
+    };
+
+    private static string SerializeParameters(AgentCommandParameters parameters) => parameters switch
+    {
+        PullImageParameters pull => System.Text.Json.JsonSerializer.Serialize(new { reference = pull.Reference.Canonical }),
+        CreateContainerParameters create => System.Text.Json.JsonSerializer.Serialize(
+            Dokpod.ControlPlane.Application.Containers.ContainerCreationRequest.FromSpec(create.Spec.WithoutValues()),
+            ParametersJson),
+        _ => throw new ArgumentOutOfRangeException(nameof(parameters)),
+    };
+
+    private static AgentCommandParameters? DeserializeParameters(string kind, string json)
+    {
+        using var document = System.Text.Json.JsonDocument.Parse(json);
+        return kind switch
+        {
+            "pull_image" when document.RootElement.TryGetProperty("reference", out var reference) &&
+                Dokpod.Domain.Images.ImageReference.TryParse(reference.GetString(), out var parsed) => new PullImageParameters(parsed),
+            "create_container" when System.Text.Json.JsonSerializer.Deserialize<Dokpod.ControlPlane.Application.Containers.ContainerCreationRequest>(json, ParametersJson)?.ToSpec().Spec is { } spec =>
+                new CreateContainerParameters(spec.WithoutValues()),
+            _ => null,
+        };
+    }
+
     private sealed record ExpirationCandidate(
         Guid EnvironmentId,
         Guid CommandId,
@@ -433,6 +634,10 @@ public sealed class PostgresAgentCommandStore(
             AgentCommandKind.StopContainer => "container.stop",
             AgentCommandKind.RestartContainer => "container.restart",
             AgentCommandKind.DeleteContainer => "container.delete",
+            AgentCommandKind.PauseContainer => "container.pause",
+            AgentCommandKind.UnpauseContainer => "container.unpause",
+            AgentCommandKind.PullImage => "image.pull",
+            AgentCommandKind.CreateContainer => "container.create.requested",
             _ => throw new ArgumentOutOfRangeException(nameof(kind)),
         };
 }

@@ -1,4 +1,5 @@
 using System.Data;
+using System.Text.Json;
 using Dokpod.ControlPlane.Application.Inventory;
 using Dokpod.Domain.Inventory;
 using Microsoft.EntityFrameworkCore;
@@ -50,7 +51,51 @@ public sealed class PostgresInventoryProjectionStore(ControlPlaneDbContext dbCon
             hasMore ? page[^1].ContainerId : null);
     }
 
-    public async Task<InventoryReconciliationResult> ApplyDeltaAsync(
+    public Task<InventoryReconciliationResult> ApplyDeltaAsync(
+        Guid environmentId,
+        InventoryDelta delta,
+        CancellationToken cancellationToken) =>
+        RetrySerializableAsync(() => ApplyDeltaOnceAsync(environmentId, delta, cancellationToken), cancellationToken);
+
+    public Task<InventoryReconciliationResult> ReplaceSnapshotAsync(
+        InventorySnapshot snapshot,
+        CancellationToken cancellationToken) =>
+        RetrySerializableAsync(() => ReplaceSnapshotOnceAsync(snapshot, cancellationToken), cancellationToken);
+
+    /// <summary>
+    /// Transações SERIALIZABLE de agentes diferentes podem falhar por conflito de predicado (40001/40P01)
+    /// mesmo sem tocar as mesmas linhas; a transação inteira é repetida com recuo curto (spec 008 T016).
+    /// </summary>
+    private async Task<T> RetrySerializableAsync<T>(Func<Task<T>> operation, CancellationToken cancellationToken)
+    {
+        const int maxAttempts = 10;
+        for (var attempt = 1; ; attempt++)
+        {
+            try
+            {
+                return await operation().ConfigureAwait(false);
+            }
+            catch (Exception exception) when (attempt < maxAttempts && IsSerializationFailure(exception))
+            {
+                dbContext.ChangeTracker.Clear();
+                // Recuo exponencial com jitter (até ~1 s): muitos agentes publicando ao mesmo tempo disputam os mesmos índices.
+                var ceiling = Math.Min(1_000, 20 << Math.Min(attempt, 6));
+                await Task.Delay(TimeSpan.FromMilliseconds(Random.Shared.Next(ceiling / 2, ceiling)), cancellationToken).ConfigureAwait(false);
+            }
+        }
+    }
+
+    private static bool IsSerializationFailure(Exception exception)
+    {
+        for (var current = exception; current is not null; current = current.InnerException)
+        {
+            if (current is Npgsql.PostgresException { SqlState: "40001" or "40P01" }) return true;
+        }
+
+        return false;
+    }
+
+    private async Task<InventoryReconciliationResult> ApplyDeltaOnceAsync(
         Guid environmentId,
         InventoryDelta delta,
         CancellationToken cancellationToken)
@@ -71,13 +116,7 @@ public sealed class PostgresInventoryProjectionStore(ControlPlaneDbContext dbCon
                 checked((ulong)projection.Revision),
                 projection.Containers.ToDictionary(
                     container => container.ContainerId,
-                    container => new ContainerInventory(
-                        container.ContainerId,
-                        container.Name,
-                        container.ImageReference,
-                        container.State,
-                        container.Revision,
-                        container.ObservedAtUtc),
+                    ToDomain,
                     StringComparer.Ordinal));
 
         var result = InventoryReconciler.Apply(current, delta);
@@ -120,11 +159,7 @@ public sealed class PostgresInventoryProjectionStore(ControlPlaneDbContext dbCon
                 continue;
             }
 
-            entity.Name = container.Name;
-            entity.ImageReference = container.ImageReference;
-            entity.State = container.State;
-            entity.Revision = container.Revision;
-            entity.ObservedAtUtc = container.ObservedAtUtc;
+            ApplyToEntity(entity, container);
         }
 
         await dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
@@ -132,7 +167,7 @@ public sealed class PostgresInventoryProjectionStore(ControlPlaneDbContext dbCon
         return result;
     }
 
-    public async Task<InventoryReconciliationResult> ReplaceSnapshotAsync(
+    private async Task<InventoryReconciliationResult> ReplaceSnapshotOnceAsync(
         InventorySnapshot snapshot,
         CancellationToken cancellationToken)
     {
@@ -191,17 +226,16 @@ public sealed class PostgresInventoryProjectionStore(ControlPlaneDbContext dbCon
         return new InventoryReconciliationResult(snapshot, InventoryReconciliationOutcome.Accepted);
     }
 
-    private static InventoryContainerEntity ToEntity(Guid environmentId, ContainerInventory container) =>
-        new()
+    private static InventoryContainerEntity ToEntity(Guid environmentId, ContainerInventory container)
+    {
+        var entity = new InventoryContainerEntity
         {
             EnvironmentId = environmentId,
             ContainerId = container.ContainerId,
-            Name = container.Name,
-            ImageReference = container.ImageReference,
-            State = container.State,
-            Revision = container.Revision,
-            ObservedAtUtc = container.ObservedAtUtc,
         };
+        ApplyToEntity(entity, container);
+        return entity;
+    }
 
     private static void ApplyToEntity(InventoryContainerEntity entity, ContainerInventory container)
     {
@@ -210,16 +244,53 @@ public sealed class PostgresInventoryProjectionStore(ControlPlaneDbContext dbCon
         entity.State = container.State;
         entity.Revision = container.Revision;
         entity.ObservedAtUtc = container.ObservedAtUtc;
+        entity.CreatedAtUtc = container.CreatedAtUtc;
+        entity.StartedAtUtc = container.StartedAtUtc;
+        entity.Health = container.Health switch
+        {
+            ContainerHealth.None => "none",
+            ContainerHealth.Starting => "starting",
+            ContainerHealth.Healthy => "healthy",
+            ContainerHealth.Unhealthy => "unhealthy",
+            _ => null,
+        };
+        entity.RestartCount = container.RestartCount;
+        entity.ExitCode = container.ExitCode;
+        entity.OomKilled = container.OomKilled;
+        entity.Ports = container.Ports.Count == 0
+            ? null
+            : JsonSerializer.Serialize(container.Ports.Take(ContainerPortBinding.MaxPerContainer));
+        entity.DisplayStatus = ContainerDisplayStatuses.ToValue(container.DisplayStatus);
+        entity.ImageId = string.IsNullOrEmpty(container.ImageId) || container.ImageId.Length > 160 ? null : container.ImageId;
     }
 
-    private static ContainerInventory ToDomain(InventoryContainerEntity container) =>
+    internal static ContainerInventory ToDomain(InventoryContainerEntity container) =>
         new(
             container.ContainerId,
             container.Name,
             container.ImageReference,
             container.State,
             container.Revision,
-            container.ObservedAtUtc);
+            container.ObservedAtUtc)
+        {
+            CreatedAtUtc = container.CreatedAtUtc,
+            StartedAtUtc = container.StartedAtUtc,
+            Health = container.Health switch
+            {
+                "none" => ContainerHealth.None,
+                "starting" => ContainerHealth.Starting,
+                "healthy" => ContainerHealth.Healthy,
+                "unhealthy" => ContainerHealth.Unhealthy,
+                _ => null,
+            },
+            RestartCount = container.RestartCount,
+            ExitCode = container.ExitCode,
+            OomKilled = container.OomKilled,
+            Ports = string.IsNullOrEmpty(container.Ports)
+                ? []
+                : JsonSerializer.Deserialize<ContainerPortBinding[]>(container.Ports) ?? [],
+            ImageId = container.ImageId,
+        };
 
     private static InventorySnapshot ToSnapshot(InventoryProjectionEntity projection) =>
         new(

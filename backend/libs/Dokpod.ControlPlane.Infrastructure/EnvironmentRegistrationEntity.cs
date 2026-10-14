@@ -8,4 +8,5 @@ public sealed class EnvironmentRegistrationEntity
     public bool Enabled { get; set; }
     public string Scopes { get; set; } = string.Empty;
     public DateTimeOffset CreatedAtUtc { get; set; }
+    public string? Stage { get; set; }
 }

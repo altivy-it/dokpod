@@ -21,7 +21,7 @@ FROM build AS publish
 RUN npm run generate:api \
     && npm run build -- --configuration production --base-href ${BASE_HREF}
 
-FROM lzocateli/nginx:1.28.0-bookworm AS runtime
+FROM lzocateli/nginx:1.28.0-bookworm-v1 AS runtime
 LABEL org.opencontainers.image.title="dokpod-web" \
     org.opencontainers.image.description="Aplicação web estática do Dokpod." \
     org.opencontainers.image.source="https://github.com/lzocateli/dokpod" \
