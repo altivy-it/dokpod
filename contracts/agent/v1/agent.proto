@@ -8,6 +8,8 @@ import "google/protobuf/timestamp.proto";
 
 service AgentControl {
   rpc Connect(stream AgentMessage) returns (stream ControlPlaneMessage);
+  // Spec 014: terminal em canal separado, aberto pelo agente após ExecOpenRequest (at-most-once).
+  rpc Exec(stream ExecFrame) returns (stream ExecFrame);
 }
 
 message MessageMetadata {
@@ -52,7 +54,55 @@ message ControlPlaneMessage {
     // 14-15 enviados só a agentes com CAPABILITY_CONTAINER_INSPECT/LOGS (008 D-009).
     ContainerQueryRequest container_query = 14;
     LogStreamControl log_stream_control = 15;
+    // Spec 014: só a agentes com CAPABILITY_CONTAINER_EXEC.
+    ExecOpenRequest exec_open = 16;
   }
+}
+
+message ExecOpenRequest {
+  string exec_session_id = 1;
+  string container_id = 2;
+  uint32 cols = 3;
+  uint32 rows = 4;
+  google.protobuf.Timestamp expires_at = 5;
+  uint32 max_output_bytes_per_second = 6;
+}
+
+message ExecFrame {
+  oneof frame {
+    ExecHandshake handshake = 1;
+    bytes stdin = 2;
+    bytes output = 3;
+    ExecResize resize = 4;
+    ExecStatus status = 5;
+  }
+}
+
+message ExecHandshake {
+  string exec_session_id = 1;
+  string session_id = 2;
+  uint64 fencing_token = 3;
+}
+
+message ExecResize {
+  uint32 cols = 1;
+  uint32 rows = 2;
+}
+
+// reason: motivos de término/recusa do data-model da 014 (inclui shell_not_available e label_disabled).
+message ExecStatus {
+  ExecState state = 1;
+  string reason = 2;
+  string shell = 3;
+  bool container_user_is_root = 4;
+  bool orphan_suspected = 5;
+}
+
+enum ExecState {
+  EXEC_STATE_UNSPECIFIED = 0;
+  EXEC_STATE_OPENED = 1;
+  EXEC_STATE_CLOSED = 2;
+  EXEC_STATE_ERROR = 3;
 }
 
 message AgentHello {
@@ -431,6 +481,7 @@ enum Capability {
   CAPABILITY_IMAGE_INVENTORY = 12;
   CAPABILITY_IMAGE_PULL = 13;
   CAPABILITY_CONTAINER_CREATE = 14;
+  CAPABILITY_CONTAINER_EXEC = 15;
 }
 
 enum ContainerQueryKind {
@@ -492,6 +543,8 @@ enum EngineEventType {
   ENGINE_EVENT_TYPE_IMAGE_PULLED = 8;
   ENGINE_EVENT_TYPE_IMAGE_REMOVED = 9;
   ENGINE_EVENT_TYPE_VOLUME_REMOVED = 10;
+  // Spec 014: exec de terminal ainda em execução após reinício do agente (D-007).
+  ENGINE_EVENT_TYPE_EXEC_ORPHAN_SUSPECTED = 11;
 }
 
 enum ChangeKind {

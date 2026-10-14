@@ -4,7 +4,7 @@
 
 **Criada em**: 2026-10-12
 
-**Estado**: `approved-for-implementation` - execução autorizada em 2026-10-13 (ver [specs/README.md](../README.md), "Aprovação humana"). Continuam bloqueantes antes da implementação da fronteira: ADR 2026-0006 (`proposed`, nova fronteira e dependência xterm.js; T001) e threat model em `docs/seguranca.md` (T002).
+**Estado**: `implemented` - concluída em 2026-10-14; ADR 2026-0006 `proposed` e revisão humana de segurança antes de release; evidências e itens `NOT RUN` em [tasks.md](tasks.md).
 
 **Entrada**: Board `03 · Detalhe do container` (botão "Abrir terminal", aba Terminal) e ação de linha "Abrir terminal" do board `02 · Containers`.
 

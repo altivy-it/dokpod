@@ -209,3 +209,10 @@ simultaneamente `OwnerUsername` e `GroupPath`.
 O deployment deve incluir health/readiness do Keycloak sem transformar indisponibilidade em bypass. Backups do banco do Keycloak e do banco do Dokpod são independentes e ambos precisam de testes de restauração. Atualizações seguem release notes, compatibilidade, migration, rollback, scan de vulnerabilidades e teste dos fluxos autenticados.
 
 Para o laboratório local, consulte [deploy/keycloak/README.md](../deploy/keycloak/README.md). Valores de sessão, tokens e URLs de produção serão fixados com evidência do ambiente de implantação. Atualizações da imagem seguem a matriz e os gates definidos em [Distribuição e operação](distribuicao.md#imagens-base-e-toolchains).
+
+## Terminal interativo (spec 014)
+
+- **Vida útil do access token**: mantenha `Access Token Lifespan` do realm em **≤ 5 min**. O terminal e os logs ao vivo reavaliam a autorização a cada 60 s com o token atual renovado pelo BFF; a revogação de `container:exec` passa a valer em até 60 s mais a vida útil restante do token.
+- **MFA recente** (opcional, `Terminal__RequireRecentMfa=true`): configure um fluxo de autenticação que exija segundo fator e publique `acr` no token; a API recusa a abertura com `mfa_required` quando o token não traz `acr` de MFA ou o `auth_time` passa de `Terminal__RecentMfaMaxAgeMinutes` (padrão 15).
+- `container:exec` deve ser concedido somente a grupos restritos, com revisão periódica.
+

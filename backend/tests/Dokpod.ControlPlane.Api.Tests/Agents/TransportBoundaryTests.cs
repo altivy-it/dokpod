@@ -244,6 +244,183 @@ public sealed class TransportBoundaryTests
     }
 
     [Fact]
+    public async Task Terminal_FlowsThroughHubServiceExecRpcAndAgentAndRejectsStaleFencing()
+    {
+        using var certificates = TestCertificates.Create();
+        var environmentId = Guid.NewGuid();
+        var containerId = new string('c', 64);
+        var fingerprint = Convert.ToHexString(SHA256.HashData(certificates.Agent.RawData));
+        var dataDirectory = Path.Combine(Path.GetTempPath(), $"dokpod-agent-exec-{Guid.NewGuid():N}");
+        var builder = ApiHost.CreateBuilder(
+            [],
+            new ApiHostOptions(0, 0, certificates.Server, certificates.ValidateClient, LoopbackOnly: true, ConfigureServices: services =>
+            {
+                services.AddSingleton<IAgentIdentityRegistry>(new FixedAgentIdentityRegistry(environmentId, fingerprint));
+                services.AddSingleton<Dokpod.ControlPlane.Application.Authorization.IEnvironmentAuthorizationDecider>(new AllowAllDecider());
+                services.AddSingleton<Dokpod.ControlPlane.Application.Environments.IEnvironmentRegistrationStore>(new SingleRegistrationStore(environmentId));
+                services.AddSingleton<IContainerSearchStore>(new RunningContainerStore());
+                services.AddSingleton<Dokpod.ControlPlane.Application.Auditing.IAuditEventWriter>(new NullAuditWriter());
+                services.AddSingleton<IInventoryProjectionStore>(new FixedInventoryProjectionStore(Dokpod.Domain.Inventory.InventoryReconciliationOutcome.Accepted, string.Empty));
+            }));
+        await using var app = builder.Build();
+        ApiHost.MapEndpoints(app);
+        await app.StartAsync(TestContext.Current.CancellationToken);
+        try
+        {
+            using var handler = CreateHttpHandler(certificates);
+            using var channel = GrpcChannel.ForAddress(GetGrpcEndpoint(app), new GrpcChannelOptions { HttpHandler = handler });
+            var client = new AgentControl.AgentControlClient(channel);
+            var engine = new EchoExecEngine();
+            var journal = new FileCommandJournal(dataDirectory);
+            var processor = new AgentCommandProcessor(new AgentCommandGate(journal, TimeProvider.System), journal, engine, TimeProvider.System);
+            var options = new global::Dokpod.Agent.AgentOptions(dataDirectory, Path.Combine(dataDirectory, "docker.sock"), TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(30), false, null, environmentId, Path.Combine(dataDirectory, "identity", "agent.pfx"), null, null);
+            var worker = new global::Dokpod.Agent.AgentControlWorker(
+                options,
+                engine,
+                new AgentCommandProtocolHandler(processor),
+                new NoHostProbe(),
+                new global::Dokpod.Agent.Infrastructure.Secrets.HostSecretFileStore(Path.Combine(dataDirectory, "secrets")),
+                new global::Dokpod.Agent.Application.Containers.ContainerCreationPolicy([], null),
+                NullLogger<global::Dokpod.Agent.AgentControlWorker>.Instance,
+                new global::Dokpod.Agent.Application.Terminal.ExecSessionManager(engine, new global::Dokpod.Agent.Infrastructure.Terminal.FileActiveExecStore(dataDirectory), TimeProvider.System));
+            using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+            cancellation.CancelAfter(TimeSpan.FromSeconds(30));
+            var session = worker.RunSessionAsync(token => client.Connect(cancellationToken: token), environmentId, cancellation.Token, token => client.Exec(cancellationToken: token));
+            var dispatcher = app.Services.GetRequiredService<Dokpod.ControlPlane.Application.Queries.AgentQueryDispatcher>();
+            while (!dispatcher.Supports(environmentId, Capability.ContainerExec))
+            {
+                if (session.IsCompleted) await session; // falha da sessão aparece aqui, não como timeout
+                await Task.Delay(50, cancellation.Token);
+            }
+
+            // Handshake com fencing antigo é recusado pelo RPC `Exec`.
+            using (var stale = client.Exec(cancellationToken: cancellation.Token))
+            {
+                await stale.RequestStream.WriteAsync(new ExecFrame { Handshake = new ExecHandshake { ExecSessionId = Guid.NewGuid().ToString("D"), SessionId = Guid.NewGuid().ToString("D"), FencingToken = 1 } }, cancellation.Token);
+                var rejected = await Assert.ThrowsAsync<RpcException>(() => stale.ResponseStream.MoveNext(cancellation.Token));
+                Assert.Equal(StatusCode.PermissionDenied, rejected.StatusCode);
+            }
+
+            using var scope = app.Services.CreateScope();
+            var terminal = scope.ServiceProvider.GetRequiredService<Dokpod.ControlPlane.Application.Terminal.TerminalSessionService>();
+            var output = System.Threading.Channels.Channel.CreateUnbounded<Dokpod.ControlPlane.Application.Terminal.TerminalOutputFrame>();
+            var input = System.Threading.Channels.Channel.CreateUnbounded<Dokpod.ControlPlane.Application.Terminal.TerminalInputFrame>();
+            var run = terminal.RunAsync(
+                new Dokpod.ControlPlane.Application.Terminal.TerminalOpenRequest(environmentId, containerId, 80, 24, null),
+                Dokpod.ControlPlane.Application.Authorization.AuthenticatedActor.FromSubject("u-1"),
+                "token",
+                DateTimeOffset.UtcNow.AddHours(1),
+                null,
+                true,
+                Guid.NewGuid(),
+                input.Reader.ReadAllAsync(cancellation.Token),
+                output.Writer,
+                cancellation.Token);
+
+            var text = new System.Text.StringBuilder();
+            var connected = false;
+            await foreach (var frame in output.Reader.ReadAllAsync(cancellation.Token))
+            {
+                if (frame.Status?.State == "connected" && !connected)
+                {
+                    connected = true;
+                    Assert.Equal("/bin/bash", frame.Status.Shell);
+                    await input.Writer.WriteAsync(new(System.Text.Encoding.UTF8.GetBytes("ola-terminal"), null, null), cancellation.Token);
+                }
+
+                if (frame.Data is not null) text.Append(System.Text.Encoding.UTF8.GetString(frame.Data));
+                if (text.ToString().Contains("ola-terminal", StringComparison.Ordinal)) input.Writer.TryComplete();
+                if (frame.Status?.State is "closed" or "error") break;
+            }
+
+            await run;
+            Assert.True(connected);
+            Assert.Contains("ola-terminal", text.ToString());
+            Assert.True(engine.Signaled, "o agente deve enviar SIGHUP ao shell ao encerrar");
+            await app.Services.GetRequiredService<IAgentSessionStore>().InvalidateEnvironmentAsync(environmentId, cancellation.Token);
+            await Assert.ThrowsAsync<RpcException>(async () => await session);
+        }
+        finally
+        {
+            await app.StopAsync(CancellationToken.None);
+            if (Directory.Exists(dataDirectory)) Directory.Delete(dataDirectory, recursive: true);
+        }
+    }
+
+    private sealed class AllowAllDecider : Dokpod.ControlPlane.Application.Authorization.IEnvironmentAuthorizationDecider
+    {
+        public Task<Dokpod.ControlPlane.Application.Authorization.EnvironmentAuthorizationDecision> DecideAsync(string resource, string scope, Dokpod.ControlPlane.Application.Authorization.AuthenticatedActor actor, string accessToken, Guid correlationId, CancellationToken cancellationToken) =>
+            Task.FromResult(new Dokpod.ControlPlane.Application.Authorization.EnvironmentAuthorizationDecision(Dokpod.ControlPlane.Application.Authorization.AuthorizationDecisionOutcome.Allowed, null));
+    }
+
+    private sealed class SingleRegistrationStore(Guid environmentId) : Dokpod.ControlPlane.Application.Environments.IEnvironmentRegistrationStore
+    {
+        public Task<Dokpod.ControlPlane.Application.Environments.EnvironmentRegistrationPage> ListAsync(Guid? afterEnvironmentId, int limit, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<Dokpod.ControlPlane.Application.Environments.EnvironmentRegistrationStoreResult> CreateAsync(Dokpod.Domain.Environments.EnvironmentRegistration registration, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<Dokpod.Domain.Environments.EnvironmentRegistration?> GetAsync(Guid id, CancellationToken cancellationToken) =>
+            Task.FromResult<Dokpod.Domain.Environments.EnvironmentRegistration?>(Dokpod.Domain.Environments.EnvironmentRegistration.Create(environmentId, "lab", "lab", true, Dokpod.Domain.Environments.EnvironmentResourceScopes.Supported));
+    }
+
+    private sealed class RunningContainerStore : IContainerSearchStore
+    {
+        public Task<ContainerSearchResult> SearchAsync(ContainerSearchQuery query, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<Dokpod.Domain.Inventory.ContainerInventory?> GetAsync(Guid environmentId, string containerId, CancellationToken cancellationToken) =>
+            Task.FromResult<Dokpod.Domain.Inventory.ContainerInventory?>(new(containerId, "web", "nginx", "running", "r", DateTimeOffset.UtcNow));
+    }
+
+    private sealed class NullAuditWriter : Dokpod.ControlPlane.Application.Auditing.IAuditEventWriter
+    {
+        public Task AppendAsync(AuditEvent auditEvent, CancellationToken cancellationToken) => Task.CompletedTask;
+    }
+
+    /// <summary>Engine em memória: o exec emite o marcador do `ShellLauncher` e ecoa a entrada.</summary>
+    private sealed class EchoExecEngine : IContainerEngine
+    {
+        private readonly System.IO.Pipelines.Pipe pipe = new();
+        public bool Signaled { get; private set; }
+
+        public Task<EngineDescriptor> InspectAsync(CancellationToken cancellationToken) => Task.FromResult(new EngineDescriptor("5.0.0", "1.41"));
+        public Task<IReadOnlyList<EngineContainer>> ListContainersAsync(CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<EngineContainer>>([]);
+        public Task<EngineContainer?> InspectContainerAsync(string containerId, CancellationToken cancellationToken) => Task.FromResult<EngineContainer?>(null);
+        public Task<ContainerMutationResult> ExecuteAsync(AgentCommandKind commandKind, string containerId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<string?> GetContainerJsonAsync(string containerId, CancellationToken cancellationToken) =>
+            Task.FromResult<string?>("{\"State\":{\"Running\":true},\"Config\":{\"User\":\"app\",\"Labels\":{}}}");
+
+        public async Task<EngineExecSession> StartExecAsync(string containerId, IReadOnlyList<string> command, int cols, int rows, CancellationToken cancellationToken)
+        {
+            await pipe.Writer.WriteAsync("\u001b]777;dokpod;42;/bin/bash\u0007$ "u8.ToArray(), cancellationToken);
+            return new EngineExecSession(new string('e', 64), new EchoStream(pipe));
+        }
+
+        public Task<EngineExecState?> InspectExecAsync(string execId, CancellationToken cancellationToken) => Task.FromResult<EngineExecState?>(new EngineExecState(!Signaled, Signaled ? 0 : null));
+
+        public Task SignalContainerProcessAsync(string containerId, int pid, string signal, CancellationToken cancellationToken)
+        {
+            Signaled = pid == 42;
+            pipe.Writer.Complete();
+            return Task.CompletedTask;
+        }
+
+        private sealed class EchoStream(System.IO.Pipelines.Pipe pipe) : Stream
+        {
+            private readonly Stream reader = pipe.Reader.AsStream();
+            public override bool CanRead => true;
+            public override bool CanSeek => false;
+            public override bool CanWrite => true;
+            public override long Length => throw new NotSupportedException();
+            public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
+            public override void Flush() { }
+            public override Task FlushAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+            public override int Read(byte[] buffer, int offset, int count) => reader.Read(buffer, offset, count);
+            public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default) => reader.ReadAsync(buffer, cancellationToken);
+            public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+            public override void SetLength(long value) => throw new NotSupportedException();
+            public override void Write(byte[] buffer, int offset, int count) => pipe.Writer.WriteAsync(buffer.AsMemory(offset, count)).AsTask().GetAwaiter().GetResult();
+            public override async ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default) => await pipe.Writer.WriteAsync(buffer, cancellationToken);
+        }
+    }
+
+    [Fact]
     public async Task AgentControlWorker_ProcessesRecoveredCommandAndReportsTerminalResult()
     {
         using var certificates = TestCertificates.Create();

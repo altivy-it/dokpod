@@ -2,7 +2,7 @@
 
 **Branch**: `007-console-operacional` | **Data**: 2026-10-12 | **Spec**: [spec.md](spec.md)
 
-**Estado**: `approved-for-implementation` - execução autorizada em 2026-10-13 (specs/README.md); ADR 2026-0006 (T001) e threat model (T002) continuam bloqueantes.
+**Estado**: `implemented` - concluída em 2026-10-14; ADR 2026-0006 `proposed` e revisão humana de segurança antes de release; evidências e itens `NOT RUN` em [tasks.md](tasks.md).
 
 ## Resumo
 

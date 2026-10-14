@@ -12,6 +12,7 @@ using Xunit;
 namespace Dokpod.ControlPlane.Api.Tests;
 
 /// <summary>Spec 012 em PostgreSQL real: inventário de imagens, comandos com alvo de host, parâmetros e retenção.</summary>
+[Collection(AgentCommandsPostgresCollection.Name)]
 public sealed class ImagesIntegrationTests
 {
     private static string Id(char c) => "sha256:" + new string(c, 64);

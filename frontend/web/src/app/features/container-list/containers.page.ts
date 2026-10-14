@@ -239,11 +239,10 @@ export class ContainersPage {
 
   protected readonly rowActionsFor = (row: ContainerRow): GridRowAction[] => {
     const allowed = new Set(row.item.allowedActions);
-    const actions: GridRowAction[] = [
-      { id: 'logs', label: 'Ver logs', icon: 'list' },
-      { id: 'terminal', label: 'Abrir terminal', icon: 'command' },
-      { id: 'inspect', label: 'Inspecionar', icon: 'eye' },
-    ];
+    const actions: GridRowAction[] = [{ id: 'logs', label: 'Ver logs', icon: 'list' }];
+    // Spec 014 T012: terminal só quando a API concede `exec` (scope × capability × em execução).
+    if (allowed.has('exec' as ContainerAction)) actions.push({ id: 'terminal', label: 'Abrir terminal', icon: 'command' });
+    actions.push({ id: 'inspect', label: 'Inspecionar', icon: 'eye' });
     for (const action of ['start', 'restart', 'stop', 'pause', 'unpause', 'delete'] as ContainerAction[]) {
       if (allowed.has(action)) actions.push({ id: action, label: ACTION_LABEL[action].verb, icon: ACTION_LABEL[action].icon, danger: action === 'delete' });
     }

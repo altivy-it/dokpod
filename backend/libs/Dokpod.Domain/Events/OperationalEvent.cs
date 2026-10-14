@@ -21,6 +21,7 @@ public static class OperationalEventTypes
     public const string CommandFailed = "command.failed";
     public const string CommandIndeterminate = "command.indeterminate";
     public const string EventsDropped = "events.dropped";
+    public const string ContainerExecOrphanSuspected = "container.exec_orphan_suspected";
 
     /// <summary>Severidade por tipo (spec 008 D-002).</summary>
     public static FrozenDictionary<string, string> Severity { get; } = new Dictionary<string, string>(StringComparer.Ordinal)
@@ -42,6 +43,7 @@ public static class OperationalEventTypes
         [CommandFailed] = OperationalEventSeverities.Error,
         [CommandIndeterminate] = OperationalEventSeverities.Warning,
         [EventsDropped] = OperationalEventSeverities.Warning,
+        [ContainerExecOrphanSuspected] = OperationalEventSeverities.Warning,
     }.ToFrozenDictionary(StringComparer.Ordinal);
 
     /// <summary>Atributos aceitos por tipo; labels e variáveis nunca são copiados.</summary>

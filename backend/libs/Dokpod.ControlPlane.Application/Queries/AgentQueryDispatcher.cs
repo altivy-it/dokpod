@@ -91,6 +91,21 @@ public sealed class AgentQueryDispatcher(TimeProvider timeProvider)
 
     public bool IsConnected(Guid environmentId) => agents.ContainsKey(environmentId);
 
+    /// <summary>Envia uma mensagem do servidor pelo stream `Connect` do agente (spec 014: `ExecOpenRequest`).</summary>
+    public async Task<bool> TrySendAsync(Guid environmentId, ControlPlaneMessage message, Capability required, CancellationToken cancellationToken)
+    {
+        if (!agents.TryGetValue(environmentId, out var channel) || !channel.Capabilities.Contains(required)) return false;
+        try
+        {
+            await channel.Writer.WriteAsync(message, cancellationToken);
+            return true;
+        }
+        catch (ChannelClosedException)
+        {
+            return false;
+        }
+    }
+
     public async Task<QueryOutcome> QueryAsync(
         Guid environmentId,
         ContainerQueryKind kind,

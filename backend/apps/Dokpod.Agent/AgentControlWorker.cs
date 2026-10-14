@@ -20,7 +20,8 @@ public sealed class AgentControlWorker(
     Dokpod.Agent.Application.Metrics.IHostResourceProbe hostProbe,
     Dokpod.Agent.Application.Containers.IHostSecretFiles secretFiles,
     Dokpod.Agent.Application.Containers.ContainerCreationPolicy creationPolicy,
-    ILogger<AgentControlWorker> logger) : BackgroundService
+    ILogger<AgentControlWorker> logger,
+    Dokpod.Agent.Application.Terminal.ExecSessionManager? execSessions = null) : BackgroundService
 {
     // Containers em execução do último snapshot (alvo da amostragem de recursos, spec 009).
     private IReadOnlyList<Dokpod.Agent.Application.Metrics.SampleTarget> runningTargets = [];
@@ -53,7 +54,7 @@ public sealed class AgentControlWorker(
         {
             try
             {
-                await RunSessionAsync(client.Connect, environmentId, stoppingToken);
+                await RunSessionAsync(client.Connect, environmentId, stoppingToken, client.Exec);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
@@ -74,12 +75,13 @@ public sealed class AgentControlWorker(
     internal async Task RunSessionAsync(
         Func<CancellationToken, AsyncDuplexStreamingCall<AgentMessage, ControlPlaneMessage>> connect,
         Guid environmentId,
-        CancellationToken stoppingToken)
+        CancellationToken stoppingToken,
+        Func<CancellationToken, AsyncDuplexStreamingCall<ExecFrame, ExecFrame>>? openExec = null)
     {
         var descriptor = await engine.InspectAsync(stoppingToken);
         var hostInfo = await TryDescribeHostAsync(stoppingToken);
         using var call = connect(stoppingToken);
-        await call.RequestStream.WriteAsync(CreateHello(descriptor, hostInfo), stoppingToken);
+        await call.RequestStream.WriteAsync(CreateHello(descriptor, hostInfo, execSessions is not null), stoppingToken);
         if (!await call.ResponseStream.MoveNext(stoppingToken) ||
             call.ResponseStream.Current.PayloadCase != ControlPlaneMessage.PayloadOneofCase.SessionEstablished)
         {
@@ -134,6 +136,7 @@ public sealed class AgentControlWorker(
         // Agente N só envia payloads novos com capability confirmada pelo servidor (008 D-009).
         var eventsAccepted = established.AcceptedCapabilities.Contains(Capability.EngineEvents);
         var events = WatchEngineEventsAsync(outbound.Writer, inventory, images, eventsAccepted, sessionCancellation.Token);
+        await ReportOrphanExecsAsync(outbound.Writer, eventsAccepted, sessionCancellation.Token);
         var metricsAccepted = established.AcceptedCapabilities.Contains(Capability.ResourceMetrics);
         var metrics = metricsAccepted
             ? SendResourceSamplesAsync(background.Writer, sessionCancellation.Token)
@@ -186,6 +189,19 @@ public sealed class AgentControlWorker(
                 else if (message.PayloadCase == ControlPlaneMessage.PayloadOneofCase.LogStreamControl)
                 {
                     await logStreams.HandleAsync(message.LogStreamControl, SendBackground, sessionCancellation.Token);
+                }
+                else if (message.PayloadCase == ControlPlaneMessage.PayloadOneofCase.ExecOpen && execSessions is not null && openExec is not null)
+                {
+                    // Spec 014: terminal no RPC `Exec` separado, vinculado à sessão e ao fencing desta conexão.
+                    var request = message.ExecOpen;
+                    var handshake = new ExecHandshake { ExecSessionId = request.ExecSessionId, SessionId = established.SessionId, FencingToken = established.FencingToken };
+                    _ = Task.Run(
+                        () => IgnoreCancellationAsync(execSessions.RunAsync(
+                            request,
+                            token => Task.FromResult<Dokpod.Agent.Application.Terminal.IExecChannel>(new Dokpod.Agent.Infrastructure.Protocol.GrpcExecChannel(openExec(token))),
+                            handshake,
+                            sessionCancellation.Token)),
+                        CancellationToken.None);
                 }
             }
         }
@@ -454,6 +470,34 @@ public sealed class AgentControlWorker(
     }
 
     /// <summary>Serializa os envios de snapshot (comandos, pedidos do servidor e eventos).</summary>
+    private int orphansChecked;
+
+    /// <summary>Spec 014 D-007: uma vez por processo, encerra e reporta execs de terminal deixados por um reinício.</summary>
+    private async Task ReportOrphanExecsAsync(ChannelWriter<AgentMessage> messages, bool eventsAccepted, CancellationToken cancellationToken)
+    {
+        if (execSessions is null || Interlocked.Exchange(ref orphansChecked, 1) == 1) return;
+        try
+        {
+            var orphans = await execSessions.RecoverOrphansAsync(cancellationToken);
+            if (orphans.Count == 0) return;
+            logger.LogWarning("{OrphanCount} terminal exec sessions still running after agent restart", orphans.Count);
+            if (!eventsAccepted) return;
+            var batch = new EngineEventBatch();
+            batch.Events.AddRange(orphans.Select(orphan => new EngineEvent
+            {
+                SourceKey = $"exec:{orphan.ExecSessionId}",
+                Type = EngineEventType.ExecOrphanSuspected,
+                OccurredAt = Google.Protobuf.WellKnownTypes.Timestamp.FromDateTimeOffset(DateTimeOffset.UtcNow),
+                SubjectId = orphan.ContainerId,
+            }));
+            await messages.WriteAsync(new AgentMessage { EngineEvents = batch }, cancellationToken);
+        }
+        catch (Exception exception) when (exception is HttpRequestException or IOException)
+        {
+            logger.LogWarning(exception, "Terminal orphan check failed");
+        }
+    }
+
     private Task<IReadOnlyList<EngineImage>> ListImagesAsync(CancellationToken cancellationToken) => engine.ListImagesAsync(cancellationToken);
 
     private void LogImageInventoryUnavailable(Exception exception) => logger.LogWarning(exception, "Engine image inventory unavailable");
@@ -528,7 +572,7 @@ public sealed class AgentControlWorker(
         _ => ContainerLifecycleState.Unspecified,
     };
 
-    private static AgentMessage CreateHello(EngineDescriptor descriptor, EngineHostInfo? hostInfo)
+    private static AgentMessage CreateHello(EngineDescriptor descriptor, EngineHostInfo? hostInfo, bool execAvailable)
     {
         var hello = new AgentHello
         {
@@ -564,10 +608,11 @@ public sealed class AgentControlWorker(
             },
             SupportedProtocolVersions = { "1" },
         };
-        // Spec 013 T011: criação só no Linux (Windows ainda sem qualificação de caminhos de bind e segredos).
+        // Spec 013 T011 / 014 T007: criação e terminal só no Linux (Windows sem qualificação própria).
         if (!System.OperatingSystem.IsWindows())
         {
             hello.Capabilities.Add(Capability.ContainerCreate);
+            if (execAvailable) hello.Capabilities.Add(Capability.ContainerExec);
         }
         // Métricas de host dependem de `/proc` do Linux; o agente Windows não anuncia (spec 009 FR-010).
         if (!System.OperatingSystem.IsWindows()) hello.Capabilities.Add(Capability.ResourceMetrics);

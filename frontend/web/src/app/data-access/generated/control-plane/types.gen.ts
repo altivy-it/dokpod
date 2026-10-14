@@ -139,6 +139,25 @@ export type ContainerCreateOptions = {
     };
 };
 
+export type TerminalPolicy = {
+    allowed: boolean;
+    /**
+     * scope, not_running, not_supported, agent_disconnected, mfa_required, not_found.
+     */
+    reason?: string | null;
+    requiresJustification: boolean;
+    requiresRecentMfa: boolean;
+    limits: {
+        idleTimeoutSeconds: number;
+        maxDurationSeconds: number;
+        maxPerUser: number;
+        maxPerUserPerContainer: number;
+        maxPerAgent: number;
+        justificationMinLength: number;
+        justificationMaxLength: number;
+    };
+};
+
 export type ContainerCommandAccepted = {
     commandId: string;
 };
@@ -314,7 +333,7 @@ export type ContainerListItem = ContainerInventory & {
     engine?: 'docker' | 'podman' | null;
     engineVersion?: string | null;
     hostConnected: boolean;
-    allowedActions: Array<'start' | 'stop' | 'restart' | 'delete' | 'pause' | 'unpause'>;
+    allowedActions: Array<'start' | 'stop' | 'restart' | 'delete' | 'pause' | 'unpause' | 'exec'>;
 };
 
 export type ContainerListPage = {
@@ -733,6 +752,85 @@ export type CreateContainerResponses = {
 };
 
 export type CreateContainerResponse = CreateContainerResponses[keyof CreateContainerResponses];
+
+export type GetTerminalPolicyData = {
+    body?: never;
+    headers?: {
+        /**
+         * Identificador técnico opcional para correlação server-side.
+         */
+        'X-Correlation-Id'?: string;
+    };
+    path: {
+        environmentId: string;
+        containerId: string;
+    };
+    query?: never;
+    url: '/api/v1/environments/{environmentId}/containers/{containerId}/terminal-policy';
+};
+
+export type GetTerminalPolicyErrors = {
+    /**
+     * Requisição inválida.
+     */
+    400: ProblemDetails;
+    /**
+     * Autenticação ausente ou inválida.
+     */
+    401: ProblemDetails;
+    /**
+     * Autorização ou persistência indisponível.
+     */
+    503: ProblemDetails;
+};
+
+export type GetTerminalPolicyError = GetTerminalPolicyErrors[keyof GetTerminalPolicyErrors];
+
+export type GetTerminalPolicyResponses = {
+    /**
+     * Se o terminal pode ser aberto e o motivo quando não pode.
+     */
+    200: TerminalPolicy;
+};
+
+export type GetTerminalPolicyResponse = GetTerminalPolicyResponses[keyof GetTerminalPolicyResponses];
+
+export type RenewTerminalSessionData = {
+    body?: never;
+    headers?: {
+        /**
+         * Identificador técnico opcional para correlação server-side.
+         */
+        'X-Correlation-Id'?: string;
+    };
+    path: {
+        sessionId: string;
+    };
+    query?: never;
+    url: '/api/v1/terminal-sessions/{sessionId}/renew';
+};
+
+export type RenewTerminalSessionErrors = {
+    /**
+     * Autenticação ausente ou inválida.
+     */
+    401: ProblemDetails;
+    /**
+     * Decisão do Keycloak negou o cadastro.
+     */
+    403: ProblemDetails;
+};
+
+export type RenewTerminalSessionError = RenewTerminalSessionErrors[keyof RenewTerminalSessionErrors];
+
+export type RenewTerminalSessionResponses = {
+    /**
+     * Autorização renovada.
+     */
+    204: void;
+};
+
+export type RenewTerminalSessionResponse = RenewTerminalSessionResponses[keyof RenewTerminalSessionResponses];
 
 export type GetContainerCreateOptionsData = {
     body?: never;

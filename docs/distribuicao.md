@@ -90,6 +90,14 @@ O stream operacional com o plano de controle é habilitado quando estas variáve
 
 | `DOKPOD_AGENT_BIND_MOUNT_ALLOWLIST` | não | diretórios absolutos (separados por `:`) aceitos como origem de bind mount na criação de container (spec 013); vazio = somente volumes nomeados |
 
+### Terminal interativo (spec 014)
+
+- O agente abre o RPC `Exec` (mesmo canal mTLS) quando o servidor pede uma sessão e executa um único exec fixo: `/bin/sh -c` escolhe `/bin/bash` ou `/bin/sh` e anuncia o PID do shell. O engine **não encerra execs ao fechar a conexão** (comportamento observado no Podman 5.7); por isso o agente encerra o shell com `SIGHUP` (e `SIGKILL` após 5 s) por um exec destacado `kill` e confirma `Running=false`. Imagens sem `/bin/sh` recebem `shell_not_available`.
+- Execs ativos ficam em `<diretório de dados>/exec-sessions.json`; após reinício o agente encerra os que ainda rodam e publica `container.exec_orphan_suspected` quando não consegue.
+- A conexão crua com o socket (`EngineRawConnector`) é usada somente para `/exec/{id}/start`. `CAPABILITY_CONTAINER_EXEC` só é anunciada no Linux.
+- A API exige WebSocket para o terminal e usa keepalive do hub de 15 s/timeout de 30 s. Configuração em `Terminal__*` (ociosidade, duração, limites, estágios com justificativa, MFA recente).
+- Evidência: Podman 5.7.0 rootless (eco, resize, término por `exit`, fechamento, queda do cliente, container parado, recuperação de órfãos) e teste .NET ponta a ponta API + agente + RPC `Exec` com mTLS. Docker real e carga de 4 sessões (SC-004): `NOT RUN`.
+
 ### Criação de container (spec 013)
 
 - O agente cria e inicia containers pela API compatível; no Podman, segredos do Podman (`secret_env`) e health check com reinício (`health_check_on_failure_action`) usam `POST /libpod/containers/create`. A capability `CAPABILITY_CONTAINER_CREATE` só é anunciada no Linux.

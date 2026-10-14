@@ -37,6 +37,7 @@ SELECT dokpod.dokpod_apply_temporal_retention('dokpod.environment_events'::regcl
 
 - A função recusa períodos menores que 1 hora, lotes fora de 1-50.000, tabelas fora da allowlist e colunas não temporais. Ela remove partições inteiramente vencidas e apaga em lotes as linhas vencidas da partição de corte, com `lock_timeout` de 2 s para não bloquear inserções.
 - Reduzir o período é imediato e irreversível para os eventos removidos; aumente-o antes de investigações longas.
+- Desde a migration `202610130008_FixRetentionPartitionDelete`, a exclusão em lote compara `(tableoid, ctid)`. Versões anteriores comparavam só `ctid`, que se repete entre partições, e podiam apagar eventos recentes de outra partição junto com os vencidos; instalações que executaram retenção antes dessa migration devem considerar possível perda de eventos recentes (a auditoria não é afetada).
 
 ## Verificação
 

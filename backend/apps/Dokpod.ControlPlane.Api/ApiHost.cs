@@ -122,7 +122,18 @@ public static class ApiHost
             .SetFallbackPolicy(new AuthorizationPolicyBuilder()
                 .RequireAuthenticatedUser()
                 .Build());
-        builder.Services.AddSignalR();
+        var terminalOptions = builder.Configuration.GetSection(Dokpod.ControlPlane.Application.Terminal.TerminalOptions.SectionName).Get<Dokpod.ControlPlane.Application.Terminal.TerminalOptions>()
+            ?? new Dokpod.ControlPlane.Application.Terminal.TerminalOptions();
+        if (!terminalOptions.IsValid()) throw new InvalidOperationException("Terminal options are invalid.");
+        builder.Services.AddSingleton(terminalOptions);
+        builder.Services.AddSingleton<Dokpod.ControlPlane.Application.Terminal.TerminalSessionRegistry>();
+        builder.Services.AddScoped<Dokpod.ControlPlane.Application.Terminal.TerminalSessionService>();
+        // Spec 014 D-010: queda do navegador detectada em até 30 s (terminal e logs ao vivo).
+        builder.Services.AddSignalR(options =>
+        {
+            options.KeepAliveInterval = TimeSpan.FromSeconds(15);
+            options.ClientTimeoutInterval = TimeSpan.FromSeconds(30);
+        });
         builder.Services.AddSingleton<IValidateOptions<KeycloakAuthorizationOptions>, KeycloakAuthorizationOptionsValidator>();
         builder.Services.AddHttpClient<IEnvironmentAuthorizationDecider, KeycloakAuthorizationDecisionService>(
             (provider, client) =>
@@ -257,6 +268,7 @@ public static class ApiHost
         ConsoleEndpoints.Map(app);
         ImageEndpoints.Map(app);
         ContainerCreationEndpoints.Map(app);
+        TerminalEndpoints.Map(app);
         ContainerDetailEndpoints.Map(app);
         MetricsEndpoints.Map(app);
         ContainerCommandEndpoints.Map(app);

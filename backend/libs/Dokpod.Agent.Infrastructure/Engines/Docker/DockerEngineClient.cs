@@ -7,7 +7,7 @@ using Dokpod.Domain.Commands;
 
 namespace Dokpod.Agent.Infrastructure.Engines.Docker;
 
-public sealed class DockerEngineClient(HttpClient httpClient, RegistryCredentialFile? registryCredentials = null) : IContainerEngine
+public sealed class DockerEngineClient(HttpClient httpClient, RegistryCredentialFile? registryCredentials = null, EngineRawConnector? rawConnector = null) : IContainerEngine
 {
     private const int MaximumResponseBytes = 8 * 1024 * 1024;
     private static readonly Version MaximumApiVersion = new(1, 47);
@@ -596,6 +596,113 @@ public sealed class DockerEngineClient(HttpClient httpClient, RegistryCredential
         Dokpod.Domain.Containers.RestartPolicyKind.UnlessStopped => "unless-stopped",
         _ => "no",
     };
+
+    public async Task<EngineExecSession> StartExecAsync(string containerId, IReadOnlyList<string> command, int cols, int rows, CancellationToken cancellationToken)
+    {
+        ValidateContainerId(containerId);
+        if (rawConnector is null) throw new NotSupportedException("Raw engine connection is not configured.");
+        await EnsureNegotiatedAsync(cancellationToken);
+        var create = new System.Text.Json.Nodes.JsonObject
+        {
+            ["AttachStdin"] = true,
+            ["AttachStdout"] = true,
+            ["AttachStderr"] = true,
+            ["Tty"] = true,
+            ["Cmd"] = new System.Text.Json.Nodes.JsonArray(command.Select(c => (System.Text.Json.Nodes.JsonNode?)System.Text.Json.Nodes.JsonValue.Create(c)).ToArray()),
+            ["ConsoleSize"] = new System.Text.Json.Nodes.JsonArray(Math.Clamp(rows, 1, 500), Math.Clamp(cols, 1, 1000)),
+        };
+        using var request = new HttpRequestMessage(HttpMethod.Post, $"v{apiVersion}/containers/{containerId}/exec")
+        {
+            Content = new StringContent(create.ToJsonString(), System.Text.Encoding.UTF8, "application/json"),
+        };
+        using var response = await httpClient.SendAsync(request, cancellationToken);
+        var text = await response.Content.ReadAsStringAsync(cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new EngineExecException(response.StatusCode == HttpStatusCode.Conflict ? "not_running" : "exec_create_failed", IsExecutableNotFound(text));
+        }
+
+        var execId = JsonDocument.Parse(text).RootElement.GetProperty("Id").GetString()!;
+        var (status, head, stream) = await rawConnector.SendUpgradeAsync($"/v{apiVersion}/exec/{execId}/start", "{\"Detach\":false,\"Tty\":true}", cancellationToken);
+        if (status is not (101 or 200))
+        {
+            await using (stream)
+            {
+                var error = new byte[4096];
+                var read = 0;
+                try
+                {
+                    using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                    timeout.CancelAfter(TimeSpan.FromSeconds(2));
+                    read = await stream.ReadAsync(error, timeout.Token);
+                }
+                catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+                {
+                }
+
+                var message = head + System.Text.Encoding.UTF8.GetString(error, 0, read);
+                throw new EngineExecException("exec_start_failed", IsExecutableNotFound(message));
+            }
+        }
+
+        return new EngineExecSession(execId, stream);
+    }
+
+    public async Task<EngineExecState?> InspectExecAsync(string execId, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrEmpty(execId) || !execId.All(Uri.IsHexDigit)) return null;
+        await EnsureNegotiatedAsync(cancellationToken);
+        using var response = await httpClient.GetAsync($"v{apiVersion}/exec/{execId}/json", cancellationToken);
+        if (response.StatusCode == HttpStatusCode.NotFound) return null;
+        response.EnsureSuccessStatusCode();
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(cancellationToken));
+        var root = document.RootElement;
+        return new EngineExecState(
+            root.TryGetProperty("Running", out var running) && running.ValueKind == JsonValueKind.True,
+            root.TryGetProperty("ExitCode", out var exit) && exit.ValueKind == JsonValueKind.Number ? exit.GetInt32() : null);
+    }
+
+    public async Task ResizeExecAsync(string execId, int cols, int rows, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrEmpty(execId) || !execId.All(Uri.IsHexDigit)) return;
+        await EnsureNegotiatedAsync(cancellationToken);
+        using var response = await httpClient.PostAsync($"v{apiVersion}/exec/{execId}/resize?h={Math.Clamp(rows, 1, 500)}&w={Math.Clamp(cols, 1, 1000)}", null, cancellationToken);
+    }
+
+    public async Task SignalContainerProcessAsync(string containerId, int pid, string signal, CancellationToken cancellationToken)
+    {
+        ValidateContainerId(containerId);
+        if (pid <= 1 || signal is not ("HUP" or "KILL")) throw new ArgumentOutOfRangeException(nameof(signal));
+        await EnsureNegotiatedAsync(cancellationToken);
+        var create = new System.Text.Json.Nodes.JsonObject
+        {
+            ["AttachStdin"] = false,
+            ["AttachStdout"] = false,
+            ["AttachStderr"] = false,
+            ["Tty"] = false,
+            // `kill` é builtin do sh: não depende de binário extra na imagem.
+            ["Cmd"] = new System.Text.Json.Nodes.JsonArray("/bin/sh", "-c", $"kill -{signal} {pid.ToString(System.Globalization.CultureInfo.InvariantCulture)} 2>/dev/null; kill -{signal} -{pid.ToString(System.Globalization.CultureInfo.InvariantCulture)} 2>/dev/null; true"),
+        };
+        using var request = new HttpRequestMessage(HttpMethod.Post, $"v{apiVersion}/containers/{containerId}/exec")
+        {
+            Content = new StringContent(create.ToJsonString(), System.Text.Encoding.UTF8, "application/json"),
+        };
+        using var response = await httpClient.SendAsync(request, cancellationToken);
+        if (!response.IsSuccessStatusCode) return;
+        var execId = JsonDocument.Parse(await response.Content.ReadAsStringAsync(cancellationToken)).RootElement.GetProperty("Id").GetString();
+        using var start = new HttpRequestMessage(HttpMethod.Post, $"v{apiVersion}/exec/{execId}/start")
+        {
+            Content = new StringContent("{\"Detach\":true,\"Tty\":false}", System.Text.Encoding.UTF8, "application/json"),
+        };
+        using var started = await httpClient.SendAsync(start, cancellationToken);
+    }
+
+    /// <summary>Mensagens do runtime para "binário inexistente" (D-003: cai de `/bin/bash` para `/bin/sh`).</summary>
+    public static bool IsExecutableNotFound(string message)
+    {
+        var text = message.ToLowerInvariant();
+        return text.Contains("executable file not found") || text.Contains("no such file or directory") || text.Contains("not found in $path") || text.Contains("exit code 127");
+    }
 
     /// <summary>Falhas de `create` para o contrato da 013 (sem repassar o texto do engine).</summary>
     public static string MapCreateFailure(int status, string message)

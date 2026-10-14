@@ -40,6 +40,10 @@ public sealed record AuditEvent
         "container.command.result",
         "image.pull",
         "container.create.requested",
+        "container.exec.requested",
+        "container.exec.started",
+        "container.exec.ended",
+        "container.exec.denied",
     ];
 
     private static readonly HashSet<string> CommandActions =
@@ -102,7 +106,11 @@ public sealed record AuditEvent
     [
         "kind", "tail", "since", "until", "filtered", "lines", "bytes", "truncated", "sessionId", "reason", "durationSeconds", "previousStage", "stage",
         "command", "image", "name", "engine",
+        "justification", "shell", "root", "bytesIn", "bytesOut", "orphanSuspected", "stage",
     ];
+
+    /// <summary>Justificativa do terminal (spec 014 D-009): única exceção de texto livre além do comando equivalente.</summary>
+    public const int MaxJustificationDetailLength = 500;
 
     /// <summary>Comando equivalente redigido (spec 013 FR-008) cabe em um detalhe maior que os demais.</summary>
     public const int MaxCommandDetailLength = 1800;
@@ -123,7 +131,12 @@ public sealed record AuditEvent
                     throw new ArgumentException($"Audit detail '{key}' is not allowed.", nameof(details));
                 }
 
-                var normalized = NormalizeIdentifier(value, nameof(details), key == "command" ? MaxCommandDetailLength : 128) ?? string.Empty;
+                var normalized = NormalizeIdentifier(value, nameof(details), key switch
+                {
+                    "command" => MaxCommandDetailLength,
+                    "justification" => MaxJustificationDetailLength,
+                    _ => 128,
+                }) ?? string.Empty;
                 size += key.Length + normalized.Length;
                 if (size > MaxDetailsBytes)
                 {

@@ -19,6 +19,8 @@ import {
   listImages,
   createContainer,
   getContainerCreateOptions,
+  getTerminalPolicy,
+  renewTerminalSession,
   lookupImage,
   pullImage,
   registerEnvironment,
@@ -44,6 +46,7 @@ import {
   type ImageLookup,
   type ContainerCreationRequest,
   type ContainerCreateOptions,
+  type TerminalPolicy,
   type OperationalEventPage,
   type OverviewSummary,
   type Stage,
@@ -209,6 +212,18 @@ export class ControlPlaneApiService {
       throwOnError: true,
     });
     return accepted.data;
+  }
+
+  /** Política do terminal (spec 014): permitido, motivo, justificativa e limites. */
+  async getTerminalPolicy(environmentId: string, containerId: string): Promise<TerminalPolicy> {
+    const result = await getTerminalPolicy({ path: { environmentId, containerId }, throwOnError: true });
+    return result.data;
+  }
+
+  /** Reavalia a autorização da sessão com o token atual (o BFF renova o token; spec 014 D-008). */
+  async renewTerminalSession(sessionId: string): Promise<void> {
+    const requestToken = await this.antiforgery();
+    await renewTerminalSession({ path: { sessionId }, headers: { 'X-Dokpod-Antiforgery': requestToken }, throwOnError: true });
   }
 
   async getOverview(stage?: Stage | null): Promise<OverviewSummary> {

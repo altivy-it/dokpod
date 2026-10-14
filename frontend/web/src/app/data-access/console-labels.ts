@@ -98,6 +98,8 @@ export function describeEvent(event: OperationalEvent): EventView {
       return { text: `Comando ${ACTION_LABEL[p['action'] ?? ''] ?? ''} falhou${p['failureCode'] ? ` (${p['failureCode']})` : ''}`.replace('  ', ' '), where, label: 'Falhou', tone: 'error' };
     case 'command.indeterminate':
       return { text: `Resultado do comando ${ACTION_LABEL[p['action'] ?? ''] ?? ''} indeterminado`.replace('  ', ' '), where, label: 'Indeterminado', tone: 'warning' };
+    case 'container.exec_orphan_suspected':
+      return { text: 'Shell de terminal possivelmente ainda em execução após reinício do agente', where, label: 'Atenção', tone: 'warning' };
     case 'events.dropped':
       return { text: `${p['droppedCount'] ?? 'Vários'} eventos descartados por excesso de volume`, where: host, label: 'Descartados', tone: 'warning' };
     default:

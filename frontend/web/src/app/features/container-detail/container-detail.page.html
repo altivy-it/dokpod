@@ -31,7 +31,18 @@
         </div>
       </div>
       <div class="dok-actions">
-        <button dok-button variant="secondary" size="sm" startIcon="command" type="button" [disabled]="true" title="Terminal em breve">Abrir terminal</button>
+        <button
+          dok-button
+          variant="secondary"
+          size="sm"
+          startIcon="command"
+          type="button"
+          [disabled]="!!terminalBlocked()"
+          [attr.title]="terminalBlocked()"
+          (click)="selectTab('terminal')"
+        >
+          Abrir terminal
+        </button>
         @if (allowed().has('start')) {
           <button dok-button variant="outline" size="sm" startIcon="play" type="button" (click)="run('start')">Iniciar</button>
         }
@@ -106,6 +117,13 @@
                     }
                   </dok-empty-state>
                 }
+              }
+            }
+            @case ('terminal') {
+              @if (terminalBlocked(); as blocked) {
+                <dok-empty-state kind="forbidden" icon="command" [title]="blocked" detail="O terminal exige a permissão container:exec, agente com suporte e container em execução." [compact]="true" />
+              } @else {
+                <app-terminal-tab [environmentId]="environmentId()" [containerId]="containerId()" />
               }
             }
             @case ('estatisticas') {

@@ -12,6 +12,7 @@ using Xunit;
 namespace Dokpod.ControlPlane.Api.Tests;
 
 [Trait("Category", "Integration")]
+[Collection(AgentCommandsPostgresCollection.Name)]
 public sealed class PostgresAuditSchemaIntegrationTests
 {
     [Fact]
@@ -372,7 +373,8 @@ public sealed class PostgresAuditSchemaIntegrationTests
                 "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
                 "revision-01",
                 new string('A', 64),
-                createdAt.AddMinutes(1),
+                // Prazo futuro: testes concorrentes chamam a expiração global de comandos vencidos.
+                DateTimeOffset.FromUnixTimeMilliseconds(DateTimeOffset.UtcNow.AddHours(1).ToUnixTimeMilliseconds()),
                 8),
             ControlPlaneCommandState.Pending,
             createdAt,

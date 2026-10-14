@@ -121,6 +121,10 @@ public sealed class ConsoleOverviewIntegrationTests
             var remaining = await context.EnvironmentEvents.Where(e => e.EnvironmentId == environmentId).Select(e => e.SubjectName).ToListAsync(ct);
             Assert.Equal(["recent"], remaining);
 
+            // A exclusão em lote na tabela particionada compara (tableoid, ctid): ctid se repete entre partições.
+            var definition = await context.Database.SqlQuery<string>($"SELECT pg_get_functiondef('dokpod.dokpod_apply_temporal_retention(regclass, text, interval, integer)'::regprocedure) AS \"Value\"").SingleAsync(ct);
+            Assert.Contains("t.tableoid = doomed.tableoid", definition);
+
             foreach (var (table, column) in new[] { ("dokpod.audit_events", "occurred_at_utc"), ("dokpod.environment_events", "event_id") })
             {
                 var error = await Assert.ThrowsAsync<Npgsql.PostgresException>(() => context.Database

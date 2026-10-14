@@ -27,6 +27,8 @@ import { ShellContextService } from '../../shell/shell-context.service';
 import { toLoadError, type LoadError } from '../overview/overview.facade';
 import { ContainerMetricsFacade } from './container-metrics.facade';
 import { LogsPanel } from './logs.panel';
+import { TerminalTab } from './terminal.tab';
+import { EnvironmentDirectoryService } from '../../core/environment-directory.service';
 
 type TabId = 'resumo' | 'logs' | 'inspecionar' | 'estatisticas' | 'terminal';
 type Loadable<T> = { state: 'idle' | 'loading' | 'ready' | 'forbidden' | 'unavailable' | 'error'; value: T | null; message?: string };
@@ -50,6 +52,7 @@ const HEALTH: Record<string, string> = { healthy: 'saudável', unhealthy: 'não 
     DokTabs,
     LogsPanel,
     RouterLink,
+    TerminalTab,
   ],
   styleUrl: './container-detail.page.css',
   templateUrl: './container-detail.page.html',
@@ -84,12 +87,12 @@ export class ContainerDetailPage {
     { id: 'logs', label: 'Logs', icon: 'list' },
     { id: 'inspecionar', label: 'Inspecionar', icon: 'eye' },
     { id: 'estatisticas', label: 'Estatísticas', icon: 'chart-line' },
-    { id: 'terminal', label: 'Terminal', icon: 'command', disabled: true },
+    { id: 'terminal', label: 'Terminal', icon: 'command' },
   ];
   protected readonly tabLabel = computed(() => this.tabs.find(t => t.id === this.tab())?.label ?? '');
   protected readonly tab = computed<TabId>(() => {
     const value = this.aba();
-    return value === 'resumo' || value === 'inspecionar' || value === 'estatisticas' ? value : 'logs';
+    return value === 'resumo' || value === 'inspecionar' || value === 'estatisticas' || value === 'terminal' ? value : 'logs';
   });
 
   protected readonly status = computed(() => CONTAINER_STATUS[this.detail()?.displayStatus ?? 'stopped']);
@@ -106,7 +109,18 @@ export class ContainerDetailPage {
     if (d.oomKilled) parts.push('encerrado por falta de memória (OOM)');
     return parts.join(' · ');
   });
-  protected readonly allowed = computed(() => new Set(this.detail()?.allowedActions ?? []));
+  protected readonly allowed = computed(() => new Set<string>(this.detail()?.allowedActions ?? []));
+  private readonly directory = inject(EnvironmentDirectoryService);
+  /** Motivo de o terminal estar indisponível (spec 014 T012): sem permissão, sem suporte no agente ou parado. */
+  protected readonly terminalBlocked = computed(() => {
+    const d = this.detail();
+    if (!d) return 'Carregando';
+    if (this.allowed().has('exec')) return null;
+    const env = this.directory.byId(this.environmentId());
+    if (env && !env.scopes.includes('container:exec')) return 'Sem permissão para abrir terminal';
+    if (!(d.capabilities ?? []).includes('ContainerExec')) return 'Terminal não suportado pelo agente deste host';
+    return 'Disponível somente com o container em execução';
+  });
   protected readonly summaryItems = computed<KeyValueItem[]>(() => {
     const s = this.summary().value;
     if (!s) return [];

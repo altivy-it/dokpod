@@ -27,7 +27,9 @@ public sealed class AgentControlService(
     Dokpod.ControlPlane.Application.Queries.AgentQueryDispatcher queryDispatcher,
     Dokpod.ControlPlane.Application.Metrics.MetricsIngestionService metricsIngestion,
     Dokpod.ControlPlane.Application.Images.IImageInventoryStore imageStore,
-    ILogger<AgentControlService> logger) : AgentControl.AgentControlBase
+    ILogger<AgentControlService> logger,
+    Dokpod.ControlPlane.Application.Terminal.TerminalSessionRegistry? terminals = null,
+    IAgentIdentityRegistry? identities = null) : AgentControl.AgentControlBase
 {
     private const int MaximumMessageBytes = 1_048_576;
     private static readonly TimeSpan HeartbeatTimeout = TimeSpan.FromSeconds(90);
@@ -412,6 +414,69 @@ public sealed class AgentControlService(
             var replaced = !wasActive &&
                 await sessionStore.FindActiveAsync(session.EnvironmentId, CancellationToken.None) is not null;
             await hostActivity.OnSessionEndedAsync(session, replaced);
+        }
+    }
+
+    /// <summary>
+    /// Spec 014 D-001: canal do terminal aberto pelo agente. O primeiro frame vincula o RPC ao certificado, à sessão
+    /// ativa (id e fencing) e a uma sessão de terminal pendente do mesmo ambiente; qualquer divergência encerra o RPC.
+    /// </summary>
+    public override async Task Exec(IAsyncStreamReader<ExecFrame> requestStream, IServerStreamWriter<ExecFrame> responseStream, ServerCallContext context)
+    {
+        if (terminals is null || identities is null) throw new RpcException(new Status(StatusCode.Unimplemented, "exec_not_supported"));
+        var certificate = await context.GetHttpContext().Connection.GetClientCertificateAsync(context.CancellationToken);
+        if (certificate is null) throw new RpcException(new Status(StatusCode.Unauthenticated, "client_certificate_required"));
+        var fingerprint = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(certificate.RawData));
+        var identity = await identities.FindByFingerprintAsync(fingerprint, context.CancellationToken)
+            ?? throw new RpcException(new Status(StatusCode.PermissionDenied, "agent_certificate_unknown"));
+        if (!await requestStream.MoveNext(context.CancellationToken) || requestStream.Current.FrameCase != ExecFrame.FrameOneofCase.Handshake)
+        {
+            throw new RpcException(new Status(StatusCode.InvalidArgument, "exec_handshake_required"));
+        }
+
+        var handshake = requestStream.Current.Handshake;
+        var active = await sessionStore.FindActiveAsync(identity.EnvironmentId, context.CancellationToken);
+        if (active is null || active.SessionId.ToString("D") != handshake.SessionId || active.FencingToken != handshake.FencingToken ||
+            !Guid.TryParse(handshake.ExecSessionId, out var execSessionId))
+        {
+            throw new RpcException(new Status(StatusCode.PermissionDenied, "exec_session_fenced"));
+        }
+
+        var session = terminals.Attach(execSessionId, identity.EnvironmentId)
+            ?? throw new RpcException(new Status(StatusCode.NotFound, "exec_session_unknown"));
+        using var end = CancellationTokenSource.CreateLinkedTokenSource(context.CancellationToken);
+        var toAgent = Task.Run(async () =>
+        {
+            await foreach (var frame in session.ToAgent.Reader.ReadAllAsync(end.Token))
+            {
+                await responseStream.WriteAsync(frame, end.Token);
+            }
+        }, CancellationToken.None);
+        try
+        {
+            while (await requestStream.MoveNext(end.Token))
+            {
+                var frame = requestStream.Current;
+                if (frame.FrameCase is ExecFrame.FrameOneofCase.Output or ExecFrame.FrameOneofCase.Status)
+                {
+                    await session.FromAgent.Writer.WriteAsync(frame, end.Token);
+                }
+            }
+        }
+        catch (Exception exception) when (exception is OperationCanceledException or IOException or RpcException)
+        {
+        }
+        finally
+        {
+            session.FromAgent.Writer.TryComplete();
+            await end.CancelAsync();
+            try
+            {
+                await toAgent;
+            }
+            catch (Exception exception) when (exception is OperationCanceledException or IOException or InvalidOperationException or System.Threading.Channels.ChannelClosedException)
+            {
+            }
         }
     }
 

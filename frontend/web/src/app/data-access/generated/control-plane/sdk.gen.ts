@@ -2,7 +2,7 @@
 
 import type { Client, Options as Options2, TDataShape } from './client';
 import { client } from './client.gen';
-import type { CreateContainerData, CreateContainerErrors, CreateContainerResponses, GetContainerCommandData, GetContainerCommandErrors, GetContainerCommandResponses, GetContainerCreateOptionsData, GetContainerCreateOptionsErrors, GetContainerCreateOptionsResponses, GetContainerData, GetContainerErrors, GetContainerLogsData, GetContainerLogsErrors, GetContainerLogsResponses, GetContainerMetricsData, GetContainerMetricsErrors, GetContainerMetricsResponses, GetContainerResponses, GetContainerSummaryData, GetContainerSummaryErrors, GetContainerSummaryResponses, GetEnvironmentData, GetEnvironmentErrors, GetEnvironmentResponses, GetOverviewData, GetOverviewErrors, GetOverviewResponses, GetStageMetricsData, GetStageMetricsErrors, GetStageMetricsResponses, InspectContainerData, InspectContainerErrors, InspectContainerResponses, ListContainersData, ListContainersErrors, ListContainersResponses, ListEnvironmentContainersData, ListEnvironmentContainersErrors, ListEnvironmentContainersResponses, ListEnvironmentsData, ListEnvironmentsErrors, ListEnvironmentsResponses, ListEventsData, ListEventsErrors, ListEventsResponses, ListHostMetricsData, ListHostMetricsErrors, ListHostMetricsResponses, ListImagesData, ListImagesErrors, ListImagesResponses, LookupImageData, LookupImageErrors, LookupImageResponses, PullImageData, PullImageErrors, PullImageResponses, RegisterEnvironmentData, RegisterEnvironmentErrors, RegisterEnvironmentResponses, RevokeAgentIdentityData, RevokeAgentIdentityErrors, RevokeAgentIdentityResponses, SetEnvironmentStageData, SetEnvironmentStageErrors, SetEnvironmentStageResponses, SubmitContainerCommandData, SubmitContainerCommandErrors, SubmitContainerCommandResponses } from './types.gen';
+import type { CreateContainerData, CreateContainerErrors, CreateContainerResponses, GetContainerCommandData, GetContainerCommandErrors, GetContainerCommandResponses, GetContainerCreateOptionsData, GetContainerCreateOptionsErrors, GetContainerCreateOptionsResponses, GetContainerData, GetContainerErrors, GetContainerLogsData, GetContainerLogsErrors, GetContainerLogsResponses, GetContainerMetricsData, GetContainerMetricsErrors, GetContainerMetricsResponses, GetContainerResponses, GetContainerSummaryData, GetContainerSummaryErrors, GetContainerSummaryResponses, GetEnvironmentData, GetEnvironmentErrors, GetEnvironmentResponses, GetOverviewData, GetOverviewErrors, GetOverviewResponses, GetStageMetricsData, GetStageMetricsErrors, GetStageMetricsResponses, GetTerminalPolicyData, GetTerminalPolicyErrors, GetTerminalPolicyResponses, InspectContainerData, InspectContainerErrors, InspectContainerResponses, ListContainersData, ListContainersErrors, ListContainersResponses, ListEnvironmentContainersData, ListEnvironmentContainersErrors, ListEnvironmentContainersResponses, ListEnvironmentsData, ListEnvironmentsErrors, ListEnvironmentsResponses, ListEventsData, ListEventsErrors, ListEventsResponses, ListHostMetricsData, ListHostMetricsErrors, ListHostMetricsResponses, ListImagesData, ListImagesErrors, ListImagesResponses, LookupImageData, LookupImageErrors, LookupImageResponses, PullImageData, PullImageErrors, PullImageResponses, RegisterEnvironmentData, RegisterEnvironmentErrors, RegisterEnvironmentResponses, RenewTerminalSessionData, RenewTerminalSessionErrors, RenewTerminalSessionResponses, RevokeAgentIdentityData, RevokeAgentIdentityErrors, RevokeAgentIdentityResponses, SetEnvironmentStageData, SetEnvironmentStageErrors, SetEnvironmentStageResponses, SubmitContainerCommandData, SubmitContainerCommandErrors, SubmitContainerCommandResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -60,6 +60,24 @@ export const createContainer = <ThrowOnError extends boolean = false>(options: O
         'Content-Type': 'application/json',
         ...options.headers
     }
+});
+
+/**
+ * Política do terminal para o container (scope container:exec, spec 014)
+ */
+export const getTerminalPolicy = <ThrowOnError extends boolean = false>(options: Options<GetTerminalPolicyData, ThrowOnError>) => (options.client ?? client).get<GetTerminalPolicyResponses, GetTerminalPolicyErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/environments/{environmentId}/containers/{containerId}/terminal-policy',
+    ...options
+});
+
+/**
+ * Reavalia a autorização da sessão de terminal com o token atual (renovado pelo BFF, D-008)
+ */
+export const renewTerminalSession = <ThrowOnError extends boolean = false>(options: Options<RenewTerminalSessionData, ThrowOnError>) => (options.client ?? client).post<RenewTerminalSessionResponses, RenewTerminalSessionErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/terminal-sessions/{sessionId}/renew',
+    ...options
 });
 
 /**

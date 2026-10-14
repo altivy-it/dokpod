@@ -45,6 +45,8 @@ public sealed class OpenApiContractTests
         Assert.Contains("operationId: pullImage", contract, StringComparison.Ordinal);
         Assert.Contains("operationId: createContainer", contract, StringComparison.Ordinal);
         Assert.Contains("operationId: getContainerCreateOptions", contract, StringComparison.Ordinal);
+        Assert.Contains("operationId: getTerminalPolicy", contract, StringComparison.Ordinal);
+        Assert.Contains("operationId: renewTerminalSession", contract, StringComparison.Ordinal);
         Assert.Contains("ImageListPage:", contract, StringComparison.Ordinal);
         Assert.Contains("enum: [start, stop, restart, delete, pause, unpause, pull, create]", contract, StringComparison.Ordinal);
         Assert.Contains("operationId: listHostMetrics", contract, StringComparison.Ordinal);

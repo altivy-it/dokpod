@@ -43,6 +43,7 @@ public sealed class AgentHostActivity(
         Capability.ImageInventory,
         Capability.ImagePull,
         Capability.ContainerCreate,
+        Capability.ContainerExec,
     ];
 
     public static IEnumerable<Capability> Accept(AgentHello hello) =>
@@ -208,6 +209,7 @@ public sealed class AgentHostActivity(
         EngineEventType.ImagePulled => OperationalEventTypes.ImagePulled,
         EngineEventType.ImageRemoved => OperationalEventTypes.ImageRemoved,
         EngineEventType.VolumeRemoved => OperationalEventTypes.VolumeRemoved,
+        EngineEventType.ExecOrphanSuspected => OperationalEventTypes.ContainerExecOrphanSuspected,
         _ => null,
     };
 

@@ -189,6 +189,99 @@ public sealed class ControlPlaneHub(
         }
     }
 
+    /// <summary>
+    /// Terminal interativo (spec 014): stream de entrada do cliente e stream de saída do servidor no mesmo hub.
+    /// Exige WebSocket; o conteúdo nunca é registrado.
+    /// </summary>
+    public async IAsyncEnumerable<object> OpenTerminal(
+        OpenTerminalRequest request,
+        IAsyncEnumerable<TerminalInputMessage> input,
+        [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        var httpContext = Context.GetHttpContext();
+        var accessToken = ExtractAccessToken(httpContext);
+        var subject = Context.User?.FindFirstValue("sub");
+        if (string.IsNullOrWhiteSpace(accessToken) || string.IsNullOrWhiteSpace(subject) || request is null ||
+            !Guid.TryParse(request.EnvironmentId, out var envId) || request.ContainerId is not { Length: 64 } ||
+            request.Justification is { Length: > Dokpod.ControlPlane.Application.Terminal.TerminalSessionService.MaxJustification })
+        {
+            throw new HubException("invalid_request");
+        }
+
+        var transport = Context.Features.Get<Microsoft.AspNetCore.Http.Connections.Features.IHttpTransportFeature>()?.TransportType;
+        var output = System.Threading.Channels.Channel.CreateBounded<Dokpod.ControlPlane.Application.Terminal.TerminalOutputFrame>(256);
+        using var scope = scopeFactory.CreateScope();
+        var service = scope.ServiceProvider.GetRequiredService<Dokpod.ControlPlane.Application.Terminal.TerminalSessionService>();
+        var run = Task.Run(async () =>
+        {
+            try
+            {
+                await service.RunAsync(
+                    new Dokpod.ControlPlane.Application.Terminal.TerminalOpenRequest(envId, request.ContainerId.ToLowerInvariant(), request.Cols, request.Rows, request.Justification),
+                    AuthenticatedActor.FromSubject(subject),
+                    accessToken,
+                    TokenExpiresAt(Context.User),
+                    Context.User,
+                    transport == Microsoft.AspNetCore.Http.Connections.HttpTransportType.WebSockets,
+                    GetCorrelationId(httpContext),
+                    DecodeAsync(input, cancellationToken),
+                    output.Writer,
+                    cancellationToken);
+            }
+            finally
+            {
+                output.Writer.TryComplete();
+            }
+        }, CancellationToken.None);
+
+        await foreach (var frame in output.Reader.ReadAllAsync(CancellationToken.None))
+        {
+            yield return frame.Data is { } data
+                ? new { data = Convert.ToBase64String(data) }
+                : new
+                {
+                    status = new
+                    {
+                        state = frame.Status!.State,
+                        reason = frame.Status.Reason,
+                        shell = frame.Status.Shell,
+                        containerUserIsRoot = frame.Status.ContainerUserIsRoot,
+                        warning = frame.Status.Warning,
+                        sessionId = frame.Status.SessionId,
+                    },
+                };
+        }
+
+        await run;
+    }
+
+    private static async IAsyncEnumerable<Dokpod.ControlPlane.Application.Terminal.TerminalInputFrame> DecodeAsync(
+        IAsyncEnumerable<TerminalInputMessage> input,
+        [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        await foreach (var message in input.WithCancellation(cancellationToken))
+        {
+            if (message.Data is { Length: > 0 and <= 90_000 } data)
+            {
+                byte[] bytes;
+                try
+                {
+                    bytes = Convert.FromBase64String(data);
+                }
+                catch (FormatException)
+                {
+                    continue;
+                }
+
+                yield return new Dokpod.ControlPlane.Application.Terminal.TerminalInputFrame(bytes, null, null);
+            }
+            else if (message.Resize is { } resize)
+            {
+                yield return new Dokpod.ControlPlane.Application.Terminal.TerminalInputFrame(null, resize.Cols, resize.Rows);
+            }
+        }
+    }
+
     public static string GroupFor(string environmentId) => $"environment-{environmentId}";
 
     /// <summary>`exp` do access token da conexão (validado na abertura do hub).</summary>
@@ -214,3 +307,9 @@ public sealed class ControlPlaneHub(
             ? correlationId
             : Guid.NewGuid();
 }
+
+public sealed record OpenTerminalRequest(string EnvironmentId, string ContainerId, int Cols, int Rows, string? Justification);
+
+public sealed record TerminalResize(int Cols, int Rows);
+
+public sealed record TerminalInputMessage(string? Data, TerminalResize? Resize);

@@ -111,6 +111,8 @@ public sealed class ContainerSearchService(IContainerSearchStore store)
         Add("pause", EnvironmentResourceScopes.PauseContainer, "ContainerPause", state == "running");
         Add("unpause", EnvironmentResourceScopes.PauseContainer, "ContainerUnpause", state == "paused");
         Add("delete", EnvironmentResourceScopes.DeleteContainer, "ContainerDelete", state is not ("running" or "restarting" or "paused"));
+        // Spec 014: terminal só em container em execução, com scope e capability do agente.
+        Add("exec", EnvironmentResourceScopes.ExecContainer, "ContainerExec", state == "running");
         return actions;
     }
 }

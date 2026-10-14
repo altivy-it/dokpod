@@ -125,6 +125,29 @@ A telemetria usa allowlist de campos, limites e normalização de caracteres de 
 
 **Risco residual**: um operador autorizado pode executar qualquer imagem permitida com as permissões não privilegiadas do engine; a mitigação é o scope dedicado, registros por estágio e a auditoria. Aprovação: decisão do solicitante registrada em `specs/README.md` (2026-10-13), com revisão humana de segurança pendente antes de release.
 
+## Threat model: terminal interativo (spec 014)
+
+**Fronteira nova**: navegador → BFF (WebSocket) → hub SignalR da API (`OpenTerminal`) → `ExecOpenRequest` no stream `Connect` → RPC `Exec` aberto pelo agente (mTLS, vínculo a sessão/fencing) → `POST /containers/{id}/exec` + `/exec/{id}/start` (conexão sequestrada) no engine. Decisão em ADR 2026-0006.
+
+**Atores**: operador com `container:exec`, usuário sem o scope, usuário de outro ambiente, sessão do navegador sequestrada, workload malicioso (saída hostil), agente comprometido.
+
+| Ameaça | Mitigação | Teste negativo |
+| --- | --- | --- |
+| Abuso do shell / escalada | Scope `container:exec` por ambiente; comando fixo (`/bin/bash` → `/bin/sh`), usuário padrão da imagem, sem `Privileged`, `User` ou `Env` no exec; alerta visível quando o usuário do container é root | sem scope → `scope` (403); request com comando/usuário não existe no contrato |
+| Bloqueio por workload | Label `dokpod.exec=disabled` verificada pelo agente | label → `label_disabled` |
+| Abertura sem justificativa em Produção | Justificativa 10-500 caracteres, mascarada (`SecretMasker`) antes da auditoria | ausente/curta → `justification_missing` |
+| Sessão longa ou esquecida | Ociosidade 10 min, duração 30 min, aviso 1 min antes; queda do navegador encerra em ≤ 30 s (keepalive 15/30 s) | `idle_timeout`, `max_duration`, `client_disconnected` |
+| Revogação durante a sessão | `StreamingAuthorizationMonitor` a cada 60 s (token renovado pelo BFF), Keycloak indisponível encerra (falha fechada), identidade do agente revogada derruba o canal | `permission_revoked` |
+| Sessão órfã no engine | Fechar o TTY (SIGHUP) e confirmar `Running=false` em ≤ 5 s; IDs ativos em `<data>/exec-sessions.json`, verificados após reinício; senão `orphan_suspected` | inspeção do exec após cada motivo de término (Podman real) |
+| Processos em segundo plano (`nohup`, `&`, `setsid`) | Fora da garantia: o engine não encerra execs | — (risco residual) |
+| Sequências maliciosas na saída (OSC 52, links, títulos) | xterm.js restritivo: sem addon de links, sem clipboard OSC 52, `allowProposedApi: false`; colar multi-linha exige confirmação | saída com OSC 52 não altera a área de transferência |
+| DoS do agente/canal | RPC separado do controle; ≤ 4 sessões por agente, 2 por usuário, 1 por usuário por container; saída ≤ 256 KiB/s por sessão; entrada ≤ 64 KiB por mensagem | limite → `limit` |
+| Replay/sequestro do canal do agente | Handshake com `exec_session_id` pendente, `session_id` e fencing token ativos; at-most-once; recusa após `expires_at` | handshake com fencing antigo ou id desconhecido é recusado |
+| Transporte inseguro do navegador | WebSocket obrigatório (sem long polling/SSE) | outro transporte → `websocket_required` |
+| Vazamento de conteúdo | Conteúdo nunca vai a PostgreSQL, logs ou telemetria; auditoria com metadados (bytes, duração, motivo) | canários digitados/exibidos ausentes do banco e dos logs |
+
+**Janela de revogação**: até 60 s mais a vida útil restante do access token (realm com access token ≤ 5 min, `docs/configuracao-keycloak.md`). **Risco residual**: processos em segundo plano criados pelo usuário e ações executadas antes da revogação. Aprovação: decisão do solicitante registrada em `specs/README.md` (2026-10-13); ADR 2026-0006 `proposed` com revisão humana de segurança pendente antes de release.
+
 ## Desenvolvimento e release
 
 - threat model atualizado para cada nova fronteira;

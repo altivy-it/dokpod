@@ -147,6 +147,7 @@ Evita colisão de tags entre specs desenvolvidas em paralelo. Alterar somente co
 | `AgentCommand.parameters` | — | — | — | — | 7 `pull_image` | 8 `create_container` | — |
 | `ContainerQueryKind` | — | — | — | 1-3 | — | 4-6 | — |
 | RPC | — | — | — | — | — | — | `Exec` |
+| `EngineEventType` | 1-10 | — | — | — | — | — | 11 `EXEC_ORPHAN_SUSPECTED` |
 | Scope Keycloak | — | — | `container:pause` | `container:inspect`, `container:logs` | `image:pull` | `container:create` | `container:exec` |
 
 **Regra de negociação (008 D-009)**: o agente só envia payloads novos de `AgentMessage` (17-22) cujas capabilities o servidor confirmou em `SessionEstablished.accepted_capabilities`; lista ausente = servidor N-1. O servidor só envia payloads novos de `ControlPlaneMessage` (14-16) e `CommandKind` novos a agentes que anunciaram a capability no `Hello`. Cada spec testa agente N contra servidor N-1.

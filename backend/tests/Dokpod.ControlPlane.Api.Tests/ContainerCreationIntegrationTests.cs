@@ -13,6 +13,7 @@ using Xunit;
 namespace Dokpod.ControlPlane.Api.Tests;
 
 /// <summary>Spec 013 T007/T018 em PostgreSQL real: valores cifrados, reentrega, purga após terminal e canários.</summary>
+[Collection(AgentCommandsPostgresCollection.Name)]
 public sealed class ContainerCreationIntegrationTests
 {
     private const string Canary = "canario-013-valor-secreto";

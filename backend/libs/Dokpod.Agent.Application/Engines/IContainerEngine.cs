@@ -57,6 +57,23 @@ public enum EngineHostObjectKind
     Volumes,
 }
 
+/// <summary>
+/// Exec interativo iniciado (spec 014): `Stream` é a conexão sequestrada do engine (TTY bidirecional).
+/// Fechar o stream fecha o TTY e o shell recebe SIGHUP.
+/// </summary>
+public sealed record EngineExecSession(string ExecId, Stream Stream) : IAsyncDisposable
+{
+    public ValueTask DisposeAsync() => Stream.DisposeAsync();
+}
+
+public sealed record EngineExecState(bool Running, int? ExitCode);
+
+/// <summary>Falha ao criar/iniciar o exec; `ExecutableNotFound` permite cair de `/bin/bash` para `/bin/sh`.</summary>
+public sealed class EngineExecException(string message, bool executableNotFound) : Exception(message)
+{
+    public bool ExecutableNotFound { get; } = executableNotFound;
+}
+
 /// <summary>Resultado do pull: digest resolvido e tamanho, ou código de falha do contrato da 012.</summary>
 public sealed record ImagePullResult(bool Succeeded, string? FailureCode, string? ResolvedDigest = null, long? SizeBytes = null);
 
@@ -135,6 +152,22 @@ public interface IContainerEngine
     /// <summary>Nomes de segredos do Podman, redes ou volumes do host (sem valores).</summary>
     Task<IReadOnlyList<EngineHostObject>> ListHostObjectsAsync(EngineHostObjectKind kind, CancellationToken cancellationToken) =>
         Task.FromResult<IReadOnlyList<EngineHostObject>>([]);
+
+    /// <summary>Cria e inicia exec com TTY e comando fixo (spec 014); conexão sequestrada (`Upgrade: tcp`).</summary>
+    Task<EngineExecSession> StartExecAsync(string containerId, IReadOnlyList<string> command, int cols, int rows, CancellationToken cancellationToken) =>
+        throw new NotSupportedException("Exec is not supported by this engine adapter.");
+
+    /// <summary>`GET /exec/{id}/json`: nulo se o exec não existe mais.</summary>
+    Task<EngineExecState?> InspectExecAsync(string execId, CancellationToken cancellationToken) =>
+        Task.FromResult<EngineExecState?>(null);
+
+    Task ResizeExecAsync(string execId, int cols, int rows, CancellationToken cancellationToken) => Task.CompletedTask;
+
+    /// <summary>
+    /// Envia sinal ao processo do shell da sessão (PID no namespace do container) por um exec destacado e fixo
+    /// (`kill -HUP|-KILL &lt;pid&gt;`): o engine não encerra execs ao fechar a conexão (spec 014 D-007).
+    /// </summary>
+    Task SignalContainerProcessAsync(string containerId, int pid, string signal, CancellationToken cancellationToken) => Task.CompletedTask;
 
     /// <summary>`docker` ou `podman`, detectado na negociação.</summary>
     Task<string> GetEngineKindAsync(CancellationToken cancellationToken) => Task.FromResult("docker");

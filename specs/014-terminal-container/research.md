@@ -13,6 +13,7 @@
 ## D-003 Shell e usuário
 
 - Detecção: criar o exec diretamente com `Cmd ["/bin/bash"]`; se o runtime responder executável não encontrado (exit 126/127 ou erro OCI), repetir com `/bin/sh`; se ambos falharem, `shell_not_available`. Evita exec extra e dependência do binário `test`. Usuário: padrão da imagem; sem `User` no exec.
+- **Revisão na implementação (2026-10-14)**: em Podman real, fechar a conexão do exec **não** encerra o shell (sem SIGHUP), o que quebraria D-007/SC-002. O comando fixo passou a ser um único exec `/bin/sh -c` que escolhe `/bin/bash` ou `/bin/sh` com o `[` embutido do sh (sem binário `test`), anuncia o PID do shell por uma sequência OSC privada (removida da saída) e faz `exec` no shell. O término envia `SIGHUP` (e `SIGKILL` após 5 s) a esse PID por um exec destacado com `kill` embutido do sh. Imagem sem `/bin/sh` → `shell_not_available`.
 
 ## D-004 Emulador no navegador
 
@@ -28,11 +29,12 @@
 
 ## D-007 Término e órfãos
 
-- Docker e Podman não aceitam labels em exec nem expõem endpoint para encerrar exec. **Decisão**: o agente fecha o stream do TTY (SIGHUP ao shell), consulta `GET /exec/{id}/json` até `Running=false` (até 5 s) e, se continuar em execução, audita `orphan_suspected`. IDs de exec ativos são gravados em `<data>/exec-sessions.json`; após reinício, o agente verifica cada um e audita os que seguem em execução. Processos que o usuário mandou para segundo plano ficam fora da garantia (risco residual no threat model).
+- Docker e Podman não aceitam labels em exec nem expõem endpoint para encerrar exec. **Decisão** (ajustada pela revisão de D-003): o agente fecha o stream do TTY e envia SIGHUP ao PID do shell, consulta `GET /exec/{id}/json` até `Running=false` (até 5 s) e, se continuar em execução, audita `orphan_suspected`. IDs de exec ativos são gravados em `<data>/exec-sessions.json`; após reinício, o agente verifica cada um e audita os que seguem em execução. Processos que o usuário mandou para segundo plano ficam fora da garantia (risco residual no threat model).
 
 ## D-008 Reavaliação de autorização
 
-- Componente `StreamingAuthorizationMonitor` compartilhado com a 011 (logs ao vivo): a cada 60 s verifica a sessão do BFF e refaz a decisão de autorização da API com o access token atual (renovado pelo BFF). Revogação no Keycloak passa a valer em até 60 s mais a vida útil restante do token; o realm deve manter access token curto (≤ 5 min), documentado em `docs/configuracao-keycloak.md`.
+- Componente `StreamingAuthorizationMonitor` compartilhado com a 011 (logs ao vivo): a cada 60 s verifica a sessão do BFF e refaz a decisão de autorização da API com o access token atual (renovado pelo BFF).
+- **Implementação (2026-10-14)**: o token do WebSocket é fixo desde a negociação; para não encerrar o terminal a cada expiração do access token, o navegador chama `POST /api/v1/terminal-sessions/{id}/renew` a cada 2 min (o BFF injeta token renovado) e a API reavalia `container:exec` com ele; a reavaliação periódica da sessão usa o token mais recente. Sem renovação, a sessão termina com `session_refresh_required` perto do `exp`. Revogação no Keycloak passa a valer em até 60 s mais a vida útil restante do token; o realm deve manter access token curto (≤ 5 min), documentado em `docs/configuracao-keycloak.md`.
 
 ## D-009 Justificativa na auditoria
 

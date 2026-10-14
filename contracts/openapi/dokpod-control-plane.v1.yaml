@@ -186,6 +186,60 @@ paths:
           $ref: '#/components/responses/InvalidRequest'
         '503':
           $ref: '#/components/responses/DependencyUnavailable'
+  /api/v1/environments/{environmentId}/containers/{containerId}/terminal-policy:
+    get:
+      operationId: getTerminalPolicy
+      summary: Política do terminal para o container (scope container:exec, spec 014)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: environmentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: containerId
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^[0-9a-fA-F]{64}$'
+        - $ref: '#/components/parameters/CorrelationId'
+      responses:
+        '200':
+          description: Se o terminal pode ser aberto e o motivo quando não pode.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TerminalPolicy'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '503':
+          $ref: '#/components/responses/DependencyUnavailable'
+  /api/v1/terminal-sessions/{sessionId}/renew:
+    post:
+      operationId: renewTerminalSession
+      summary: Reavalia a autorização da sessão de terminal com o token atual (renovado pelo BFF, D-008)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/CorrelationId'
+      responses:
+        '204':
+          description: Autorização renovada.
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '403':
+          $ref: '#/components/responses/AccessDenied'
   /api/v1/environments/{environmentId}/create-options:
     get:
       operationId: getContainerCreateOptions
@@ -1392,6 +1446,39 @@ components:
               type: integer
             valueBytes:
               type: integer
+    TerminalPolicy:
+      type: object
+      required: [allowed, requiresJustification, requiresRecentMfa, limits]
+      additionalProperties: false
+      properties:
+        allowed:
+          type: boolean
+        reason:
+          type: [string, 'null']
+          description: scope, not_running, not_supported, agent_disconnected, mfa_required, not_found.
+        requiresJustification:
+          type: boolean
+        requiresRecentMfa:
+          type: boolean
+        limits:
+          type: object
+          required: [idleTimeoutSeconds, maxDurationSeconds, maxPerUser, maxPerUserPerContainer, maxPerAgent, justificationMinLength, justificationMaxLength]
+          additionalProperties: false
+          properties:
+            idleTimeoutSeconds:
+              type: integer
+            maxDurationSeconds:
+              type: integer
+            maxPerUser:
+              type: integer
+            maxPerUserPerContainer:
+              type: integer
+            maxPerAgent:
+              type: integer
+            justificationMinLength:
+              type: integer
+            justificationMaxLength:
+              type: integer
     ContainerCommandAccepted:
       type: object
       required: [commandId]
@@ -1801,7 +1888,7 @@ components:
               type: array
               items:
                 type: string
-                enum: [start, stop, restart, delete, pause, unpause]
+                enum: [start, stop, restart, delete, pause, unpause, exec]
     ContainerListPage:
       type: object
       required: [containers, summary]

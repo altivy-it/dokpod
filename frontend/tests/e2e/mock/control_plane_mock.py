@@ -108,7 +108,7 @@ def host_view(h) -> dict:
             "cpuCount": cpus,
             "memoryBytes": mem * 1024**3,
             "capabilities": ["CONTAINER_LIFECYCLE", "ENGINE_EVENTS", "RESOURCE_METRICS", "CONTAINER_PAUSE", "CONTAINER_UNPAUSE", "CONTAINER_INSPECT", "CONTAINER_LOGS"]
-            + ([] if situation == "update_required" else ["ImageInventory", "ImagePull", "ContainerCreate"]),
+            + ([] if situation == "update_required" else ["ImageInventory", "ImagePull", "ContainerCreate", "ContainerExec"]),
         },
     }
 
@@ -175,7 +175,8 @@ def container_item(c) -> dict:
         "engine": h[3],
         "engineVersion": h[4],
         "hostConnected": connected,
-        "allowedActions": [a for a in ACTIONS_FOR[status] if f"container:{a if a != 'unpause' else 'pause'}" in scopes()] if connected else [],
+        "allowedActions": ([a for a in ACTIONS_FOR[status] if f"container:{a if a != 'unpause' else 'pause'}" in scopes()]
+                           + (["exec"] if status == "running" and "container:exec" in scopes() and h[5] != "update_required" else [])) if connected else [],
     }
 
 
@@ -633,6 +634,25 @@ class Handler(BaseHTTPRequestHandler):
             command.update({"state": "failed" if failed else "succeeded", "failureCode": "start_failed" if failed else None,
                             "updatedAtUtc": iso(0), "completedAtUtc": iso(0)})
             return self.send_json(200, {k: v for k, v in command.items() if k != "containerName"})
+        tm = re.fullmatch(r"/containers/([^/]+)/terminal-policy", rest)
+        if tm:
+            container = find_container(environment_id, tm.group(1))
+            reason = None
+            if "container:exec" not in scopes():
+                reason = "scope"
+            elif not host["agent"]["connected"]:
+                reason = "agent_disconnected"
+            elif "ContainerExec" not in host["agent"]["capabilities"]:
+                reason = "not_supported"
+            elif container is None:
+                reason = "not_found"
+            elif container["displayStatus"] != "running":
+                reason = "not_running"
+            return self.send_json(200, {
+                "allowed": reason is None, "reason": reason, "requiresJustification": host["stage"] == "production", "requiresRecentMfa": False,
+                "limits": {"idleTimeoutSeconds": 600, "maxDurationSeconds": 1800, "maxPerUser": 2, "maxPerUserPerContainer": 1, "maxPerAgent": 4,
+                           "justificationMinLength": 10, "justificationMaxLength": 500},
+            })
         cm = re.fullmatch(r"/containers/([^/]+)(/.*)?", rest)
         if not cm:
             return self.send_json(404, problem(404, "Rota inexistente"))
