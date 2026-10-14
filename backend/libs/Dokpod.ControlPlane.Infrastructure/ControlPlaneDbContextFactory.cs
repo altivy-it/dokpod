@@ -1,6 +1,5 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
-using Npgsql;
 
 namespace Dokpod.ControlPlane.Infrastructure;
 
@@ -11,7 +10,7 @@ public sealed class ControlPlaneDbContextFactory : IDesignTimeDbContextFactory<C
         var connectionString = GetConnectionString(args);
         var options = new DbContextOptionsBuilder<ControlPlaneDbContext>()
             .UseNpgsql(
-                new NpgsqlConnectionStringBuilder(connectionString).ConnectionString,
+                ControlPlaneConnectionString.Normalize(connectionString),
                 npgsql => npgsql.MigrationsHistoryTable("__EFMigrationsHistory", ControlPlaneSchema.Name))
             .Options;
 

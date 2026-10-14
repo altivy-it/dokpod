@@ -29,6 +29,13 @@ das partições `DEFAULT` de segurança. A função versionada
 `dokpod.dokpod_ensure_monthly_partitions(date)` permite ampliar esse horizonte
 sem reproduzir DDL manual.
 
+As conexões do plano de controle (API e `dotnet ef`) fixam a sessão em UTC
+(`Timezone=UTC`, `ControlPlaneConnectionString`): os limites das partições
+mensais são instantes UTC, e a migration `202609220002` converte datas com o
+fuso da sessão, o que num servidor fora de UTC criava partições sobrepostas
+(`42P17`). Em sessões manuais (`psql`), execute `SET TIME ZONE 'UTC';` antes de
+chamar funções de partição ou de retenção.
+
 Antes de o horizonte ficar abaixo de seis meses, o operador deve executar com a
 credencial de migration:
 

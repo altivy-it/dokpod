@@ -7,7 +7,6 @@ using Dokpod.ControlPlane.Application.Hosts;
 using Dokpod.ControlPlane.Application.Inventory;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using Npgsql;
 
 namespace Dokpod.ControlPlane.Infrastructure;
 
@@ -22,9 +21,9 @@ public static class ControlPlaneInfrastructureServiceCollectionExtensions
             throw new ArgumentException("Control Plane database connection string is required.", nameof(connectionString));
         }
 
-        var parsedConnectionString = new NpgsqlConnectionStringBuilder(connectionString);
+        var normalizedConnectionString = ControlPlaneConnectionString.Normalize(connectionString);
         void ConfigureNpgsql(DbContextOptionsBuilder options) => options.UseNpgsql(
-            parsedConnectionString.ConnectionString,
+            normalizedConnectionString,
             npgsql => npgsql.MigrationsHistoryTable("__EFMigrationsHistory", ControlPlaneSchema.Name));
 
         services.AddDbContext<ControlPlaneDbContext>(ConfigureNpgsql);
