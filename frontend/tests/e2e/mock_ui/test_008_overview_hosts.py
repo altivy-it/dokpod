@@ -25,6 +25,22 @@ def test_bell_lists_attention_events_and_closes_with_escape(page: Page) -> None:
     bell.click()
     dialog = page.get_by_role("dialog", name="Eventos que pedem atenção")
     expect(dialog.get_by_text("Container encerrado com erro")).to_be_visible()
+    # Regressão (2026-10-14): o painel ficava por baixo dos cards da Visão geral; o ponto central de cada
+    # item precisa pertencer ao painel, não ao conteúdo da página.
+    for item in dialog.locator(".dok-notif__item").all():
+        box = item.bounding_box()
+        assert box is not None
+        covering = page.evaluate(
+            """([x, y]) => {
+                const el = document.elementFromPoint(x, y);
+                if (el?.closest('.dok-notif')) return null;
+                const chain = [];
+                for (let n = el; n && chain.length < 8; n = n.parentElement) chain.push(n.tagName.toLowerCase() + '.' + [...n.classList].join('.'));
+                return chain.join(' < ');
+            }""",
+            [box["x"] + box["width"] / 2, box["y"] + box["height"] / 2],
+        )
+        assert covering is None, f"o painel do sino está coberto por: {covering}"
     expect(dialog.get_by_text("Agente desconectado")).to_be_visible()
     expect(dialog.get_by_text("Comando reiniciar concluído")).to_have_count(0)
     page.keyboard.press("Escape")
