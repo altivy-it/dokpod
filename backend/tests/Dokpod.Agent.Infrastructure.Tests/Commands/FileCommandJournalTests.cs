@@ -23,6 +23,27 @@ public sealed class FileCommandJournalTests : IDisposable
     }
 
     [Fact]
+    public async Task AppendIfAbsentAsync_FlushesDirectoryAfterPublishingRecord()
+    {
+        var command = CreateCommand("sha256:abc");
+        var flushedDirectories = new List<string>();
+        var journal = new FileCommandJournal(
+            dataDirectory,
+            directory =>
+            {
+                Assert.Single(Directory.EnumerateFiles(directory, "*.json"));
+                flushedDirectories.Add(directory);
+            });
+
+        var existing = await journal.AppendIfAbsentAsync(
+            command,
+            TestContext.Current.CancellationToken);
+
+        Assert.Null(existing);
+        Assert.Equal(Path.Combine(dataDirectory, "commands"), Assert.Single(flushedDirectories));
+    }
+
+    [Fact]
     public async Task AppendIfAbsentAsync_AllowsOnlyOneWriterAcrossInstances()
     {
         var command = CreateCommand("sha256:abc");
@@ -30,8 +51,8 @@ public sealed class FileCommandJournalTests : IDisposable
         var secondJournal = new FileCommandJournal(dataDirectory);
 
         var results = await Task.WhenAll(
-            firstJournal.AppendIfAbsentAsync(command, TestContext.Current.CancellationToken).AsTask(),
-            secondJournal.AppendIfAbsentAsync(command, TestContext.Current.CancellationToken).AsTask());
+            firstJournal.AppendIfAbsentAsync(command, TestContext.Current.CancellationToken),
+            secondJournal.AppendIfAbsentAsync(command, TestContext.Current.CancellationToken));
 
         Assert.Equal(1, results.Count(result => result is null));
         Assert.Equal(1, results.Count(result => result == command));
@@ -72,6 +93,31 @@ public sealed class FileCommandJournalTests : IDisposable
             TestContext.Current.CancellationToken);
 
         Assert.Equal(result, persisted);
+    }
+
+    [Fact]
+    public async Task SaveResultAsync_FlushesDirectoryAfterPublishingResult()
+    {
+        var command = CreateCommand("sha256:abc");
+        var result = new JournaledCommandResult(
+            command.EnvironmentId,
+            command.CommandId,
+            CommandExecutionState.Succeeded,
+            null,
+            "revision-02",
+            new DateTimeOffset(2026, 9, 22, 4, 0, 0, TimeSpan.Zero));
+        var flushedDirectories = new List<string>();
+        var journal = new FileCommandJournal(
+            dataDirectory,
+            directory =>
+            {
+                Assert.Single(Directory.EnumerateFiles(directory, "*.json"));
+                flushedDirectories.Add(directory);
+            });
+
+        await journal.SaveResultAsync(result, TestContext.Current.CancellationToken);
+
+        Assert.Equal(Path.Combine(dataDirectory, "results"), Assert.Single(flushedDirectories));
     }
 
     public void Dispose()

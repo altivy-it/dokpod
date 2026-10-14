@@ -1,0 +1,91 @@
+<dok-drawer
+  [open]="open()"
+  eyebrow="Imagens"
+  title="Baixar imagem"
+  subtitle="O host baixa do registro com as credenciais configuradas nele; o Dokpod não guarda senhas de registro."
+  [chips]="chips()"
+  [primaryLabel]="primaryLabel()"
+  primaryIcon="download"
+  [primaryDisabled]="!tracking() && !canSubmit()"
+  [primaryLoading]="submitting()"
+  [cancelLabel]="tracking() ? 'Fechar' : 'Cancelar'"
+  width="560px"
+  (closed)="closed.emit()"
+  (primary)="submit()"
+>
+  @if (pulls.run(); as run) {
+    <section class="pi-track" aria-live="polite" aria-label="Andamento do download">
+      <div class="pi-track__head">
+        <span class="pi-ref">{{ run.reference }}</span>
+        <span class="app-small pi-muted">
+          {{ pulls.summary().succeeded }} concluídos · {{ pulls.summary().failed }} com falha · {{ pulls.summary().indeterminate }} indeterminados · {{ pulls.summary().pending }} em andamento
+          @if (elapsed(); as e) { · total {{ e }} }
+        </span>
+      </div>
+      <ul class="pi-list">
+        @for (target of run.targets; track target.key) {
+          <li>
+            <span class="pi-name">{{ target.environmentName }}</span>
+            <span class="pi-detail">
+              <dok-status-chip size="sm" [color]="states[target.state].tone" [label]="states[target.state].label" />
+              @if (target.failure) {
+                <span class="app-small pi-error">{{ target.failure }}</span>
+              }
+              @if (target.state === 'succeeded' && (target.digest || target.sizeBytes)) {
+                <span class="app-caption pi-muted pi-mono">{{ target.digest ? target.digest.slice(0, 19) + '…' : '' }}{{ target.sizeBytes ? ' · ' + formatBytes(target.sizeBytes) : '' }}</span>
+              }
+            </span>
+          </li>
+        }
+      </ul>
+      @if (pulls.running() && pulls.summary().pending) {
+        <button dok-button variant="text" size="xs" startIcon="refresh" type="button" (click)="pulls.retryUnsubmitted()">Reenviar não enviados</button>
+      }
+    </section>
+  } @else {
+    <dok-field
+      label="Referência da imagem"
+      placeholder="registry.empresa.com/pedidos/api:3.14.2"
+      [mono]="true"
+      [required]="true"
+      [error]="referenceError()"
+      [help]="parsed() ? 'Será baixada como ' + parsed()!.canonical : 'Ex.: nginx:1.27, quay.io/org/app@sha256:…'"
+      [ngModel]="reference()"
+      (ngModelChange)="reference.set($event)"
+      (focusout)="touched.set(true)"
+    />
+    @if (parsed()?.mutableTag) {
+      <div class="pi-note pi-note--warn">
+        <dok-icon name="alert" [size]="16" />
+        <span>A tag <strong>{{ parsed()!.tag }}</strong> é mutável: hosts diferentes podem receber conteúdos diferentes se a tag mudar no registro. Para garantir a mesma imagem, use o digest.</span>
+      </div>
+    }
+    <div class="pi-hosts-head">
+      <h3>Hosts de {{ stageName() }}</h3>
+      @if (eligibleCount() > 1) {
+        <button dok-button variant="text" size="xs" type="button" (click)="selectAll()">Selecionar todos ({{ eligibleCount() }})</button>
+      }
+    </div>
+    @if (hosts().length) {
+      <ul class="pi-list pi-hosts" aria-label="Hosts de destino">
+        @for (host of hosts(); track host.env.environmentId) {
+          <li>
+            @if (host.eligible) {
+              <dok-checkbox
+                [label]="host.env.name"
+                [help]="host.env.agent?.engine ? (host.env.agent?.engine === 'podman' ? 'Podman ' : 'Docker ') + (host.env.agent?.engineVersion ?? '') : null"
+                [ngModel]="selected().has(host.env.environmentId)"
+                (ngModelChange)="toggle(host.env.environmentId, $event)"
+              />
+            } @else {
+              <span class="pi-name pi-muted">{{ host.env.name }}</span>
+              <span class="app-small pi-muted">{{ host.reason }}</span>
+            }
+          </li>
+        }
+      </ul>
+    } @else {
+      <p class="app-small pi-muted">Nenhum host autorizado neste estágio.</p>
+    }
+  }
+</dok-drawer>

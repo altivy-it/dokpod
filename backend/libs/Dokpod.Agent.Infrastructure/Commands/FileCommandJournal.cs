@@ -1,4 +1,6 @@
 using System.Text.Json;
+using System.Runtime.InteropServices;
+using Microsoft.Win32.SafeHandles;
 using Dokpod.Domain.Commands;
 
 namespace Dokpod.Agent.Infrastructure.Commands;
@@ -7,10 +9,17 @@ public sealed class FileCommandJournal : ICommandJournal
 {
     private readonly string journalDirectory;
     private readonly string resultDirectory;
+    private readonly Action<string> flushDirectory;
 
     public FileCommandJournal(string dataDirectory)
+        : this(dataDirectory, FlushDirectory)
+    {
+    }
+
+    internal FileCommandJournal(string dataDirectory, Action<string> flushDirectory)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(dataDirectory);
+        ArgumentNullException.ThrowIfNull(flushDirectory);
 
         if (!Path.IsPathFullyQualified(dataDirectory))
         {
@@ -19,9 +28,10 @@ public sealed class FileCommandJournal : ICommandJournal
 
         journalDirectory = Path.Combine(Path.GetFullPath(dataDirectory), "commands");
         resultDirectory = Path.Combine(Path.GetFullPath(dataDirectory), "results");
+        this.flushDirectory = flushDirectory;
     }
 
-    public async ValueTask<JournaledCommandResult?> FindResultAsync(
+    public async Task<JournaledCommandResult?> FindResultAsync(
         Guid environmentId,
         Guid commandId,
         CancellationToken cancellationToken)
@@ -32,7 +42,7 @@ public sealed class FileCommandJournal : ICommandJournal
             : null;
     }
 
-    public async ValueTask SaveResultAsync(
+    public async Task SaveResultAsync(
         JournaledCommandResult result,
         CancellationToken cancellationToken)
     {
@@ -45,6 +55,7 @@ public sealed class FileCommandJournal : ICommandJournal
         {
             await WriteDurablyAsync(temporaryPath, result, cancellationToken);
             File.Move(temporaryPath, resultPath, overwrite: true);
+            flushDirectory(resultDirectory);
         }
         finally
         {
@@ -52,7 +63,7 @@ public sealed class FileCommandJournal : ICommandJournal
         }
     }
 
-    public async ValueTask<JournaledCommand?> AppendIfAbsentAsync(
+    public async Task<JournaledCommand?> AppendIfAbsentAsync(
         JournaledCommand command,
         CancellationToken cancellationToken)
     {
@@ -60,6 +71,14 @@ public sealed class FileCommandJournal : ICommandJournal
         Directory.CreateDirectory(journalDirectory);
 
         var recordPath = GetRecordPath(command.EnvironmentId, command.CommandId);
+        if (File.Exists(recordPath))
+        {
+            return await ReadAsync<JournaledCommand>(recordPath, cancellationToken);
+        }
+
+        // `File.Move` sem sobrescrita não é atômico em todo sistema de arquivos (o .NET recai em verificar e
+        // renomear quando `link()` falha): sem a trava, dois escritores publicavam o mesmo comando.
+        await using var appendLock = await AcquireAppendLockAsync(cancellationToken);
         if (File.Exists(recordPath))
         {
             return await ReadAsync<JournaledCommand>(recordPath, cancellationToken);
@@ -74,16 +93,35 @@ public sealed class FileCommandJournal : ICommandJournal
             try
             {
                 File.Move(temporaryPath, recordPath);
+                flushDirectory(journalDirectory);
                 return null;
             }
             catch (IOException) when (File.Exists(recordPath))
             {
+                flushDirectory(journalDirectory);
                 return await ReadAsync<JournaledCommand>(recordPath, cancellationToken);
             }
         }
         finally
         {
             File.Delete(temporaryPath);
+        }
+    }
+
+    /// <summary>Trava exclusiva entre instâncias e processos (`flock` no Linux, compartilhamento no Windows).</summary>
+    private async Task<FileStream> AcquireAppendLockAsync(CancellationToken cancellationToken)
+    {
+        var lockPath = Path.Combine(journalDirectory, ".append.lock");
+        while (true)
+        {
+            try
+            {
+                return new FileStream(lockPath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
+            }
+            catch (IOException)
+            {
+                await Task.Delay(TimeSpan.FromMilliseconds(5), cancellationToken);
+            }
         }
     }
 
@@ -113,6 +151,27 @@ public sealed class FileCommandJournal : ICommandJournal
         stream.Flush(flushToDisk: true);
     }
 
+    private static void FlushDirectory(string path)
+    {
+        if (!OperatingSystem.IsLinux())
+        {
+            return;
+        }
+
+        var fileDescriptor = LinuxNative.Open(
+            path,
+            LinuxNative.OpenReadOnly | LinuxNative.OpenDirectory | LinuxNative.OpenCloseOnExec);
+        if (fileDescriptor < 0)
+        {
+            throw new IOException(
+                $"Could not open the journal directory for durable synchronization: {path}.",
+                new System.ComponentModel.Win32Exception(Marshal.GetLastPInvokeError()));
+        }
+
+        using var handle = new SafeFileHandle((IntPtr)fileDescriptor, ownsHandle: true);
+        RandomAccess.FlushToDisk(handle);
+    }
+
     private static async Task<T> ReadAsync<T>(
         string path,
         CancellationToken cancellationToken)
@@ -137,4 +196,14 @@ public sealed class FileCommandJournal : ICommandJournal
             throw new InvalidDataException("The command journal record is invalid.", exception);
         }
     }
+}
+
+internal static partial class LinuxNative
+{
+    internal const int OpenReadOnly = 0;
+    internal const int OpenDirectory = 0x10000;
+    internal const int OpenCloseOnExec = 0x80000;
+
+    [LibraryImport("libc", EntryPoint = "open", SetLastError = true, StringMarshalling = StringMarshalling.Utf8)]
+    internal static partial int Open(string path, int flags);
 }

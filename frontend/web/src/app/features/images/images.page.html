@@ -1,0 +1,82 @@
+<div class="dok-stack">
+  <div class="dok-page-head">
+    <div class="dok-page-head__text">
+      <span class="eyebrow">Operação · {{ stageName() }}</span>
+      <h1 class="app-title">Imagens nos hosts</h1>
+      <p class="app-small">Imagens locais de cada engine. "Sem uso" significa nenhum container do host criado a partir dela.</p>
+    </div>
+    <div class="dok-actions">
+      <button dok-button variant="outline" size="sm" startIcon="refresh" type="button" [loading]="facade.loading()" (click)="facade.reload()">Atualizar</button>
+      <button
+        dok-button
+        variant="primary"
+        size="sm"
+        startIcon="download"
+        type="button"
+        [disabled]="!canPullAnywhere()"
+        [attr.title]="canPullAnywhere() ? null : 'Nenhum host deste estágio permite download de imagens'"
+        (click)="openPull()"
+      >
+        Baixar imagem
+      </button>
+    </div>
+  </div>
+
+  <div class="im-filters">
+    @for (chip of filterChips(); track chip.key) {
+      <dok-status-chip variant="filter" [field]="chip.field" [label]="chip.label" [removable]="true" (removed)="removeFilter(chip.key)" />
+    }
+    @if (facade.summary(); as summary) {
+      <span class="app-small im-muted">Resumo:</span>
+      <dok-status-chip variant="outlined" color="info" size="sm" [label]="summary.total + (summary.total === 1 ? ' imagem' : ' imagens')" />
+      <button type="button" class="im-chip-btn" [attr.aria-pressed]="facade.filters().unused" title="Filtrar imagens sem uso" (click)="toggleUnused()">
+        <dok-status-chip variant="outlined" color="warning" size="sm" [label]="summary.unused + ' sem uso'" /><span class="sr-only">, filtrar a lista</span>
+      </button>
+      <dok-status-chip variant="outlined" color="secondary" size="sm" [label]="formatBytes(summary.totalSizeBytes, 1) + ' no total'" />
+      @if (summary.partial) {
+        <span class="app-small im-partial"><dok-icon name="info" [size]="14" />Contagem parcial: há host sem inventário de imagens ou com agente anterior.</span>
+      }
+    }
+  </div>
+
+  @if (facade.error(); as e) {
+    <dok-empty-state [kind]="e.status === 403 ? 'forbidden' : 'error'" [code]="e.status ? 'Erro ' + e.status : null" [title]="e.title" [detail]="e.detail">
+      <button dok-button variant="outline" size="sm" startIcon="refresh" type="button" (click)="facade.reload()">Tentar novamente</button>
+    </dok-empty-state>
+  } @else {
+    <dok-data-grid
+      title="Imagens"
+      [entityLabel]="['imagem', 'imagens']"
+      [rows]="rows()"
+      [columns]="columns"
+      [statusTones]="tones"
+      [rowActionsFor]="rowActionsFor"
+      [rowLabel]="rowLabel"
+      [selectable]="false"
+      [(search)]="search"
+      [(sort)]="gridSort"
+      [clientSide]="false"
+      [filters]="gridFilters()"
+      (filtersChange)="onGridFilters($event)"
+      [facetOptions]="facets()"
+      [showFilterChips]="false"
+      storageKey="images"
+      [loading]="facade.loading()"
+      [hasMore]="!!facade.nextCursor()"
+      [loadingMore]="facade.loadingMore()"
+      [totalCount]="facade.summary()?.total ?? null"
+      [updatedAt]="updatedAt()"
+      searchPlaceholder="Repositório, tag ou ID"
+      [exportName]="exportName()"
+      height="600px"
+      emptyTitle="Nenhuma imagem encontrada com os filtros aplicados."
+      (rowAction)="onRowAction($event)"
+      (loadMore)="facade.loadMore()"
+    >
+    </dok-data-grid>
+  }
+</div>
+
+@if (drawer(); as d) {
+  <app-pull-image-drawer [open]="true" [initialReference]="d.reference" [preselected]="d.hosts" (closed)="drawer.set(null)" />
+}

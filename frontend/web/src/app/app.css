@@ -1,0 +1,47 @@
+.dok-entry {
+  display: grid;
+  place-items: center;
+  min-height: 100vh;
+  padding: 16px;
+}
+
+.dok-entry__card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: min(480px, 100%);
+  padding: 32px;
+  border-radius: var(--radius-card);
+}
+
+.dok-entry__brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--text-strong);
+}
+
+.dok-entry__card .eyebrow {
+  color: var(--teal-light);
+}
+
+.dok-entry__card h1 {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  color: var(--text-strong);
+}
+
+.dok-entry__card p {
+  margin: 0 0 6px;
+  color: var(--muted);
+}
+
+.dok-entry__card .alt-btn {
+  align-self: flex-start;
+}

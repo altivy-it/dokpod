@@ -1,11 +1,13 @@
 ---
 name: "Criar ADR"
-description: "Analisa uma decisão arquitetural do Dokpod e cria um ADR proposed quando os critérios justificarem registro permanente."
-argument-hint: "Decisão, contexto, opções e restrições"
+description: "Apoia uma decisão justificada por /speckit-plan com ADR auxiliar proposed, mediante autorização explícita."
+argument-hint: "Referência a /speckit-plan, decisão, autorização e revisor humano"
 agent: "Dokpod Solution Architect"
 ---
 
 Avalie a decisão solicitada conforme o plano mestre, arquitetura, segurança e ADRs existentes.
+
+Exija referência ao artefato e à decisão de `/speckit-plan` que justificam o ADR, além da autorização humana explícita. Sem isso, retorne ao planejamento oficial; este prompt não cria requisitos, tarefas ou planos paralelos. Vincule o ADR ao artefato de origem.
 
 1. Confirme que a decisão é arquitetural e duradoura; caso contrário, recomende o artefato adequado.
 2. Compare no máximo três opções plausíveis com segurança, operação, compatibilidade, custo e reversibilidade.

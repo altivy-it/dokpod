@@ -1,0 +1,31 @@
+:host { display: contents; }
+.nc-form { display: flex; flex-direction: column; gap: 18px; }
+.nc-grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.nc-grid3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.nc-fieldset { border: 0; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.nc-fieldset legend { padding: 0; margin-bottom: 8px; }
+.nc-port { display: grid; grid-template-columns: minmax(0, 1fr) 16px minmax(0, 1fr) 90px 36px; gap: 8px; align-items: center; }
+.nc-env { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr) 36px; gap: 8px; align-items: center; }
+.nc-arrow { color: var(--muted); text-align: center; }
+.nc-sensitive { margin-top: -2px; }
+.nc-add { align-self: flex-start; }
+.nc-actions-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.nc-checks { display: flex; flex-direction: column; gap: 6px; }
+.nc-advanced { display: inline-flex; align-items: center; gap: 4px; padding: 2px 0; border: 0; background: none; color: var(--teal-light); font: inherit; font-size: 13px; cursor: pointer; align-self: flex-start; }
+.nc-advanced:focus-visible { outline: 2px solid var(--teal-light); outline-offset: 2px; border-radius: 4px; }
+.nc-advanced__panel { display: flex; flex-direction: column; gap: 10px; padding: 10px 0 4px 18px; }
+.nc-note { display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; border-radius: 16px; font-size: 13px; color: var(--foreground); }
+.nc-note--info { background: var(--info-tint); }
+.nc-note--warn { background: var(--warning-tint); }
+.nc-note dok-icon { display: flex; flex: none; margin-top: 1px; }
+.nc-command { word-break: break-all; }
+.nc-error { color: var(--error-text, var(--foreground)); margin: 0; }
+.nc-muted { color: var(--muted); }
+.nc-track { display: flex; flex-direction: column; gap: 10px; padding: 12px 14px; border: 1px solid var(--hairline); border-radius: var(--radius-md); }
+.nc-track__row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.nc-track__name { color: var(--text-strong); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nc-link { display: inline-flex; align-items: center; gap: 6px; color: var(--teal-light); font-size: 13px; }
+@media (max-width: 560px) {
+  .nc-grid2, .nc-grid3 { grid-template-columns: minmax(0, 1fr); }
+  .nc-port { grid-template-columns: minmax(0, 1fr) 12px minmax(0, 1fr) 76px 32px; gap: 6px; }
+}

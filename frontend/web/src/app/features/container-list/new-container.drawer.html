@@ -1,0 +1,140 @@
+<dok-drawer
+  [open]="open()"
+  [eyebrow]="eyebrow()"
+  title="Criar e iniciar container"
+  subtitle="A imagem é baixada do registro se não existir no host"
+  [chips]="chips()"
+  [primaryLabel]="primaryLabel()"
+  primaryIcon="check"
+  [primaryDisabled]="!tracking() && !canSubmit()"
+  [primaryLoading]="tracking()?.state === 'submitting'"
+  [cancelLabel]="tracking() && tracking()!.state !== 'idle' ? 'Fechar' : 'Cancelar'"
+  width="520px"
+  (closed)="close()"
+  (primary)="submit()"
+>
+  @if (tracking(); as t) {
+    @if (t.state !== 'idle') {
+      <section class="nc-track" aria-live="polite" aria-label="Andamento da criação">
+        <div class="nc-track__row">
+          <span class="nc-track__name">{{ form.controls.name.value }}</span>
+          <dok-status-chip size="sm" [color]="states[t.state].tone" [label]="states[t.state].label" />
+        </div>
+        @if (t.failureCode) {
+          <p class="app-small nc-error" role="alert">{{ failureLabel(t.failureCode) }}</p>
+        }
+        @if (t.containerId) {
+          <a class="nc-link" [routerLink]="['/containers', t.environmentId, t.containerId]" [queryParams]="{ aba: 'resumo' }" (click)="close()">
+            <dok-icon name="arrow-right" [size]="14" />Abrir detalhe do container
+          </a>
+        }
+      </section>
+    } @else {
+      <div class="nc-note nc-note--warn" role="alert">
+        <dok-icon name="alert" [size]="16" />
+        <span>A conexão falhou antes da confirmação. Envie de novo: o pedido usa a mesma chave e não cria um segundo container.</span>
+      </div>
+    }
+  }
+
+  @if (!tracking() || tracking()!.state === 'idle') {
+    <form class="nc-form" [formGroup]="form" (submit)="$event.preventDefault()">
+      <dok-field formControlName="image" label="Imagem" [mono]="true" [required]="true" [error]="errors()['image']" [help]="imageHelp()" />
+      <dok-field formControlName="name" label="Nome do container" [required]="true" [error]="errors()['name']" />
+      <div class="nc-grid2">
+        <dok-select formControlName="engine" label="Engine" [options]="engineOptions()" />
+        <dok-select formControlName="host" label="Host" [options]="hostOptions()" placeholder="Selecione o host" />
+      </div>
+      @if (blockingReason(); as reason) {
+        <p class="app-small nc-error" role="status">{{ reason }}</p>
+      }
+
+      <fieldset class="nc-fieldset" formArrayName="ports">
+        <legend class="alt-field__label">Portas · host → container</legend>
+        @for (port of ports.controls; track port; let i = $index) {
+          <div class="nc-port" [formGroupName]="i">
+            <dok-field formControlName="hostPort" ariaLabel="Porta do host" size="sm" type="number" />
+            <span class="nc-arrow" aria-hidden="true">→</span>
+            <dok-field formControlName="containerPort" ariaLabel="Porta do container" size="sm" type="number" />
+            <dok-select formControlName="protocol" ariaLabel="Protocolo" [options]="protoOptions" size="sm" />
+            <button dok-button variant="ghost" size="xs" icon="x" type="button" [attr.aria-label]="'Remover porta ' + (i + 1)" (click)="ports.removeAt(i)"></button>
+          </div>
+          @if (errors()['ports.' + i]; as e) {
+            <span class="app-small nc-error" role="alert">{{ e }}</span>
+          }
+        }
+        <button dok-button variant="text" size="xs" startIcon="plus" type="button" class="nc-add" (click)="addPort()">Adicionar porta</button>
+      </fieldset>
+
+      <fieldset class="nc-fieldset" formArrayName="environment">
+        <legend class="alt-field__label">Variáveis de ambiente</legend>
+        @for (variable of environment.controls; track variable; let i = $index) {
+          <div class="nc-env" [formGroupName]="i">
+            <dok-field formControlName="name" ariaLabel="Nome da variável" [mono]="true" size="sm" />
+            @if (variable.controls.secretRef.value) {
+              <dok-select formControlName="secretRef" ariaLabel="Segredo do cofre do host" [options]="secretOptions()" size="sm" />
+            } @else {
+              <dok-field formControlName="value" ariaLabel="Valor da variável" [mono]="true" [secret]="variable.controls.sensitive.value" size="sm" />
+            }
+            <button dok-button variant="ghost" size="xs" icon="x" type="button" [attr.aria-label]="'Remover variável ' + (variable.controls.name.value || i + 1)" (click)="environment.removeAt(i)"></button>
+          </div>
+          @if (!variable.controls.secretRef.value) {
+            <dok-checkbox formControlName="sensitive" label="Valor sensível (oculto)" class="nc-sensitive" />
+          }
+          @if (errors()['env.' + i]; as e) {
+            <span class="app-small nc-error" role="alert">{{ e }}</span>
+          }
+        }
+        <div class="nc-actions-row">
+          <button dok-button variant="text" size="xs" startIcon="plus" type="button" (click)="addVariable()">Adicionar variável</button>
+          <button dok-button variant="text" size="xs" startIcon="key" type="button" [disabled]="!secretOptions().length" [attr.title]="secretOptions().length ? null : 'Nenhum segredo cadastrado neste host'" (click)="addVariable(true)">Usar segredo do cofre</button>
+        </div>
+        <span class="app-caption nc-muted">Valores nunca são exibidos de volta; ficam cifrados até a criação terminar e depois são apagados.</span>
+      </fieldset>
+
+      <dok-field formControlName="volume" label="Volume" [mono]="true" size="sm" placeholder="vol-pedidos-uploads:/srv/app/uploads:rw" [error]="errors()['volume']" help="origem:destino[:ro|rw]; volumes nomeados são criados se não existirem." />
+
+      <div class="nc-grid3">
+        <dok-field formControlName="cpu" label="Limite de CPU" suffix="vCPU" size="sm" type="number" [error]="errors()['cpu']" />
+        <dok-field formControlName="memory" label="Limite de memória" suffix="MiB" size="sm" type="number" [error]="errors()['memory']" />
+        <dok-select formControlName="restart" label="Reinício" [options]="restartOptions" size="sm" />
+      </div>
+
+      <div class="nc-checks">
+        <dok-checkbox formControlName="health" label="Ativar health check em GET /healthz" [help]="healthHelp()" />
+        @if (form.controls.health.value) {
+          <button type="button" class="nc-advanced" [attr.aria-expanded]="advanced()" aria-controls="nc-advanced" (click)="advanced.set(!advanced())">
+            <dok-icon [name]="advanced() ? 'chevron-down' : 'chevron-right'" [size]="14" />Opções avançadas
+          </button>
+          @if (advanced()) {
+            <div id="nc-advanced" class="nc-advanced__panel">
+              <dok-field formControlName="healthTest" label="Comando" [mono]="true" size="sm" placeholder="curl -fsS http://localhost:80/healthz" />
+              <div class="nc-grid3">
+                <dok-field formControlName="healthInterval" label="Intervalo" suffix="s" size="sm" type="number" />
+                <dok-field formControlName="healthRetries" label="Tentativas" size="sm" type="number" />
+                <dok-field formControlName="healthTimeout" label="Tempo limite" suffix="s" size="sm" type="number" />
+              </div>
+            </div>
+          }
+        }
+        <dok-checkbox formControlName="autoRemove" label="Remover automaticamente ao parar" />
+        @if (form.controls.autoRemove.value) {
+          <div class="nc-note nc-note--warn">
+            <dok-icon name="alert" [size]="16" />
+            <span>Ao parar, o container é removido e seus logs e estado se perdem. Se a imagem declarar VOLUME, monte um volume nomeado no mesmo destino.</span>
+          </div>
+        }
+        @if (errors()['autoRemove']; as e) {
+          <span class="app-small nc-error" role="alert">{{ e }}</span>
+        }
+      </div>
+
+      @if (equivalent(); as command) {
+        <div class="nc-note nc-note--info">
+          <dok-icon name="info" [size]="16" />
+          <span class="app-small">Equivalente a <span class="ct-mono nc-command">{{ command }}</span>. O comando completo fica no registro de auditoria.</span>
+        </div>
+      }
+    </form>
+  }
+</dok-drawer>

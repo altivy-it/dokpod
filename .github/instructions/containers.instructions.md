@@ -12,7 +12,7 @@ applyTo: "deploy/**, **/Dockerfile*, **/compose*.yml, **/compose*.yaml, **/.dock
 - Execute como usuário não root quando compatível com o acesso ao socket.
 - Monte somente o socket necessário no agente e documente que ele concede privilégio elevado.
 - Nunca monte sockets no frontend, API pública ou workloads auxiliares.
-- Não exponha Docker TCP ou Podman API sem mTLS; o desenho padrão não os expõe.
+- Nunca exponha sockets Docker/Podman pela rede, mesmo com mTLS; use somente socket Unix ou named pipe local e nunca adicione proxy genérico da API do engine.
 - Não inclua secrets, certificados privados ou arquivos de desenvolvimento em camadas.
 - Configure filesystem read-only e capabilities removidas quando possível.
 - Defina health check real, shutdown gracioso e limites de recursos.

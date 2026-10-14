@@ -1,0 +1,72 @@
+name: Tarefa ou remediação Spec Kit
+description: Vincule trabalho aos artefatos oficiais; a Issue não autoriza execução
+title: "[Spec Kit]: "
+labels: ["type:task", "status:triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Issues são intake e rastreabilidade, nunca um processo paralelo.
+        A execução exige tarefa ou remediação Spec Kit e autorização humana
+        explícita referenciada. Criar a Issue ou marcar checkboxes não concede
+        autorização. Commit, push, merge, publicação e deploy exigem pedido separado.
+  - type: dropdown
+    id: workflow
+    attributes:
+      label: Processo oficial
+      options: [Tarefa de feature ou manutenção, Remediação de defeito]
+    validations:
+      required: true
+  - type: textarea
+    id: artifact
+    attributes:
+      label: Artefatos e identificadores Spec Kit
+      description: Informe spec.md, plan.md e tasks.md com ID da tarefa, ou assessment e ID da remediação oficial Bug Fixing. Sem artefatos, mantenha em triagem.
+      placeholder: "specs/<feature>/tasks.md / T001 ou assessment Bug Fixing / remediação"
+    validations:
+      required: true
+  - type: textarea
+    id: authorization
+    attributes:
+      label: Autorização humana explícita
+      description: Referencie decisão, responsável, data e limites de edição/validação autorizados. Se pendente, declare bloqueio; não execute.
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Resultado e critérios existentes no artefato
+      description: Referencie os critérios canônicos sem criar requisitos concorrentes.
+    validations:
+      required: true
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Dependências e decisões humanas
+      description: Informe bloqueios de análise, dependências de tarefas e ADRs aplicáveis.
+    validations:
+      required: true
+  - type: textarea
+    id: boundaries
+    attributes:
+      label: Limites e não escopo
+    validations:
+      required: true
+  - type: textarea
+    id: validation
+    attributes:
+      label: Validações e evidências esperadas
+      description: Inclua engines/plataformas, contratos N/N-1 e segurança conforme o risco, sem secrets.
+    validations:
+      required: true
+  - type: checkboxes
+    id: governance
+    attributes:
+      label: Rastreabilidade e limites
+      options:
+        - label: Entendo que a Issue e seus checkboxes não autorizam execução.
+          required: true
+        - label: Novos requisitos retornam ao Spec Kit e defeitos ao Bug Fixing oficial.
+          required: true
+        - label: Commit, push, merge, publicação e deploy exigem autorização separada.
+          required: true

@@ -1,0 +1,142 @@
+schema_version: "1.0"
+
+extension:
+  id: git
+  name: "Git Branching Workflow"
+  version: "1.0.1"
+  description: "Criação e numeração de branches de feature (sequencial ou por timestamp), uso de templates, validação e detecção de repositório remoto Git"
+  author: spec-kit-core
+  repository: https://github.com/github/spec-kit
+  license: MIT
+
+requires:
+  speckit_version: ">=0.2.0"
+  tools:
+    - name: git
+      required: false
+
+provides:
+  commands:
+    - name: speckit.git.feature
+      file: commands/speckit.git.feature.md
+      description: "Cria uma branch de feature com numeração sequencial ou por timestamp e templates opcionais"
+    - name: speckit.git.validate
+      file: commands/speckit.git.validate.md
+      description: "Valida se a branch atual segue as convenções de nomenclatura de branches de feature"
+    - name: speckit.git.remote
+      file: commands/speckit.git.remote.md
+      description: "Detecta a URL remota Git para integração com o GitHub"
+    - name: speckit.git.initialize
+      file: commands/speckit.git.initialize.md
+      description: "Inicializa um repositório Git com um commit inicial"
+    - name: speckit.git.commit
+      file: commands/speckit.git.commit.md
+      description: "Faz commit automático das alterações após a conclusão de um comando do Spec Kit"
+
+  config:
+    - name: "git-config.yml"
+      template: "config-template.yml"
+      description: "Configuração de branches Git"
+      required: false
+
+hooks:
+  before_constitution:
+    command: speckit.git.initialize
+    optional: false
+    description: "Inicializa o repositório Git antes de configurar a constituição"
+  before_specify:
+    command: speckit.git.feature
+    optional: false
+    description: "Cria uma branch de feature antes da especificação"
+  before_clarify:
+    command: speckit.git.commit
+    optional: true
+    prompt: "Fazer commit das alterações pendentes antes do esclarecimento?"
+    description: "Faz commit automático antes de esclarecer a spec"
+  before_plan:
+    command: speckit.git.commit
+    optional: true
+    prompt: "Fazer commit das alterações pendentes antes do planejamento?"
+    description: "Faz commit automático antes do planejamento da implementação"
+  before_tasks:
+    command: speckit.git.commit
+    optional: true
+    prompt: "Fazer commit das alterações pendentes antes de gerar as tarefas?"
+    description: "Faz commit automático antes de gerar as tarefas"
+  before_implement:
+    command: speckit.git.commit
+    optional: true
+    prompt: "Fazer commit das alterações pendentes antes da implementação?"
+    description: "Faz commit automático antes da implementação"
+  before_checklist:
+    command: speckit.git.commit
+    optional: true
+    prompt: "Fazer commit das alterações pendentes antes da checklist?"
+    description: "Faz commit automático antes de gerar a checklist"
+  before_analyze:
+    command: speckit.git.commit
+    optional: true
+    prompt: "Fazer commit das alterações pendentes antes da análise?"
+    description: "Faz commit automático antes da análise"
+  before_taskstoissues:
+    command: speckit.git.commit
+    optional: true
+    prompt: "Fazer commit das alterações pendentes antes de sincronizar issues?"
+    description: "Faz commit automático antes de converter tarefas em issues"
+  after_constitution:
+    command: speckit.git.commit
+    optional: true
+    prompt: "Fazer commit das alterações na constituição?"
+    description: "Faz commit automático após atualizar a constituição"
+  after_specify:
+    command: speckit.git.commit
+    optional: true
+    prompt: "Fazer commit das alterações na especificação?"
+    description: "Faz commit automático após a especificação"
+  after_clarify:
+    command: speckit.git.commit
+    optional: true
+    prompt: "Fazer commit das alterações do esclarecimento?"
+    description: "Faz commit automático após esclarecer a spec"
+  after_plan:
+    command: speckit.git.commit
+    optional: true
+    prompt: "Fazer commit das alterações no plano?"
+    description: "Faz commit automático após o planejamento da implementação"
+  after_tasks:
+    command: speckit.git.commit
+    optional: true
+    prompt: "Fazer commit das alterações nas tarefas?"
+    description: "Faz commit automático após gerar as tarefas"
+  after_implement:
+    command: speckit.git.commit
+    optional: true
+    prompt: "Fazer commit das alterações da implementação?"
+    description: "Faz commit automático após a implementação"
+  after_checklist:
+    command: speckit.git.commit
+    optional: true
+    prompt: "Fazer commit das alterações na checklist?"
+    description: "Faz commit automático após gerar a checklist"
+  after_analyze:
+    command: speckit.git.commit
+    optional: true
+    prompt: "Fazer commit dos resultados da análise?"
+    description: "Faz commit automático após a análise"
+  after_taskstoissues:
+    command: speckit.git.commit
+    optional: true
+    prompt: "Fazer commit após sincronizar as issues?"
+    description: "Faz commit automático após converter tarefas em issues"
+
+tags:
+  - "git"
+  - "branching"
+  - "workflow"
+
+config:
+  defaults:
+    branch_numbering: sequential
+    branch_template: ""
+    branch_prefix: ""
+    init_commit_message: "[Spec Kit] Commit inicial"

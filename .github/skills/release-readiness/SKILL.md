@@ -1,26 +1,32 @@
 ---
 name: release-readiness
-description: "Avalia prontidão de release do Dokpod. Use antes de versionar, publicar imagens ou promover ambiente para validar qualidade, segurança, contratos N/N-1, agentes Linux/Windows, engines, migrations e operação."
+description: "Avalia gates de release rastreáveis ao Spec Kit do Dokpod, preservando qualidade, segurança, N/N-1, agentes Linux/Windows, engines e operação."
 argument-hint: "Versão candidata, base anterior, plataformas e ambiente-alvo"
 ---
 
 # Release Readiness
 
-Esta skill reúne evidências. Não publica, envia imagens ou faz deploy sem solicitação explícita.
+Esta skill reúne evidências como gate auxiliar do Spec Kit; não define requisitos,
+planos, tarefas ou correções concorrentes. Validações só podem ser executadas
+quando previstas em tarefa/remediação Spec Kit e explicitamente autorizadas;
+caso contrário, inspecione evidências existentes e marque `NOT RUN`. Quando usada
+por reviewer read-only, não execute comandos. Não publica, envia imagens ou faz
+deploy; essas ações exigem solicitação explícita separada.
 
 ## 1. Definir release
 
+- tarefas/remediações Spec Kit, autorização humana e evidências vinculadas à versão candidata;
 - versão SemVer e base comparada;
 - features, correções, breaking changes e deprecações;
 - versões de servidor/agente N/N-1 e plataformas suportadas;
-- engines/capabilities declaradas e riscos aceitos formalmente.
+- engines/capabilities declaradas na matriz Docker/Podman x Linux/Windows, com versões, suporte, execução e lacunas, e riscos aceitos formalmente.
 
 ## 2. Validar produto
 
 - restore/install reproduzível, format, lint e análise estática;
 - builds de produção Angular e .NET;
 - testes unitários, integração real, contrato, arquitetura e Playwright;
-- reconexão, replay, fencing, idempotência e operações destrutivas;
+- journal-before-ack, reinício, reconexão, replay durável, fencing, idempotência e operações destrutivas;
 - nenhum teste ignorado novo ou flakiness não explicado.
 
 ## 3. Validar segurança e dados
@@ -50,4 +56,7 @@ Esta skill reúne evidências. Não publica, envia imagens ou faz deploy sem sol
 
 Classifique cada gate como `PASS`, `FAIL`, `WAIVED` ou `NOT RUN`. `GO` exige ausência de `FAIL`, ausência de `NOT RUN` obrigatório e waivers com responsável e prazo; caso contrário, recomende `NO-GO`.
 
-Informe matriz de gates, evidências/comandos, bloqueios, waivers e risco residual.
+Informe matriz de gates, referências às tarefas/remediações e à autorização,
+evidências/comandos, bloqueios, waivers e risco residual. `GO` é parecer técnico,
+não aprovação humana ou autorização de publicação. Pendências voltam ao Spec Kit
+ou Bug Fixing oficial; nunca crie escopo nem corrija durante o gate.

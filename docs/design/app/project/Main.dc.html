@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Visão geral dos containers</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="altivy-app.css">
+<link rel="stylesheet" href="ds/altivy/components/bundle.css">
+<script src="ds/altivy/components/bundle.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#5eead4}a:hover{color:#e2e8f0}
+.ct-stretch{display:flex;flex-direction:column}
+.ct-stretch>*{flex:1 1 auto;display:flex;flex-direction:column;min-height:0}
+.ct-stretch .alt-graphics__card,.ct-stretch .alt-card-base{flex:1 1 auto;height:100%;box-sizing:border-box}
+.ct-center .alt-graphics__body{flex:1 1 auto;display:flex;align-items:center;justify-content:center}
+.ct-kpis{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:12px}
+.ct-kpis>*{min-width:0}
+.ct-kpis .alt-info-kpi{width:100%;box-sizing:border-box}
+@media (max-width:1100px){.ct-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media (max-width:560px){.ct-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
+</style>
+</helmet>
+<x-import component-from-global-scope="Altivy.Page" class-name="alt-app" style="min-height: 1000px; padding: 16px; box-sizing: border-box">
+<x-import component-from-global-scope="Altivy.AppShell" height="{{shellH}}" menu="{{menu}}" default-active="overview" title="Visão geral" breadcrumbs="{{crumbs}}" user="{{user}}" shortcuts="{{envs}}" header-props="{{headerProps}}">
+<div style="display: flex; flex-direction: column; gap: 16px; padding: 8px">
+
+<div style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px">
+<div style="display: flex; flex-direction: column; gap: 4px; min-width: 0">
+<span class="eyebrow" style="color: #5eead4">Cluster de produção</span>
+<h1 class="app-title" style="margin: 0; color: #ffffff">6 hosts, 154 containers sob gestão</h1>
+<p class="app-small" style="margin: 0; color: #a0aec0">Docker 27.3 em 3 hosts e Podman 5.2 em 3 hosts · atualizado em 10/10/2026 15:12</p>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 8px">
+<x-import component-from-global-scope="Altivy.Button" variant="outline" size="sm" start-icon="refresh">Atualizar</x-import>
+<x-import component-from-global-scope="Altivy.Button" variant="outline" size="sm" start-icon="download">Baixar imagem</x-import>
+<x-import component-from-global-scope="Altivy.Button" variant="primary" size="sm" start-icon="plus" href="NovoContainer.dc.html">Novo container</x-import>
+</div>
+</div>
+
+<div class="ct-kpis">
+<x-import component-from-global-scope="Altivy.InfoKPI" color="success" value="{{k.running}}" decimals="{{zero}}" description="Em execução" icon="play"></x-import>
+<x-import component-from-global-scope="Altivy.InfoKPI" color="secondary" value="{{k.stopped}}" decimals="{{zero}}" description="Parados" icon="pause"></x-import>
+<x-import component-from-global-scope="Altivy.InfoKPI" color="error" value="{{k.failed}}" decimals="{{zero}}" description="Com falha ou reiniciando" icon="alert"></x-import>
+<x-import component-from-global-scope="Altivy.InfoKPI" color="primary" value="{{k.cpu}}" decimals="{{one}}" unit="%" description="CPU média do cluster" icon="gauge"></x-import>
+<x-import component-from-global-scope="Altivy.InfoKPI" color="info" value="{{k.mem}}" decimals="{{one}}" unit="%" description="Memória alocada" icon="activity"></x-import>
+<x-import component-from-global-scope="Altivy.InfoKPI" color="warning" value="{{k.images}}" decimals="{{zero}}" description="Imagens sem uso" icon="package"></x-import>
+</div>
+
+<div style="display: flex; flex-wrap: wrap; gap: 16px; align-items: stretch">
+<div class="ct-stretch" style="flex: 999 1 560px; min-width: 0">
+<x-import component-from-global-scope="Altivy.Graphics" type="line" title="Uso de recursos do cluster" subtitle="% da capacidade · últimas 12 horas" x="{{hours}}" series="{{series}}" reference="{{ref}}" format="{{pct}}" tip-format="{{pct}}" y-min="{{zero}}" y-max="{{hundred}}" height="{{chartH}}" note="Limite operacional de 80% definido para escalonamento automático."></x-import>
+</div>
+<div class="ct-stretch ct-center" style="flex: 1 1 340px; min-width: 0">
+<x-import component-from-global-scope="Altivy.Graphics" type="donut" title="Containers por engine" subtitle="Ativos e parados · agora" items="{{engines}}" center="154" center-label="containers" size="{{donutSize}}"></x-import>
+</div>
+</div>
+
+<div style="display: flex; flex-wrap: wrap; gap: 16px; align-items: stretch">
+<div class="ct-stretch" style="flex: 999 1 560px; min-width: 0">
+<x-import component-from-global-scope="Altivy.CardBase" title="Hosts e engines" actions="{{hostAction}}">
+<div style="overflow-x: auto">
+<div style="min-width: 640px">
+<div class="ct-row app-label" style="grid-template-columns: 1.4fr 1.2fr 1fr 0.8fr 1.4fr; color: #a0aec0; padding-top: 4px; padding-bottom: 8px">
+<span>Host</span><span>Engine</span><span>Situação</span><span style="text-align: right">Containers</span><span>CPU</span>
+</div>
+<sc-for list="{{hosts}}" as="h" hint-placeholder-count="6">
+<div class="ct-row app-small" style="grid-template-columns: 1.4fr 1.2fr 1fr 0.8fr 1.4fr">
+<span style="color: #ffffff; font-weight: 500">{{h.name}}</span>
+<span style="display: flex; align-items: center; gap: 8px"><span class="{{h.engineClass}}"><i></i>{{h.engine}}</span><span class="alt-num" style="color: #a0aec0">{{h.version}}</span></span>
+<span><x-import component-from-global-scope="Altivy.StatusCircle" color="{{h.tone}}" text="{{h.status}}" size="small"></x-import></span>
+<span class="alt-num" style="text-align: right; color: #e2e8f0">{{h.count}}</span>
+<span style="display: flex; align-items: center; gap: 10px"><span class="{{h.barClass}}" style="flex: 1"><span style="{{h.barStyle}}"></span></span><span class="alt-num" style="width: 44px; text-align: right; color: #e2e8f0">{{h.cpuLabel}}</span></span>
+</div>
+</sc-for>
+</div>
+</div>
+</x-import>
+</div>
+<div class="ct-stretch" style="flex: 1 1 340px; min-width: 0">
+<x-import component-from-global-scope="Altivy.CardBase" title="Eventos recentes" color="warning" status-label="3 eventos pedem atenção">
+<div style="display: flex; flex-direction: column">
+<sc-for list="{{events}}" as="e" hint-placeholder-count="6">
+<div class="ct-row" style="grid-template-columns: 48px minmax(0, 1fr) auto; padding-left: 0; padding-right: 0">
+<span class="app-caption alt-num" style="color: #a0aec0">{{e.time}}</span>
+<span style="display: flex; flex-direction: column; min-width: 0">
+<span class="app-small" style="color: #e2e8f0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{e.text}}</span>
+<span class="app-caption" style="color: #a0aec0">{{e.where}}</span>
+</span>
+<x-import component-from-global-scope="Altivy.StatusChip" label="{{e.label}}" color="{{e.tone}}" size="sm"></x-import>
+</div>
+</sc-for>
+</div>
+</x-import>
+</div>
+</div>
+
+</div>
+</x-import>
+</x-import>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1000}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const h = React.createElement;
+    const nf1 = (v) => v.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 1 });
+    const hosts = [
+      { name: 'srv-prod-01', engine: 'Docker', version: '27.3.1', status: 'Em dia', tone: 'success', count: 38, cpu: 52 },
+      { name: 'srv-prod-02', engine: 'Docker', version: '27.3.1', status: 'Em dia', tone: 'success', count: 34, cpu: 61 },
+      { name: 'srv-edge-01', engine: 'Docker', version: '26.1.4', status: 'Atualizar', tone: 'warning', count: 12, cpu: 83 },
+      { name: 'srv-prod-03', engine: 'Podman', version: '5.2.3', status: 'Em dia', tone: 'success', count: 29, cpu: 44 },
+      { name: 'srv-prod-04', engine: 'Podman', version: '5.2.3', status: 'Em dia', tone: 'success', count: 21, cpu: 37 },
+      { name: 'srv-batch-01', engine: 'Podman', version: '5.2.3', status: 'Em dia', tone: 'success', count: 20, cpu: 28 }
+    ].map((x) => ({
+      ...x,
+      engineClass: x.engine === 'Podman' ? 'ct-engine ct-engine--podman' : 'ct-engine',
+      barClass: x.cpu >= 80 ? 'ct-bar ct-bar--warn' : 'ct-bar',
+      barStyle: 'width: ' + x.cpu + '%',
+      cpuLabel: x.cpu + '%'
+    }));
+    return {
+      shellH: 968,
+      zero: 0, one: 1, hundred: 100, chartH: 190, donutSize: 168,
+      menu: [
+        { section: 'Operação', items: [
+          { id: 'overview', label: 'Visão geral', icon: 'gauge' },
+          { id: 'containers', label: 'Containers', icon: 'box' },
+          { id: 'pods', label: 'Pods', icon: 'grid' },
+          { id: 'images', label: 'Imagens', icon: 'package' },
+          { id: 'volumes', label: 'Volumes', icon: 'columns' },
+          { id: 'networks', label: 'Redes', icon: 'link' }
+        ] },
+        { section: 'Infraestrutura', items: [
+          { id: 'hosts', label: 'Hosts', icon: 'monitor' },
+          { id: 'registries', label: 'Registros', icon: 'inbox' }
+        ] },
+        { section: 'Governança', items: [
+          { id: 'alerts', label: 'Alertas', icon: 'alert', count: 3, countLabel: 'alertas abertos' },
+          { id: 'audit', label: 'Auditoria', icon: 'shield' },
+          { id: 'settings', label: 'Configurações', icon: 'settings' }
+        ] }
+      ],
+      crumbs: ['Operação', 'Visão geral'],
+      user: { name: 'Mariana Costa', group: 'Plataforma · SRE', initials: 'MC' },
+      envs: [
+        { id: 'prod', label: 'Produção', icon: 'shield' },
+        { id: 'hml', label: 'Homologação', icon: 'flag' },
+        { id: 'dev', label: 'Desenvolvimento', icon: 'tool' }
+      ],
+      headerProps: { env: null, notifications: 4, defaultShortcut: 'prod', showDarkMode: false },
+      k: { running: 142, stopped: 9, failed: 3, cpu: 46.8, mem: 61.2, images: 27 },
+      hours: ['04h', '05h', '06h', '07h', '08h', '09h', '10h', '11h', '12h', '13h', '14h', '15h'],
+      series: [
+        { name: 'CPU', data: [31, 29, 30, 36, 44, 52, 58, 55, 49, 51, 47, 46.8], area: true },
+        { name: 'Memória', data: [54, 54, 55, 57, 59, 62, 64, 63, 61, 62, 61, 61.2] }
+      ],
+      ref: { value: 80, label: 'Limite 80%' },
+      pct: (v) => nf1(v) + '%',
+      engines: [
+        { label: 'Docker', value: 84, color: 'var(--chart-2)' },
+        { label: 'Podman', value: 70, color: 'var(--chart-5)' }
+      ],
+      hostAction: (window.Altivy && window.Altivy.CardBase && window.Altivy.CardBase.Action) ? h(window.Altivy.CardBase.Action, null, 'Ver todos os hosts') : null,
+      hosts,
+      events: [
+        { time: '15:08', text: 'Reinício automático após falha no health check', where: 'api-pedidos-7f9c · srv-prod-02', label: 'Reiniciando', tone: 'warning' },
+        { time: '14:56', text: 'Limite de memória atingido (OOMKilled)', where: 'worker-relatorios · srv-batch-01', label: 'Com falha', tone: 'error' },
+        { time: '14:41', text: 'Host com engine fora da versão homologada', where: 'srv-edge-01 · Docker 26.1.4', label: 'Atualizar', tone: 'warning' },
+        { time: '14:20', text: 'Imagem atualizada e containers recriados', where: 'gateway:2.8.1 · 4 containers', label: 'Concluído', tone: 'success' },
+        { time: '13:52', text: 'Pod criado com 3 containers', where: 'pod-checkout · srv-prod-03', label: 'Em execução', tone: 'info' },
+        { time: '13:10', text: 'Volume removido por política de retenção', where: 'vol-cache-tmp · srv-prod-04', label: 'Neutro', tone: 'neutral' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,31 @@
+schema_version: "1.0"
+
+extension:
+  id: bug
+  name: "Fluxo de Triagem de Bugs"
+  version: "1.0.1"
+  description: "Avaliar, corrigir e validar relatos de bugs contra o código, com relatórios por bug em .specify/bugs/<slug>/"
+  author: spec-kit-core
+  repository: https://github.com/github/spec-kit
+  license: MIT
+
+requires:
+  speckit_version: ">=0.9.0"
+
+provides:
+  commands:
+    - name: speckit.bug.assess
+      file: commands/speckit.bug.assess.md
+      description: "Avaliar um relato de bug (texto ou URL) contra o código e produzir uma avaliação com possível correção"
+    - name: speckit.bug.fix
+      file: commands/speckit.bug.fix.md
+      description: "Aplicar a correção proposta na avaliação de um bug e registrar as mudanças"
+    - name: speckit.bug.test
+      file: commands/speckit.bug.test.md
+      description: "Validar se um bug corrigido foi resolvido e registrar o relatório de verificação"
+
+tags:
+  - "bug"
+  - "triage"
+  - "workflow"
+  - "qa"

@@ -1,0 +1,24 @@
+{
+  "v": 3,
+  "createdOnFiles": {"v": 1, "at": "2026-10-10T18:20:00Z"},
+  "title": "Gestão de Containers",
+  "launch": {"view": "canvas"},
+  "pages": [],
+  "boards": {
+    "Main.dc.html": {"x": 0, "y": 0, "w": 1440, "h": 1000, "title": "01 · Visão geral", "expand": "fill", "is_interactive": true},
+    "Containers.dc.html": {"x": 1520, "y": 0, "w": 1440, "h": 1000, "title": "02 · Containers", "expand": "fill", "is_interactive": true},
+    "Detalhe.dc.html": {"x": 0, "y": 1120, "w": 1440, "h": 1000, "title": "03 · Detalhe do container", "expand": "fill", "is_interactive": true},
+    "NovoContainer.dc.html": {"x": 1520, "y": 1120, "w": 1440, "h": 1000, "title": "04 · Novo container", "expand": "fill", "is_interactive": true},
+    "Campo.dc.html": {"x": 0, "y": 2463, "w": 360, "h": 96, "title": "Componente · Campo", "is_interactive": true},
+    "Selecao.dc.html": {"x": 440, "y": 2463, "w": 360, "h": 200, "title": "Componente · Seleção", "is_interactive": true},
+    "Marcador.dc.html": {"x": 880, "y": 2463, "w": 360, "h": 56, "title": "Componente · Marcador", "is_interactive": true}
+  },
+  "order": ["Main.dc.html", "Containers.dc.html", "Detalhe.dc.html", "NovoContainer.dc.html", "Campo.dc.html", "Selecao.dc.html", "Marcador.dc.html"],
+  "notes": {
+    "titulo": {"x": 0, "y": -300, "text": "Gestão de containers · Docker e Podman", "kind": "title1", "maxW": 2960},
+    "componentes": {"x": 0, "y": 2240, "text": "Componentes de formulário", "kind": "title1", "maxW": 1240}
+  },
+  "designSystems": [
+    {"title": "Altivy", "namespace": "altivy", "artifact": "https://claude.ai/artifact/Xw6TGUgFXDCn1dRqfZfjd7", "version": "1791655341-782a", "copiedAt": "2026-10-10T18:20:00Z"}
+  ]
+}

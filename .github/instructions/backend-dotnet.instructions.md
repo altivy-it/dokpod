@@ -19,6 +19,10 @@ applyTo: "backend/**"
 - Use `HttpClient` e transports testáveis para Unix socket e named pipe; não invoque CLI por shell no fluxo normal.
 - Limite respostas, concorrência e duração das chamadas ao engine.
 - Commands mutáveis possuem ID idempotente, deadline e resultado reconciliável.
+- Valide capability, identificadores, deadline e fencing antes de qualquer efeito no engine.
+- Persista o journal durável antes de confirmar aceite (journal-before-ack); mantenha deduplicação e replay após reinício, resposta perdida ou reconexão, sem repetir efeitos já confirmados.
+- Reconcilie resultados após falha parcial; sequência e fencing impedem comandos de uma sessão ou liderança obsoleta.
+- Preserve N/N-1 no Protobuf: não reutilize tags e declare campos removidos como `reserved`; trate valores desconhecidos e capabilities ausentes explicitamente.
 - Retry só cobre falha transitória e nunca presume que timeout significa ausência de efeito.
 - API usa REST versionado, OpenAPI e `application/problem+json`.
 - gRPC transporta o protocolo do agente; SignalR apenas notifica o browser.

@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Caixa de seleção</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="altivy-app.css">
+<link rel="stylesheet" href="ds/altivy/components/bundle.css">
+<script src="ds/altivy/components/bundle.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<button type="button" role="checkbox" aria-checked="{{checkedStr}}" onClick="{{toggle}}" onFocus="{{focus}}" onBlur="{{blur}}" style="display: flex; align-items: flex-start; gap: 10px; width: 100%; padding: 4px 0; border: 0; background: transparent; text-align: left; cursor: pointer; outline: none; font-family: 'Outfit', system-ui, sans-serif; color: #e2e8f0">
+<span style="{{boxStyle}}">
+<sc-if value="{{checked}}" hint-placeholder-val="{{ true }}">
+<x-import component-from-global-scope="Altivy.Icon" name="check" size="{{iconSize}}" stroke-width="{{stroke}}"></x-import>
+</sc-if>
+</span>
+<span style="display: flex; flex-direction: column; gap: 2px; min-width: 0">
+<span style="font-size: 13px; line-height: 20px; color: #e2e8f0">{{label}}</span>
+<sc-if value="{{hasHelp}}" hint-placeholder-val="{{ false }}">
+<span style="font-size: 12px; color: #a0aec0">{{help}}</span>
+</sc-if>
+</span>
+</button>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"label":{"editor":"text","default":"Ativar health check em GET /healthz"},"help":{"editor":"text","default":""},"checked":{"editor":"boolean","default":true},"$preview":{"width":360,"height":56}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { c: null, focused: false }; }
+  renderVals() {
+    const p = this.props;
+    const checked = this.state.c ?? (p.checked ?? true);
+    const f = this.state.focused;
+    const boxStyle = [
+      'flex: none', 'width: 18px', 'height: 18px', 'margin-top: 1px', 'box-sizing: border-box',
+      'display: flex', 'align-items: center', 'justify-content: center', 'border-radius: 5px',
+      'border: 1px solid ' + (checked ? '#5eead4' : 'rgba(255, 255, 255, 0.22)'),
+      'background: ' + (checked ? '#5eead4' : 'rgba(255, 255, 255, 0.04)'),
+      'color: #1a202c',
+      'box-shadow: ' + (f ? '0 0 0 2px #0d1118, 0 0 0 4px #5eead4' : 'none'),
+      'transition: background .15s, border-color .15s'
+    ].join('; ');
+    return {
+      label: p.label ?? 'Ativar health check em GET /healthz',
+      help: p.help || '', hasHelp: !!p.help,
+      checked, checkedStr: checked ? 'true' : 'false',
+      toggle: () => this.setState({ c: !checked }),
+      focus: () => this.setState({ focused: true }),
+      blur: () => this.setState({ focused: false }),
+      boxStyle, iconSize: 13, stroke: 3
+    };
+  }
+}
+</script>
+</body>
+</html>

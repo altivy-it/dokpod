@@ -1,59 +1,17 @@
-# Plano: Título
+# Template de plano obsoleto
 
-**Status:** draft  
-**Data de criação:** AAAA-MM-DD  
-**Última atualização:** AAAA-MM-DD  
-**Responsáveis:** nomes ou equipe  
-**Origem:** humano ou IA assistida  
-**Revisor humano:** nome, equipe ou pendente  
-**Relacionado:** issue, ADR ou PR
+Este arquivo permanece somente como aviso de migração. Não o use para criar,
+atualizar ou executar planos em `docs/plan`; planos legados não autorizam trabalho.
 
-## Objetivo
+Spec Kit é o único processo de features, manutenção e defeitos. Features e
+manutenção usam `specs/<feature>/spec.md`, `plan.md` e `tasks.md`, pelos comandos
+oficiais de especificação, planejamento, tarefas, análise e implementação.
+Execução exige tarefa e autorização humana explícita.
 
-Resultado observável.
+Defeitos usam `/speckit-bug-assess`, `/speckit-bug-fix` com remediação autorizada e
+`/speckit-bug-test`, pela extensão oficial Bug Fixing. Não substitua esse fluxo
+por um plano local. Migração de planos legados exige revisão humana dos artefatos
+Spec Kit antes de qualquer retomada.
 
-## Contexto e premissas
-
-## Não escopo
-
-## Dependências e decisões
-
-## Etapas
-
-### P-01: Nome da etapa
-
-**Status:** not-started  
-**Responsável:** nome, equipe ou não atribuído  
-**Dependências:** nenhuma
-
-**Objetivo:** resultado específico.
-
-Entregas:
-
-- entrega verificável.
-
-Validação:
-
-- comando, teste ou evidência.
-
-Evidências:
-
-- pendente.
-
-## Critérios de aceite finais
-
-## Riscos e mitigação
-
-| Risco | Impacto | Mitigação |
-| --- | --- | --- |
-| risco | impacto | ação |
-
-## Rollout e rollback
-
-## Histórico de status
-
-| Data | Escopo | De | Para | Evidência ou motivo | Autor |
-| --- | --- | --- | --- | --- | --- |
-| AAAA-MM-DD | plano | - | draft | criação | autor |
-
-Status do plano: `draft`, `proposed`, `approved`, `in-progress`, `blocked`, `completed`, `cancelled` ou `superseded`. Status de etapa: `not-started`, `in-progress`, `blocked`, `completed` ou `skipped`. IA não presume aprovação nem conclusão.
+ADRs são auxiliares de decisões justificadas por `/speckit-plan`, permanecem
+`proposed` até decisão humana e seguem [ADR_TEMPLATE.md](ADR_TEMPLATE.md).

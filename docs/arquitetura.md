@@ -10,12 +10,12 @@ O Dokpod separa o plano de controle dos hosts que executam containers. O plano d
 | --- | --- | --- |
 | Web | experiência administrativa Angular | acessar engine, banco ou protocolo do agente |
 | BFF | cliente OIDC confidencial, sessão do browser, antiforgery e relay de tokens | decidir autorização ou expor tokens ao browser |
-| API | validar tokens, aplicar decisões do Keycloak, contratos HTTP e sessão de agentes | manter usuários/políticas ou conter adapter específico de engine |
+| API | validar tokens, aplicar decisões do Keycloak, contratos HTTP e sessão de agentes | manter usuários/políticas, conter adapter específico ou conectar diretamente a sockets de engines |
 | Keycloak | usuários, credenciais, MFA, sessões, grupos, roles, recursos, scopes e políticas | executar regras de domínio ou identificar agentes |
 | Aplicação | casos de uso, idempotência e coordenação | depender de ASP.NET Core ou EF Core |
 | Domínio | ambientes, capacidades, comandos e invariantes | depender de infraestrutura |
 | Infraestrutura | PostgreSQL, engine clients, certificados e transporte | expor modelos internos como DTO público |
-| Agente | inventário, execução local e reporte | decidir autorização do usuário final sozinho |
+| Agente | único responsável pela coleta, inspeção de containers na engine local (Docker/Podman) e comunicação com a API | decidir autorização do usuário final sozinho |
 
 ## Dependências permitidas
 
@@ -44,8 +44,10 @@ Hosts são composition roots. Regras reutilizáveis pertencem às bibliotecas. C
 
 - Web Angular, BFF e API são sempre construídos e executados como containers.
 - PostgreSQL e Keycloak são serviços externos obrigatórios ao plano de controle, normalmente executados por containers com dados e backups independentes.
-- Em Linux, o agente é sempre uma imagem OCI e acessa o Unix socket explicitamente montado.
-- Em Windows, o agente é publicado como Worker Service self-contained por RID suportado e instalado como Windows Service. O host não precisa de runtime .NET.
+- **Papel exclusivo do agente no inventário**: O agente é o **único responsável** pela comunicação entre a API do plano de controle e as engines de container (Docker ou Podman). A API nunca acessa diretamente os sockets ou APIs das engines nos hosts. Se uma determinada máquina não tiver um agente ativo em execução, a API não terá nenhum conhecimento ou visibilidade sobre os containers em execução nessa máquina.
+- **Forma de execução do agente por SO/ambiente**:
+  - Em máquinas **Windows**, o agente é um Worker Service .NET 10 self-contained instalado como **Windows Service**, dedicado a coletar e comunicar-se com os containers do host. O host Windows não necessita de runtime .NET pré-instalado.
+  - Em máquinas **Linux** ou em ambientes de desenvolvimento/desktop contendo **Docker Desktop** ou **Podman Desktop**, o agente pode/deve ser lançado em **container OCI**, montando o socket local da engine.
 - O pacote Windows inclui executável, dependências, configuração não secreta, manifesto de versão e procedimento de instalação/remoção. Chaves, certificados e journal ficam fora do diretório do binário, em armazenamento persistente protegido por ACL.
 - O mesmo contrato e os mesmos casos de uso do agente valem nas duas distribuições; integração com lifecycle, filesystem, socket/pipe e atualização pertence ao adapter de plataforma.
 - Builds, testes e runtimes seguem a matriz versionada em [Distribuição e operação](distribuicao.md#imagens-base-e-toolchains).
@@ -69,6 +71,15 @@ Hosts são composition roots. Regras reutilizáveis pertencem às bibliotecas. C
 4. Cada mensagem carrega versão, sessão, fencing token, sequência monotônica, timestamp e correlation ID. A API rejeita geração antiga, lacuna não reconciliada, payload acima do limite e capability desconhecida.
 5. Snapshot completo ocorre no primeiro vínculo, após lacuna/reconexão solicitada pelo servidor e periodicamente a cada 15 minutos com jitter. Snapshots são paginados em lotes limitados, aplicados transacionalmente por revisão e substituem somente a projeção do ambiente correspondente.
 6. A API consolida mudanças e publica pelo SignalR somente invalidação segmentada por ambiente, limitada inicialmente a uma emissão por segundo. O browser busca o estado durável pela API.
+
+## Fluxo de eventos operacionais (spec 008)
+
+1. O agente assina `/events` do engine (container, imagem e volume), reconecta com recuo e reduz cada evento à allowlist de atributos (`name`, `image`, `exitCode`); labels e variáveis nunca saem do host.
+2. O publicador deduplica, agrega repetições (inclusive `oom` seguido de `die` como um único `container.oom_killed`) e respeita um limite por lote; excedentes viram `dropped_count`.
+3. `EngineEventBatch` só é enviado quando o servidor confirmou `CAPABILITY_ENGINE_EVENTS` em `SessionEstablished.accepted_capabilities`; servidores N-1 não recebem payload novo.
+4. A API valida o tipo contra a allowlist, sanitiza textos e parâmetros, marca divergência de relógio acima de 5 minutos, grava em `environment_events` (particionada por mês, deduplicada por `source_key`) e converte `dropped_count` em `events.dropped`.
+5. Conexão e desconexão do agente, versão de engine desatualizada e resultados de comandos também geram eventos. Cada gravação efetiva publica invalidação `kind=events`.
+6. A retenção (`EventRetention:Period`) remove partições vencidas e apaga em lotes as linhas vencidas da partição de corte pela função `dokpod_apply_temporal_retention`.
 
 O contrato v1 terá um serviço de sessão com uma operação bidirecional `Connect`. Servidor envia controle de sessão, solicitação de snapshot e comandos; agente envia apresentação, heartbeat, deltas, partes de snapshot, aceite e resultado. Inscrição inicial e emissão do primeiro certificado usam endpoint HTTPS separado, de uso único e sem conexão anônima ao stream operacional.
 
@@ -97,7 +108,7 @@ Não existe garantia distribuída de exactly-once. O desenho usa entrega at-leas
 
 O baseline de capacidade é 56 agentes, aproximadamente 1.120 containers e 30 usuários simultâneos. O teste de margem antes da release usa pelo menos 100 agentes, 2.000 containers e 50 usuários, incluindo reconexão simultânea, inventário degradado e comandos concorrentes em ambientes distintos.
 
-O monólito modular é suficiente para essa carga. O MVP inicia com uma instância de API contendo endpoints HTTP, hub SignalR, scheduler de comandos e sessões gRPC; BFF e web permanecem processos separados. PostgreSQL fornece coordenação durável, e memória local é apenas cache efêmero. Métricas de container não são armazenadas como série temporal ilimitada no banco transacional.
+O monólito modular é suficiente para essa carga. O MVP inicia com uma instância de API contendo endpoints HTTP, hub SignalR, scheduler de comandos e sessões gRPC; BFF e web permanecem processos separados. PostgreSQL fornece coordenação durável, e memória local é apenas cache efêmero. Métricas de container não são armazenadas como série temporal ilimitada no banco transacional: desde a spec 009, a série de host (1 minuto) fica em `host_resource_samples` com retenção de 48 h e a série de container (30 minutos) e o último valor ficam somente em memória da API, recompostos pelas amostras seguintes após reinício.
 
 Escala horizontal da API não faz parte da primeira release. Quando disponibilidade ou medidas exigirem múltiplas réplicas, um ADR deve definir ownership temporário de conexões por lease, fencing e roteamento durável de comandos até a réplica dona do stream.
 
@@ -108,6 +119,6 @@ Não adicionar broker, cache distribuído ou microsserviço antes de métricas d
 - matriz de Windows Server, RID, conta de serviço e versões de Docker suportadas;
 - limites de retenção para inventário e auditoria;
 - estratégia de atualização segura do agente;
-- suporte futuro a criação declarativa, Compose e stacks.
+- suporte futuro a criação declarativa de Compose e stacks. A criação de container único foi retirada desta lista em 2026-10-13 (aprovação registrada em `specs/README.md`; spec 013), condicionada ao threat model em `docs/seguranca.md`.
 
 Esses itens não alteram a arquitetura aceita. Cada capability permanece desabilitada até cumprir seu gate, e mudanças de protocolo incompatíveis ou escala horizontal exigem ADR próprio.

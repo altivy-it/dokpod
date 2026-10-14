@@ -1,4 +1,12 @@
 <Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Grpc.Net.Client" />
+  </ItemGroup>
+
   <ItemGroup>
     <ProjectReference Include="../Dokpod.Agent.Application/Dokpod.Agent.Application.csproj" />
     <ProjectReference Include="../Dokpod.Domain/Dokpod.Domain.csproj" />
