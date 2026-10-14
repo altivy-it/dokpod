@@ -119,7 +119,7 @@
       searchPlaceholder="Nome, imagem, host ou porta"
       [exportName]="exportName()"
       height="600px"
-      emptyTitle="Nenhum container encontrado com os filtros aplicados."
+      [emptyTitle]="emptyTitle()"
       (rowAction)="onRowAction($event)"
       (rowOpen)="openRow($event)"
       (loadMore)="facade.loadMore()"

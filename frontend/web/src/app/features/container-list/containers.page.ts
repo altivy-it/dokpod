@@ -49,7 +49,20 @@ const SERVER_SORT: Record<string, [ServerSort, ServerSort]> = {
   status: ['displayStatus', 'displayStatus'],
   host: ['environment', 'environment'],
   created: ['createdAt', '-createdAt'],
+  // Spec 015: ordenação por consumo atual, feita no servidor sobre todo o conjunto filtrado.
+  cpu: ['cpu', '-cpu'],
+  mem: ['memory', '-memory'],
 };
+
+/** Ordenação da URL refletida no cabeçalho do grid (inverso de SERVER_SORT, só para direções distintas). */
+export function gridSortFromServer(sort: string | undefined): GridSort | null {
+  for (const [field, [asc, desc]] of Object.entries(SERVER_SORT)) {
+    if (asc === desc) continue;
+    if (sort === asc && field !== 'name') return { field, dir: 'asc' };
+    if (sort === desc) return { field, dir: 'desc' };
+  }
+  return null;
+}
 
 function asArray(value: string | string[] | undefined): string[] {
   return value === undefined ? [] : Array.isArray(value) ? value : [value];
@@ -107,8 +120,8 @@ export class ContainersPage {
     { field: 'engine', header: 'Engine', width: 100, sortable: false, filterable: true, groupable: true },
     { field: 'host', header: 'Host', width: 140, filterable: true, groupable: true },
     { field: 'image', header: 'Imagem', width: 320, mono: true, sortable: false },
-    { field: 'cpu', header: 'CPU', unit: '%', type: 'number', decimals: 1, width: 84, sortable: false },
-    { field: 'mem', header: 'Memória', unit: 'MiB', type: 'number', width: 110, sortable: false },
+    { field: 'cpu', header: 'CPU', unit: '%', type: 'number', decimals: 1, width: 84, sortable: true },
+    { field: 'mem', header: 'Memória', unit: 'MiB', type: 'number', width: 110, sortable: true },
     { field: 'ports', header: 'Portas', width: 170, mono: true, sortable: false },
     { field: 'created', header: 'Criado', width: 150, type: 'datetime' },
   ];
@@ -162,6 +175,13 @@ export class ContainersPage {
   protected readonly gridFilters = computed<Record<string, string[]>>(() => {
     const f = this.facade.filters();
     return { status: f.statuses, engine: f.engines, host: f.environmentIds };
+  });
+
+  /** Estado vazio: só o filtro de situação (cards da Visão geral, spec 015) tem mensagem própria. */
+  protected readonly emptyTitle = computed(() => {
+    const f = this.facade.filters();
+    const onlyStatus = f.statuses.length > 0 && !f.q && f.engines.length === 0 && f.environmentIds.length === 0;
+    return onlyStatus ? 'Nenhum container nesta situação.' : 'Nenhum container encontrado com os filtros aplicados.';
   });
 
   /** Chips de filtros ativos acima do grid (board: "Engine: Docker, Podman", "Ambiente: Produção"). */
@@ -218,6 +238,15 @@ export class ContainersPage {
       const search = this.search();
       untracked(() => {
         if (search !== (this.q() ?? '') && (search.length === 0 || search.trim().length >= 2)) this.navigate({ q: search || null });
+      });
+    });
+    // A URL manda na ordenação inicial: sem isso, o efeito abaixo trocaria `sort` da URL por `name` ao abrir
+    // a página (por exemplo, os cards de CPU e memória da Visão geral, spec 015).
+    effect(() => {
+      const fromUrl = gridSortFromServer(this.sort());
+      untracked(() => {
+        const current = this.gridSort();
+        if (fromUrl && (current?.field !== fromUrl.field || current?.dir !== fromUrl.dir)) this.gridSort.set(fromUrl);
       });
     });
     effect(() => {
