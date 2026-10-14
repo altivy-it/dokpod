@@ -93,6 +93,10 @@ public static class ConsoleEndpoints
             "environment" => ContainerSort.Environment,
             "createdAt" => ContainerSort.CreatedAtAsc,
             "-createdAt" => ContainerSort.CreatedAtDesc,
+            "cpu" => ContainerSort.CpuAsc,
+            "-cpu" => ContainerSort.CpuDesc,
+            "memory" => ContainerSort.MemoryAsc,
+            "-memory" => ContainerSort.MemoryDesc,
             _ => (ContainerSort)(-1),
         };
         return Enum.IsDefined(sort);

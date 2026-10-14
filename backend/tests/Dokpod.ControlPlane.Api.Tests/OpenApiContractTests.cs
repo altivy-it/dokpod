@@ -52,6 +52,7 @@ public sealed class OpenApiContractTests
         Assert.Contains("operationId: listHostMetrics", contract, StringComparison.Ordinal);
         Assert.Contains("operationId: getContainerMetrics", contract, StringComparison.Ordinal);
         Assert.Contains("ContainerResources:", contract, StringComparison.Ordinal);
+        Assert.Contains("enum: [name, -name, displayStatus, environment, createdAt, -createdAt, cpu, -cpu, memory, -memory]", contract, StringComparison.Ordinal);
         Assert.DoesNotContain("operationId: listHosts", contract, StringComparison.Ordinal);
         Assert.DoesNotContain("AuditEventEntity", contract, StringComparison.Ordinal);
         Assert.DoesNotContain("EnvironmentRegistrationEntity", contract, StringComparison.Ordinal);

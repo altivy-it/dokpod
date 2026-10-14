@@ -599,9 +599,12 @@ paths:
         - name: sort
           in: query
           required: false
+          description: >-
+            Ordenação. `cpu`/`-cpu` e `memory`/`-memory` (spec 015) ordenam pelo consumo atual sobre todo o
+            conjunto filtrado; containers sem amostra recente ficam no fim nas duas direções.
           schema:
             type: string
-            enum: [name, -name, displayStatus, environment, createdAt, -createdAt]
+            enum: [name, -name, displayStatus, environment, createdAt, -createdAt, cpu, -cpu, memory, -memory]
             default: name
         - name: cursor
           in: query
@@ -985,6 +988,9 @@ paths:
     get:
       operationId: getStageMetrics
       summary: Agregado de CPU e memória dos hosts autorizados do estágio, atual e série (spec 009)
+      description: >-
+        `current` soma o consumo dos containers com amostra recente sobre a capacidade dos hosts (spec 015);
+        `series` é a série persistida do host.
       security:
         - bearerAuth: []
       parameters:

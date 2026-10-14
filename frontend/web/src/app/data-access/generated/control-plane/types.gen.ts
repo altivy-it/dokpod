@@ -1235,7 +1235,10 @@ export type ListContainersData = {
         engine?: Array<EngineKind>;
         displayStatus?: Array<ContainerDisplayStatus>;
         q?: string;
-        sort?: 'name' | '-name' | 'displayStatus' | 'environment' | 'createdAt' | '-createdAt';
+        /**
+         * Ordenação. `cpu`/`-cpu` e `memory`/`-memory` (spec 015) ordenam pelo consumo atual sobre todo o conjunto filtrado; containers sem amostra recente ficam no fim nas duas direções.
+         */
+        sort?: 'name' | '-name' | 'displayStatus' | 'environment' | 'createdAt' | '-createdAt' | 'cpu' | '-cpu' | 'memory' | '-memory';
         cursor?: string;
         limit?: number;
     };
