@@ -102,6 +102,29 @@ A telemetria usa allowlist de campos, limites e normalização de caracteres de 
 
 **Risco residual**: sem verificação de assinatura, um registro comprometido pode entregar imagem maliciosa a um usuário autorizado; a mitigação é operacional (registros permitidos por estágio, digests, revisão). Aprovação: decisão do solicitante registrada em `specs/README.md`, com revisão humana de segurança pendente antes de release.
 
+## Threat model: criação de container (spec 013)
+
+**Fronteira nova**: navegador → BFF → API (validação por allowlist + cifragem dos valores) → fila de comandos → stream mTLS → agente (validação defensiva) → `POST /containers/create` (Docker/Podman compatível) ou `POST /libpod/containers/create` (Podman, somente para segredos do Podman e health check com reinício) → `start`. Criar container equivale a executar código arbitrário no host com as permissões do engine; é a operação mais poderosa do console.
+
+**Atores**: operador com `container:create`, usuário sem o scope, usuário de outro ambiente, imagem maliciosa, agente comprometido, administrador do host (dono de segredos e da allowlist de bind).
+
+| Ameaça | Mitigação | Teste negativo |
+| --- | --- | --- |
+| Escalada por opções do engine (privileged, cap-add, devices, namespaces do host, security-opt, sysctls, userns) | Allowlist fechada no contrato (`additionalProperties: false`, campo extra → 400) e no domínio (`ContainerCreationSpec`); o agente monta o corpo do engine só a partir da allowlist e revalida (defesa em profundidade) | corpo com `privileged`, `capAdd`, `devices`, `pidMode`, `networkMode: host`, `securityOpt`, `sysctls`, `userns` → 400 na API; spec inválida no agente → `invalid_spec` |
+| Montagem do socket do engine ou de caminhos do host | Volumes nomeados por padrão; bind só dentro da allowlist do agente (`DOKPOD_AGENT_BIND_MOUNT_ALLOWLIST`, vazia por padrão), com caminho canônico; socket do engine (`docker.sock`, `podman.sock`) e `/`, `/etc`, `/proc`, `/sys`, `/dev`, `/var/run`, `/run` sempre recusados | bind fora da allowlist ou para o socket → `mount_not_allowed` |
+| Rede do host / rede arbitrária | Rede só por nome de rede existente; `host`, `none:`-prefixos e `container:` recusados | `network: host` → 400 |
+| Vazamento de valores de variáveis | Todos os valores cifrados com Data Protection da API (key ring próprio, propósito `Dokpod.CommandParameters.v1`) enquanto o comando não é terminal; JSON de parâmetros guarda só nomes, flag `sensitive` e referências; valores nunca retornam pela API, auditoria, eventos ou logs; purga (`protected_values = NULL`, `purged_at`) após estado terminal; comando equivalente com `***` | canários em valores ausentes de respostas, auditoria, `agent_command_parameters` após terminal e logs (`ContainerCreationIntegrationTests`, `SensitiveValuesCanaryTests`) |
+| Segredos do host | Referência por nome (`podman_secret` resolvido pelo Podman via `secret_env`; `file` lido pelo agente de `<data>/secrets/<nome>`, nome sem `/`, `..` ou caracteres de controle); plano de controle conhece só o nome | nome com `../` → `invalid_spec`; segredo inexistente → `secret_not_found` |
+| Perda do key ring da API | Valores não recuperáveis fora da API; comandos não terminais falham com `parameters_unavailable` (auditado); nenhum container é criado | chave removida → `parameters_unavailable` |
+| Reinício do agente entre aceite e `create` | Journal sem valores (só hash); reconciliação por label `dokpod.command-id`; reentrega com valores enquanto não terminal; purgado/expirado → `parameters_unavailable` | reentrega após reinício não duplica (`ContainerCreatorTests`, Podman real) |
+| Retry e duplicidade | `Idempotency-Key`; hash `v2` sobre a forma canônica (valores entram como SHA-256, nunca em claro); label de reconciliação | mesma chave → mesmo comando; corpo diferente → 409 |
+| Volumes anônimos apagados por remoção automática (princípio II) | Agente inspeciona a imagem e recusa `autoRemove` se algum `VOLUME` declarado não tiver volume nomeado no destino; `autoRemove` exige `restartPolicy: no` | imagem com `VOLUME` + `autoRemove` → `anonymous_volume_with_auto_remove` |
+| DoS por recursos | Limites fixos (32 portas, 100 variáveis, 10 volumes, valor ≤ 32 KiB, CPU 0,01-64, memória 6 MiB-1 TiB); prazo do comando | limites excedidos → 400 por campo |
+| Imagem maliciosa / registro não confiável | Registros permitidos por estágio (012); auditoria com o comando equivalente; sem verificação de assinatura (risco residual da 012) | registro fora da lista → `registry_not_allowed` |
+| Capability ausente | Servidor só envia `CREATE_CONTAINER` a agentes com `CAPABILITY_CONTAINER_CREATE` (14), anunciada apenas no Linux | agente sem a capability → 422 `not_supported` |
+
+**Risco residual**: um operador autorizado pode executar qualquer imagem permitida com as permissões não privilegiadas do engine; a mitigação é o scope dedicado, registros por estágio e a auditoria. Aprovação: decisão do solicitante registrada em `specs/README.md` (2026-10-13), com revisão humana de segurança pendente antes de release.
+
 ## Desenvolvimento e release
 
 - threat model atualizado para cada nova fronteira;

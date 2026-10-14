@@ -10,6 +10,7 @@ public enum AgentCommandKind
     PauseContainer = 5,
     UnpauseContainer = 6,
     PullImage = 7,
+    CreateContainer = 8,
 }
 
 /// <summary>Parâmetros de comandos com alvo de host (spec 012 D-001); a 013 acrescenta criação de container.</summary>
@@ -24,13 +25,19 @@ public sealed record PullImageParameters(Dokpod.Domain.Images.ImageReference Ref
     public override string Canonical => $"reference={Reference.Canonical}";
 }
 
+/// <summary>Criação de container (spec 013); valores literais só existem em memória e no canal mTLS.</summary>
+public sealed record CreateContainerParameters(Dokpod.Domain.Containers.ContainerCreationSpec Spec) : AgentCommandParameters
+{
+    public override string Canonical => Spec.Canonical();
+}
+
 /// <summary>Saída de comandos parametrizados: digest e tamanho do pull (012), container criado (013).</summary>
 public sealed record AgentCommandOutput(string? ResolvedImageDigest = null, long? ImageSizeBytes = null, string? CreatedContainerId = null);
 
 public static class AgentCommandKinds
 {
     /// <summary>Comandos cujo alvo é o host (sem container): `container_id` nulo no armazenamento.</summary>
-    public static bool IsHostTarget(AgentCommandKind kind) => kind == AgentCommandKind.PullImage;
+    public static bool IsHostTarget(AgentCommandKind kind) => kind is AgentCommandKind.PullImage or AgentCommandKind.CreateContainer;
 
     /// <summary>
     /// Hash `v1` (tipos 1-6, sem prazo): `v1\n{kind}\n{container}\n{revisão}`; hash `v2` (tipos parametrizados):

@@ -192,6 +192,21 @@ public sealed class AgentControlService(
                         continue;
                     }
 
+                    if (command.Command.Parameters is Dokpod.Domain.Commands.CreateContainerParameters { Spec.ValuesAvailable: false } ||
+                        (command.Command.Kind == Dokpod.Domain.Commands.AgentCommandKind.CreateContainer && command.Command.Parameters is null))
+                    {
+                        // Spec 013 D-002: valores purgados ou key ring indisponível; nunca cria container sem eles.
+                        await commandStatusService.RecordResultAsync(
+                            session.EnvironmentId,
+                            command.Command.CommandId,
+                            ControlPlaneCommandState.Failed,
+                            "parameters_unavailable",
+                            null,
+                            DateTimeOffset.UtcNow,
+                            context.CancellationToken);
+                        continue;
+                    }
+
                     await responseStream.WriteAsync(new ControlPlaneMessage
                     {
                         Metadata = CreateServerMetadata(session, ++serverSequence),
@@ -405,8 +420,11 @@ public sealed class AgentControlService(
         Dokpod.Domain.Commands.AgentCommandKind.PauseContainer => hello.Capabilities.Contains(Capability.ContainerPause),
         Dokpod.Domain.Commands.AgentCommandKind.UnpauseContainer => hello.Capabilities.Contains(Capability.ContainerUnpause),
         Dokpod.Domain.Commands.AgentCommandKind.PullImage => hello.Capabilities.Contains(Capability.ImagePull),
+        Dokpod.Domain.Commands.AgentCommandKind.CreateContainer => hello.Capabilities.Contains(Capability.ContainerCreate),
         _ => true,
     };
+
+    private static bool IsContainerId(string? value) => value is { Length: 64 } && value.All(Uri.IsHexDigit);
 
     private static bool IsValidTimestamp(Timestamp? timestamp)
         => timestamp is not null &&
@@ -487,6 +505,10 @@ public sealed class AgentControlService(
         {
             message.PullImage = new Dokpod.Agent.Contracts.V1.PullImageParameters { Reference = pull.Reference.Canonical };
         }
+        else if (command.Parameters is Dokpod.Domain.Commands.CreateContainerParameters create)
+        {
+            message.CreateContainer = ContainerCreationProtocol.ToMessage(create.Spec);
+        }
 
         return message;
     }
@@ -504,6 +526,7 @@ public sealed class AgentControlService(
                 Dokpod.Domain.Commands.AgentCommandKind.PauseContainer => CommandKind.PauseContainer,
                 Dokpod.Domain.Commands.AgentCommandKind.UnpauseContainer => CommandKind.UnpauseContainer,
                 Dokpod.Domain.Commands.AgentCommandKind.PullImage => CommandKind.PullImage,
+                Dokpod.Domain.Commands.AgentCommandKind.CreateContainer => CommandKind.CreateContainer,
                 _ => CommandKind.Unspecified,
             },
             ContainerId = command.ContainerId,
@@ -575,11 +598,12 @@ public sealed class AgentControlService(
                 message.ObservedContainerRevision,
                 message.CompletedAt.ToDateTimeOffset(),
                 cancellationToken,
-                string.IsNullOrEmpty(message.ResolvedImageDigest) && message.ImageSizeBytes == 0
+                string.IsNullOrEmpty(message.ResolvedImageDigest) && message.ImageSizeBytes == 0 && string.IsNullOrEmpty(message.CreatedContainerId)
                     ? null
                     : new Dokpod.Domain.Commands.AgentCommandOutput(
                         string.IsNullOrEmpty(message.ResolvedImageDigest) ? null : message.ResolvedImageDigest,
-                        message.ImageSizeBytes == 0 ? null : (long)Math.Min(message.ImageSizeBytes, long.MaxValue))));
+                        message.ImageSizeBytes == 0 ? null : (long)Math.Min(message.ImageSizeBytes, long.MaxValue),
+                        IsContainerId(message.CreatedContainerId) ? message.CreatedContainerId : null)));
         }
         catch (ArgumentException)
         {

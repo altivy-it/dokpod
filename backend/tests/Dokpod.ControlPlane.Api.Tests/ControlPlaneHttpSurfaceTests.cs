@@ -78,7 +78,22 @@ public sealed class ControlPlaneHttpSurfaceTests
             "/api/v1/metrics/overview",
             "/api/v1/metrics/hosts",
             "/api/v1/environments/{environmentId:guid}/containers/{containerId}/metrics",
+            "/api/v1/images",
+            "/api/v1/environments/{environmentId:guid}/images/lookup",
+            "/api/v1/environments/{environmentId:guid}/images/pull",
+            "/api/v1/environments/{environmentId:guid}/create-options",
         ];
+        Assert.Contains(endpoints, endpoint => endpoint.RoutePattern.RawText == "/api/v1/environments/{environmentId:guid}/containers" &&
+            endpoint.Metadata.GetMetadata<Microsoft.AspNetCore.Routing.IHttpMethodMetadata>()?.HttpMethods.Contains("POST") == true);
+        using (var scope = app.Services.CreateScope())
+        {
+            // Specs 012/013: serviços e o protetor de parâmetros (key ring próprio da API) resolvem pelo DI.
+            Assert.NotNull(scope.ServiceProvider.GetRequiredService<Dokpod.ControlPlane.Application.Containers.ContainerCreationService>());
+            Assert.NotNull(scope.ServiceProvider.GetRequiredService<Dokpod.ControlPlane.Application.Images.ImagePullService>());
+            var protector = scope.ServiceProvider.GetRequiredService<Dokpod.ControlPlane.Application.Commands.ICommandParameterProtector>();
+            Assert.Equal("x"u8.ToArray(), protector.TryUnprotect(protector.Protect("x"u8.ToArray())));
+            Assert.Null(protector.TryUnprotect([1, 2, 3]));
+        }
         foreach (var route in consoleRoutes)
         {
             var matches = endpoints.Where(endpoint => endpoint.RoutePattern.RawText == route).ToArray();

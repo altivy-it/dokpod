@@ -42,14 +42,27 @@ public static class AgentCommandMapper
                 return false;
             }
 
-            if (message.ParametersCase != Dokpod.Agent.Contracts.V1.AgentCommand.ParametersOneofCase.PullImage ||
+            if (kind == DomainCommandKind.CreateContainer)
+            {
+                if (message.ParametersCase != Dokpod.Agent.Contracts.V1.AgentCommand.ParametersOneofCase.CreateContainer ||
+                    Dokpod.Agent.Application.Containers.ContainerCreationMapper.FromMessage(message.CreateContainer, out failureCode) is not { } spec)
+                {
+                    failureCode = "invalid_spec";
+                    return false;
+                }
+
+                parameters = new Dokpod.Domain.Commands.CreateContainerParameters(spec);
+            }
+            else if (message.ParametersCase != Dokpod.Agent.Contracts.V1.AgentCommand.ParametersOneofCase.PullImage ||
                 !Dokpod.Domain.Images.ImageReference.TryParse(message.PullImage.Reference, out var reference))
             {
                 failureCode = "invalid_reference";
                 return false;
             }
-
-            parameters = new Dokpod.Domain.Commands.PullImageParameters(reference);
+            else
+            {
+                parameters = new Dokpod.Domain.Commands.PullImageParameters(reference);
+            }
         }
         else
         {
@@ -110,6 +123,7 @@ public static class AgentCommandMapper
         CommandKind.PauseContainer => DomainCommandKind.PauseContainer,
         CommandKind.UnpauseContainer => DomainCommandKind.UnpauseContainer,
         CommandKind.PullImage => DomainCommandKind.PullImage,
+        CommandKind.CreateContainer => DomainCommandKind.CreateContainer,
         _ => DomainCommandKind.Unknown,
     };
 }

@@ -96,7 +96,7 @@ public sealed class AgentCommandStatusService(IAgentCommandStore commandStore)
         AgentCommandOutput? output = null)
     {
         ValidateUpdate(environmentId, commandId, failureCode, observedContainerRevision, updatedAtUtc);
-        if (output?.ResolvedImageDigest?.Length > 160 || output?.ImageSizeBytes < 0)
+        if (output?.ResolvedImageDigest?.Length > 160 || output?.ImageSizeBytes < 0 || output?.CreatedContainerId?.Length > 128)
         {
             throw new ArgumentException("Command output exceeds its limits.", nameof(output));
         }
@@ -109,7 +109,7 @@ public sealed class AgentCommandStatusService(IAgentCommandStore commandStore)
             observedContainerRevision,
             updatedAtUtc)
         {
-            Output = state == ControlPlaneCommandState.Succeeded ? output : null,
+            Output = state == ControlPlaneCommandState.Succeeded ? output : output?.CreatedContainerId is { } created ? new AgentCommandOutput(CreatedContainerId: created) : null,
         };
         var auditEvent = AuditEvent.Create(
             Guid.NewGuid(),

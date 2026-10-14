@@ -18,6 +18,8 @@ public sealed class AgentControlWorker(
     IContainerEngine engine,
     AgentCommandProtocolHandler commandHandler,
     Dokpod.Agent.Application.Metrics.IHostResourceProbe hostProbe,
+    Dokpod.Agent.Application.Containers.IHostSecretFiles secretFiles,
+    Dokpod.Agent.Application.Containers.ContainerCreationPolicy creationPolicy,
     ILogger<AgentControlWorker> logger) : BackgroundService
 {
     // Containers em execução do último snapshot (alvo da amostragem de recursos, spec 009).
@@ -136,7 +138,7 @@ public sealed class AgentControlWorker(
         var metrics = metricsAccepted
             ? SendResourceSamplesAsync(background.Writer, sessionCancellation.Token)
             : Task.CompletedTask;
-        var queries = new Dokpod.Agent.Application.Queries.ContainerQueryHandler(engine, TimeProvider.System);
+        var queries = new Dokpod.Agent.Application.Queries.ContainerQueryHandler(engine, TimeProvider.System, secretFiles, creationPolicy);
         var logStreams = new Dokpod.Agent.Application.Queries.LogStreamManager(engine, TimeProvider.System);
         Task SendBackground(AgentMessage outgoing) => background.Writer.WriteAsync(outgoing, sessionCancellation.Token).AsTask();
 
@@ -562,6 +564,11 @@ public sealed class AgentControlWorker(
             },
             SupportedProtocolVersions = { "1" },
         };
+        // Spec 013 T011: criação só no Linux (Windows ainda sem qualificação de caminhos de bind e segredos).
+        if (!System.OperatingSystem.IsWindows())
+        {
+            hello.Capabilities.Add(Capability.ContainerCreate);
+        }
         // Métricas de host dependem de `/proc` do Linux; o agente Windows não anuncia (spec 009 FR-010).
         if (!System.OperatingSystem.IsWindows()) hello.Capabilities.Add(Capability.ResourceMetrics);
         return new AgentMessage { Hello = hello };

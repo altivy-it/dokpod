@@ -45,6 +45,8 @@ public sealed class AgentCommandExpirationWorker(
                 logger.LogInformation("Terminally expired {ExpiredCommandCount} agent commands", expired);
             }
 
+            // Spec 013 FR-004: valores protegidos de comandos terminais (inclusive expirados) saem do banco.
+            await store.PurgeProtectedValuesAsync(cancellationToken);
             var now = timeProvider.GetUtcNow();
             if (now - lastRetention >= TimeSpan.FromHours(1))
             {

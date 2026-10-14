@@ -8,7 +8,8 @@ public sealed class AgentCommandProcessor(
     AgentCommandGate gate,
     ICommandJournal journal,
     IContainerEngine engine,
-    TimeProvider timeProvider)
+    TimeProvider timeProvider,
+    Dokpod.Agent.Application.Containers.ContainerCreator? creator = null)
 {
     private readonly ConcurrentDictionary<(Guid EnvironmentId, string ContainerId), SemaphoreSlim> mutationLocks = [];
 
@@ -63,7 +64,12 @@ public sealed class AgentCommandProcessor(
             return rejection;
         }
 
-        var lockKey = command.Parameters is PullImageParameters pull ? "image:" + pull.Reference.Name : command.ContainerId;
+        var lockKey = command.Parameters switch
+        {
+            PullImageParameters pull => "image:" + pull.Reference.Name,
+            CreateContainerParameters create => "create:" + create.Spec.Name,
+            _ => command.ContainerId,
+        };
         var mutationLock = mutationLocks.GetOrAdd(
             (command.EnvironmentId, lockKey),
             static _ => new SemaphoreSlim(1, 1));
@@ -105,6 +111,36 @@ public sealed class AgentCommandProcessor(
                 catch (Exception exception) when (exception is HttpRequestException or IOException)
                 {
                     return await SaveAsync(CreateResult(command, CommandExecutionState.Failed, "engine_unavailable", null));
+                }
+            }
+
+            if (command.Kind == AgentCommandKind.CreateContainer)
+            {
+                if (command.Parameters is not CreateContainerParameters create || creator is null)
+                {
+                    return await SaveAsync(CreateResult(command, CommandExecutionState.Failed, creator is null ? "unsupported_command" : "invalid_spec", null));
+                }
+
+                using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                deadline.CancelAfter(command.DeadlineUtc - timeProvider.GetUtcNow());
+                try
+                {
+                    var (state, failure, containerId) = await creator.CreateAsync(command, create.Spec, deadline.Token);
+                    return await SaveAsync(CreateResult(command, state, failure, null) with
+                    {
+                        Output = containerId is null ? null : new AgentCommandOutput(CreatedContainerId: containerId),
+                    });
+                }
+                catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+                {
+                    return await SaveAsync(CreateResult(command, CommandExecutionState.Indeterminate, "deadline_exceeded", null));
+                }
+                catch (Exception exception) when (exception is HttpRequestException or IOException or System.Text.Json.JsonException or InvalidDataException)
+                {
+                    // Efeito desconhecido: indeterminado; o label `dokpod.command-id` permite reconciliar no host.
+                    var unknown = CreateResult(command, CommandExecutionState.Indeterminate, "engine_result_unknown", null);
+                    await journal.SaveResultAsync(unknown, CancellationToken.None);
+                    return unknown;
                 }
             }
 

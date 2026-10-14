@@ -36,8 +36,11 @@ public sealed record AgentCommandStatusSnapshot(
     /// <summary>Digest e tamanho do pull (spec 012); nulo para comandos de container.</summary>
     public AgentCommandOutput? Output { get; init; }
 
-    /// <summary>Referência canônica do pull (spec 012).</summary>
+    /// <summary>Referência canônica da imagem do pull (012) ou da criação (013).</summary>
     public string? ImageReference { get; init; }
+
+    /// <summary>Nome do container pedido na criação (spec 013).</summary>
+    public string? ContainerName { get; init; }
 }
 
 public enum AgentCommandEnqueueResult
@@ -98,6 +101,9 @@ public interface IAgentCommandStore
     /// <summary>Remove comandos concluídos ou com falha (e seus parâmetros) criados antes do corte; nunca pendentes nem indeterminados (012 D-008).</summary>
     Task<int> PurgeTerminalAsync(DateTimeOffset cutoffUtc, int batchSize, CancellationToken cancellationToken) =>
         Task.FromResult(0);
+
+    /// <summary>Zera valores protegidos de comandos terminais (spec 013 FR-004).</summary>
+    Task<int> PurgeProtectedValuesAsync(CancellationToken cancellationToken) => Task.FromResult(0);
 
     Task<IReadOnlyList<PersistedAgentCommand>> ClaimDispatchableAsync(
         Guid environmentId,

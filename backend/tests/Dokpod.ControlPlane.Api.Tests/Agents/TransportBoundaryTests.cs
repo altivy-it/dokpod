@@ -308,6 +308,8 @@ public sealed class TransportBoundaryTests
                 engine,
                 new AgentCommandProtocolHandler(processor),
                 new NoHostProbe(),
+                new global::Dokpod.Agent.Infrastructure.Secrets.HostSecretFileStore(Path.Combine(dataDirectory, "secrets")),
+                new global::Dokpod.Agent.Application.Containers.ContainerCreationPolicy([], null),
                 NullLogger<global::Dokpod.Agent.AgentControlWorker>.Instance);
             using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(
                 TestContext.Current.CancellationToken);

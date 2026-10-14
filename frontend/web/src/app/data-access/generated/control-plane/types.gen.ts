@@ -62,6 +62,83 @@ export type PullImageAccepted = {
     reference?: string | null;
 };
 
+/**
+ * Allowlist fechada (spec 013); qualquer outro campo resulta em 400.
+ */
+export type ContainerCreationRequest = {
+    image: string;
+    name: string;
+    ports?: Array<{
+        hostIp?: string | null;
+        hostPort: number;
+        containerPort: number;
+        protocol: 'tcp' | 'udp';
+    }>;
+    environment?: Array<{
+        name: string;
+        value?: string | null;
+        secret?: null | {
+            kind: 'podman_secret' | 'file';
+            name: string;
+        };
+        sensitive?: boolean;
+    }>;
+    volumes?: Array<{
+        type: 'volume' | 'bind';
+        source: string;
+        target: string;
+        readOnly?: boolean;
+    }>;
+    network?: string | null;
+    cpuLimitCores?: number | null;
+    memoryLimitBytes?: number | null;
+    restartPolicy?: {
+        name: 'no' | 'on-failure' | 'always' | 'unless-stopped';
+        maximumRetryCount?: number | null;
+    };
+    healthcheck?: null | {
+        test: Array<string>;
+        intervalSeconds: number;
+        timeoutSeconds: number;
+        retries: number;
+        startPeriodSeconds: number;
+        onFailure: 'none' | 'restart';
+    };
+    autoRemove?: boolean;
+    deadlineUtc?: string | null;
+};
+
+export type ContainerCreationAccepted = {
+    commandId: string;
+    equivalentCommand?: string | null;
+};
+
+export type ContainerCreateOptions = {
+    engine: EngineKind;
+    engineVersion: string;
+    rootless?: boolean | null;
+    secrets: Array<{
+        kind: 'podman_secret' | 'file';
+        name: string;
+    }>;
+    networks: Array<{
+        name: string;
+        driver?: string | null;
+    }>;
+    volumes: Array<{
+        name: string;
+    }>;
+    allowedRegistries: Array<string>;
+    bindMountsAllowed: boolean;
+    partial: boolean;
+    limits: {
+        ports: number;
+        environment: number;
+        volumes: number;
+        valueBytes: number;
+    };
+};
+
 export type ContainerCommandAccepted = {
     commandId: string;
 };
@@ -69,7 +146,7 @@ export type ContainerCommandAccepted = {
 export type ContainerCommandStatus = {
     environmentId: string;
     commandId: string;
-    action: 'start' | 'stop' | 'restart' | 'delete' | 'pause' | 'unpause' | 'pull';
+    action: 'start' | 'stop' | 'restart' | 'delete' | 'pause' | 'unpause' | 'pull' | 'create';
     /**
      * Alvo do comando (spec 012); `image` para pull com alvo de host.
      */
@@ -80,12 +157,20 @@ export type ContainerCommandStatus = {
     containerId: string | null;
     expectedContainerRevision: string | null;
     /**
-     * Referência canônica do pull (spec 012).
+     * Referência canônica da imagem do pull (012) ou da criação (013).
      */
     reference?: string | null;
+    /**
+     * Nome pedido na criação (spec 013).
+     */
+    containerName?: string | null;
     result?: null | {
         resolvedImageDigest?: string | null;
         imageSizeBytes?: number | null;
+        /**
+         * Container criado (spec 013); presente também em `start_failed`.
+         */
+        createdContainerId?: string | null;
     };
     state: 'pending' | 'dispatched' | 'accepted' | 'succeeded' | 'failed' | 'indeterminate';
     failureCode: string | null;
@@ -590,6 +675,117 @@ export type ListEnvironmentContainersResponses = {
 };
 
 export type ListEnvironmentContainersResponse = ListEnvironmentContainersResponses[keyof ListEnvironmentContainersResponses];
+
+export type CreateContainerData = {
+    body: ContainerCreationRequest;
+    headers: {
+        'Idempotency-Key': string;
+        /**
+         * Identificador técnico opcional para correlação server-side.
+         */
+        'X-Correlation-Id'?: string;
+    };
+    path: {
+        environmentId: string;
+    };
+    query?: never;
+    url: '/api/v1/environments/{environmentId}/containers';
+};
+
+export type CreateContainerErrors = {
+    /**
+     * Requisição inválida.
+     */
+    400: ProblemDetails;
+    /**
+     * Autenticação ausente ou inválida.
+     */
+    401: ProblemDetails;
+    /**
+     * Decisão do Keycloak negou o cadastro.
+     */
+    403: ProblemDetails;
+    /**
+     * O ambiente não foi encontrado após autorização.
+     */
+    404: ProblemDetails;
+    /**
+     * O ambiente já existe.
+     */
+    409: ProblemDetails;
+    /**
+     * Requisição inválida.
+     */
+    422: ProblemDetails;
+    /**
+     * Autorização ou persistência indisponível.
+     */
+    503: ProblemDetails;
+};
+
+export type CreateContainerError = CreateContainerErrors[keyof CreateContainerErrors];
+
+export type CreateContainerResponses = {
+    /**
+     * Comando de criação aceito.
+     */
+    202: ContainerCreationAccepted;
+};
+
+export type CreateContainerResponse = CreateContainerResponses[keyof CreateContainerResponses];
+
+export type GetContainerCreateOptionsData = {
+    body?: never;
+    headers?: {
+        /**
+         * Identificador técnico opcional para correlação server-side.
+         */
+        'X-Correlation-Id'?: string;
+    };
+    path: {
+        environmentId: string;
+    };
+    query?: never;
+    url: '/api/v1/environments/{environmentId}/create-options';
+};
+
+export type GetContainerCreateOptionsErrors = {
+    /**
+     * Autenticação ausente ou inválida.
+     */
+    401: ProblemDetails;
+    /**
+     * Decisão do Keycloak negou o cadastro.
+     */
+    403: ProblemDetails;
+    /**
+     * O ambiente não foi encontrado após autorização.
+     */
+    404: ProblemDetails;
+    /**
+     * O ambiente já existe.
+     */
+    409: ProblemDetails;
+    /**
+     * Requisição inválida.
+     */
+    422: ProblemDetails;
+    /**
+     * Autorização ou persistência indisponível.
+     */
+    503: ProblemDetails;
+};
+
+export type GetContainerCreateOptionsError = GetContainerCreateOptionsErrors[keyof GetContainerCreateOptionsErrors];
+
+export type GetContainerCreateOptionsResponses = {
+    /**
+     * Opções do host.
+     */
+    200: ContainerCreateOptions;
+};
+
+export type GetContainerCreateOptionsResponse = GetContainerCreateOptionsResponses[keyof GetContainerCreateOptionsResponses];
 
 export type GetEnvironmentData = {
     body?: never;

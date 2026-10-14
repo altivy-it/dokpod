@@ -100,7 +100,12 @@ public sealed class AgentQueryDispatcher(TimeProvider timeProvider)
         TimeSpan? timeout = null)
     {
         if (!agents.TryGetValue(environmentId, out var channel)) return Outcome(QueryOutcomeKind.AgentDisconnected, "agent_disconnected");
-        var capability = kind == ContainerQueryKind.Logs ? Capability.ContainerLogs : Capability.ContainerInspect;
+        var capability = kind switch
+        {
+            ContainerQueryKind.Logs => Capability.ContainerLogs,
+            ContainerQueryKind.HostSecrets or ContainerQueryKind.HostNetworks or ContainerQueryKind.HostVolumes => Capability.ContainerCreate,
+            _ => Capability.ContainerInspect,
+        };
         if (!channel.Capabilities.Contains(capability)) return Outcome(QueryOutcomeKind.NotSupported, "not_supported");
         if (!await channel.Concurrency.WaitAsync(0, cancellationToken)) return Outcome(QueryOutcomeKind.TooManyRequests, "too_many_requests");
         var queryId = Guid.NewGuid().ToString("N");

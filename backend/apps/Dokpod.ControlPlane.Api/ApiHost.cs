@@ -12,6 +12,7 @@ using Dokpod.ControlPlane.Api.Agents;
 using Dokpod.ControlPlane.Api.Commands;
 using Dokpod.ControlPlane.Application.Agents;
 using Dokpod.ControlPlane.Infrastructure;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.AspNetCore.Server.Kestrel.Https;
@@ -161,6 +162,17 @@ public static class ApiHost
         builder.Services.AddSingleton(imagePullPolicy);
         builder.Services.AddScoped<Dokpod.ControlPlane.Application.Images.IImageInventoryStore, UnavailableImageInventoryStore>();
         builder.Services.AddScoped<Dokpod.ControlPlane.Application.Images.ImagePullService>();
+        // Spec 013 D-006: key ring próprio da API (separado do BFF) para valores de comandos.
+        var dataProtection = builder.Services.AddDataProtection().SetApplicationName("Dokpod.ControlPlane.Api");
+        var keysPath = builder.Configuration["DataProtection:KeysPath"];
+        if (!string.IsNullOrWhiteSpace(keysPath))
+        {
+            if (!Path.IsPathFullyQualified(keysPath)) throw new InvalidOperationException("DataProtection:KeysPath must be an absolute path.");
+            dataProtection.PersistKeysToFileSystem(new DirectoryInfo(keysPath));
+        }
+
+        builder.Services.AddSingleton<Dokpod.ControlPlane.Application.Commands.ICommandParameterProtector, DataProtectionCommandParameterProtector>();
+        builder.Services.AddScoped<Dokpod.ControlPlane.Application.Containers.ContainerCreationService>();
         builder.Services.AddScoped<InventoryProjectionService>();
         builder.Services.AddScoped<InventoryQueryService>();
         var engineSupport = builder.Configuration.GetSection(EngineSupportOptions.SectionName).Get<EngineSupportOptions>() ?? new EngineSupportOptions();
@@ -244,6 +256,7 @@ public static class ApiHost
         InventoryEndpoints.Map(app);
         ConsoleEndpoints.Map(app);
         ImageEndpoints.Map(app);
+        ContainerCreationEndpoints.Map(app);
         ContainerDetailEndpoints.Map(app);
         MetricsEndpoints.Map(app);
         ContainerCommandEndpoints.Map(app);

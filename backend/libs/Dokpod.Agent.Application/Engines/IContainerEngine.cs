@@ -32,6 +32,31 @@ public sealed record EngineImage(
     long SizeBytes,
     DateTimeOffset? CreatedAtUtc);
 
+/// <summary>
+/// Pedido de criação já resolvido no agente (spec 013): valores literais e de segredos em arquivo em `Environment`;
+/// segredos do Podman só por nome em `PodmanSecrets` (variável → segredo), resolvidos pelo próprio engine.
+/// </summary>
+public sealed record EngineCreateRequest(
+    Dokpod.Domain.Containers.ContainerCreationSpec Spec,
+    IReadOnlyList<KeyValuePair<string, string>> Environment,
+    IReadOnlyDictionary<string, string> PodmanSecrets,
+    Guid CommandId);
+
+public sealed record EngineCreateResult(string? ContainerId, string? FailureCode);
+
+/// <summary>Imagem local: presença e destinos `VOLUME` declarados (regra de remoção automática, FR-011).</summary>
+public sealed record EngineImageConfig(bool Present, IReadOnlyList<string> Volumes);
+
+/// <summary>Objeto do host para o formulário de criação: segredo do Podman, rede ou volume (somente nomes).</summary>
+public sealed record EngineHostObject(string Name, string? Driver = null);
+
+public enum EngineHostObjectKind
+{
+    PodmanSecrets,
+    Networks,
+    Volumes,
+}
+
 /// <summary>Resultado do pull: digest resolvido e tamanho, ou código de falha do contrato da 012.</summary>
 public sealed record ImagePullResult(bool Succeeded, string? FailureCode, string? ResolvedDigest = null, long? SizeBytes = null);
 
@@ -87,6 +112,32 @@ public interface IContainerEngine
     /// <summary>Baixa a imagem (`/images/create`); credenciais, se houver, ficam no host (spec 012).</summary>
     Task<ImagePullResult> PullImageAsync(Dokpod.Domain.Images.ImageReference reference, CancellationToken cancellationToken) =>
         Task.FromResult(new ImagePullResult(false, "not_supported"));
+
+    /// <summary>Inspeção da imagem local (`/images/{ref}/json`) para presença e `Config.Volumes`.</summary>
+    Task<EngineImageConfig> InspectImageConfigAsync(Dokpod.Domain.Images.ImageReference reference, CancellationToken cancellationToken) =>
+        Task.FromResult(new EngineImageConfig(false, []));
+
+    /// <summary>Container com o label informado (reconciliação por `dokpod.command-id`, D-004).</summary>
+    Task<EngineContainer?> FindByLabelAsync(string label, string value, CancellationToken cancellationToken) =>
+        Task.FromResult<EngineContainer?>(null);
+
+    /// <summary>`POST /containers/create` (ou Libpod no Podman, quando exigido); não inicia o container.</summary>
+    Task<EngineCreateResult> CreateContainerAsync(EngineCreateRequest request, CancellationToken cancellationToken) =>
+        Task.FromResult(new EngineCreateResult(null, "not_supported"));
+
+    /// <summary>Inicia o container recém-criado; devolve código de falha do contrato da 013 ou nulo.</summary>
+    Task<string?> StartCreatedContainerAsync(string containerId, CancellationToken cancellationToken) =>
+        Task.FromResult<string?>("not_supported");
+
+    /// <summary>Remove o container recém-criado (rollback de conflito de porta); nunca remove volumes.</summary>
+    Task RemoveCreatedContainerAsync(string containerId, CancellationToken cancellationToken) => Task.CompletedTask;
+
+    /// <summary>Nomes de segredos do Podman, redes ou volumes do host (sem valores).</summary>
+    Task<IReadOnlyList<EngineHostObject>> ListHostObjectsAsync(EngineHostObjectKind kind, CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<EngineHostObject>>([]);
+
+    /// <summary>`docker` ou `podman`, detectado na negociação.</summary>
+    Task<string> GetEngineKindAsync(CancellationToken cancellationToken) => Task.FromResult("docker");
 
     /// <summary>Contadores brutos de `/containers/{id}/stats?stream=false` (spec 009); nulo se indisponível.</summary>
     Task<EngineContainerStats?> GetContainerStatsAsync(string containerId, CancellationToken cancellationToken) =>

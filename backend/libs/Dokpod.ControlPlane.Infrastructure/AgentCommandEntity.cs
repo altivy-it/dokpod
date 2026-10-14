@@ -21,6 +21,7 @@ public sealed class AgentCommandEntity
     public DateTimeOffset? CompletedAtUtc { get; set; }
     public string? ResolvedImageDigest { get; set; }
     public long? ImageSizeBytes { get; set; }
+    public string? CreatedContainerId { get; set; }
     public DateTimeOffset CreatedAtUtc { get; set; }
     public DateTimeOffset UpdatedAtUtc { get; set; }
 }
@@ -32,4 +33,6 @@ public sealed class AgentCommandParametersEntity
     public DateTimeOffset CreatedAtUtc { get; set; }
     public string Kind { get; set; } = string.Empty;
     public string Parameters { get; set; } = "{}";
+    public byte[]? ProtectedValues { get; set; }
+    public DateTimeOffset? PurgedAt { get; set; }
 }

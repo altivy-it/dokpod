@@ -39,6 +39,7 @@ public sealed record AuditEvent
         "container.unpause",
         "container.command.result",
         "image.pull",
+        "container.create.requested",
     ];
 
     private static readonly HashSet<string> CommandActions =
@@ -51,6 +52,7 @@ public sealed record AuditEvent
         "container.unpause",
         "container.command.result",
         "image.pull",
+        "container.create.requested",
     ];
 
     private AuditEvent(
@@ -94,12 +96,16 @@ public sealed record AuditEvent
     /// <summary>Metadados permitidos por ação: somente números, booleanos e enums, nunca texto livre.</summary>
     public IReadOnlyDictionary<string, string>? Details { get; private init; }
 
-    public const int MaxDetailsBytes = 2048;
+    public const int MaxDetailsBytes = 2560;
 
     private static readonly HashSet<string> AllowedDetailKeys =
     [
         "kind", "tail", "since", "until", "filtered", "lines", "bytes", "truncated", "sessionId", "reason", "durationSeconds", "previousStage", "stage",
+        "command", "image", "name", "engine",
     ];
+
+    /// <summary>Comando equivalente redigido (spec 013 FR-008) cabe em um detalhe maior que os demais.</summary>
+    public const int MaxCommandDetailLength = 1800;
 
     public AuditEvent WithSubject(string subjectId, IReadOnlyDictionary<string, string>? details)
     {
@@ -117,7 +123,7 @@ public sealed record AuditEvent
                     throw new ArgumentException($"Audit detail '{key}' is not allowed.", nameof(details));
                 }
 
-                var normalized = NormalizeIdentifier(value, nameof(details), 128) ?? string.Empty;
+                var normalized = NormalizeIdentifier(value, nameof(details), key == "command" ? MaxCommandDetailLength : 128) ?? string.Empty;
                 size += key.Length + normalized.Length;
                 if (size > MaxDetailsBytes)
                 {

@@ -119,4 +119,15 @@ public sealed class ProtocolCompatibilityTests
         var legacyView = Google.Protobuf.WellKnownTypes.Empty.Parser.ParseFrom(command.ToByteArray());
         Assert.Equal(command.ToByteArray(), legacyView.ToByteArray());
     }
+
+    [Fact]
+    public void Spec013_CreateCapabilityNegotiatedAndCreatedIdDefaultsForOlderAgents()
+    {
+        Assert.Contains(Capability.ContainerCreate, AgentHostActivity.Accept(new AgentHello { Capabilities = { Capability.ContainerCreate } }));
+        Assert.DoesNotContain(Capability.ContainerCreate, AgentHostActivity.Accept(new AgentHello { Capabilities = { Capability.ImagePull } }));
+        var legacyResult = CommandResult.Parser.ParseFrom(new CommandResult { CommandId = Guid.NewGuid().ToString("D"), State = CommandResultState.Succeeded }.ToByteArray());
+        Assert.Equal(string.Empty, legacyResult.CreatedContainerId);
+        var create = new AgentCommand { Kind = CommandKind.CreateContainer, CreateContainer = new CreateContainerParameters { Image = "nginx", Name = "x" } };
+        Assert.Equal(create.ToByteArray(), Google.Protobuf.WellKnownTypes.Empty.Parser.ParseFrom(create.ToByteArray()).ToByteArray());
+    }
 }

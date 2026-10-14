@@ -140,6 +140,85 @@ paths:
           $ref: '#/components/responses/NotFound'
         '503':
           $ref: '#/components/responses/DependencyUnavailable'
+    post:
+      operationId: createContainer
+      summary: Cria e inicia um container no host (scope container:create, spec 013)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: environmentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/CorrelationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ContainerCreationRequest'
+      responses:
+        '202':
+          description: Comando de criação aceito.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContainerCreationAccepted'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '403':
+          $ref: '#/components/responses/AccessDenied'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/InvalidRequest'
+        '503':
+          $ref: '#/components/responses/DependencyUnavailable'
+  /api/v1/environments/{environmentId}/create-options:
+    get:
+      operationId: getContainerCreateOptions
+      summary: Dados do formulário de criação (segredos, redes e volumes do host, somente nomes)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: environmentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/CorrelationId'
+      responses:
+        '200':
+          description: Opções do host.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContainerCreateOptions'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '403':
+          $ref: '#/components/responses/AccessDenied'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/InvalidRequest'
+        '503':
+          $ref: '#/components/responses/DependencyUnavailable'
   /api/v1/environments/{environmentId}:
     get:
       operationId: getEnvironment
@@ -1112,6 +1191,207 @@ components:
           format: uuid
         reference:
           type: [string, 'null']
+    ContainerCreationRequest:
+      type: object
+      required: [image, name]
+      additionalProperties: false
+      description: Allowlist fechada (spec 013); qualquer outro campo resulta em 400.
+      properties:
+        image:
+          type: string
+          maxLength: 255
+        name:
+          type: string
+          pattern: '^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,62}$'
+        ports:
+          type: array
+          maxItems: 32
+          items:
+            type: object
+            required: [hostPort, containerPort, protocol]
+            additionalProperties: false
+            properties:
+              hostIp:
+                type: [string, 'null']
+              hostPort:
+                type: integer
+                minimum: 0
+                maximum: 65535
+              containerPort:
+                type: integer
+                minimum: 1
+                maximum: 65535
+              protocol:
+                type: string
+                enum: [tcp, udp]
+        environment:
+          type: array
+          maxItems: 100
+          items:
+            type: object
+            required: [name]
+            additionalProperties: false
+            properties:
+              name:
+                type: string
+                pattern: '^[A-Za-z_][A-Za-z0-9_]{0,127}$'
+              value:
+                type: [string, 'null']
+                maxLength: 32768
+              secret:
+                oneOf:
+                  - type: 'null'
+                  - type: object
+                    required: [kind, name]
+                    additionalProperties: false
+                    properties:
+                      kind:
+                        type: string
+                        enum: [podman_secret, file]
+                      name:
+                        type: string
+              sensitive:
+                type: boolean
+        volumes:
+          type: array
+          maxItems: 10
+          items:
+            type: object
+            required: [type, source, target]
+            additionalProperties: false
+            properties:
+              type:
+                type: string
+                enum: [volume, bind]
+              source:
+                type: string
+              target:
+                type: string
+              readOnly:
+                type: boolean
+        network:
+          type: [string, 'null']
+        cpuLimitCores:
+          type: [number, 'null']
+          minimum: 0.01
+          maximum: 64
+        memoryLimitBytes:
+          type: [integer, 'null']
+          format: int64
+        restartPolicy:
+          type: object
+          required: [name]
+          additionalProperties: false
+          properties:
+            name:
+              type: string
+              enum: ['no', on-failure, always, unless-stopped]
+            maximumRetryCount:
+              type: [integer, 'null']
+              minimum: 0
+              maximum: 100
+        healthcheck:
+          oneOf:
+            - type: 'null'
+            - type: object
+              required: [test, intervalSeconds, timeoutSeconds, retries, startPeriodSeconds, onFailure]
+              additionalProperties: false
+              properties:
+                test:
+                  type: array
+                  maxItems: 16
+                  items:
+                    type: string
+                intervalSeconds:
+                  type: integer
+                timeoutSeconds:
+                  type: integer
+                retries:
+                  type: integer
+                startPeriodSeconds:
+                  type: integer
+                onFailure:
+                  type: string
+                  enum: [none, restart]
+        autoRemove:
+          type: boolean
+        deadlineUtc:
+          type: [string, 'null']
+          format: date-time
+    ContainerCreationAccepted:
+      type: object
+      required: [commandId]
+      additionalProperties: false
+      properties:
+        commandId:
+          type: string
+          format: uuid
+        equivalentCommand:
+          type: [string, 'null']
+    ContainerCreateOptions:
+      type: object
+      required: [engine, engineVersion, secrets, networks, volumes, allowedRegistries, bindMountsAllowed, partial, limits]
+      additionalProperties: false
+      properties:
+        engine:
+          $ref: '#/components/schemas/EngineKind'
+        engineVersion:
+          type: string
+        rootless:
+          type: [boolean, 'null']
+        secrets:
+          type: array
+          items:
+            type: object
+            required: [kind, name]
+            additionalProperties: false
+            properties:
+              kind:
+                type: string
+                enum: [podman_secret, file]
+              name:
+                type: string
+        networks:
+          type: array
+          items:
+            type: object
+            required: [name]
+            additionalProperties: false
+            properties:
+              name:
+                type: string
+              driver:
+                type: [string, 'null']
+        volumes:
+          type: array
+          items:
+            type: object
+            required: [name]
+            additionalProperties: false
+            properties:
+              name:
+                type: string
+        allowedRegistries:
+          type: array
+          items:
+            type: string
+        bindMountsAllowed:
+          type: boolean
+        partial:
+          type: boolean
+        limits:
+          type: object
+          required: [ports, environment, volumes, valueBytes]
+          additionalProperties: false
+          properties:
+            ports:
+              type: integer
+            environment:
+              type: integer
+            volumes:
+              type: integer
+            valueBytes:
+              type: integer
     ContainerCommandAccepted:
       type: object
       required: [commandId]
@@ -1145,7 +1425,7 @@ components:
           format: uuid
         action:
           type: string
-          enum: [start, stop, restart, delete, pause, unpause, pull]
+          enum: [start, stop, restart, delete, pause, unpause, pull, create]
         kind:
           type: string
           enum: [container, image]
@@ -1161,7 +1441,10 @@ components:
         reference:
           type: [string, 'null']
           maxLength: 255
-          description: Referência canônica do pull (spec 012).
+          description: Referência canônica da imagem do pull (012) ou da criação (013).
+        containerName:
+          type: [string, 'null']
+          description: Nome pedido na criação (spec 013).
         result:
           oneOf:
             - type: 'null'
@@ -1173,6 +1456,9 @@ components:
                 imageSizeBytes:
                   type: [integer, 'null']
                   format: int64
+                createdContainerId:
+                  type: [string, 'null']
+                  description: Container criado (spec 013); presente também em `start_failed`.
         state:
           type: string
           enum: [pending, dispatched, accepted, succeeded, failed, indeterminate]

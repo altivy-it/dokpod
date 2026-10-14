@@ -12,8 +12,12 @@ public sealed record AgentOptions(
     string? ClientCertificatePassword,
     string? ServerCaCertificatePath,
     TimeSpan MetricsInterval = default,
-    string? RegistryAuthFile = null)
+    string? RegistryAuthFile = null,
+    IReadOnlyList<string>? BindMountAllowlist = null)
 {
+    /// <summary>Segredos em arquivo para criação de container (spec 013): `&lt;data&gt;/secrets`.</summary>
+    public string SecretsDirectory => Path.Combine(DataDirectory, "secrets");
+
     /// <summary>Intervalo de amostragem de recursos (spec 009): padrão 15 s, máximo 30 s.</summary>
     public TimeSpan EffectiveMetricsInterval => MetricsInterval > TimeSpan.Zero ? MetricsInterval : TimeSpan.FromSeconds(15);
 
@@ -47,7 +51,9 @@ public sealed record AgentOptions(
             GetOptionalAbsolutePath("DOKPOD_AGENT_SERVER_CA_CERTIFICATE_PATH"),
             TimeSpan.FromSeconds(GetBoundedInteger("DOKPOD_AGENT_METRICS_INTERVAL_SECONDS", 15, 5, 30)),
             // Spec 012: config.json (formato Docker, `auths`) com credenciais de registro que ficam no host.
-            GetOptionalAbsolutePath("DOKPOD_AGENT_REGISTRY_AUTH_FILE"));
+            GetOptionalAbsolutePath("DOKPOD_AGENT_REGISTRY_AUTH_FILE"),
+            // Spec 013: bind mounts só dentro destes diretórios absolutos (separados por ':'); vazio = somente volumes nomeados.
+            GetBindAllowlist());
     }
 
     private static string GetAbsolutePath(string variableName, string defaultValue)
@@ -72,6 +78,19 @@ public sealed record AgentOptions(
     {
         var value = Environment.GetEnvironmentVariable(variableName);
         return string.IsNullOrWhiteSpace(value) ? null : GetAbsolutePath(variableName, value);
+    }
+
+    private static IReadOnlyList<string> GetBindAllowlist()
+    {
+        var value = Environment.GetEnvironmentVariable("DOKPOD_AGENT_BIND_MOUNT_ALLOWLIST");
+        if (string.IsNullOrWhiteSpace(value)) return [];
+        var paths = value.Split(OperatingSystem.IsWindows() ? ';' : ':', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (paths.Any(path => !Path.IsPathFullyQualified(path)))
+        {
+            throw new InvalidOperationException("DOKPOD_AGENT_BIND_MOUNT_ALLOWLIST must contain absolute paths.");
+        }
+
+        return paths.Select(path => Path.GetFullPath(path)).ToArray();
     }
 
     private static int GetBoundedInteger(string variableName, int defaultValue, int minimum, int maximum)

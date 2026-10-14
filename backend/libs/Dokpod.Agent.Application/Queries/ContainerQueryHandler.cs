@@ -12,7 +12,11 @@ namespace Dokpod.Agent.Application.Queries;
 /// Consultas sob demanda (spec 011): resumo, inspeção e trecho de logs, sem persistência,
 /// sanitizados no agente e enviados em partes de até 256 KiB.
 /// </summary>
-public sealed class ContainerQueryHandler(IContainerEngine engine, TimeProvider timeProvider)
+public sealed class ContainerQueryHandler(
+    IContainerEngine engine,
+    TimeProvider timeProvider,
+    Dokpod.Agent.Application.Containers.IHostSecretFiles? secretFiles = null,
+    Dokpod.Agent.Application.Containers.ContainerCreationPolicy? creationPolicy = null)
 {
     public const int MaxMessageBytes = 256 * 1024;
     public const int MaxConcurrentQueries = 4;
@@ -38,6 +42,12 @@ public sealed class ContainerQueryHandler(IContainerEngine engine, TimeProvider 
             {
                 var remaining = request.Deadline.ToDateTimeOffset() - timeProvider.GetUtcNow();
                 deadline.CancelAfter(remaining > TimeSpan.Zero ? remaining : TimeSpan.Zero);
+            }
+
+            if (request.Kind is ContainerQueryKind.HostSecrets or ContainerQueryKind.HostNetworks or ContainerQueryKind.HostVolumes)
+            {
+                await HostObjectsAsync(request, send, deadline.Token);
+                return;
             }
 
             if (!IsValidContainerId(request.ContainerId))
@@ -186,6 +196,41 @@ public sealed class ContainerQueryHandler(IContainerEngine engine, TimeProvider 
     }
 
     public static bool IsValidContainerId(string id) => id.Length == 64 && id.All(Uri.IsHexDigit);
+
+    /// <summary>Spec 013 FR-006: nomes de segredos, redes e volumes do host; nunca valores.</summary>
+    private async Task HostObjectsAsync(ContainerQueryRequest request, Func<AgentMessage, Task> send, CancellationToken cancellationToken)
+    {
+        object payload = request.Kind switch
+        {
+            ContainerQueryKind.HostSecrets => new
+            {
+                secrets = (await engine.ListHostObjectsAsync(EngineHostObjectKind.PodmanSecrets, cancellationToken))
+                    .Select(s => new { kind = "podman_secret", name = s.Name })
+                    .Concat((secretFiles?.List() ?? []).Select(name => new { kind = "file", name })),
+            },
+            ContainerQueryKind.HostNetworks => new
+            {
+                networks = (await engine.ListHostObjectsAsync(EngineHostObjectKind.Networks, cancellationToken)).Select(n => new { name = n.Name, driver = n.Driver }),
+            },
+            _ => new
+            {
+                volumes = (await engine.ListHostObjectsAsync(EngineHostObjectKind.Volumes, cancellationToken)).Select(v => new { name = v.Name }),
+                bindMountsAllowed = creationPolicy?.BindMountsAllowed ?? false,
+            },
+        };
+        var json = JsonSerializer.SerializeToUtf8Bytes(payload);
+        await send(new AgentMessage
+        {
+            ContainerQueryResponse = new ContainerQueryResponse
+            {
+                QueryId = request.QueryId,
+                State = QueryResultState.Ok,
+                SanitizedJson = ByteString.CopyFrom(json.Length > MaxMessageBytes ? JsonSerializer.SerializeToUtf8Bytes(new { truncated = true }) : json),
+                Truncated = json.Length > MaxMessageBytes,
+                Final = true,
+            },
+        });
+    }
 
     private static AgentMessage Failure(string queryId, QueryResultState state, string code) =>
         new() { ContainerQueryResponse = new ContainerQueryResponse { QueryId = queryId, State = state, FailureCode = code, Final = true } };

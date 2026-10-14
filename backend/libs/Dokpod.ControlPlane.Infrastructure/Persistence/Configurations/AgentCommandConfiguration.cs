@@ -24,6 +24,7 @@ public sealed class AgentCommandConfiguration : IEntityTypeConfiguration<AgentCo
         entity.Property(command => command.CompletedAtUtc).HasColumnName("completed_at_utc");
         entity.Property(command => command.ResolvedImageDigest).HasColumnName("resolved_image_digest").HasMaxLength(160);
         entity.Property(command => command.ImageSizeBytes).HasColumnName("image_size_bytes");
+        entity.Property(command => command.CreatedContainerId).HasColumnName("created_container_id").HasMaxLength(128);
         entity.Property(command => command.CreatedAtUtc).HasColumnName("created_at_utc").IsRequired();
         entity.Property(command => command.UpdatedAtUtc).HasColumnName("updated_at_utc").IsRequired();
         entity.HasOne<EnvironmentRegistrationEntity>()
@@ -45,6 +46,8 @@ public sealed class AgentCommandParametersConfiguration : IEntityTypeConfigurati
         entity.Property(parameters => parameters.CreatedAtUtc).HasColumnName("created_at_utc");
         entity.Property(parameters => parameters.Kind).HasColumnName("kind").HasMaxLength(32);
         entity.Property(parameters => parameters.Parameters).HasColumnName("parameters").HasColumnType("jsonb");
+        entity.Property(parameters => parameters.ProtectedValues).HasColumnName("protected_values");
+        entity.Property(parameters => parameters.PurgedAt).HasColumnName("purged_at");
     }
 }
 

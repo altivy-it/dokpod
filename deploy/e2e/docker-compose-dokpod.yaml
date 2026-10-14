@@ -37,7 +37,10 @@ services:
       Authentication__Keycloak__Audience: dokpod-api
       Authentication__Keycloak__DecisionTimeoutSeconds: 15
       ConnectionStrings__ControlPlane: ${DOKPOD_CONTROLPLANE_CONNECTION:?Defina DOKPOD_CONTROLPLANE_CONNECTION no secret externo}
+      # Spec 013 D-006: key ring próprio da API (valores de criação de container), separado do BFF.
+      DataProtection__KeysPath: /var/lib/dokpod-api/keys
     volumes:
+      - dokpod-api-keys:/var/lib/dokpod-api
       - ${DOKPOD_E2E_API_CERTIFICATE_PATH:?Defina o caminho absoluto do certificado PFX da API}:/certs/api.pfx:ro
       - ${DOKPOD_E2E_CERTIFICATE_DIRECTORY:?Defina a pasta externa de certificados do Dokpod}:/certs/pki:ro
     restart: "no"
@@ -161,4 +164,5 @@ networks:
     name: identity-client
 
 volumes:
+  dokpod-api-keys:
   dokpod-bff-keys:

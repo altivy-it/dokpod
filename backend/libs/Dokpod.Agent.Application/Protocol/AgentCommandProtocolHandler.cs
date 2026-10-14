@@ -55,6 +55,7 @@ public sealed class AgentCommandProtocolHandler(AgentCommandProcessor processor)
                 ObservedContainerRevision = result.ObservedContainerRevision ?? string.Empty,
                 ResolvedImageDigest = result.Output?.ResolvedImageDigest ?? string.Empty,
                 ImageSizeBytes = result.Output?.ImageSizeBytes is > 0 ? (ulong)result.Output.ImageSizeBytes.Value : 0,
+                CreatedContainerId = result.Output?.CreatedContainerId ?? string.Empty,
                 CompletedAt = Timestamp.FromDateTimeOffset(result.CompletedAtUtc),
             },
             cancellationToken);
