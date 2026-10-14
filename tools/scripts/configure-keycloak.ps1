@@ -462,7 +462,9 @@ function Ensure-AuthorizationScopes {
         'container:logs',
         'image:pull',
         'container:create',
-        'container:exec')) {
+        'container:exec',
+        'alert:read',
+        'alert:manage')) {
         $encodedScope = [Uri]::EscapeDataString($scopeName)
         $scope = @(Invoke-KeycloakApi GET "$authzBase/scope?name=$encodedScope&exact=true") |
             Where-Object name -eq $scopeName | Select-Object -First 1

@@ -8,7 +8,7 @@
 
 ## D-002 - Avaliação de eventos no momento da gravação
 
-- **Decisão**: `OperationalEventService.AppendAsync` chama o `AlertEvaluator` para os eventos efetivamente gravados (após a deduplicação por `source_key`), no mesmo escopo; a falha da avaliação é registrada em log e não perde o evento.
+- **Decisão**: `OperationalEventService.AppendAsync` chama o `AlertEvaluator` para os eventos efetivamente gravados (após a deduplicação por `source_key`), no mesmo escopo, depois da gravação e da notificação; uma falha da avaliação se propaga a quem chamou (que já registra em log, como o `Guard` do `AgentHostActivity`) e não perde o evento, já persistido.
 - **Justificativa**: um único ponto por onde passam todos os eventos (agente, varredura de conexão e comandos); atende os 15 s do SC-001 sem fila nova.
 - **Alternativas**: worker que lê eventos novos periodicamente (atraso e cursor extra).
 

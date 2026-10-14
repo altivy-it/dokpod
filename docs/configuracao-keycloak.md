@@ -71,6 +71,8 @@ Scopes iniciais:
 | `image:pull` | baixar imagem no host (spec 012) |
 | `container:create` | criar e iniciar container pela allowlist de parâmetros (spec 013) |
 | `container:exec` | abrir terminal interativo no container (spec 014) |
+| `alert:read` | ver alertas, regras e silenciamentos do ambiente (spec 016) |
+| `alert:manage` | reconhecer, resolver e silenciar alertas e gerenciar regras e silenciamentos do ambiente (spec 016) |
 
 Os scopes são criados por `tools/scripts/configure-keycloak.ps1` no resource server `dokpod-api` e concedidos por ambiente com `tools/scripts/provision-environment-authorization.ps1 -Scope <scope>`. Scopes de operações privilegiadas (`container:create`, `container:exec`) devem ser concedidos a grupos restritos e revisados periodicamente.
 

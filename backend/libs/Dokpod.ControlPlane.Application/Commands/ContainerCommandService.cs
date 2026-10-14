@@ -19,6 +19,8 @@ public enum ContainerCommandSubmissionOutcome
     EnvironmentNotFound,
     EnvironmentUnavailable,
     AgentOffline,
+    JustificationRequired,
+    JustificationInvalid,
 }
 
 public sealed record ContainerCommandSubmissionResult(
@@ -30,7 +32,10 @@ public sealed class ContainerCommandService(
     IEnvironmentAuthorizationDecider authorizationDecider,
     IEnvironmentRegistrationStore registrationStore,
     IAgentSessionStore sessionStore,
-    AgentCommandQueueService queueService)
+    AgentCommandQueueService queueService,
+    Alerts.IActionJustificationStore? justifications = null,
+    Inventory.IContainerSearchStore? containers = null,
+    TimeProvider? timeProvider = null)
 {
     public async Task<ContainerCommandSubmissionResult> SubmitAsync(
         Guid environmentId,
@@ -42,7 +47,8 @@ public sealed class ContainerCommandService(
         AuthenticatedActor actor,
         string accessToken,
         Guid correlationId,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        string? justification = null)
     {
         ValidateRequest(
             environmentId,
@@ -92,6 +98,31 @@ public sealed class ContainerCommandService(
                 environmentAccess.Reason);
         }
 
+        // Spec 016: parar, pausar e remover exigem justificativa onde a política do estágio manda (FR-015/FR-017).
+        var justifiedAction = JustifiedActionFor(kind);
+        string? maskedJustification = null;
+        if (justifiedAction is not null && justifications is not null)
+        {
+            var trimmed = justification?.Trim();
+            var policies = await justifications.GetPoliciesAsync(cancellationToken).ConfigureAwait(false);
+            var required = registration.Stage is { } stage && policies.TryGetValue(stage, out var value) && value;
+            if (string.IsNullOrEmpty(trimmed))
+            {
+                if (required)
+                {
+                    return new ContainerCommandSubmissionResult(ContainerCommandSubmissionOutcome.JustificationRequired, commandId, "justification_required");
+                }
+            }
+            else if (!Dokpod.Domain.Alerts.ActionJustifications.IsValidLength(trimmed))
+            {
+                return new ContainerCommandSubmissionResult(ContainerCommandSubmissionOutcome.JustificationInvalid, commandId, "justification_invalid");
+            }
+            else
+            {
+                maskedJustification = Terminal.JustificationMasker.Mask(trimmed);
+            }
+        }
+
         var session = await sessionStore.FindActiveAsync(environmentId, cancellationToken)
             .ConfigureAwait(false);
         if (session is null || session.FencingToken > long.MaxValue)
@@ -121,8 +152,21 @@ public sealed class ContainerCommandService(
             environmentId,
             AuditOutcome.Succeeded,
             commandId: commandId);
+        if (maskedJustification is not null)
+        {
+            auditEvent = auditEvent.WithSubject(containerId, new Dictionary<string, string> { ["justification"] = maskedJustification });
+        }
+
         var enqueueResult = await queueService.EnqueueAsync(command, auditEvent, cancellationToken)
             .ConfigureAwait(false);
+        if (maskedJustification is not null && justifiedAction is { } action && enqueueResult != AgentCommandEnqueueResult.ConflictingPayload)
+        {
+            // Depois de Created ou Duplicate: nova tentativa com a mesma chave completa o registro (D-005).
+            var name = containers is null ? null : (await containers.GetAsync(environmentId, containerId, cancellationToken).ConfigureAwait(false))?.Name;
+            await justifications!.RecordAsync(
+                new Alerts.ContainerActionJustification(Guid.NewGuid(), commandId, environmentId, containerId, name, action, actor.Subject, maskedJustification, (timeProvider ?? TimeProvider.System).GetUtcNow(), null),
+                cancellationToken).ConfigureAwait(false);
+        }
 
         return new ContainerCommandSubmissionResult(
             enqueueResult switch
@@ -199,6 +243,14 @@ public sealed class ContainerCommandService(
         string containerId,
         string expectedContainerRevision) =>
         AgentCommandKinds.PayloadHash(kind, containerId, expectedContainerRevision, null);
+
+    private static Dokpod.Domain.Alerts.JustifiedAction? JustifiedActionFor(AgentCommandKind kind) => kind switch
+    {
+        AgentCommandKind.StopContainer => Dokpod.Domain.Alerts.JustifiedAction.Stop,
+        AgentCommandKind.PauseContainer => Dokpod.Domain.Alerts.JustifiedAction.Pause,
+        AgentCommandKind.DeleteContainer => Dokpod.Domain.Alerts.JustifiedAction.Delete,
+        _ => null,
+    };
 
     private static void ValidateRequest(
         Guid environmentId,

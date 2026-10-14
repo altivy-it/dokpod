@@ -1,4 +1,5 @@
 using Dokpod.ControlPlane.Application.Alerts;
+using Dokpod.ControlPlane.Application.Events;
 using Dokpod.ControlPlane.Infrastructure;
 using Dokpod.Domain.Alerts;
 using Dokpod.Domain.Environments;
@@ -166,6 +167,108 @@ public sealed class AlertGovernanceIntegrationTests
         {
             await context.Database.ExecuteSqlRawAsync("DELETE FROM dokpod.environment_events WHERE environment_id = @id", [new NpgsqlParameter("id", environment)], ct);
             await context.EnvironmentRegistrations.Where(r => r.EnvironmentId == environment).ExecuteDeleteAsync(ct);
+        }
+    }
+
+    [Fact]
+    public async Task Evaluator_OpensOnFailureIgnoresStopsAndJustifiedActionsAndResolvesOnRecovery()
+    {
+        await using var context = CreateContextOrSkip();
+        var ct = TestContext.Current.CancellationToken;
+        var environment = Guid.NewGuid();
+        var now = DateTimeOffset.UtcNow;
+        var registrations = new PostgresEnvironmentRegistrationStore(context);
+        var alerts = new PostgresAlertStore(context);
+        var justifications = new PostgresActionJustificationStore(context);
+        var notifier = new CountingNotifier();
+        var service = new OperationalEventService(
+            new PostgresOperationalEventStore(context),
+            notifier,
+            TimeProvider.System,
+            new AlertEvaluator(alerts, justifications, registrations, notifier, TimeProvider.System));
+        OperationalEvent Died(string container, int exitCode, int secondsAgo) => OperationalEvent.Create(
+            environment, OperationalEventTypes.ContainerDied, now.AddSeconds(-secondsAgo), now, "container", container, container, new Dictionary<string, string> { ["exitCode"] = exitCode.ToString(System.Globalization.CultureInfo.InvariantCulture) });
+        try
+        {
+            await registrations.CreateAsync(EnvironmentRegistration.Create(environment, $"e-{environment:N}"[..18], "srv", true, [EnvironmentResourceScopes.Read]), ct);
+            await justifications.RecordAsync(new ContainerActionJustification(Guid.NewGuid(), Guid.NewGuid(), environment, "justificado", "justificado", JustifiedAction.Stop, "operador", "Manutenção planejada da base", now.AddMinutes(-1), null), ct);
+
+            await service.AppendAsync(environment, [Died("falhou", 1, 30), Died("parado", 143, 29), Died("limpo", 0, 28), Died("justificado", 1, 27)], ct);
+
+            var open = await alerts.ListAsync(new AlertQuery([environment], false, [], [], null, null, null, null, null, 10), ct);
+            var alert = Assert.Single(open.Alerts);
+            Assert.Equal("falhou", alert.ContainerId);
+            Assert.Equal(DiedRule, alert.RuleId);
+            Assert.Contains("código 1", alert.ConditionText);
+            Assert.Contains(Dokpod.ControlPlane.Application.Realtime.InvalidationKinds.Alerts, notifier.Kinds);
+
+            // Nova falha do mesmo container soma ocorrência no mesmo alerta.
+            await service.AppendAsync(environment, [Died("falhou", 2, 10)], ct);
+            Assert.Equal(2, (await alerts.GetAsync(alert.AlertId, ct))!.Occurrences);
+
+            await service.AppendAsync(environment, [OperationalEvent.Create(environment, OperationalEventTypes.ContainerRecovered, now, now, "container", "falhou", "falhou", null)], ct);
+            var resolved = (await alerts.GetAsync(alert.AlertId, ct))!;
+            Assert.Equal(AlertState.Resolved, resolved.State);
+            Assert.Equal(AlertResolutionReasons.ConditionCleared, resolved.ResolutionReason);
+        }
+        finally
+        {
+            await Cleanup(context, environment, ct);
+            await context.Database.ExecuteSqlRawAsync("DELETE FROM dokpod.container_action_justifications WHERE environment_id = @id", [new NpgsqlParameter("id", environment)], ct);
+            await context.Database.ExecuteSqlRawAsync("DELETE FROM dokpod.environment_events WHERE environment_id = @id", [new NpgsqlParameter("id", environment)], ct);
+            await context.EnvironmentRegistrations.Where(r => r.EnvironmentId == environment).ExecuteDeleteAsync(ct);
+        }
+    }
+
+    [Fact]
+    public async Task Evaluator_RestartRuleNeedsMinimumOccurrencesAndSilenceMarksNewAlerts()
+    {
+        await using var context = CreateContextOrSkip();
+        var ct = TestContext.Current.CancellationToken;
+        var environment = Guid.NewGuid();
+        var now = DateTimeOffset.UtcNow;
+        var registrations = new PostgresEnvironmentRegistrationStore(context);
+        var alerts = new PostgresAlertStore(context);
+        var notifier = new CountingNotifier();
+        var service = new OperationalEventService(
+            new PostgresOperationalEventStore(context),
+            notifier,
+            TimeProvider.System,
+            new AlertEvaluator(alerts, new PostgresActionJustificationStore(context), registrations, notifier, TimeProvider.System));
+        OperationalEvent Restart(int secondsAgo) => OperationalEvent.Create(environment, OperationalEventTypes.ContainerAutoRestarted, now.AddSeconds(-secondsAgo), now, "container", "loop", "loop", null);
+        var silence = new AlertSilence(Guid.NewGuid(), new AlertScope(null, environment, "lo*"), null, now.AddMinutes(-1), now.AddHours(1), null, "Janela de manutenção do serviço", "operador");
+        try
+        {
+            await registrations.CreateAsync(EnvironmentRegistration.Create(environment, $"e-{environment:N}"[..18], "srv", true, [EnvironmentResourceScopes.Read]), ct);
+            await alerts.CreateSilenceAsync(silence, ct);
+
+            await service.AppendAsync(environment, [Restart(60)], ct);
+            await service.AppendAsync(environment, [Restart(40)], ct);
+            Assert.Empty((await alerts.ListAsync(new AlertQuery([environment], false, [], [], null, null, null, null, null, 10), ct)).Alerts);
+
+            await service.AppendAsync(environment, [Restart(20)], ct);
+            var alert = Assert.Single((await alerts.ListAsync(new AlertQuery([environment], false, [], [], null, null, null, null, null, 10), ct)).Alerts);
+            Assert.Equal(Guid.Parse("01600000-0000-4000-8000-000000000004"), alert.RuleId);
+            Assert.Equal(AlertState.Silenced, alert.State);
+            Assert.Equal(silence.SilenceId, alert.SilenceId);
+        }
+        finally
+        {
+            await Cleanup(context, environment, ct);
+            await context.Database.ExecuteSqlRawAsync("DELETE FROM dokpod.alert_silences WHERE silence_id = @id", [new NpgsqlParameter("id", silence.SilenceId)], ct);
+            await context.Database.ExecuteSqlRawAsync("DELETE FROM dokpod.environment_events WHERE environment_id = @id", [new NpgsqlParameter("id", environment)], ct);
+            await context.EnvironmentRegistrations.Where(r => r.EnvironmentId == environment).ExecuteDeleteAsync(ct);
+        }
+    }
+
+    private sealed class CountingNotifier : Dokpod.ControlPlane.Application.Realtime.IControlPlaneNotifier
+    {
+        public List<string> Kinds { get; } = [];
+
+        public Task NotifyAsync(Guid environmentId, string kind, CancellationToken cancellationToken)
+        {
+            Kinds.Add(kind);
+            return Task.CompletedTask;
         }
     }
 
