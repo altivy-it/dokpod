@@ -4,7 +4,7 @@
 
 **Criada em**: 2026-10-12
 
-**Estado**: `draft` - aguardando revisão humana; depende de aprovação de ADR e de mudança nas instruções de frontend antes de qualquer implementação.
+**Estado**: `implemented` - aprovada em 2026-10-13 (ADR 2026-0005 `accepted`; ver [specs/README.md](../README.md)) e implementada; pendência única: T029 `NOT RUN` (E2E com stack real).
 
 **Entrada**: Mockups do canvas "Gestão de Containers" em [docs/design/app](../../docs/design/app/project/canvas.json) (`Main`, `Containers`, `Detalhe`, `NovoContainer`, `Campo`, `Selecao`, `Marcador`) e design system Altivy em [ds/altivy](../../docs/design/app/project/ds/altivy/README.md). Decisão do solicitante em 2026-10-12: implementar componentes Angular próprios, fiéis ao mockup, substituindo a regra atual de uso exclusivo de PO UI.
 
@@ -119,7 +119,7 @@ Como operador, quero que login, catálogo/cadastro de ambientes e inventário ex
 - **SC-003**: Zero violações de severidade séria ou crítica (`serious`/`critical`) apontadas pela ferramenta de acessibilidade aprovada no ADR 2026-0005, executada no E2E pelas páginas da moldura, entrada, 404, "Em breve" e catálogo de componentes.
 - **SC-004**: E2E existentes (cadastro de ambiente, inventário, lifecycle) passam sem alteração de comportamento após a troca de moldura.
 - **SC-005**: Nenhuma instrução ou documento do repositório continua exigindo PO UI após a aprovação do ADR.
-- **SC-006**: Primeira renderização útil da moldura em até 2 segundos na stack E2E local, com bundle inicial que não cresça mais de 15% em relação à linha de base medida e registrada antes da Fase 2.
+- **SC-006**: Primeira renderização útil da moldura em até 2 segundos na stack E2E local, com bundle inicial de produção dentro do orçamento absoluto de 420 kB brutos (alerta) e 500 kB (erro). O limite original de 15% sobre a linha de base foi substituído em 2026-10-13 após a medição da T031 (ver [plan.md](plan.md), "Linha de Base").
 
 ## Premissas
 

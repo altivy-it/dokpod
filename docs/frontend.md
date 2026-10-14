@@ -57,7 +57,7 @@ Features integram por rotas, contratos públicos e fachadas pequenas; não impor
 
 ## Design system
 
-O console segue o design system próprio derivado do Altivy (ADR 2026-0005), com os mockups de `docs/design/app` como fonte da verdade: tema escuro, vidro translúcido apenas em moldura, cards e overlays, conteúdo denso em painel opaco, tipografia Outfit (JetBrains Mono para dados técnicos) e `teal-light` como único acento. Tokens ficam em `frontend/libs/design-system/styles/tokens.css` e componentes `dok-*` em `frontend/web/src/app/design-system/`.
+O console segue o design system próprio derivado do Altivy (ADR 2026-0005), com os mockups de `docs/design/app` como fonte da verdade: tema escuro, vidro translúcido apenas em moldura, cards e overlays, conteúdo denso em painel opaco, tipografia Outfit (JetBrains Mono para dados técnicos) e `teal-light` como único acento. Tokens, fontes e utilitários globais ficam em `frontend/web/src/styles/` (`tokens.css`, `fonts.css`, `app-text.css`, `altivy-kit.css`) e componentes `dok-*` em `frontend/web/src/app/design-system/`; `frontend/libs/design-system/assets/` guarda apenas ativos de marca e ícones de navegador.
 
 Ícones vêm de `dok-icon` (geometria do kit Altivy) e sempre possuem nome acessível ou tooltip quando o significado não é óbvio. Todo status leva palavra ou ícone além da cor.
 

@@ -1,8 +1,9 @@
-import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { ApplicationConfig, provideBrowserGlobalErrorListeners } from '@angular/core';
 import { provideRouter, withComponentInputBinding } from '@angular/router';
 import { routes } from './app.routes';
+import { sessionExpiryInterceptor } from './core/session-expiry.interceptor';
 
 export const appConfig: ApplicationConfig = {
-  providers: [provideBrowserGlobalErrorListeners(), provideHttpClient(), provideRouter(routes, withComponentInputBinding())],
+  providers: [provideBrowserGlobalErrorListeners(), provideHttpClient(withInterceptors([sessionExpiryInterceptor])), provideRouter(routes, withComponentInputBinding())],
 };

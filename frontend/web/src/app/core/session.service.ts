@@ -13,7 +13,7 @@ export interface BffSession {
   displayGroup?: string | null;
 }
 
-export type SessionState = 'loading' | 'error' | 'anonymous' | 'authenticated';
+export type SessionState = 'loading' | 'error' | 'anonymous' | 'authenticated' | 'expired';
 
 export function initialsOf(name: string | null | undefined): string {
   return String(name ?? '')
@@ -47,6 +47,11 @@ export class SessionService {
         this.state.set('error');
       },
     });
+  }
+
+  /** Sessão do BFF expirou durante o uso (401 da API); a tela pede novo login sem perder a URL. */
+  expire(): void {
+    if (this.state() === 'authenticated') this.state.set('expired');
   }
 
   login(): void {

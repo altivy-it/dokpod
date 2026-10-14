@@ -112,12 +112,12 @@
             <button
               type="button"
               class="alt-app-header__profile"
-              aria-label="Menu do usuário"
               aria-haspopup="menu"
               [attr.aria-expanded]="userMenuOpen()"
               (click)="userMenuOpen.set(!userMenuOpen())"
             >
               <span class="alt-app-header__avatar">{{ userInitials() }}</span>
+              <span class="sr-only">, menu do usuário</span>
               <dok-icon [name]="userMenuOpen() ? 'chevron-up' : 'chevron-down'" [size]="16" />
             </button>
             @if (userMenuOpen()) {

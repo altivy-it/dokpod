@@ -155,8 +155,8 @@ public static class BffHost
             var tokens = antiforgery.GetAndStoreTokens(context);
             return Results.Ok(new { requestToken = tokens.RequestToken });
         }).RequireAuthorization();
-        endpoints.MapGet("/bff/session", (HttpContext context) =>
-            Results.Ok(BffSessionResponse.FromPrincipal(context.User))).AllowAnonymous();
+        endpoints.MapGet("/bff/session", (HttpContext context, IOptions<BffRuntimeOptions> runtimeOptions) =>
+            Results.Ok(BffSessionResponse.FromPrincipal(context.User, runtimeOptions.Value.Session.DisplayGroupClaim))).AllowAnonymous();
         endpoints.MapMethods("/api/v1/{**path}", [HttpMethods.Get, HttpMethods.Head, HttpMethods.Options], async (HttpContext context, IHttpClientFactory httpClientFactory) =>
             await DownstreamProxy.ProxyAsync(context, httpClientFactory, context.RequestServices.GetRequiredService<IOptions<DownstreamApiOptions>>()))
             .RequireAuthorization();

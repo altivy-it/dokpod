@@ -52,6 +52,8 @@ let nextId = 0;
     <div class="dok-select" (focusout)="onFocusOut($event)">
       @if (label()) {
         <span class="alt-field__label" [id]="labelId">{{ label() }}</span>
+      } @else if (ariaLabel()) {
+        <span class="sr-only" [id]="labelId">{{ ariaLabel() }}</span>
       }
       <button
         #trigger
@@ -62,8 +64,7 @@ let nextId = 0;
         aria-haspopup="listbox"
         [attr.aria-expanded]="open()"
         [attr.aria-controls]="listId"
-        [attr.aria-labelledby]="label() ? labelId + ' ' + valueId : null"
-        [attr.aria-label]="label() ? null : ariaLabel()"
+        [attr.aria-labelledby]="label() || ariaLabel() ? labelId + ' ' + valueId : null"
         [attr.aria-activedescendant]="open() && activeIndex() >= 0 ? optionId(activeIndex()) : null"
         [disabled]="isDisabled()"
         (click)="toggle()"

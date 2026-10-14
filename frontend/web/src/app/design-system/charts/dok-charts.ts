@@ -113,7 +113,7 @@ const defaultFormat = (value: number) => formatNumber(value, 1);
         } @else {
           <div #plot class="alt-graphics__plot" [style.height.px]="height()">
             @if (width() > 0) {
-              <svg class="alt-graphics__svg alt-num" [attr.width]="width()" [attr.height]="height()" role="img" [attr.aria-label]="title()">
+              <svg class="alt-graphics__svg alt-num" [attr.width]="width()" [attr.height]="height()" role="group" [attr.aria-label]="title()">
                 @for (t of geometry().ticks; track $index) {
                   <g>
                     <line [attr.x1]="m.l" [attr.x2]="width() - m.r" [attr.y1]="t.y" [attr.y2]="t.y" class="alt-graphics__grid" />
@@ -151,7 +151,12 @@ const defaultFormat = (value: number) => formatNumber(value, 1);
                   fill="transparent"
                   tabindex="0"
                   class="alt-graphics__mark"
-                  aria-label="Explorar valores; use as setas"
+                  role="slider"
+                  aria-label="Explorar valores; use as setas, Home e End"
+                  aria-valuemin="0"
+                  [attr.aria-valuemax]="Math.max(0, x().length - 1)"
+                  [attr.aria-valuenow]="hover() ?? Math.max(0, x().length - 1)"
+                  [attr.aria-valuetext]="valueText()"
                   (pointermove)="onPointer($event)"
                   (pointerleave)="hover.set(null)"
                   (blur)="hover.set(null)"
@@ -295,6 +300,17 @@ export class DokLineChart {
     };
   });
 
+  /** Resumo do ponto em foco para leitores de tela (`aria-valuetext`). */
+  protected readonly valueText = computed(() => {
+    const n = this.x().length;
+    if (!n) return null;
+    const k = this.hover() ?? n - 1;
+    const values = this.series()
+      .filter(s => s.data[k] !== null && s.data[k] !== undefined)
+      .map(s => `${s.name} ${this.format()(s.data[k]!)}`);
+    return [this.x()[k], ...values].join(', ');
+  });
+
   protected onPointer(event: PointerEvent): void {
     const rect = this.plot()?.nativeElement.getBoundingClientRect();
     if (!rect) return;
@@ -305,11 +321,14 @@ export class DokLineChart {
   }
 
   protected onKey(event: KeyboardEvent): void {
-    if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
-    event.preventDefault();
     const n = this.x().length;
+    if (!n) return;
     const current = this.hover() ?? n - 1;
-    this.hover.set(Math.max(0, Math.min(n - 1, current + (event.key === 'ArrowRight' ? 1 : -1))));
+    const next =
+      event.key === 'ArrowRight' ? current + 1 : event.key === 'ArrowLeft' ? current - 1 : event.key === 'Home' ? 0 : event.key === 'End' ? n - 1 : null;
+    if (next === null) return;
+    event.preventDefault();
+    this.hover.set(Math.max(0, Math.min(n - 1, next)));
   }
 
   private observe(el: HTMLElement | null): void {
@@ -344,7 +363,7 @@ export class DokLineChart {
           <div class="app-small" style="color: var(--muted)">{{ emptyLabel() }}</div>
         } @else {
           <div class="alt-graphics__plot alt-graphics__donut">
-            <svg class="alt-graphics__svg alt-num" [attr.width]="size()" [attr.height]="size()" role="img" [attr.aria-label]="title()">
+            <svg class="alt-graphics__svg alt-num" [attr.width]="size()" [attr.height]="size()" role="group" [attr.aria-label]="title()">
               @for (arc of arcs(); track arc.label; let i = $index) {
                 <path
                   [attr.d]="arc.d"
@@ -352,6 +371,7 @@ export class DokLineChart {
                   [attr.fill-opacity]="active() === null || active() === i ? 1 : 0.35"
                   class="alt-graphics__mark"
                   tabindex="0"
+                  role="img"
                   [attr.aria-label]="arc.aria"
                   (pointerenter)="active.set(i)"
                   (pointerleave)="active.set(null)"

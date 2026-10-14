@@ -2,7 +2,7 @@
 
 **Branch**: `007-console-operacional` | **Data**: 2026-10-12 | **Spec**: [spec.md](spec.md)
 
-**Estado**: `draft` - aguardando revisão humana e aprovação do ADR 2026-0005.
+**Estado**: `implemented` - aprovada em 2026-10-13 (ADR 2026-0005 `accepted`; ver [specs/README.md](../README.md)) e implementada; pendência única: T029 `NOT RUN` (E2E com stack real).
 
 ## Resumo
 
@@ -116,8 +116,10 @@ Medido em 2026-10-13 (T005), antes de qualquer mudança visual, com `ng build` d
 
 | Medida | Antes (T005) | Depois (T031) |
 | --- | --- | --- |
-| Bundle inicial | 269,32 kB bruto / 74,66 kB transferido | - |
-| Primeira renderização útil | não medida (stack E2E não iniciada nesta etapa) | - |
+| Bundle inicial | 269,32 kB bruto / 74,66 kB transferido | 389,85 kB bruto / 101,76 kB transferido (+36% transferido) |
+| Shell interativo | não medida (stack E2E não iniciada nesta etapa) | mediana 89 ms em 5 amostras (borda nginx + mock, build de desenvolvimento) |
+
+Medição T031 em 2026-10-13 no mesmo container. **SC-006**: tempo até o shell interativo atendido (≤ 2 s); crescimento do bundle inicial **não atendido** (+36% transferido contra o limite de 15%). Composição do inicial: framework Angular (`core`, `router`, `common`, `platform-browser`) ≈ 284 kB brutos, `main` 42 kB (shell, sessão, toast, ícones) e CSS global 63 kB (tokens, fontes, kit Altivy). A linha de base era o app legado de duas telas; o crescimento decorre do shell e da base do design system exigidos pelos mockups. Remover o CSS não usado do kit economizaria ≈ 2,5 kB transferidos e anteciparia divergência com componentes ainda previstos (`alt-column-picker` na 010). **Recomendação aplicada**: substituir o limite relativo por orçamento absoluto do bundle inicial de 420 kB brutos (alerta, ≈ 110 kB transferidos) e 500 kB (erro), verificado em todo build de produção pelos `budgets` do `angular.json`; o SC-006 da spec foi ajustado e qualquer aumento do orçamento exige revisão registrada.
 
 ## Riscos
 

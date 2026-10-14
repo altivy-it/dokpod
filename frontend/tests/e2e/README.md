@@ -76,3 +76,15 @@ e alvo sintético devem estar provisionados e o resultado não pode conter skips
 Os artefatos ficam em `artifacts/e2e/playwright`, fora do pacote de produção. Preserve HTML, screenshots e traces conforme a política de evidências da release.
 
 A carga e o teste de capacidade não pertencem a esta suíte. Use a imagem k6 em uma VM isolada, conforme os critérios de `.github/PERFORMANCE_TESTING_CRITERIA.md` e a documentação de `containers-lzo/k6`.
+
+## E2E de UI com respostas simuladas
+
+`mock_ui/` cobre telas, teclado, acessibilidade (axe-core) e larguras sem depender do Keycloak, do BFF ou da API reais. Tudo roda em containers: o build Angular (imagem `devops`), a borda nginx (`mock/nginx.conf`) servindo a SPA e encaminhando `/bff`, `/api` e `/hubs` para o plano de controle simulado (`mock/control_plane_mock.py`, só biblioteca padrão), e o runner Playwright, que acessa apenas a borda.
+
+```bash
+frontend/tests/e2e/mock/run-mock-e2e.sh            # build + suíte
+frontend/tests/e2e/mock/run-mock-e2e.sh --no-build # reutiliza dist/e2e
+frontend/tests/e2e/mock/run-mock-e2e.sh -- -m visual   # capturas app × board (loop visual)
+```
+
+Os cenários do mock (`default`, `anonymous`, `readonly`, `expire-next`, `empty`) são escolhidos pelos testes via `POST /__mock/scenario`. Relatórios e capturas ficam em `artifacts/e2e/mock/` (não versionado). Esta suíte não substitui a E2E autenticada pela stack real; resultados sem a stack real são registrados como `NOT RUN` nas tarefas.

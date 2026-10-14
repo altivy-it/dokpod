@@ -38,6 +38,7 @@ import {
   type SubmitContainerCommandRequest,
 } from './generated/control-plane';
 import { client } from './generated/control-plane/client.gen';
+import { SessionService } from '../core/session.service';
 
 export type ContainerAction = SubmitContainerCommandRequest['action'];
 
@@ -48,6 +49,7 @@ interface AntiforgeryResponse {
 @Injectable({ providedIn: 'root' })
 export class ControlPlaneApiService {
   private readonly http = inject(HttpClient);
+  private readonly session = inject(SessionService);
 
   constructor() {
     client.setConfig({
@@ -58,6 +60,7 @@ export class ControlPlaneApiService {
       if (!response) {
         return error;
       }
+      if (response.status === 401) this.session.expire();
 
       return typeof error === 'object' && error !== null
         ? { ...error, status: response.status }

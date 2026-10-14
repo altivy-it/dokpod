@@ -14,4 +14,11 @@ public sealed class BffRuntimeOptions
     public int KeycloakDiscoveryTimeoutSeconds { get; init; } = 3;
     public string AntiforgeryCookieName { get; init; } = "__Host-Dokpod.Antiforgery";
     public string AntiforgeryHeaderName { get; init; } = "X-Dokpod-Antiforgery";
+    public BffSessionOptions Session { get; init; } = new();
+}
+
+public sealed class BffSessionOptions
+{
+    /// <summary>Claim cujo primeiro valor é exibido como grupo do usuário no console (spec 007 D-008); vazio desativa.</summary>
+    public string? DisplayGroupClaim { get; init; }
 }

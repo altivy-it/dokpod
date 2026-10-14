@@ -11,6 +11,13 @@
       </dok-empty-state>
     </main>
   }
+  @case ('expired') {
+    <main class="alt-page alt-app dok-entry">
+      <dok-empty-state kind="forbidden" icon="lock" title="Sessão expirada" detail="Sua sessão no Keycloak terminou. Entre novamente para continuar de onde parou.">
+        <button dok-button variant="primary" size="sm" startIcon="lock" type="button" (click)="login()">Entrar novamente</button>
+      </dok-empty-state>
+    </main>
+  }
   @case ('authenticated') {
     <dok-app-shell
       [userName]="sessionService.displayName()"

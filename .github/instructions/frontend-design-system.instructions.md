@@ -6,7 +6,7 @@ applyTo: "frontend/**"
 
 # Design system próprio (Altivy)
 
-- O Dokpod usa um design system próprio em `frontend/web/src/app/design-system/` e `frontend/libs/design-system/`, derivado dos tokens e componentes do Altivy em `docs/design/app/project/ds/altivy` (ADR 2026-0005). Não adote biblioteca de componentes de terceiros (PO UI, Material, PrimeNG, Bootstrap).
+- O Dokpod usa um design system próprio em `frontend/web/src/app/design-system/` (componentes) e `frontend/web/src/styles/` (tokens, fontes e utilitários), derivado dos tokens e componentes do Altivy em `docs/design/app/project/ds/altivy` (ADR 2026-0005). Não adote biblioteca de componentes de terceiros (PO UI, Material, PrimeNG, Bootstrap).
 - Os mockups em `docs/design/app` são a fonte da verdade de layout, texto, estados e densidade. Antes de criar uma tela, abra o board correspondente e reproduza estrutura, hierarquia e cópia em pt-BR.
 - Reutilize os componentes `dok-*` existentes antes de criar outro. Componente novo segue o padrão de classes `alt-*` do kit, tem testes de teclado/ARIA e entra no catálogo `/dev/componentes`.
 - Cores, espaçamentos, raios, sombras e tipografia vêm somente de tokens (`--surface-base`, `--teal-light`, `--radius-control` etc.). Não use valores literais quando houver token.

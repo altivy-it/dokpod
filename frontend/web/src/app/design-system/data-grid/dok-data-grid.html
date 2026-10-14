@@ -267,7 +267,7 @@
   </div>
 
   @if (rowMenu(); as menu) {
-    <div #rowMenuEl role="menu" class="alt-popover alt-enhanced-data-grid__rowmenu" [style.top.px]="menu.top" [style.right.px]="menu.right" (keydown)="onRowMenuKey($event)">
+    <div #rowMenuEl role="menu" [attr.aria-label]="'Ações de ' + rowLabel()(menu.row)" class="alt-popover alt-enhanced-data-grid__rowmenu" [style.top.px]="menu.top" [style.right.px]="menu.right" (keydown)="onRowMenuKey($event)">
       @for (action of menu.actions; track action.id) {
         <button type="button" role="menuitem" class="alt-menu-item" [style.color]="action.danger ? 'var(--signal-error)' : null" (click)="chooseRowAction(action)">
           <dok-icon [name]="action.icon ?? 'circle'" [size]="16" />{{ action.label }}

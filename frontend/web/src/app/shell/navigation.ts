@@ -21,7 +21,7 @@ export const NAV_ITEMS: NavItem[] = [
   { id: 'overview', label: 'Visão geral', icon: 'gauge', route: '/', section: 'Operação' },
   { id: 'containers', label: 'Containers', icon: 'box', route: '/containers', section: 'Operação' },
   { id: 'pods', label: 'Pods', icon: 'grid', route: '/em-breve/pods', section: 'Operação' },
-  { id: 'images', label: 'Imagens', icon: 'package', route: '/imagens', section: 'Operação' },
+  { id: 'images', label: 'Imagens', icon: 'package', route: '/em-breve/imagens', section: 'Operação' },
   { id: 'volumes', label: 'Volumes', icon: 'columns', route: '/em-breve/volumes', section: 'Operação' },
   { id: 'networks', label: 'Redes', icon: 'link', route: '/em-breve/redes', section: 'Operação' },
   { id: 'hosts', label: 'Hosts', icon: 'monitor', route: '/hosts', section: 'Infraestrutura' },
@@ -32,6 +32,7 @@ export const NAV_ITEMS: NavItem[] = [
 ];
 
 export const COMING_SOON: Record<string, { label: string; description: string }> = {
+  imagens: { label: 'Imagens', description: 'Inventário de imagens por host e download de imagens (spec 012).' },
   pods: { label: 'Pods', description: 'Gestão de pods do Podman ficará disponível com o adapter Libpod.' },
   volumes: { label: 'Volumes', description: 'Inventário e limpeza de volumes por host.' },
   redes: { label: 'Redes', description: 'Redes bridge, overlay e macvlan por host.' },
