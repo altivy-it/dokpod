@@ -1,59 +1,50 @@
-# DokpodWeb
+# Console web do Dokpod
 
-This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 22.1.7.
+Console operacional em Angular 22 (componentes standalone, Signals, design system `dok-*`). Arquitetura, convenções e regras de sessão estão em [docs/frontend.md](../../docs/frontend.md); os mockups em `docs/design/app` são a referência visual.
 
-## Development server
+Requisitos: Node `>=24.15.0 <25` e npm `12.0.2` (ver `package.json`).
 
-To start a local development server, run:
-
-```bash
-ng serve
-```
-
-Once the server is running, open your browser and navigate to `http://localhost:4200/`. The application will automatically reload whenever you modify any of the source files.
-
-## Code scaffolding
-
-Angular CLI includes powerful code scaffolding tools. To generate a new component, run:
+## Servidor de desenvolvimento
 
 ```bash
-ng generate component component-name
+npm ci
+npm start
 ```
 
-For a complete list of available schematics (such as `components`, `directives`, or `pipes`), run:
+Abra `http://localhost:4200/`. A aplicação recarrega a cada alteração nos arquivos-fonte. A sessão é mediada pelo BFF: sem a stack (nginx, BFF, API e Keycloak) as chamadas autenticadas falham; para validar a interface sem a stack use a suíte E2E simulada abaixo.
+
+## Cliente da API
+
+O cliente HTTP é gerado a partir de `contracts/openapi`:
 
 ```bash
-ng generate --help
+npm run generate:api        # regenera o cliente
+npm run check:api-contract  # confere, sem gravar, se o cliente está em dia com o contrato
 ```
 
-## Building
-
-To build the project run:
+## Build
 
 ```bash
-ng build
+npm run build
 ```
 
-This will compile your project and store the build artifacts in the `dist/` directory. By default, the production build optimizes your application for performance and speed.
+O resultado fica em `dist/`. O build de produção é o padrão e aplica os orçamentos de tamanho definidos em `angular.json`.
 
-## Running unit tests
+## Testes unitários
 
-To execute unit tests with the [Vitest](https://vitest.dev/) test runner, use the following command:
+Os testes usam [Vitest](https://vitest.dev/):
 
 ```bash
-ng test
+npx ng test --watch=false
 ```
 
-## Running end-to-end tests
+## Testes ponta a ponta
 
-For end-to-end (e2e) testing, run:
+Os testes E2E ficam em `frontend/tests/e2e` (Playwright com pytest e verificação de acessibilidade com axe) e acessam a aplicação sempre pela borda nginx:
 
 ```bash
-ng e2e
+frontend/tests/e2e/mock/run-mock-e2e.sh            # suíte com respostas simuladas da API
+frontend/tests/e2e/mock/run-mock-e2e.sh -- -m visual  # capturas para o loop visual
 ```
 
-Angular CLI does not come with an end-to-end testing framework by default. You can choose one that suits your needs.
-
-## Additional Resources
-
-For more information on using the Angular CLI, including detailed command references, visit the [Angular CLI Overview and Command Reference](https://angular.dev/tools/cli) page.
+A suíte simulada não substitui a E2E autenticada com a stack real; resultados sem a stack real são registrados como `NOT RUN` nas tarefas das specs. Detalhes em [frontend/tests/e2e/README.md](../tests/e2e/README.md).
