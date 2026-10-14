@@ -146,6 +146,65 @@ docker compose -f deploy/e2e/docker-compose-dokpod.yaml --profile agent --profil
 
 O runner de CI atual não oferece Podman; a execução fica manual, com evidência registrada nas tarefas. A qualificação do adapter sem a stack completa roda com `DOKPOD_TEST_PODMAN_SOCKET` em `backend/tests/Dokpod.Agent.Podman.IntegrationTests`.
 
+## Stack completa em Linux com Podman rootless
+
+Validada em 2026-10-14 (Ubuntu, Podman 5.7.0, podman-compose 1.5.0) com a
+plataforma de identidade, API, BFF, web e agente Podman. O caminho padrão dos
+arquivos externos no Linux é `~/.microsoft/usersecrets/<Produto>/`, que o
+`manage-e2e-stack.ps1` já usa quando `APPDATA` não existe.
+
+Diferenças em relação ao Docker Desktop:
+
+- o Podman não resolve nomes curtos de imagem sem `unqualified-search-registries`
+  (por exemplo `["docker.io"]` em `registries.conf`);
+- o `podman-compose` não tem `up --wait`: use `up -d --no-build` e acompanhe o
+  health dos containers; construa as imagens antes com
+  `podman build --format docker` (o formato OCI descarta o `HEALTHCHECK`);
+- o BFF não alcança o gateway de identidade por `host-gateway`, porque a porta
+  `7443` é publicada só em `127.0.0.1`. Fixe o IP do gateway na rede
+  `identity-global` e informe-o em `DOKPOD_E2E_IDENTITY_GATEWAY_HOST`; informe a
+  sub-rede da `identity-global` em `DOKPOD_E2E_TRUSTED_NETWORK` para o BFF aceitar
+  os cabeçalhos `X-Forwarded-*` do gateway;
+- o gateway da plataforma de identidade usa `resolver 127.0.0.11` (DNS embutido
+  do Docker); no Podman, o DNS dos containers atende no IP de gateway da rede
+  (`podman network inspect identity-global`). Esse ajuste e o IP fixo do gateway
+  pertencem à plataforma de identidade e são feitos por override local dela;
+- num PostgreSQL novo, o realm é criado por
+  `tools/scripts/configure-keycloak.ps1 -Bootstrap -PermanentInitialUserPassword`
+  com `-BaseUrl https://localhost:7443`; com CA local, aponte `SSL_CERT_FILE` para
+  um bundle que a inclua.
+
+Sequência usada:
+
+1. plataforma de identidade saudável, com o schema `identity` criado;
+2. `dotnet ef database update` no schema `dokpod` (a sessão é fixada em UTC pela
+   aplicação; o servidor pode estar em outro fuso);
+3. `configure-keycloak.ps1 -Bootstrap` e
+   `provision-environment-authorization.ps1` para cada ambiente e scope;
+4. cadastro dos ambientes por `POST /dokpod/api/v1/environments`, autenticado no
+   BFF;
+5. identidade técnica do agente em `dokpod.agent_identities` (fingerprint SHA-256
+   do certificado de cliente, laboratório sintético);
+6. `systemctl --user start podman.socket` e
+   `podman-compose --env-file <.env> -f deploy/e2e/docker-compose-dokpod.yaml --profile agent-podman up -d --no-build`.
+
+A suíte autenticada roda com o Playwright em rede do host:
+
+```bash
+podman run --rm --network host \
+  -v "$PWD/frontend/tests/e2e":/app/tests:ro -v "$PWD/artifacts/e2e/real":/app/reports \
+  -w /app --entrypoint uv \
+  -e DOKPOD_E2E_BASE_URL=https://localhost:7443/dokpod/ \
+  -e DOKPOD_E2E_USERNAME -e DOKPOD_E2E_PASSWORD -e DOKPOD_E2E_ENVIRONMENT_ID \
+  -e DOKPOD_E2E_MUTATION_CONTAINER -e DOKPOD_E2E_DENIED_ENVIRONMENT_ID \
+  -e DOKPOD_E2E_REPORT_DIRECTORY=/app/reports \
+  docker.io/lzocateli/playwright-e2e:0.1.0 run --frozen pytest /app/tests/test_authenticated_smoke.py \
+  --confcutdir=/app/tests -p no:cacheprovider -q
+```
+
+`DOKPOD_E2E_MUTATION_CONTAINER` deve ser um container sintético **parado**: o
+teste o inicia, reinicia, para e remove.
+
 ## Validar o agente Windows self-contained
 
 O agente também pode ser publicado como `win-x64` e executado fora de
