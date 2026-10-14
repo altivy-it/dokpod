@@ -4,7 +4,7 @@
 
 **Criada em**: 2026-10-14
 
-**Estado**: `draft` - aguardando aprovação humana para `/speckit-plan`.
+**Estado**: `approved` - aprovada pelo solicitante em 2026-10-14 com ajuste: a justificativa vale para parar, pausar e remover ("o restante está ok").
 
 **Entrada**: Pedido do solicitante em 2026-10-14: "Comece pelos Alertas, inclusive o sininho [...] o menu Governança → Alertas precisa ser construído com todos os detalhes referentes à governança de alertas" e "Quando um usuário for parar um container, se configurado pelo administrador, uma tela deverá ser exibida para que uma justificativa seja informada [...] da conotação que o container foi parado intencionalmente, e não por problema", com persistência em banco e recuperação por API. O defeito visual do sino (painel por baixo dos cards) foi corrigido à parte (PR #20).
 
@@ -19,7 +19,8 @@
 - P: Alertas devem notificar fora do console? → R: Não nesta entrega. Alertas aparecem no console (menu, sino, tela Alertas e tempo real); e-mail e webhooks ficam para spec posterior.
 - P: Quem gerencia regras e silenciamentos? → R: Scopes UMA por ambiente: `alert:read` (ver) e `alert:manage` (regras, silenciamentos, reconhecer e resolver).
 - P: O que entra na primeira entrega? → R: Regras configuráveis, ciclo de vida do alerta, silenciamentos, histórico e auditoria.
-- P: Parada com justificativa? → R: Política definida pelo administrador; quando exigida, o usuário informa a justificativa ao parar; ela fica persistida, consultável por API e marca o container como "parado intencionalmente", sem gerar alerta de falha.
+- P: Parada com justificativa? → R: Política definida pelo administrador; quando exigida, o usuário informa a justificativa ao parar; ela fica persistida, consultável por API e marca o container como parado intencionalmente, sem gerar alerta de falha.
+- P: Quais ações exigem justificativa? → R: Parar, pausar e remover (ajuste do solicitante em 2026-10-14). Reiniciar e iniciar mantêm a confirmação atual.
 
 ## Cenários do Usuário e Testes (obrigatório)
 
@@ -54,23 +55,23 @@ Como operador com `alert:manage`, quero reconhecer um alerta (assumindo-o, com c
 3. **Dado** um alerta de condição pontual (sem estado a observar, por exemplo comando com falha), **Quando** o operador o resolve manualmente com comentário, **Então** ele sai dos abertos.
 4. **Dado** usuário sem `alert:manage` no host do alerta, **Quando** vê o alerta, **Então** as ações de reconhecer, silenciar e resolver não aparecem e a API as recusa.
 
-### Jornada do Usuário 3 - Parar container com justificativa (Prioridade: P1)
+### Jornada do Usuário 3 - Parar, pausar e remover com justificativa (Prioridade: P1)
 
-Como administrador, quero exigir uma justificativa ao parar containers nos estágios que eu definir; como operador, quero informar o motivo ao parar, para que todos saibam que a parada foi intencional e não uma falha.
+Como administrador, quero exigir uma justificativa ao parar, pausar ou remover containers nos estágios que eu definir; como operador, quero informar o motivo dessas ações, para que todos saibam que foram intencionais e não uma falha.
 
-**Valor desta prioridade**: distingue paradas planejadas de problemas, evita alertas falsos e responde "quem parou, quando e por quê".
+**Valor desta prioridade**: distingue interrupções planejadas de problemas, evita alertas falsos e responde "quem parou, pausou ou removeu, quando e por quê".
 
-**Teste independente**: com a política ativa em Produção, parar um container de Produção pela lista, pelo detalhe e em lote; verificar o diálogo, a justificativa persistida, a consulta pela API, o rótulo "Parado intencionalmente" e a ausência de alerta de falha.
+**Teste independente**: com a política ativa em Produção, parar, pausar e remover containers de Produção pela lista, pelo detalhe e em lote; verificar o diálogo, a justificativa persistida, a consulta pela API, os rótulos "Parado intencionalmente" e "Pausado intencionalmente" e a ausência de alerta de falha.
 
 **Cenários de aceite**:
 
-1. **Dado** a política "exigir justificativa ao parar" ativa para Produção, **Quando** um operador escolhe "Parar" num container de Produção, **Então** um diálogo pede a justificativa (10 a 500 caracteres) e o comando só é enviado após informá-la.
-2. **Dado** a política inativa para Homologação, **Quando** o operador para um container de Homologação, **Então** a confirmação atual é mantida, com campo de justificativa opcional.
-3. **Dado** uma parada em lote com containers de Produção, **Quando** confirmada, **Então** uma única justificativa é exigida e registrada para cada container do lote.
-4. **Dado** um container parado com justificativa, **Quando** exibido na lista e no detalhe, **Então** aparece "Parado intencionalmente", com o autor, o horário e o motivo (no detalhe e em tooltip na lista).
-5. **Dado** um container parado com justificativa, **Quando** seu encerramento chega como evento, **Então** nenhum alerta de falha é aberto para essa parada.
-6. **Dado** um container parado intencionalmente, **Quando** é iniciado de novo (pelo Dokpod ou fora dele), **Então** a marcação "parado intencionalmente" deixa de valer; a justificativa continua no histórico.
-7. **Dado** qualquer cliente autorizado (`environment:read`), **Quando** consulta a API, **Então** obtém a justificativa vigente do container e o histórico de paradas justificadas com autor, horário, motivo e comando associado.
+1. **Dado** a política "exigir justificativa" ativa para Produção, **Quando** um operador escolhe "Parar", "Pausar" ou "Remover" num container de Produção, **Então** o diálogo da ação pede a justificativa (10 a 500 caracteres) e o comando só é enviado após informá-la; na remoção, a justificativa entra no diálogo de remoção reforçada existente.
+2. **Dado** a política inativa para Homologação, **Quando** o operador para, pausa ou remove um container de Homologação, **Então** a confirmação atual é mantida, com campo de justificativa opcional; "Reiniciar" e "Iniciar" nunca pedem justificativa.
+3. **Dado** uma ação em lote (parar, pausar ou remover) com containers de Produção, **Quando** confirmada, **Então** uma única justificativa é exigida e registrada para cada container do lote.
+4. **Dado** um container parado ou pausado com justificativa, **Quando** exibido na lista e no detalhe, **Então** aparece "Parado intencionalmente" ou "Pausado intencionalmente", com o autor, o horário e o motivo (no detalhe e em tooltip na lista).
+5. **Dado** um container parado ou removido com justificativa, **Quando** o encerramento ou a remoção chega como evento, **Então** nenhum alerta é aberto para essa ação, e alertas abertos do container removido são resolvidos com o motivo "container removido".
+6. **Dado** um container parado ou pausado intencionalmente, **Quando** volta a executar (iniciado ou retomado, pelo Dokpod ou fora dele), **Então** a marcação deixa de valer; a justificativa continua no histórico.
+7. **Dado** qualquer cliente autorizado (`environment:read`), **Quando** consulta a API, **Então** obtém a justificativa vigente do container e o histórico de ações justificadas (parar, pausar, remover) com ação, autor, horário, motivo e comando associado, inclusive de containers já removidos.
 8. **Dado** uma justificativa com segredo aparente ("senha=..."), **Quando** registrada, **Então** o trecho sensível é mascarado antes de persistir, como na justificativa do terminal (spec 014).
 
 ### Jornada do Usuário 4 - Configurar regras de alerta (Prioridade: P1)
@@ -120,7 +121,8 @@ Como auditor, quero consultar o histórico de alertas e as alterações de gover
 
 ## Casos de Borda
 
-- Container parado com justificativa que depois falha ao iniciar: o alerta de falha da nova tentativa abre normalmente.
+- Container parado ou pausado com justificativa que depois falha ao iniciar: o alerta de falha da nova tentativa abre normalmente.
+- Remoção justificada de container que não chega a ser removido (comando falha): a justificativa fica registrada com o resultado do comando e o container continua sem marcação.
 - Container que morre sozinho enquanto há uma parada justificada em andamento para ele: a parada vence se o comando foi aceito antes do encerramento; caso contrário, abre alerta.
 - Parada fora do Dokpod (CLI do engine): não há justificativa; abre alerta de encerramento conforme as regras (código de saída zero e sinal de parada não abrem alerta por padrão).
 - Agente desconectado: os alertas dos containers do host ficam como estão; abre o alerta de agente desconectado; métricas sem amostra não resolvem nem abrem alertas de limite.
@@ -129,7 +131,7 @@ Como auditor, quero consultar o histórico de alertas e as alterações de gover
 - Usuário perde `alert:read` num host: os alertas desse host somem da tela, do contador e do sino.
 - Relógios: horários exibidos no fuso do navegador; avaliação em UTC.
 - Política de justificativa ativada com um diálogo de parada já aberto: o envio é recusado e o diálogo pede a justificativa.
-- Cliente antigo que envia "parar" sem justificativa onde ela é exigida: a API recusa com erro legível.
+- Cliente antigo que envia "parar", "pausar" ou "remover" sem justificativa onde ela é exigida: a API recusa com erro legível.
 
 ## Requisitos (obrigatório)
 
@@ -159,18 +161,18 @@ Como auditor, quero consultar o histórico de alertas e as alterações de gover
 
 **Parada justificada**
 
-- **FR-014**: Administradores do Dokpod DEVEM poder ativar, por estágio, a política "exigir justificativa ao parar"; o padrão é ativa em Produção e inativa nos demais.
-- **FR-015**: Com a política ativa, toda parada de container pelo Dokpod (lista, detalhe e lote) DEVE exigir justificativa de 10 a 500 caracteres antes do envio; sem a política, o campo é opcional.
-- **FR-016**: A justificativa DEVE ser persistida com container, host, autor, horário, motivo mascarado e comando associado, e ser recuperável por API: a vigente de um container e o histórico de um container ou host.
-- **FR-017**: A API DEVE recusar a parada sem justificativa onde ela é exigida, com erro legível, inclusive para clientes que não conhecem a política.
-- **FR-018**: Um container parado com justificativa DEVE ser exibido como "Parado intencionalmente" na lista e no detalhe, com autor, horário e motivo; a marcação deixa de valer quando o container volta a executar.
-- **FR-019**: Paradas justificadas NÃO DEVEM abrir alerta de encerramento; a regra de encerramento DEVE ignorar a parada que corresponde ao comando justificado.
+- **FR-014**: Administradores do Dokpod DEVEM poder ativar, por estágio, a política "exigir justificativa" para as ações parar, pausar e remover; o padrão é ativa em Produção e inativa nos demais.
+- **FR-015**: Com a política ativa, todo comando de parar, pausar ou remover enviado pelo Dokpod (lista, detalhe e lote) DEVE exigir justificativa de 10 a 500 caracteres antes do envio; sem a política, o campo é opcional; iniciar, retomar e reiniciar não pedem justificativa.
+- **FR-016**: A justificativa DEVE ser persistida com ação, container (inclusive nome, para containers removidos), host, autor, horário, motivo mascarado e comando associado com seu resultado, e ser recuperável por API: a vigente de um container e o histórico de um container ou host.
+- **FR-017**: A API DEVE recusar parar, pausar ou remover sem justificativa onde ela é exigida, com erro legível, inclusive para clientes que não conhecem a política.
+- **FR-018**: Um container parado ou pausado com justificativa DEVE ser exibido como "Parado intencionalmente" ou "Pausado intencionalmente" na lista e no detalhe, com autor, horário e motivo; a marcação deixa de valer quando o container volta a executar.
+- **FR-019**: Paradas e remoções justificadas NÃO DEVEM abrir alerta; as regras DEVEM ignorar o encerramento que corresponde ao comando justificado, e a remoção resolve os alertas abertos do container.
 - **FR-020**: Trechos com aparência de segredo na justificativa DEVEM ser mascarados antes de persistir.
 
 **Histórico e auditoria**
 
 - **FR-021**: Alertas resolvidos DEVEM ser consultáveis por período (até a retenção), host, severidade e regra; a retenção padrão é de 90 dias, configurável.
-- **FR-022**: Criação, alteração, ativação e exclusão de regras, silenciamentos, reconhecimentos, resoluções manuais, mudanças da política de parada e paradas justificadas DEVEM gerar eventos de auditoria.
+- **FR-022**: Criação, alteração, ativação e exclusão de regras, silenciamentos, reconhecimentos, resoluções manuais, mudanças da política de justificativa e ações justificadas DEVEM gerar eventos de auditoria.
 - **FR-023**: Nenhum dado de alerta, regra, silenciamento ou justificativa DEVE revelar hosts ou containers que o usuário não pode ler.
 
 ### Entidades Principais
@@ -178,8 +180,8 @@ Como auditor, quero consultar o histórico de alertas e as alterações de gover
 - **Regra de alerta**: nome, descrição, condição (tipo de evento ou métrica, operador, limite e duração), severidade, abrangência, ativa, autor e datas.
 - **Alerta**: regra, alvo, severidade, situação, início, última ocorrência, ocorrências, responsável, linha do tempo e resolução.
 - **Silenciamento**: abrangência ou alerta, início, fim, justificativa, autor, encerramento antecipado.
-- **Política de parada justificada**: estágio, exigida (sim/não), autor e data da alteração.
-- **Parada justificada**: container, host, comando, autor, horário, motivo mascarado e situação (vigente ou encerrada pelo reinício).
+- **Política de ações justificadas**: estágio, exigida (sim/não) para parar, pausar e remover, autor e data da alteração.
+- **Ação justificada**: ação (parar, pausar, remover), container e nome, host, comando e resultado, autor, horário, motivo mascarado e situação (vigente ou encerrada quando o container volta a executar).
 
 ## Critérios de Sucesso (obrigatório)
 
@@ -187,7 +189,7 @@ Como auditor, quero consultar o histórico de alertas e as alterações de gover
 
 - **SC-001**: Um alerta aparece na tela, no contador e no sino em até 15 segundos após o evento que o origina, em 95% das ocorrências.
 - **SC-002**: Com a mesma condição repetida 100 vezes no mesmo alvo, existe um único alerta aberto com contador 100.
-- **SC-003**: Em 100% das paradas feitas pelo Dokpod em estágio com a política ativa, existe justificativa persistida recuperável pela API; nenhuma dessas paradas abre alerta de encerramento.
+- **SC-003**: Em 100% das ações de parar, pausar e remover feitas pelo Dokpod em estágio com a política ativa, existe justificativa persistida recuperável pela API; nenhuma parada ou remoção justificada abre alerta.
 - **SC-004**: Alertas de condição observável são resolvidos automaticamente em até 1 minuto após a condição desaparecer (ou após a duração mínima, nas regras de limite).
 - **SC-005**: Durante um silenciamento, nenhum alerta abrangido entra no contador ou no sino, e 100% deles ficam registrados como silenciados.
 - **SC-006**: As telas e diálogos de alertas e de parada justificada não têm violações sérias ou críticas de acessibilidade e são operáveis só por teclado.
@@ -196,9 +198,9 @@ Como auditor, quero consultar o histórico de alertas e as alterações de gover
 ## Premissas
 
 - Notificações externas (e-mail, webhooks, integrações) ficam para spec posterior; esta entrega é só no console.
-- "Administrador" para a política de parada é o papel Administrator do Dokpod (grupo `/dokpod/administrators`), o mesmo que já administra ambientes; os scopes `alert:read` e `alert:manage` seguem o modelo UMA por ambiente.
-- A justificativa da parada segue as regras da justificativa do terminal (spec 014): 10 a 500 caracteres e mascaramento de segredos.
-- A política vale para "parar"; pausar, reiniciar e remover mantêm a confirmação atual. Estender a política a outras ações fica para depois.
+- "Administrador" para a política de justificativa é o papel Administrator do Dokpod (grupo `/dokpod/administrators`), o mesmo que já administra ambientes; os scopes `alert:read` e `alert:manage` seguem o modelo UMA por ambiente.
+- A justificativa segue as regras da justificativa do terminal (spec 014): 10 a 500 caracteres e mascaramento de segredos.
+- A política vale para parar, pausar e remover (ajuste do solicitante); iniciar, retomar e reiniciar mantêm a confirmação atual.
 - O sino passa a mostrar alertas abertos no lugar de "eventos que pedem atenção"; os eventos continuam na Visão geral.
 - Regras de limite usam as amostras da spec 009 (janela de amostra recente) e não abrem nem resolvem alertas sem amostras.
 - A retenção de alertas resolvidos é de 90 dias, alinhada à retenção de comandos.

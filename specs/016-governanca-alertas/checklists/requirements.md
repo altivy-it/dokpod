@@ -32,5 +32,5 @@
 ## Notas
 
 - Esclarecimentos de 2026-10-14 registrados na spec: notificação só no console; scopes `alert:read`/`alert:manage` por ambiente; escopo com regras, ciclo de vida, silenciamentos, histórico e auditoria; parada justificada configurada pelo administrador.
-- Decisões por recomendação, registradas em Premissas e passíveis de revisão na aprovação: política de parada por estágio (padrão ativa em Produção), uma justificativa por lote, 10 a 500 caracteres com mascaramento, política só para "parar", sino passa a mostrar alertas abertos, retenção de 90 dias.
+- Decisões por recomendação, registradas em Premissas e passíveis de revisão na aprovação: política de parada por estágio (padrão ativa em Produção), uma justificativa por lote, 10 a 500 caracteres com mascaramento, política para parar, pausar e remover (ajuste do solicitante), sino passa a mostrar alertas abertos, retenção de 90 dias.
 - A API de justificativas e os scopes novos são requisitos do solicitante (persistência e recuperação por API), não escolha de implementação.
