@@ -1,0 +1,79 @@
+# Git Branching Workflow Extension Configuration
+# Copiado para .specify/extensions/git/git-config.yml durante a instalação
+
+# Estratégia de numeração das branches: "sequential" (001, 002, ...) ou "timestamp" (YYYYMMDD-HHMMSS)
+branch_numbering: sequential
+
+# Template opcional para o nome da branch. Deixe vazio para usar o padrão "{number}-{slug}".
+# Tokens aceitos: {author}, {app}, {number}, {slug}
+# {slug} não pode aparecer antes de {number}; o segmento final do caminho deve começar com {number}-.
+# Exemplo para monorepos: "{author}/{app}/{number}-{slug}"
+branch_template: ""
+
+# Namespace abreviado opcional. Deixe vazio para usar branch_template ou o comportamento padrão.
+# Exemplo: "features/{app}" é expandido para "features/{app}/{number}-{slug}"
+branch_prefix: ""
+
+# Mensagem usada por `git commit` durante a inicialização do repositório
+init_commit_message: "[Spec Kit] Commit inicial"
+
+# Estilo de mensagem usado pelos hooks de commit automático (speckit.git.commit):
+# "fixed"        - padrão; usa as mensagens configuradas/estáticas abaixo.
+# "conventional" - pede ao agente que inspecione o diff e gere uma mensagem
+#                  Conventional Commit (por exemplo, "feat: add OAuth spec")
+#                  em vez de usar as mensagens configuradas abaixo.
+commit_style: fixed
+
+# Commit automático antes/depois dos comandos centrais.
+# Defina "default" para habilitar em todos os comandos; depois, sobrescreva por comando.
+# Cada chave aceita true/false. A mensagem pode ser personalizada por comando.
+auto_commit:
+  default: false
+  before_clarify:
+    enabled: false
+    message: "[Spec Kit] Salvar progresso antes do esclarecimento"
+  before_plan:
+    enabled: false
+    message: "[Spec Kit] Salvar progresso antes do planejamento"
+  before_tasks:
+    enabled: false
+    message: "[Spec Kit] Salvar progresso antes de gerar as tarefas"
+  before_implement:
+    enabled: false
+    message: "[Spec Kit] Salvar progresso antes da implementação"
+  before_checklist:
+    enabled: false
+    message: "[Spec Kit] Salvar progresso antes da checklist"
+  before_analyze:
+    enabled: false
+    message: "[Spec Kit] Salvar progresso antes da análise"
+  before_taskstoissues:
+    enabled: false
+    message: "[Spec Kit] Salvar progresso antes de sincronizar issues"
+  after_constitution:
+    enabled: false
+    message: "[Spec Kit] Adicionar constituição do projeto"
+  after_specify:
+    enabled: false
+    message: "[Spec Kit] Adicionar especificação"
+  after_clarify:
+    enabled: false
+    message: "[Spec Kit] Esclarecer especificação"
+  after_plan:
+    enabled: false
+    message: "[Spec Kit] Adicionar plano de implementação"
+  after_tasks:
+    enabled: false
+    message: "[Spec Kit] Adicionar tarefas"
+  after_implement:
+    enabled: false
+    message: "[Spec Kit] Progresso da implementação"
+  after_checklist:
+    enabled: false
+    message: "[Spec Kit] Adicionar checklist"
+  after_analyze:
+    enabled: false
+    message: "[Spec Kit] Adicionar relatório de análise"
+  after_taskstoissues:
+    enabled: false
+    message: "[Spec Kit] Sincronizar tarefas com issues"

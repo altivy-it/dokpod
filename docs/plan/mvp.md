@@ -1,32 +1,32 @@
 # Plano: MVP do Dokpod
 
-**Status:** proposed  
+> **Legado congelado em 2026-10-06.** Este plano foi migrado para rascunhos Spec Kit:
+> [001 - identidade, ambientes e auditoria](../../specs/001-identidade-ambientes-auditoria/spec.md),
+> [002 - sessão BFF, relay e realtime](../../specs/002-sessao-bff-relay-realtime/spec.md),
+> [003 - inventário, lifecycle e reconciliação](../../specs/003-inventario-lifecycle-reconciliacao/spec.md),
+> [004 - distribuição containerizada](../../specs/004-distribuicao-containerizada/spec.md),
+> [005 - qualificação de release Docker Linux](../../specs/005-qualificacao-release-docker-linux/spec.md) e
+> [006 - qualificação Windows e Podman](../../specs/006-qualificacao-windows-podman/spec.md).
+> A [rastreabilidade integral](../../specs/README.md) identifica os destinos das etapas.
+> O conteúdo abaixo permanece integralmente como histórico, inclusive evidências e
+> status inconsistentes. Status históricos não autorizam execução, aprovação ou
+> conclusão dos novos artefatos. Todos os rascunhos aguardam revisão humana;
+> não retomar este plano nem atualizar seu histórico como processo operacional.
+
+**Status:** approved  
 **Data de criação:** 2026-09-06  
-**Última atualização:** 2026-09-08
+**Última atualização:** 2026-09-25
 **Responsáveis:** equipe Dokpod  
 **Origem:** IA assistida  
-**Revisor humano:** pendente  
+**Revisor humano:** Lincoln Zocateli  
 **Relacionado:** ADR 2026-0001
-
-## Objetivo
 
 Entregar um MVP self-hosted que registre agentes, mostre inventário e execute com segurança início, parada, reinício e exclusão de containers Docker em Linux.
 
 ## Contexto e premissas
-
 - .NET 10 e Angular 22 são requisitos definidos;
 - backend, BFF e frontend são sempre executados em containers;
 - o agente Linux é distribuído como container e o agente Windows como Worker Service self-contained;
-- Keycloak é obrigatório para autenticação e autorização de usuários;
-- Docker Linux é a primeira plataforma estável;
-- Podman Linux e Docker Windows avançam após provas técnicas;
-- o ADR 2026-0001 está aceito;
-- a primeira edição é a CE sob `AGPL-3.0-only`, sem chave ou limites artificiais de nodes e usuários;
-- a Business não faz parte do MVP e só começa após estabilização da CE;
-- toolchains, runtimes e serviços containerizados seguem a matriz de `docs/distribuicao.md`.
-
-## Não escopo
-
 - criação de containers e stacks;
 - Kubernetes, Swarm e registries;
 - console interativo e acesso a arquivos;
@@ -38,26 +38,12 @@ Entregar um MVP self-hosted que registre agentes, mostre inventário e execute c
 
 - ADR 2026-0001 aceito;
 - ADR 2026-0002 aceito e configuração inicial do Keycloak;
-- ADR 2026-0003 aceito e política de licenciamento da CE;
-- escolha de pacotes após verificação de licença;
-- ambiente real Docker, Podman e Windows Server para os testes.
-
-## Etapas
-
 ### P-01: Prova Docker Linux e transporte
 
 **Status:** in-progress  
-**Responsável:** não atribuído  
 **Dependências:** nenhuma
 
 **Objetivo:** eliminar as maiores incertezas antes do scaffolding definitivo.
-
-Entregas:
-
-- spike Docker Linux e gRPC mTLS;
-- journal durável, fencing de sessão e relatório de falhas.
-
-Validação:
 
 - executar as provas 1, 4, 5 e 8 de `docs/viabilidade.md` com evidência reproduzível.
 
@@ -68,16 +54,22 @@ Evidências:
 - comandos do protocolo são convertidos para o domínio somente após validar ambiente, fencing token, UUID, ID imutável do container, revisão, hash SHA-256 e deadline; entradas malformadas são rejeitadas antes de alcançar o engine;
 - `build-agent-image` e `smoke-agent-image`: imagem Linux construída e executada como usuário não root, filesystem read-only e acesso ao socket somente por grupo suplementar;
 - certificados sem EKU de cliente e versões de protocolo incompatíveis são rejeitados antes da ativação da sessão;
-- Kestrel com cadeia/revogação mTLS, cliente gRPC do agente, perda de resposta e reconexão permanecem pendentes.
+- host gRPC configurado com listener HTTPS/HTTP2 explícito, certificado de cliente obrigatório e revogação de cadeia habilitada;
+- testes focados de transporte aprovados (12 testes), incluindo handshake Kestrel/mTLS, fencing por reconexão, invalidação ativa de sessão e rejeição de metadados inválidos;
+- testes focados do negociador aprovados (4 testes), cobrindo fingerprint, EKU, versão de protocolo, enums e capabilities;
+- invalidação ativa encerra o stream com `agent_session_fenced` e a confirmação do handshake verifica a sessão antes do primeiro envio;
+- revogação persistente da identidade foi implementada com autorização `environment:manage`, auditoria `environment.revoke` e endpoint administrativo;
+- invalidação ativa da sessão após revogação foi integrada ao caso de uso e coberta por testes;
+- agente Linux em container validado contra Docker Desktop real com mTLS, API 1.47, inventário de 16 containers e sessão gRPC estabelecida;
+- agente Windows publicado self-contained `win-x64` e executado fora de container nesta máquina; named pipe Docker, API 1.47, inventário e sessão gRPC mTLS foram validados;
+- script `deploy/agent/manage-windows-service.ps1` implementado para instalar, iniciar, parar, reiniciar, consultar e remover o serviço; `--help`, ciclo de vida em `DryRun` e recuperação automática limitada foram validados sem efeitos colaterais;
+- prova de bloqueio de reconexão após revogação com PostgreSQL/Keycloak ponta a ponta permanece pendente para P-03;
 
 ### P-02: Fundação do monorepo e contratos
-
 **Status:** in-progress  
-**Responsável:** não atribuído  
 **Dependências:** P-01
 
 **Objetivo:** criar soluções .NET, workspace Angular, contratos e gates mínimos.
-
 Entregas:
 
 - estrutura de solução inspirada no AltivyNotes, com hosts e bibliotecas separados;
@@ -89,67 +81,81 @@ Entregas:
 
 Validação:
 
-- format, lint, build e testes passam nos containers de toolchain; o pacote Windows executa em host sem runtime .NET.
-
 Evidências:
 
 - `Dokpod.slnx`, gerenciamento central de pacotes e separação inicial entre domínio, aplicação, infraestrutura e contratos criados;
-- Protocol Buffers v1 compilado no build por `Grpc.Tools`;
-- host Worker do agente Linux/Windows e núcleo de aplicação do plano de controle criados;
 - `build-backend-container`: build aprovado sem avisos ou erros;
-- `test-backend-container`: 21 testes aprovados;
+- `test-backend-container`: 183 testes aprovados; 23 integrações PostgreSQL
+    executadas separadamente contra a instância real e aprovadas sem skips;
 - Dockerfile multi-stage do agente e `.dockerignore` validados por build e smoke test;
-- hosts, OpenAPI, Angular, imagens finais, arquitetura completa e publicação Windows self-contained permanecem pendentes.
 
 ### P-03: Identidade e cadastro de ambientes
 
-**Status:** not-started  
-**Responsável:** não atribuído  
+**Status:** in-progress
+**Responsável:** Lincoln Zocateli  
 **Dependências:** P-02
 
 **Objetivo:** autenticar usuários e cadastrar agentes sem credenciais estáticas compartilhadas.
 
 Entregas:
 
-- realm `dokpod`, clients `dokpod-bff`, `dokpod-api` e provisioner com menor privilégio;
-- BFF confidencial, recursos por ambiente, scopes e matriz deny-by-default no Keycloak;
-- bootstrap vinculado a ambiente/chave, aprovação por fingerprint, mTLS, rotação e revogação do agente;
 - auditoria inicial.
+- endpoint inicial de cadastro protegido por Keycloak, com persistência PostgreSQL e auditoria append-only.
 
 Validação:
-
 - testes de login/logout sem token no browser, Keycloak indisponível, autorização horizontal/SignalR, CSRF, corrida no bootstrap, agente falso, ambiente divergente, clone concorrente, replay, token expirado e revogação de stream.
 
 Evidências:
-
-- pendente.
+- caso de uso, persistência de ambientes e endpoint protegido implementados; integração real PostgreSQL/Keycloak e testes horizontais permanecem pendentes.
+- catálogo paginado `GET /api/v1/environments` implementado com autorização `environment:read` por recurso, omissão de ambientes negados, falha fechada em decisão indeterminada e ausência de total global;
+- tela inicial Angular lista os ambientes autorizados, diferencia habilitados e desabilitados e permite cadastrar um ambiente previamente provisionado no Keycloak com antiforgery e tratamento de conflito;
+- stack E2E construída e saudável com web, BFF, API, PostgreSQL e Keycloak; acesso público pelo gateway retornou `200` e rota protegida sem sessão retornou `302` para login;
+- PKI E2E externa gerada em UserSecrets com CA local, certificado de servidor `serverAuth` e certificado de agente `clientAuth`; API, gateway e health foram validados com a nova cadeia;
+- jornada autenticada validada com usuário sintético, sessão BFF, catálogo e ambiente autorizado;
+- autorização horizontal negativa validada para estado do ambiente, inventário e submissão de comando; a tentativa negada não criou registro persistente;
+- cookie antiforgery `__Host-Dokpod.Antiforgery` corrigido para `Path=/` e validado em browser real;
+- revogação via browser persistiu `revoked_at_utc`, auditou `environment.revoke`, encerrou o stream com `agent_session_fenced` e rejeitou reconexões com `agent_certificate_unknown`;
+- SignalR usa o base path `/dokpod`, negocia com antiforgery e exibe estado operacional; ambiente autorizado conecta e ambiente negado termina em `error` sem ingressar no grupo;
 
 ### P-04: Inventário reconciliável
 
-**Status:** not-started  
-**Responsável:** não atribuído  
+**Status:** in-progress  
+**Responsável:** Lincoln Zocateli  
 **Dependências:** P-03
 
 **Objetivo:** mostrar estado confiável e idade dos dados por ambiente.
 
 Entregas:
 
-- eventos, snapshots, projeção PostgreSQL e UI de ambientes/containers;
-- métricas de conexão, atraso e erro.
+- modelo de domínio para snapshots, deltas e mudanças de containers por revisão monotônica;
+- projeção PostgreSQL reconstruível por ambiente;
+- ingestão de deltas pelo stream gRPC autenticado, com solicitação de snapshot após base divergente ou lacuna de revisão.
+- montagem limitada e ordenada de snapshots paginados por sessão, persistidos atomicamente somente após a última página;
+- consulta REST autorizada por `environment:read`, com cursor opaco, limite máximo, revisão e idade da projeção;
+- invalidação SignalR mínima após delta aceito ou snapshot completo persistido.
 
 Validação:
 
 - reconexão, lacuna de sequência e carga nominal de 56 agentes, aproximadamente 1.120 containers e 30 usuários simultâneos sem perda ou crescimento ilimitado;
-- margem de 100 agentes, 2.000 containers e 50 usuários validada com k6 e simuladores de agente.
-
 Evidências:
 
-- pendente.
+- testes de domínio cobrem aplicação de delta, base stale, lacuna e revisão não monotônica;
+- testes de transporte mTLS comprovam solicitação de snapshot após lacuna de inventário;
+- teste de integração PostgreSQL real comprova aplicação de delta e persistência da projeção;
+- testes da aplicação cobrem ordenação, identidade e atomicidade de páginas, além da autorização anterior à leitura;
+- contrato OpenAPI documenta a consulta paginada do inventário e seus erros;
+- teste PostgreSQL real comprova substituição atômica de snapshot, atualização de container existente e paginação por cursor;
+- teste de transporte mTLS comprova persistência do snapshot completo e entrega da invalidação SignalR;
+- agente publica snapshot inicial paginado logo após estabelecer a sessão e responde a solicitações de ressincronização; teste de transporte focado aprovado;
+- agente publica novo snapshot após cada comando terminal e o acumulador aceita snapshots sequenciais na mesma sessão; 5 testes focados do acumulador e o teste de transporte ponta a ponta foram aprovados;
+- stack E2E real persistiu revisão monotônica e 16 containers do Docker Desktop após corrigir o certificado de servidor para SAN `api`;
+- autorização HTTP horizontal permanece pendente;
+- carga nominal de 56 agentes, aproximadamente 1.120 containers e 30 usuários simultâneos por 30 minutos: **NOT RUN**.
 
 ### P-05: Ciclo de vida de containers
 
-**Status:** not-started  
-**Responsável:** não atribuído  
+**Status:** in-progress  
+**Responsável:** Lincoln Zocateli  
 **Dependências:** P-04
 
 **Objetivo:** iniciar, parar, reiniciar e excluir containers com confirmação e auditoria.
@@ -157,26 +163,60 @@ Evidências:
 Entregas:
 
 - comandos duráveis com deduplicação por ID/hash, fencing e reconciliação;
-- UI com estados intermediários e confirmação de exclusão;
-- autorização por ambiente e ação.
-
+- API REST autorizada para iniciar, parar, reiniciar e excluir containers;
 Validação:
 
 - testes reais de sucesso, timeout, replay após restart, ID com payload divergente, alvo recriado, desconexão e resposta perdida.
-
 Evidências:
 
-- pendente.
+- núcleo local do agente valida deadline, fencing, tipo, alvo imutável, revisão e deduplicação por ID/hash;
+- journal em arquivo persiste comandos e resultados entre instâncias;
+- rejeições determinísticas são persistidas e reproduzidas após reabertura do journal sem executar a engine;
+- fencing stale é rejeitado antes do journal, permitindo redistribuição legítima na sessão ativa;
+- deadline é revalidado após a espera pela serialização e resultados terminais são persistidos mesmo após cancelamento do chamador;
+- control plane possui modelo de comando pendente e fila PostgreSQL com chave por ambiente/ID, deadline, fencing, estado e timestamps;
+- envelope do comando valida ação permitida, alvo imutável, revisão, SHA-256 canônico, deadline UTC e fencing positivo;
+- enqueue concorrente no PostgreSQL comprova um único vencedor, replay idêntico e rejeição de hash ou envelope divergente sem sobrescrita;
+- stream bidirecional entrega comandos ao agente conectado mesmo quando ele não envia novas mensagens e persiste despacho, aceite e resultado;
+- transições PostgreSQL são monotônicas de `Pending` até estado terminal, com replay terminal idempotente e rejeição de regressão ou resultado divergente;
+- encerramento ou fencing da sessão cancela leituras e dequeues pendentes para impedir que um stream obsoleto consuma comandos futuros;
+- abertura de sessão reclama no PostgreSQL comandos não terminais e não expirados ainda não enviados naquele fencing, preserva o fencing original e registra separadamente o fencing de redespacho;
+- claim concorrente por compare-and-set entrega cada comando a apenas um reclamante, enquanto um fencing posterior permite nova tentativa para reconciliar resposta perdida;
+- worker do agente mantém stream mTLS, serializa metadata e sequência em um único writer, envia heartbeats durante mutações e reporta aceite antes do resultado terminal;
+- replay de comando aceito sem resultado retoma a mutação; replay com resultado persistido não repete o efeito no engine;
+- journal do agente Linux persiste o conteúdo com write-through e flush físico, publica registros por rename atômico e sincroniza a metadata do diretório antes de confirmar comando ou resultado;
+- testes da infraestrutura comprovam que comandos e resultados só retornam após o arquivo final existir e o diretório correspondente ser sincronizado; 6 testes aprovados, além de 23 testes da aplicação do agente sem regressão;
+- teste ponta a ponta com Kestrel executa o worker real do agente e comprova `Dispatched` → `Accepted` → `Succeeded` através do stream;
+- sweep periódico e claim de sessão terminalizam comandos vencidos com `expired_command`: `Pending` nunca despachado torna-se `Failed`, enquanto `Dispatched`, `Accepted` ou `Pending` já reclamado tornam-se `Indeterminate` porque o efeito pode ter ocorrido;
+- teste PostgreSQL real comprova a expiração, preservação de estados terminais e comandos futuros e idempotência do sweep;
+- `POST /api/v1/environments/{environmentId}/containers/{containerId}/commands` aceita somente `start`, `stop`, `restart` e `delete`, exige `Idempotency-Key` UUID e deriva no servidor o hash canônico e o fencing da sessão ativa;
+- o caso de uso autoriza o scope específico antes de consultar o ambiente, falha fechado quando a autorização está indisponível e não enfileira comandos para ambiente sem scope ou agente offline;
+- replay com a mesma intenção permanece idempotente após renovação do fencing da sessão, preservando o token original para auditoria e usando separadamente o fencing de redespacho;
+- contrato OpenAPI documenta submissão assíncrona, resposta `202` e erros `400`, `401`, `403`, `404`, `409` e `503` sem expor metadados internos do agente;
+- `GET /api/v1/environments/{environmentId}/commands/{commandId}` consulta o estado durável somente após autorização `environment:read` e retorna ação, alvo, revisões, estado, resultado e timestamps sem expor hash ou fencing;
+- consulta inexistente retorna `404` somente após autorização; decisões negadas, indisponíveis ou malformadas não acessam a persistência nem revelam a existência do comando;
+- intenção autorizada e resultado terminal são registrados na auditoria append-only com correlação por `commandId`; criação/transição e evento correspondente são atômicos no PostgreSQL;
+- replay de criação ou resultado terminal não duplica auditoria, e falha do writer desfaz a mutação do comando;
+- expiração gera evento terminal pelo ator técnico `control-plane`, com outcome `Failed` para comando nunca despachado e `Indeterminate` quando o efeito pode ter ocorrido;
+- resultado definitivo tardio reconcilia somente `Indeterminate` originado por `expired_command`, preservando os eventos de expiração e resultado na trilha append-only;
+- `agent_commands` usa partições mensais por `created_at_utc` e partição `DEFAULT` de segurança; `agent_command_keys` preserva idempotência global por ambiente/ID mesmo entre meses e após retenção futura de payloads;
+- migrations forward-only validadas desde banco PostgreSQL 17 vazio; 23 testes PostgreSQL reais aprovados, cobrindo zero migrations pendentes, 132 partições mensais por tabela até dezembro de 2036, fallback `DEFAULT`, função versionada de rollover, pruning temporal, privilégios mínimos, operação pelo papel runtime, replay concorrente e lifecycle auditado;
+- rollover, diagnóstico e limites de retenção estão documentados em `docs/runbooks/operacao-comandos-postgresql.md`; descarte permanece desabilitado até aprovação humana da duração e da janela máxima de replay;
+- testes de domínio: 28 aprovados; testes de aplicação do agente: 23 aprovados; testes de infraestrutura do agente: 4 aprovados;
+- testes da aplicação do control plane: 29 aprovados; testes da API e integrações: 76 aprovados, incluindo 18 testes de schema e persistência com PostgreSQL real;
+- UI Angular de lifecycle implementada em rota lazy por ambiente, com inventário paginado, idade da projeção, estados loading/vazio/erro/forbidden/indisponível, ações filtradas por scope e confirmação contextual de exclusão;
+- cliente OpenAPI gerado opera same-origin pelo BFF, obtém antiforgery antes de mutações, envia chave idempotente e acompanha o comando por polling cancelável até estado terminal;
+- testes frontend: 12 aprovados, cobrindo catálogo, cadastro, sessão expirada, fachada de lifecycle, erro `403`, realtime, refresh após resultado terminal e headers/corpo efetivamente enviados pelo cliente gerado; build Angular de produção aprovado;
+- fluxo black-box autenticado aprovou start, restart, stop e delete com confirmação sobre container sintético dedicado; os quatro comandos terminaram em `Succeeded`, o alvo foi removido sem volumes implícitos e quatro eventos de auditoria foram persistidos;
+- autorização horizontal black-box aprovada com `403` para estado, inventário e comando de outro ambiente, sem persistência da tentativa negada;
+- logout invalidou a sessão BFF, consulta autorizada de comando inexistente retornou `404` e recadastro do ambiente retornou `409` sem mutação;
+- screenshots finais da tela de inventário em 1440x900 e 390x844, além do estado forbidden mobile, foram verificadas sem sobreposição ou corte relevante; dados dos containers foram mascarados nos artifacts;
+- migration drift do laboratório corrigido: correlação de auditoria, particionamento global de comandos e agendamento de 133 partições aplicados; screenshots e demais cenários negativos permanecem pendentes.
+- duração de retenção e janela máxima de replay dos tombstones permanecem decisões operacionais humanas antes de produção; a garantia equivalente do journal no agente Windows será qualificada em P-07.
 
 ### P-06: Hardening e release candidata
 
-**Status:** not-started  
-**Responsável:** não atribuído  
-**Dependências:** P-05
-
-**Objetivo:** produzir uma release candidata reproduzível e operável.
-
-Entregas:
+**Status:** in-progress
 
 - threat model, SBOM, scans, imagens e pacote Windows assinados e runbooks;
 - backup/restore e política de atualização;
@@ -190,12 +230,23 @@ Validação:
 
 Evidências:
 
-- pendente.
+- agente Windows self-contained `win-x64` publicado e executado em console nesta máquina, usando named pipe `docker_engine` e certificado mTLS externo;
+- script de ciclo de vida do Windows Service documentado e validado em `DryRun`, incluindo inicialização atrasada e duas tentativas de recuperação; instalação real, conta dedicada, ACL, atualização e rollback permanecem pendentes;
+- Docker Windows/ named pipe, conta de usuário do processo e conexão gRPC foram validados; instalação como Windows Service, ACL dedicada, atualização e rollback permanecem pendentes;
+- Podman Linux e Windows Server ainda não foram qualificados.
+- Gitleaks `8.30.1` aprovou o histórico completo sem achados;
+- Trivy `0.72.0` gerou relatórios e SBOMs CycloneDX para API, BFF, web e agente: API/BFF/agente sem HIGH ou CRITICAL; web com 34 HIGH registrados e 0 CRITICAL; nenhum CRITICAL corrigível bloqueante;
+- backup completo do banco compartilhado foi restaurado em database temporária, validou 275 tabelas Dokpod e o realm Keycloak, e removeu dump/database temporários após sucesso;
+- assinatura, provenance, primeira execução remota do CI, threat model final e Windows Service em host limpo permanecem pendentes.
+- CI passou a aplicar migrations, executar integrações PostgreSQL sem skips,
+  testar/buildar Angular e chamar o mesmo script local de build/Trivy/SBOM para
+  as quatro imagens; workflow validado com actionlint, aguardando primeira
+  execução no GitHub para evidência formal.
 
 ### P-07: Qualificar capabilities adicionais
 
 **Status:** not-started  
-**Responsável:** não atribuído  
+**Responsável:** Lincoln Zocateli  
 **Dependências:** P-01
 
 **Objetivo:** avaliar Podman Linux e o Worker Service em Docker Windows sem bloquear a entrega Docker Linux.
@@ -244,3 +295,35 @@ Começar com Keycloak e plano de controle containerizados em laboratório e um �
 | 2026-09-07 | P-01 | not-started | in-progress | adapter Docker real e núcleo de journal iniciados; provas restantes pendentes | IA assistida |
 | 2026-09-07 | P-02 | not-started | in-progress | solução, dependências centralizadas e contrato v1 compilável criados | IA assistida |
 | 2026-09-08 | P-01 | in-progress | in-progress | serialização por ambiente/alvo e validação do mapeamento Protobuf para domínio comprovadas por 28 testes backend | IA assistida |
+| 2026-09-08 | P-01 | in-progress | in-progress | host HTTPS/HTTP2, cliente gRPC com certificado e fencing por ambiente compilados; handshake end-to-end, revogação ativa, perda de resposta e reconexão permanecem pendentes | IA assistida |
+| 2026-09-08 | P-01 | in-progress | in-progress | dois testes focados adicionados e aprovados; handshake Kestrel end-to-end, revogação ativa, perda de resposta e reconexão permanecem pendentes | IA assistida |
+| 2026-09-17 | P-03 | not-started | in-progress | caso de uso, persistência de ambientes e endpoint protegido adicionados; integração real PostgreSQL/Keycloak e testes horizontais permanecem pendentes | IA assistida |
+| 2026-09-21 | P-04 | not-started | in-progress | reconciliação de deltas, projeção PostgreSQL e solicitação de snapshot por lacuna integradas ao stream; prova PostgreSQL real depende da configuração do ambiente | IA assistida |
+| 2026-09-21 | P-04 | in-progress | in-progress | snapshots paginados, substituição atômica, consulta REST autorizada e invalidação SignalR implementados; validações de integração e carga permanecem pendentes | IA assistida |
+| 2026-09-21 | P-04 | in-progress | in-progress | transporte mTLS de snapshot completo e invalidação SignalR validados; carga nominal permanece NOT RUN | IA assistida |
+| 2026-09-21 | P-05 | not-started | in-progress | replay durável de rejeições determinísticas validado após reabertura do journal, sem nova execução da engine | IA assistida |
+| 2026-09-21 | P-05 | in-progress | in-progress | fila PostgreSQL adicionada e validada sob enqueue concorrente, replay idêntico e hash divergente | IA assistida |
+| 2026-09-21 | P-05 | in-progress | in-progress | revisão de código e segurança endureceu fencing, deadline, cancelamento e envelope canônico; particionamento/retenção e crash durability seguem pendentes | IA assistida |
+| 2026-09-21 | P-05 | in-progress | in-progress | despacho bidirecional, aceite e resultado persistente validados por mTLS e PostgreSQL real; reconciliação após restart segue pendente | IA assistida |
+| 2026-09-21 | P-05 | in-progress | in-progress | recuperação de comandos não terminais por fencing de redespacho validada com mTLS e claim concorrente no PostgreSQL real | IA assistida |
+| 2026-09-21 | P-05 | in-progress | in-progress | worker real do agente integrado ao stream e validado ponta a ponta até resultado terminal; expiração, API, auditoria e UI seguem pendentes | IA assistida |
+| 2026-09-21 | P-05 | in-progress | in-progress | expiração terminal periódica e durante claim implementada; PostgreSQL real comprovou estados seguros e idempotência; API, auditoria e UI seguem pendentes | IA assistida |
+| 2026-09-21 | P-05 | in-progress | in-progress | API REST autorizada de lifecycle implementada com idempotência entre reconexões, contrato OpenAPI e testes de falha fechada; auditoria, consulta de estado e UI seguem pendentes | IA assistida |
+| 2026-09-21 | P-05 | in-progress | in-progress | consulta REST autorizada do estado durável implementada sem expor hash ou fencing; auditoria atômica e UI seguem pendentes | IA assistida |
+| 2026-09-21 | P-05 | in-progress | in-progress | auditoria append-only correlacionada por comando e atômica com intenção, resultado e expiração validada no PostgreSQL real; UI segue pendente | IA assistida |
+| 2026-09-21 | P-05 | in-progress | in-progress | UI Angular de inventário e lifecycle implementada com BFF, antiforgery, scopes, polling terminal e testes; E2E autenticado e catálogo de ambientes seguem pendentes | IA assistida |
+| 2026-09-21 | P-03 | in-progress | in-progress | catálogo autorizado e cadastro de ambientes adicionados à tela inicial; provisionamento Keycloak e E2E horizontal seguem pendentes | IA assistida |
+| 2026-09-22 | P-05 | in-progress | in-progress | comandos particionados mensalmente com chave global idempotente, fallback default, pruning e 22 testes PostgreSQL reais; duração de retenção aguarda decisão humana | IA assistida |
+| 2026-09-23 | P-03 | in-progress | in-progress | revogação persistente da identidade do agente e invalidação ativa da sessão adicionadas com autorização, auditoria, endpoint e testes; integração real PostgreSQL/Keycloak e E2E seguem pendentes | IA assistida |
+| 2026-09-24 | P-03 | in-progress | in-progress | usuário sintético, sessão BFF, catálogo e ambiente autorizado validados com Keycloak e UMA reais; autorização horizontal negativa e revogação E2E seguem pendentes | IA assistida |
+| 2026-09-24 | P-04 | in-progress | in-progress | agente passou a publicar snapshot inicial paginado; PostgreSQL convergiu para 16 containers reais pelo stream mTLS | IA assistida |
+| 2026-09-24 | P-05 | in-progress | in-progress | Playwright autenticado aprovou 4 testes sem skips para sessão, catálogo, ambiente, inventário e ações visíveis; mutações e screenshots seguem pendentes | IA assistida |
+| 2026-09-25 | P-03 | in-progress | in-progress | autorização horizontal negou estado, inventário e comando de outro ambiente sem persistência; cookie antiforgery `__Host-` corrigido e validado no browser | IA assistida |
+| 2026-09-25 | P-03 | in-progress | in-progress | revogação autenticada via browser persistiu estado, auditou intenção, aplicou fencing e bloqueou reconexão; identidade sintética foi restaurada após a prova | IA assistida |
+| 2026-09-25 | P-03 | in-progress | in-progress | SignalR corrigido para base path e antiforgery; browser conectou no ambiente autorizado e apresentou erro no ambiente negado | IA assistida |
+| 2026-09-25 | P-04 | in-progress | in-progress | snapshots sequenciais e publicação pós-comando implementados e cobertos por testes; projeção convergiu após mutações reais | IA assistida |
+| 2026-09-25 | P-05 | in-progress | in-progress | Playwright executou start, restart, stop e delete confirmados sobre alvo sintético; quatro comandos `Succeeded` e quatro eventos auditados | IA assistida |
+| 2026-09-25 | P-05 | in-progress | in-progress | screenshots desktop/mobile do inventário e forbidden mobile verificadas com dados sensíveis mascarados e sem defeitos relevantes | IA assistida |
+| 2026-09-25 | P-02 | in-progress | in-progress | suíte backend aprovou 183 testes; 23 integrações PostgreSQL reais e 12 testes frontend passaram sem skips | IA assistida |
+| 2026-09-25 | P-06 | not-started | in-progress | Gitleaks sem achados, quatro SBOMs/relatórios Trivy sem CRITICAL e backup/restore completo validados localmente | IA assistida |
+| 2026-09-25 | P-06 | in-progress | in-progress | script canônico de imagens e jobs CI para PostgreSQL, frontend e segurança adicionados; help, fluxo API e actionlint aprovados localmente | IA assistida |

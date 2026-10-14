@@ -1,0 +1,648 @@
+using System.Runtime.InteropServices;
+using System.Security.Cryptography.X509Certificates;
+using System.Threading.Channels;
+using Dokpod.Agent.Application.Engines;
+using Dokpod.Agent.Application.Events;
+using Dokpod.Agent.Application.Protocol;
+using Dokpod.Agent.Contracts.V1;
+using AgentGrpcClient = Dokpod.Agent.Infrastructure.Protocol.AgentControlClient;
+using Google.Protobuf.WellKnownTypes;
+using Grpc.Core;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+
+namespace Dokpod.Agent;
+
+public sealed class AgentControlWorker(
+    AgentOptions options,
+    IContainerEngine engine,
+    AgentCommandProtocolHandler commandHandler,
+    Dokpod.Agent.Application.Metrics.IHostResourceProbe hostProbe,
+    Dokpod.Agent.Application.Containers.IHostSecretFiles secretFiles,
+    Dokpod.Agent.Application.Containers.ContainerCreationPolicy creationPolicy,
+    ILogger<AgentControlWorker> logger,
+    Dokpod.Agent.Application.Terminal.ExecSessionManager? execSessions = null) : BackgroundService
+{
+    // Containers em execução do último snapshot (alvo da amostragem de recursos, spec 009).
+    private IReadOnlyList<Dokpod.Agent.Application.Metrics.SampleTarget> runningTargets = [];
+    private static readonly TimeSpan ReconnectDelay = TimeSpan.FromSeconds(5);
+    private const int SnapshotPageSize = 100;
+
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        var endpoint = options.ControlPlaneEndpoint
+            ?? throw new InvalidOperationException("Control plane endpoint is required.");
+        var environmentId = options.EnvironmentId
+            ?? throw new InvalidOperationException("Agent environment ID is required.");
+        if (!File.Exists(options.ClientCertificatePath))
+        {
+            throw new InvalidOperationException("Agent client certificate was not found.");
+        }
+
+        using var certificate = X509CertificateLoader.LoadPkcs12FromFile(
+            options.ClientCertificatePath,
+            options.ClientCertificatePassword,
+            System.OperatingSystem.IsWindows()
+                ? X509KeyStorageFlags.MachineKeySet | X509KeyStorageFlags.PersistKeySet
+                : X509KeyStorageFlags.EphemeralKeySet);
+        using var serverCaCertificate = options.ServerCaCertificatePath is null
+            ? null
+            : X509CertificateLoader.LoadCertificateFromFile(options.ServerCaCertificatePath);
+        await using var client = AgentGrpcClient.Create(endpoint, certificate, serverCaCertificate);
+
+        while (!stoppingToken.IsCancellationRequested)
+        {
+            try
+            {
+                await RunSessionAsync(client.Connect, environmentId, stoppingToken, client.Exec);
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                break;
+            }
+            catch (Exception exception) when (exception is RpcException or HttpRequestException or IOException)
+            {
+                logger.LogWarning(
+                    exception,
+                    "Agent control session disconnected with status {Status}",
+                    GetStatus(exception));
+            }
+
+            await Task.Delay(ReconnectDelay, stoppingToken);
+        }
+    }
+
+    internal async Task RunSessionAsync(
+        Func<CancellationToken, AsyncDuplexStreamingCall<AgentMessage, ControlPlaneMessage>> connect,
+        Guid environmentId,
+        CancellationToken stoppingToken,
+        Func<CancellationToken, AsyncDuplexStreamingCall<ExecFrame, ExecFrame>>? openExec = null)
+    {
+        var descriptor = await engine.InspectAsync(stoppingToken);
+        var hostInfo = await TryDescribeHostAsync(stoppingToken);
+        using var call = connect(stoppingToken);
+        await call.RequestStream.WriteAsync(CreateHello(descriptor, hostInfo, execSessions is not null), stoppingToken);
+        if (!await call.ResponseStream.MoveNext(stoppingToken) ||
+            call.ResponseStream.Current.PayloadCase != ControlPlaneMessage.PayloadOneofCase.SessionEstablished)
+        {
+            throw new RpcException(new Status(StatusCode.FailedPrecondition, "agent_session_not_established"));
+        }
+
+        var establishedMessage = call.ResponseStream.Current;
+        var established = establishedMessage.SessionEstablished;
+        if (!Guid.TryParse(established.SessionId, out var sessionId) ||
+            established.FencingToken == 0 ||
+            established.FencingToken > long.MaxValue ||
+            established.HeartbeatIntervalSeconds == 0 ||
+            !IsValidServerMetadata(establishedMessage.Metadata, established.SessionId, established.FencingToken, 1))
+        {
+            throw new RpcException(new Status(StatusCode.InvalidArgument, "control_plane_session_invalid"));
+        }
+
+        logger.LogInformation("Agent control session established");
+        using var sessionCancellation = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
+        var outbound = Channel.CreateBounded<AgentMessage>(new BoundedChannelOptions(256)
+        {
+            SingleReader = true,
+            SingleWriter = false,
+            FullMode = BoundedChannelFullMode.Wait,
+        });
+        // Fila de baixa prioridade para consultas e logs (spec 011 D-002): comandos, heartbeat e inventário saem antes.
+        var background = Channel.CreateBounded<AgentMessage>(new BoundedChannelOptions(64)
+        {
+            SingleReader = true,
+            SingleWriter = false,
+            FullMode = BoundedChannelFullMode.Wait,
+        });
+        var writer = WriteMessagesAsync(
+            call.RequestStream,
+            outbound.Reader,
+            background.Reader,
+            sessionId,
+            established.FencingToken,
+            sessionCancellation.Token);
+        var inventory = new InventoryPublisher(this, outbound.Writer);
+        await inventory.SendAsync(sessionCancellation.Token);
+        // Spec 012: inventário de imagens somente com a capability confirmada pelo servidor.
+        var imagesAccepted = established.AcceptedCapabilities.Contains(Capability.ImageInventory);
+        var images = new ImagePublisher(this, outbound.Writer, imagesAccepted);
+        await images.SendAsync(force: true, sessionCancellation.Token);
+        var heartbeat = SendHeartbeatsAsync(
+            outbound.Writer,
+            () => inventory.Revision,
+            () => images.Revision,
+            TimeSpan.FromSeconds(established.HeartbeatIntervalSeconds),
+            sessionCancellation.Token);
+        // Agente N só envia payloads novos com capability confirmada pelo servidor (008 D-009).
+        var eventsAccepted = established.AcceptedCapabilities.Contains(Capability.EngineEvents);
+        var events = WatchEngineEventsAsync(outbound.Writer, inventory, images, eventsAccepted, sessionCancellation.Token);
+        await ReportOrphanExecsAsync(outbound.Writer, eventsAccepted, sessionCancellation.Token);
+        var metricsAccepted = established.AcceptedCapabilities.Contains(Capability.ResourceMetrics);
+        var metrics = metricsAccepted
+            ? SendResourceSamplesAsync(background.Writer, sessionCancellation.Token)
+            : Task.CompletedTask;
+        var queries = new Dokpod.Agent.Application.Queries.ContainerQueryHandler(engine, TimeProvider.System, secretFiles, creationPolicy);
+        var logStreams = new Dokpod.Agent.Application.Queries.LogStreamManager(engine, TimeProvider.System);
+        Task SendBackground(AgentMessage outgoing) => background.Writer.WriteAsync(outgoing, sessionCancellation.Token).AsTask();
+
+        ulong serverSequence = 1;
+        try
+        {
+            while (await call.ResponseStream.MoveNext(sessionCancellation.Token))
+            {
+                var message = call.ResponseStream.Current;
+                if (!IsValidServerMetadata(
+                        message.Metadata,
+                        established.SessionId,
+                        established.FencingToken,
+                        ++serverSequence))
+                {
+                    throw new RpcException(new Status(StatusCode.InvalidArgument, "control_plane_metadata_invalid"));
+                }
+
+                if (message.PayloadCase == ControlPlaneMessage.PayloadOneofCase.Command)
+                {
+                    await commandHandler.HandleAsync(
+                        environmentId,
+                        message.Metadata,
+                        message.Command,
+                        (acceptance, cancellationToken) => outbound.Writer.WriteAsync(
+                            new AgentMessage { CommandAccepted = acceptance },
+                            cancellationToken).AsTask(),
+                        (result, cancellationToken) => outbound.Writer.WriteAsync(
+                            new AgentMessage { CommandResult = result },
+                            cancellationToken).AsTask(),
+                        sessionCancellation.Token);
+                    await inventory.SendAsync(sessionCancellation.Token);
+                    if (message.Command.Kind == CommandKind.PullImage) await images.SendAsync(force: false, sessionCancellation.Token);
+                }
+                else if (message.PayloadCase == ControlPlaneMessage.PayloadOneofCase.SnapshotRequest)
+                {
+                    if (message.SnapshotRequest.Scope == SnapshotScope.Images) await images.SendAsync(force: true, sessionCancellation.Token);
+                    else await inventory.SendAsync(sessionCancellation.Token);
+                }
+                else if (message.PayloadCase == ControlPlaneMessage.PayloadOneofCase.ContainerQuery)
+                {
+                    var request = message.ContainerQuery;
+                    _ = Task.Run(() => IgnoreCancellationAsync(queries.HandleAsync(request, SendBackground, sessionCancellation.Token)), CancellationToken.None);
+                }
+                else if (message.PayloadCase == ControlPlaneMessage.PayloadOneofCase.LogStreamControl)
+                {
+                    await logStreams.HandleAsync(message.LogStreamControl, SendBackground, sessionCancellation.Token);
+                }
+                else if (message.PayloadCase == ControlPlaneMessage.PayloadOneofCase.ExecOpen && execSessions is not null && openExec is not null)
+                {
+                    // Spec 014: terminal no RPC `Exec` separado, vinculado à sessão e ao fencing desta conexão.
+                    var request = message.ExecOpen;
+                    var handshake = new ExecHandshake { ExecSessionId = request.ExecSessionId, SessionId = established.SessionId, FencingToken = established.FencingToken };
+                    _ = Task.Run(
+                        () => IgnoreCancellationAsync(execSessions.RunAsync(
+                            request,
+                            token => Task.FromResult<Dokpod.Agent.Application.Terminal.IExecChannel>(new Dokpod.Agent.Infrastructure.Protocol.GrpcExecChannel(openExec(token))),
+                            handshake,
+                            sessionCancellation.Token)),
+                        CancellationToken.None);
+                }
+            }
+        }
+        finally
+        {
+            await sessionCancellation.CancelAsync();
+            outbound.Writer.TryComplete();
+            background.Writer.TryComplete();
+            await IgnoreCancellationAsync(writer);
+            await IgnoreCancellationAsync(heartbeat);
+            await IgnoreCancellationAsync(events);
+            await IgnoreCancellationAsync(metrics);
+        }
+    }
+
+    /// <summary>
+    /// Uma amostra por intervalo na fila de baixa prioridade (spec 009 FR-002): nunca espera por espaço,
+    /// para não atrasar comandos e inventário; lote que não cabe é descartado e contado no próximo.
+    /// </summary>
+    private async Task SendResourceSamplesAsync(ChannelWriter<AgentMessage> background, CancellationToken cancellationToken)
+    {
+        var sampler = new Dokpod.Agent.Application.Metrics.ResourceSampler(engine, hostProbe, TimeProvider.System);
+        sampler.EngineMemoryTotalBytes = (await TryDescribeHostAsync(cancellationToken))?.MemoryBytes;
+        uint lost = 0;
+        using var timer = new PeriodicTimer(options.EffectiveMetricsInterval);
+        while (await timer.WaitForNextTickAsync(cancellationToken))
+        {
+            IReadOnlyList<ResourceSampleBatch> batches;
+            try
+            {
+                batches = await sampler.SampleAsync(Volatile.Read(ref runningTargets), cancellationToken);
+            }
+            catch (Exception exception) when (exception is HttpRequestException or IOException)
+            {
+                logger.LogDebug(exception, "Resource sampling skipped");
+                continue;
+            }
+
+            batches[0].DroppedCount += lost;
+            lost = 0;
+            foreach (var batch in batches)
+            {
+                if (!background.TryWrite(new AgentMessage { ResourceSamples = batch }))
+                {
+                    lost += (uint)batch.Containers.Count;
+                }
+            }
+        }
+    }
+
+    private static async Task WriteMessagesAsync(
+        IClientStreamWriter<AgentMessage> requestStream,
+        ChannelReader<AgentMessage> messages,
+        ChannelReader<AgentMessage> background,
+        Guid sessionId,
+        ulong fencingToken,
+        CancellationToken cancellationToken)
+    {
+        ulong sequence = 0;
+        while (true)
+        {
+            // Alta prioridade sempre drena primeiro; a fila de consultas/logs só é lida quando a outra está vazia.
+            if (!messages.TryRead(out var message) && !background.TryRead(out message))
+            {
+                var high = messages.WaitToReadAsync(cancellationToken).AsTask();
+                var low = background.WaitToReadAsync(cancellationToken).AsTask();
+                await Task.WhenAny(high, low);
+                if (high.IsCompleted && !await high && (!low.IsCompleted || !await low)) return;
+                continue;
+            }
+
+            message.Metadata = new MessageMetadata
+            {
+                ProtocolVersion = "1",
+                SessionId = sessionId.ToString("D"),
+                FencingToken = fencingToken,
+                Sequence = ++sequence,
+                OccurredAt = Timestamp.FromDateTimeOffset(DateTimeOffset.UtcNow),
+                CorrelationId = Guid.NewGuid().ToString("D"),
+            };
+            await requestStream.WriteAsync(message, cancellationToken);
+        }
+    }
+
+    private static async Task SendHeartbeatsAsync(
+        ChannelWriter<AgentMessage> messages,
+        Func<ulong> getInventoryRevision,
+        Func<ulong> getImageRevision,
+        TimeSpan interval,
+        CancellationToken cancellationToken)
+    {
+        using var timer = new PeriodicTimer(interval);
+        while (await timer.WaitForNextTickAsync(cancellationToken))
+        {
+            await messages.WriteAsync(
+                new AgentMessage
+                {
+                    Heartbeat = new Heartbeat { InventoryRevision = getInventoryRevision(), ImageRevision = getImageRevision() },
+                },
+                cancellationToken);
+        }
+    }
+
+    private async Task<ulong> SendInventorySnapshotAsync(
+        ChannelWriter<AgentMessage> messages,
+        ulong previousRevision,
+        CancellationToken cancellationToken)
+    {
+        var containers = await engine.ListContainersAsync(cancellationToken);
+        Volatile.Write(ref runningTargets, containers
+            .Where(container => string.Equals(container.State, "running", StringComparison.OrdinalIgnoreCase))
+            .Select(container => new Dokpod.Agent.Application.Metrics.SampleTarget(container.ContainerId, container.CpuLimitCores))
+            .ToArray());
+        var observedAt = DateTimeOffset.UtcNow;
+        var clockRevision = checked((ulong)observedAt.ToUnixTimeMilliseconds());
+        var revision = Math.Max(previousRevision + 1, clockRevision);
+        var snapshotId = Guid.NewGuid().ToString("D");
+        var orderedContainers = containers
+            .OrderBy(container => container.ContainerId, StringComparer.Ordinal)
+            .ToArray();
+        var pageCount = Math.Max(1, (orderedContainers.Length + SnapshotPageSize - 1) / SnapshotPageSize);
+
+        for (var pageNumber = 0; pageNumber < pageCount; pageNumber++)
+        {
+            var page = new InventorySnapshotPage
+            {
+                SnapshotId = snapshotId,
+                InventoryRevision = revision,
+                PageNumber = checked((uint)pageNumber),
+                IsLastPage = pageNumber == pageCount - 1,
+            };
+            page.Containers.AddRange(orderedContainers
+                .Skip(pageNumber * SnapshotPageSize)
+                .Take(SnapshotPageSize)
+                .Select(container => MapContainer(container, observedAt)));
+            await messages.WriteAsync(new AgentMessage { SnapshotPage = page }, cancellationToken);
+        }
+
+        return revision;
+    }
+
+    private static ContainerState MapContainer(EngineContainer container, DateTimeOffset observedAt)
+    {
+        var state = new ContainerState
+        {
+            ContainerId = container.ContainerId,
+            Name = container.Name,
+            ImageReference = container.ImageReference,
+            State = MapContainerState(container.State),
+            Revision = container.Revision,
+            ObservedAt = Timestamp.FromDateTimeOffset(observedAt),
+            Health = container.Health switch
+            {
+                "none" => ContainerHealth.None,
+                "starting" => ContainerHealth.Starting,
+                "healthy" => ContainerHealth.Healthy,
+                "unhealthy" => ContainerHealth.Unhealthy,
+                _ => ContainerHealth.Unspecified,
+            },
+            RestartCount = container.RestartCount is > 0 ? (uint)container.RestartCount.Value : 0,
+            OomKilled = container.OomKilled ?? false,
+            ImageId = container.ImageId ?? string.Empty,
+        };
+        if (container.CreatedAtUtc is not null) state.CreatedAt = Timestamp.FromDateTimeOffset(container.CreatedAtUtc.Value);
+        if (container.StartedAtUtc is not null) state.StartedAt = Timestamp.FromDateTimeOffset(container.StartedAtUtc.Value);
+        if (container.ExitCode is not null) state.ExitCode = container.ExitCode.Value;
+        state.Ports.AddRange(container.Ports.Take(64).Select(port => new PortBinding
+        {
+            HostIp = port.HostIp ?? string.Empty,
+            HostPort = (uint)Math.Clamp(port.HostPort, 0, 65535),
+            ContainerPort = (uint)Math.Clamp(port.ContainerPort, 0, 65535),
+            Protocol = port.Protocol switch
+            {
+                "udp" => TransportProtocol.Udp,
+                "sctp" => TransportProtocol.Sctp,
+                _ => TransportProtocol.Tcp,
+            },
+        }));
+        return state;
+    }
+
+    private async Task<EngineHostInfo?> TryDescribeHostAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await engine.DescribeHostAsync(cancellationToken);
+        }
+        catch (Exception exception) when (exception is HttpRequestException or IOException or InvalidDataException or System.Text.Json.JsonException)
+        {
+            logger.LogWarning(exception, "Engine host description unavailable");
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Assina eventos do engine (reconectando), envia lotes a cada segundo quando aceitos e
+    /// republica o inventário 2 s depois da última mudança de container.
+    /// </summary>
+    private async Task WatchEngineEventsAsync(
+        ChannelWriter<AgentMessage> messages,
+        InventoryPublisher inventory,
+        ImagePublisher images,
+        bool sendEvents,
+        CancellationToken cancellationToken)
+    {
+        var publisher = new EngineEventPublisher(TimeProvider.System);
+        long dirtySince = 0;
+        long imagesDirtySince = 0;
+        var pump = Task.Run(async () =>
+        {
+            using var timer = new PeriodicTimer(TimeSpan.FromSeconds(1));
+            while (await timer.WaitForNextTickAsync(cancellationToken))
+            {
+                var batch = publisher.Drain();
+                if (sendEvents && batch is not null)
+                {
+                    await messages.WriteAsync(new AgentMessage { EngineEvents = batch }, cancellationToken);
+                }
+
+                var since = Interlocked.Read(ref dirtySince);
+                if (since != 0 && Environment.TickCount64 - since >= 2000 &&
+                    Interlocked.CompareExchange(ref dirtySince, 0, since) == since)
+                {
+                    await inventory.SendAsync(cancellationToken);
+                }
+
+                var imagesSince = Interlocked.Read(ref imagesDirtySince);
+                if (imagesSince != 0 && Environment.TickCount64 - imagesSince >= 2000 &&
+                    Interlocked.CompareExchange(ref imagesDirtySince, 0, imagesSince) == imagesSince)
+                {
+                    await images.SendAsync(force: false, cancellationToken);
+                }
+            }
+        }, cancellationToken);
+
+        while (!cancellationToken.IsCancellationRequested)
+        {
+            try
+            {
+                await foreach (var record in engine.WatchEventsAsync(cancellationToken))
+                {
+                    if (publisher.Observe(record))
+                    {
+                        Interlocked.Exchange(ref dirtySince, Environment.TickCount64);
+                    }
+
+                    if (record.Type == "image")
+                    {
+                        Interlocked.Exchange(ref imagesDirtySince, Environment.TickCount64);
+                    }
+                }
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                break;
+            }
+            catch (Exception exception) when (exception is HttpRequestException or IOException or InvalidDataException or NotSupportedException)
+            {
+                logger.LogWarning(exception, "Engine event stream interrupted");
+            }
+
+            await Task.Delay(ReconnectDelay, cancellationToken);
+        }
+
+        await IgnoreCancellationAsync(pump);
+    }
+
+    /// <summary>Serializa os envios de snapshot (comandos, pedidos do servidor e eventos).</summary>
+    private int orphansChecked;
+
+    /// <summary>Spec 014 D-007: uma vez por processo, encerra e reporta execs de terminal deixados por um reinício.</summary>
+    private async Task ReportOrphanExecsAsync(ChannelWriter<AgentMessage> messages, bool eventsAccepted, CancellationToken cancellationToken)
+    {
+        if (execSessions is null || Interlocked.Exchange(ref orphansChecked, 1) == 1) return;
+        try
+        {
+            var orphans = await execSessions.RecoverOrphansAsync(cancellationToken);
+            if (orphans.Count == 0) return;
+            logger.LogWarning("{OrphanCount} terminal exec sessions still running after agent restart", orphans.Count);
+            if (!eventsAccepted) return;
+            var batch = new EngineEventBatch();
+            batch.Events.AddRange(orphans.Select(orphan => new EngineEvent
+            {
+                SourceKey = $"exec:{orphan.ExecSessionId}",
+                Type = EngineEventType.ExecOrphanSuspected,
+                OccurredAt = Google.Protobuf.WellKnownTypes.Timestamp.FromDateTimeOffset(DateTimeOffset.UtcNow),
+                SubjectId = orphan.ContainerId,
+            }));
+            await messages.WriteAsync(new AgentMessage { EngineEvents = batch }, cancellationToken);
+        }
+        catch (Exception exception) when (exception is HttpRequestException or IOException)
+        {
+            logger.LogWarning(exception, "Terminal orphan check failed");
+        }
+    }
+
+    private Task<IReadOnlyList<EngineImage>> ListImagesAsync(CancellationToken cancellationToken) => engine.ListImagesAsync(cancellationToken);
+
+    private void LogImageInventoryUnavailable(Exception exception) => logger.LogWarning(exception, "Engine image inventory unavailable");
+
+    /// <summary>Snapshot do inventário de imagens quando o conjunto muda (spec 012); revisão vai no heartbeat.</summary>
+    private sealed class ImagePublisher(AgentControlWorker worker, ChannelWriter<AgentMessage> messages, bool enabled)
+    {
+        private readonly SemaphoreSlim gate = new(1, 1);
+        private readonly Dokpod.Agent.Application.Images.ImageInventoryBuilder builder = new(TimeProvider.System);
+
+        public ulong Revision => enabled ? builder.Revision : 0;
+
+        public async Task SendAsync(bool force, CancellationToken cancellationToken)
+        {
+            if (!enabled) return;
+            await gate.WaitAsync(cancellationToken);
+            try
+            {
+                IReadOnlyList<EngineImage> list;
+                try
+                {
+                    list = await worker.ListImagesAsync(cancellationToken);
+                }
+                catch (Exception exception) when (exception is HttpRequestException or IOException or InvalidDataException or System.Text.Json.JsonException)
+                {
+                    worker.LogImageInventoryUnavailable(exception);
+                    return;
+                }
+
+                foreach (var page in builder.Build(list, force))
+                {
+                    await messages.WriteAsync(new AgentMessage { ImageSnapshotPage = page }, cancellationToken);
+                }
+            }
+            finally
+            {
+                gate.Release();
+            }
+        }
+    }
+
+    private sealed class InventoryPublisher(AgentControlWorker worker, ChannelWriter<AgentMessage> messages)
+    {
+        private readonly SemaphoreSlim gate = new(1, 1);
+        private ulong revision;
+
+        public ulong Revision => Interlocked.Read(ref revision);
+
+        public async Task SendAsync(CancellationToken cancellationToken)
+        {
+            await gate.WaitAsync(cancellationToken);
+            try
+            {
+                var next = await worker.SendInventorySnapshotAsync(messages, Revision, cancellationToken);
+                Interlocked.Exchange(ref revision, next);
+            }
+            finally
+            {
+                gate.Release();
+            }
+        }
+    }
+
+    private static ContainerLifecycleState MapContainerState(string state) => state.ToLowerInvariant() switch
+    {
+        "created" => ContainerLifecycleState.Created,
+        "running" => ContainerLifecycleState.Running,
+        "paused" => ContainerLifecycleState.Paused,
+        "restarting" => ContainerLifecycleState.Restarting,
+        "exited" => ContainerLifecycleState.Exited,
+        "dead" => ContainerLifecycleState.Dead,
+        _ => ContainerLifecycleState.Unspecified,
+    };
+
+    private static AgentMessage CreateHello(EngineDescriptor descriptor, EngineHostInfo? hostInfo, bool execAvailable)
+    {
+        var hello = new AgentHello
+        {
+            AgentVersion = typeof(AgentControlWorker).Assembly.GetName().Version?.ToString() ?? "0.0.0",
+            Engine = hostInfo?.Engine == "podman" ? EngineKind.Podman : EngineKind.Docker,
+            EngineVersion = descriptor.EngineVersion,
+            EngineApiVersion = descriptor.ApiVersion,
+            EngineRootless = hostInfo?.Rootless ?? false,
+            HostName = hostInfo?.HostName ?? System.Environment.MachineName,
+            CpuCount = hostInfo?.CpuCount is > 0 ? (uint)hostInfo.CpuCount.Value : (uint)System.Environment.ProcessorCount,
+            MemoryBytes = hostInfo?.MemoryBytes is > 0 ? (ulong)hostInfo.MemoryBytes.Value : 0,
+            OperatingSystem = System.OperatingSystem.IsWindows()
+                ? Dokpod.Agent.Contracts.V1.OperatingSystem.Windows
+                : Dokpod.Agent.Contracts.V1.OperatingSystem.Linux,
+            OperatingSystemVersion = System.Environment.OSVersion.VersionString,
+            Architecture = RuntimeInformation.ProcessArchitecture == System.Runtime.InteropServices.Architecture.Arm64
+                ? Dokpod.Agent.Contracts.V1.Architecture.Arm64
+                : Dokpod.Agent.Contracts.V1.Architecture.Amd64,
+            Capabilities =
+            {
+                Capability.Inventory,
+                Capability.ContainerStart,
+                Capability.ContainerStop,
+                Capability.ContainerRestart,
+                Capability.ContainerDelete,
+                Capability.EngineEvents,
+                Capability.ContainerPause,
+                Capability.ContainerUnpause,
+                Capability.ContainerInspect,
+                Capability.ContainerLogs,
+                Capability.ImageInventory,
+                Capability.ImagePull,
+            },
+            SupportedProtocolVersions = { "1" },
+        };
+        // Spec 013 T011 / 014 T007: criação e terminal só no Linux (Windows sem qualificação própria).
+        if (!System.OperatingSystem.IsWindows())
+        {
+            hello.Capabilities.Add(Capability.ContainerCreate);
+            if (execAvailable) hello.Capabilities.Add(Capability.ContainerExec);
+        }
+        // Métricas de host dependem de `/proc` do Linux; o agente Windows não anuncia (spec 009 FR-010).
+        if (!System.OperatingSystem.IsWindows()) hello.Capabilities.Add(Capability.ResourceMetrics);
+        return new AgentMessage { Hello = hello };
+    }
+
+    private static bool IsValidServerMetadata(
+        MessageMetadata? metadata,
+        string sessionId,
+        ulong fencingToken,
+        ulong expectedSequence) =>
+        metadata is not null &&
+        metadata.ProtocolVersion == "1" &&
+        metadata.SessionId == sessionId &&
+        metadata.FencingToken == fencingToken &&
+        metadata.Sequence == expectedSequence &&
+        metadata.OccurredAt is not null;
+
+    private static async Task IgnoreCancellationAsync(Task task)
+    {
+        try
+        {
+            await task;
+        }
+        catch (OperationCanceledException)
+        {
+        }
+    }
+
+    private static string GetStatus(Exception exception) => exception is RpcException rpcException
+        ? rpcException.StatusCode.ToString()
+        : exception.GetType().Name;
+}

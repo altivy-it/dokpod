@@ -1,0 +1,133 @@
+<div class="dok-stack">
+  <div class="dok-page-head">
+    <div class="dok-page-head__text">
+      <span class="eyebrow">{{ eyebrow() }}</span>
+      <h1 class="app-title">{{ headline() }}</h1>
+      <p class="app-small alt-num">{{ engineLine() }}</p>
+    </div>
+    <div class="dok-actions">
+      <button dok-button variant="outline" size="sm" startIcon="refresh" type="button" [loading]="facade.refreshing()" (click)="facade.refresh()">Atualizar</button>
+      <a dok-button variant="outline" size="sm" startIcon="download" routerLink="/imagens" [queryParams]="{ baixar: 1 }" queryParamsHandling="merge">Baixar imagem</a>
+      <a dok-button variant="primary" size="sm" startIcon="plus" routerLink="/containers" [queryParams]="{ novo: 1 }" queryParamsHandling="merge">Novo container</a>
+    </div>
+  </div>
+
+  @if (facade.error(); as error) {
+    <dok-empty-state [kind]="error.status === 403 ? 'forbidden' : 'error'" [code]="error.status ? 'Erro ' + error.status : null" [title]="error.title" [detail]="error.detail">
+      <button dok-button variant="outline" size="sm" startIcon="refresh" type="button" (click)="facade.refresh()">Tentar novamente</button>
+    </dok-empty-state>
+  } @else if (empty()) {
+    <dok-empty-state
+      kind="empty"
+      icon="monitor"
+      title="Nenhum host neste estágio"
+      [detail]="'Não há hosts autorizados em ' + stageName().toLowerCase() + '. Cadastre um host ou escolha outro estágio.'"
+    >
+      <a dok-button variant="outline" size="sm" startIcon="monitor" routerLink="/hosts" queryParamsHandling="merge">Ver hosts</a>
+    </dok-empty-state>
+  } @else {
+    <div class="ov-kpis">
+      <dok-info-kpi [value]="kpis().running" description="Em execução" icon="play" color="success" [loading]="facade.loading()" />
+      <dok-info-kpi [value]="kpis().stopped" description="Parados" icon="pause" color="secondary" [loading]="facade.loading()" />
+      <dok-info-kpi [value]="kpis().failing" description="Com falha ou reiniciando" icon="alert" color="error" [loading]="facade.loading()" />
+      <dok-info-kpi [value]="metrics.stage()?.current?.cpuPercent ?? null" [decimals]="1" unit="%" description="CPU média do cluster" icon="gauge" color="primary" unavailableLabel="indisponível" />
+      <dok-info-kpi [value]="metrics.stage()?.current?.memoryPercent ?? null" [decimals]="1" unit="%" description="Memória alocada" icon="activity" color="info" unavailableLabel="indisponível" />
+      <a class="ov-kpi-link" routerLink="/imagens" [queryParams]="{ semUso: 1 }" queryParamsHandling="merge" [attr.aria-label]="imagesKpiLabel()">
+        <dok-info-kpi
+          [value]="facade.summary()?.images?.unused ?? null"
+          [description]="facade.summary()?.images?.partial ? 'Imagens sem uso · contagem parcial' : 'Imagens sem uso'"
+          icon="package"
+          color="warning"
+          [loading]="facade.loading()"
+          unavailableLabel="indisponível"
+        />
+      </a>
+    </div>
+
+    <div class="dok-row">
+      <div class="dok-row__main">
+        <dok-line-chart
+          title="Uso de recursos do cluster"
+          subtitle="% da capacidade · últimas 12 horas"
+          [height]="190"
+          [x]="resourceChart().x"
+          [series]="resourceChart().series"
+          [reference]="resourceChart().reference"
+          [yMin]="0"
+          [yMax]="100"
+          [format]="percent"
+          [note]="resourceChart().note"
+          [unavailable]="resourceChart().unavailable"
+        />
+      </div>
+      <div class="dok-row__side ov-center">
+        <dok-donut-chart
+          title="Containers por engine"
+          subtitle="Ativos e parados · agora"
+          [items]="engines()"
+          [center]="(facade.summary()?.containers?.total ?? 0).toString()"
+          centerLabel="containers"
+          emptyLabel="Nenhum container reconciliado"
+        />
+      </div>
+    </div>
+
+    <div class="dok-row">
+      <div class="dok-row__main">
+        <dok-card title="Hosts e engines" actionLabel="Ver todos os hosts" [loading]="facade.loading()" (action)="openHosts()">
+          <div class="ov-scroll">
+            <div class="ov-table">
+              <div class="ct-row app-label ov-grid ov-head">
+                <span>Host</span><span>Engine</span><span>Situação</span><span class="ov-num">Containers</span><span>CPU</span>
+              </div>
+              @for (row of hostRows(); track row.host.environmentId) {
+                <div class="ct-row app-small ov-grid">
+                  <a class="ov-host" routerLink="/hosts" [queryParams]="{ q: row.host.name }" queryParamsHandling="merge">{{ hostTitle(row.host) }}</a>
+                  <span class="ov-engine">
+                    @if (row.host.agent?.engine) {
+                      <dok-engine-badge [engine]="row.host.agent!.engine!" />
+                      <span class="alt-num ov-muted">{{ row.host.agent?.engineVersion }}</span>
+                    } @else {
+                      <span class="ov-muted">—</span>
+                    }
+                  </span>
+                  <span><dok-status-circle [color]="row.situation.tone" [text]="row.situation.label" size="small" /></span>
+                  <span class="alt-num ov-num">{{ row.host.containerCount ?? '—' }}</span>
+                  <span class="ov-cpu">
+                    <span class="ct-bar" [class.ct-bar--warn]="row.cpuWarn" style="flex: 1" aria-hidden="true"><span [style.width.%]="row.cpu ?? 0"></span></span>
+                    <span class="alt-num ov-cpu__value" [attr.aria-label]="row.cpu === null ? 'CPU indisponível' : 'CPU ' + formatPct(row.cpu) + (row.cpuWarn ? ', acima do limite operacional' : '')">{{ row.cpu === null ? '—' : formatPct(row.cpu) }}</span>
+                  </span>
+                </div>
+              } @empty {
+                <p class="app-small ov-muted ov-pad">Nenhum host habilitado.</p>
+              }
+            </div>
+          </div>
+        </dok-card>
+      </div>
+      <div class="dok-row__side">
+        <dok-card
+          title="Eventos recentes"
+          [color]="attention() ? 'warning' : null"
+          [statusLabel]="attention() + (attention() === 1 ? ' evento pede atenção' : ' eventos pedem atenção')"
+          [loading]="facade.loading()"
+        >
+          <div aria-live="polite" class="ov-events">
+            @for (event of eventRows(); track event.id) {
+              <div class="ct-row ov-event">
+                <span class="app-caption alt-num ov-muted" [attr.title]="event.skew ? 'Relógio do host diverge mais de 5 min do plano de controle' : null">{{ event.time }}@if (event.skew) {*}</span>
+                <span class="ov-event__text">
+                  <span class="app-small ov-event__title">{{ event.text }}</span>
+                  <span class="app-caption ov-muted ov-event__where">{{ event.where }}</span>
+                </span>
+                <dok-status-chip [label]="event.label" [color]="event.tone" size="sm" />
+              </div>
+            } @empty {
+              <p class="app-small ov-muted ov-pad">Nenhum evento nas últimas 24 horas.</p>
+            }
+          </div>
+        </dok-card>
+      </div>
+    </div>
+  }
+</div>

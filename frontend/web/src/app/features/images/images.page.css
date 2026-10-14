@@ -1,0 +1,6 @@
+.im-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.im-muted { color: var(--muted); }
+.im-partial { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); }
+.im-chip-btn { padding: 0; border: 0; background: none; cursor: pointer; border-radius: 999px; }
+.im-chip-btn:focus-visible { outline: 2px solid var(--teal-light); outline-offset: 2px; }
+.im-chip-btn[aria-pressed='true'] dok-status-chip { box-shadow: 0 0 0 1px var(--warning-strong, currentColor); border-radius: 999px; }

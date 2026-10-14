@@ -1,0 +1,140 @@
+using Dokpod.ControlPlane.Application.Authorization;
+using Dokpod.ControlPlane.Application.Auditing;
+using Dokpod.Domain.Auditing;
+using Dokpod.Domain.Environments;
+
+namespace Dokpod.ControlPlane.Application.Environments;
+
+public sealed record EnvironmentAccessDecisionResult(
+    bool Allowed,
+    string? FailureCode,
+    AuthorizationDecisionOutcome Outcome);
+
+public sealed class EnvironmentAccessService(
+    IAuditEventWriter auditEventWriter,
+    IEnvironmentAuthorizationDecider authorizationDecider)
+{
+    public Task<EnvironmentAccessDecisionResult> RegisterAsync(
+        EnvironmentRegistration registration,
+        string requiredScope,
+        AuthenticatedActor actor,
+        AuditActorKind actorKind,
+        Guid correlationId,
+        CancellationToken cancellationToken) => RegisterAsync(
+            registration,
+            requiredScope,
+            actor,
+            string.Empty,
+            actorKind,
+            correlationId,
+            cancellationToken);
+
+    public async Task<EnvironmentAccessDecisionResult> RegisterAsync(
+        EnvironmentRegistration registration,
+        string requiredScope,
+        AuthenticatedActor actor,
+        string accessToken,
+        AuditActorKind actorKind,
+        Guid correlationId,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(registration);
+        ArgumentNullException.ThrowIfNull(actor);
+
+        return await AuthorizeAndAuditAsync(
+            registration.EnvironmentId,
+            requiredScope,
+            actor,
+            accessToken,
+            actorKind,
+            "environment.register",
+            correlationId,
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    public Task<EnvironmentAccessDecisionResult> RevokeAsync(
+        Guid environmentId,
+        AuthenticatedActor actor,
+        string accessToken,
+        Guid correlationId,
+        CancellationToken cancellationToken) => AuthorizeAndAuditAsync(
+            environmentId,
+            EnvironmentResourceScopes.Manage,
+            actor,
+            accessToken,
+            AuditActorKind.User,
+            "environment.revoke",
+            correlationId,
+            cancellationToken);
+
+    private async Task<EnvironmentAccessDecisionResult> AuthorizeAndAuditAsync(
+        Guid environmentId,
+        string requiredScope,
+        AuthenticatedActor actor,
+        string accessToken,
+        AuditActorKind actorKind,
+        string action,
+        Guid correlationId,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(actor);
+        if (environmentId == Guid.Empty)
+        {
+            throw new ArgumentException("Environment ID is required.", nameof(environmentId));
+        }
+
+        EnvironmentAuthorizationDecision authorization;
+        try
+        {
+            authorization = await authorizationDecider.DecideAsync(
+                $"urn:dokpod:environment:{environmentId:D}",
+                requiredScope,
+                actor,
+                accessToken,
+                correlationId,
+                cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            authorization = new EnvironmentAuthorizationDecision(
+                AuthorizationDecisionOutcome.Indeterminate,
+                "authorization_unavailable");
+        }
+
+        if (!Enum.IsDefined(authorization.Outcome) ||
+            (!authorization.Allowed && string.IsNullOrWhiteSpace(authorization.FailureCode)))
+        {
+            authorization = new EnvironmentAuthorizationDecision(
+                AuthorizationDecisionOutcome.Indeterminate,
+                "authorization_invalid");
+        }
+
+        var outcome = authorization.Outcome switch
+        {
+            AuthorizationDecisionOutcome.Allowed => AuditOutcome.Succeeded,
+            AuthorizationDecisionOutcome.Denied => AuditOutcome.Denied,
+            AuthorizationDecisionOutcome.Indeterminate => AuditOutcome.Indeterminate,
+            _ => throw new ArgumentOutOfRangeException(),
+        };
+        var failureCode = authorization.Allowed ? null : authorization.FailureCode;
+
+        var auditEvent = AuditEvent.Create(
+            Guid.NewGuid(),
+            DateTimeOffset.UtcNow,
+            correlationId,
+            actorKind,
+            actor.Subject,
+            action,
+            environmentId,
+            outcome,
+            failureCode);
+
+        await auditEventWriter.AppendAsync(auditEvent, cancellationToken).ConfigureAwait(false);
+
+        return new EnvironmentAccessDecisionResult(authorization.Allowed, failureCode, authorization.Outcome);
+    }
+}

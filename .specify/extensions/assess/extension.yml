@@ -1,0 +1,40 @@
+schema_version: "1.0"
+
+extension:
+  id: assess
+  name: "Fluxo de Avaliação de Ideias"
+  version: "1.0.1"
+  description: "Avalia uma ideia antes do Spec-Driven Development nas etapas intake, research, define, shape e decide. A decisão go encaminha para /speckit.specify; kill encerra o fluxo. Artefatos em .specify/assessments/<slug>/"
+  category: "process"
+  effect: "read-write"
+  author: spec-kit-core
+  repository: https://github.com/github/spec-kit
+  license: MIT
+
+requires:
+  speckit_version: ">=0.9.0"
+
+provides:
+  commands:
+    - name: speckit.assess.intake
+      file: commands/speckit.assess.intake.md
+      description: "Registra e normaliza uma ideia inicial (texto, URL, ticket ou referência ao código) em uma nota de intake"
+    - name: speckit.assess.research
+      file: commands/speckit.assess.research.md
+      description: "Reúne evidências sobre usuários, mercado, precedentes e dados para apoiar ou contestar a ideia"
+    - name: speckit.assess.define
+      file: commands/speckit.assess.define.md
+      description: "Define o problema: quem é afetado, o que causa dificuldade, objetivos, não objetivos e métricas de sucesso"
+    - name: speckit.assess.shape
+      file: commands/speckit.assess.shape.md
+      description: "Estrutura um conceito: opções de solução, escopo, apetite e trade-offs, sem desenhar a implementação"
+    - name: speckit.assess.decide
+      file: commands/speckit.assess.decide.md
+      description: "Decide entre go / needs-clarification / kill e encaminha ideias aprovadas para /speckit.specify"
+
+tags:
+  - "assessment"
+  - "discovery"
+  - "triage"
+  - "product"
+  - "workflow"

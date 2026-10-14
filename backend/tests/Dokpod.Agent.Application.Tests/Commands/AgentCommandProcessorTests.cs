@@ -1,5 +1,6 @@
 using Dokpod.Agent.Application.Commands;
 using Dokpod.Agent.Application.Engines;
+using Dokpod.Agent.Infrastructure.Commands;
 using Dokpod.Domain.Commands;
 using Xunit;
 
@@ -57,6 +58,89 @@ public sealed class AgentCommandProcessorTests
     }
 
     [Fact]
+    public async Task ProcessAsync_NotifiesAdmissionBeforeExecutingMutation()
+    {
+        var journal = new MemoryCommandJournal();
+        var engine = new FakeEngine
+        {
+            Container = CreateContainer("revision-01"),
+            BlockExecution = true,
+        };
+        var processor = CreateProcessor(journal, engine);
+        var admissionObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseAdmission = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var processing = processor.ProcessAsync(
+            CreateCommand(),
+            8,
+            async (admission, failureCode, cancellationToken) =>
+            {
+                Assert.Equal(CommandAdmission.Accepted, admission);
+                Assert.Null(failureCode);
+                admissionObserved.SetResult();
+                await releaseAdmission.Task.WaitAsync(cancellationToken);
+            },
+            TestContext.Current.CancellationToken);
+
+        await admissionObserved.Task.WaitAsync(TestContext.Current.CancellationToken);
+        Assert.Equal(0, engine.ExecutionCount);
+
+        releaseAdmission.SetResult();
+        await engine.ExecutionStarted.Task.WaitAsync(TestContext.Current.CancellationToken);
+        engine.ReleaseExecution();
+        await processing;
+    }
+
+    [Fact]
+    public async Task ProcessAsync_WhenAcceptedJournalHasNoResult_ResumesMutation()
+    {
+        var journal = new MemoryCommandJournal();
+        var engine = new FakeEngine { Container = CreateContainer("revision-01") };
+        var processor = CreateProcessor(journal, engine);
+        var command = CreateCommand();
+        await journal.AppendIfAbsentAsync(
+            new JournaledCommand(
+                command.EnvironmentId,
+                command.CommandId,
+                command.PayloadHash,
+                CommandAdmission.Accepted),
+            TestContext.Current.CancellationToken);
+
+        var result = await processor.ProcessAsync(command, 8, TestContext.Current.CancellationToken);
+
+        Assert.Equal(CommandExecutionState.Succeeded, result.State);
+        Assert.Equal(1, engine.ExecutionCount);
+    }
+
+    [Fact]
+    public async Task ProcessAsync_WhenExpiredCommandIsReplayed_ReturnsPersistedRejection()
+    {
+        var dataDirectory = Path.Combine(Path.GetTempPath(), $"dokpod-tests-{Guid.NewGuid():N}");
+        var engine = new FakeEngine { Container = CreateContainer("revision-01") };
+        var command = CreateCommand() with { DeadlineUtc = Now.AddSeconds(-1) };
+
+        try
+        {
+            var first = await CreateProcessor(new FileCommandJournal(dataDirectory), engine)
+                .ProcessAsync(command, 8, TestContext.Current.CancellationToken);
+            var replay = await CreateProcessor(new FileCommandJournal(dataDirectory), engine)
+                .ProcessAsync(command, 8, TestContext.Current.CancellationToken);
+
+            Assert.Equal(CommandExecutionState.Failed, first.State);
+            Assert.Equal("expired_command", first.FailureCode);
+            Assert.Equal(first, replay);
+            Assert.Equal(0, engine.ExecutionCount);
+        }
+        finally
+        {
+            if (Directory.Exists(dataDirectory))
+            {
+                Directory.Delete(dataDirectory, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
     public async Task ProcessAsync_SerializesMutationsForTheSameContainer()
     {
         var journal = new MemoryCommandJournal();
@@ -81,6 +165,58 @@ public sealed class AgentCommandProcessorTests
         await Task.WhenAll(first, second);
 
         Assert.Equal(2, engine.ExecutionCount);
+    }
+
+    [Fact]
+    public async Task ProcessAsync_WhenDeadlineExpiresWhileWaiting_DoesNotExecuteMutation()
+    {
+        var journal = new MemoryCommandJournal();
+        var engine = new FakeEngine
+        {
+            Container = CreateContainer("revision-01"),
+            BlockExecution = true,
+        };
+        var timeProvider = new MutableTimeProvider(Now);
+        var processor = CreateProcessor(journal, engine, timeProvider);
+        var first = processor.ProcessAsync(CreateCommand(), 8, TestContext.Current.CancellationToken);
+
+        await engine.ExecutionStarted.Task.WaitAsync(TestContext.Current.CancellationToken);
+        var second = processor.ProcessAsync(
+            CreateCommand() with
+            {
+                CommandId = Guid.Parse("8bf6d9bc-e8c4-432e-8ba4-8443ab7ce533"),
+                DeadlineUtc = Now.AddSeconds(1),
+            },
+            8,
+            TestContext.Current.CancellationToken);
+
+        timeProvider.Advance(TimeSpan.FromSeconds(2));
+        engine.ReleaseExecution();
+        var results = await Task.WhenAll(first, second);
+
+        Assert.Equal(CommandExecutionState.Failed, results[1].State);
+        Assert.Equal("expired_command", results[1].FailureCode);
+        Assert.Equal(1, engine.ExecutionCount);
+    }
+
+    [Fact]
+    public async Task ProcessAsync_WhenCancelledAfterRejectedAdmission_PersistsResult()
+    {
+        using var cancellation = new CancellationTokenSource();
+        var journal = new CancellingCommandJournal(cancellation);
+        var engine = new FakeEngine { Container = CreateContainer("revision-01") };
+        var processor = CreateProcessor(journal, engine);
+        var command = CreateCommand() with { DeadlineUtc = Now.AddSeconds(-1) };
+
+        var result = await processor.ProcessAsync(command, 8, cancellation.Token);
+        var persisted = await journal.FindResultAsync(
+            command.EnvironmentId,
+            command.CommandId,
+            CancellationToken.None);
+
+        Assert.Equal("expired_command", result.FailureCode);
+        Assert.Equal(result, persisted);
+        Assert.Equal(0, engine.ExecutionCount);
     }
 
     [Fact]
@@ -132,8 +268,14 @@ public sealed class AgentCommandProcessorTests
     private static AgentCommandProcessor CreateProcessor(ICommandJournal journal, IContainerEngine engine)
     {
         var timeProvider = new FixedTimeProvider(Now);
-        return new AgentCommandProcessor(new AgentCommandGate(journal, timeProvider), journal, engine, timeProvider);
+        return CreateProcessor(journal, engine, timeProvider);
     }
+
+    private static AgentCommandProcessor CreateProcessor(
+        ICommandJournal journal,
+        IContainerEngine engine,
+        TimeProvider timeProvider) =>
+        new(new AgentCommandGate(journal, timeProvider), journal, engine, timeProvider);
 
     private static AgentCommand CreateCommand() =>
         new(
@@ -152,6 +294,13 @@ public sealed class AgentCommandProcessorTests
     private sealed class FixedTimeProvider(DateTimeOffset utcNow) : TimeProvider
     {
         public override DateTimeOffset GetUtcNow() => utcNow;
+    }
+
+    private sealed class MutableTimeProvider(DateTimeOffset utcNow) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => utcNow;
+
+        public void Advance(TimeSpan duration) => utcNow = utcNow.Add(duration);
     }
 
     private sealed class FakeEngine : IContainerEngine
@@ -212,33 +361,68 @@ public sealed class AgentCommandProcessorTests
         private readonly Dictionary<(Guid, Guid), JournaledCommand> commands = [];
         private readonly Dictionary<(Guid, Guid), JournaledCommandResult> results = [];
 
-        public ValueTask<JournaledCommand?> AppendIfAbsentAsync(
+        public Task<JournaledCommand?> AppendIfAbsentAsync(
             JournaledCommand command,
             CancellationToken cancellationToken)
         {
             var key = (command.EnvironmentId, command.CommandId);
             if (commands.TryGetValue(key, out var existing))
             {
-                return ValueTask.FromResult<JournaledCommand?>(existing);
+                return Task.FromResult<JournaledCommand?>(existing);
             }
 
             commands.Add(key, command);
-            return ValueTask.FromResult<JournaledCommand?>(null);
+            return Task.FromResult<JournaledCommand?>(null);
         }
 
-        public ValueTask<JournaledCommandResult?> FindResultAsync(
+        public Task<JournaledCommandResult?> FindResultAsync(
             Guid environmentId,
             Guid commandId,
             CancellationToken cancellationToken)
         {
             results.TryGetValue((environmentId, commandId), out var result);
-            return ValueTask.FromResult(result);
+            return Task.FromResult(result);
         }
 
-        public ValueTask SaveResultAsync(JournaledCommandResult result, CancellationToken cancellationToken)
+        public Task SaveResultAsync(JournaledCommandResult result, CancellationToken cancellationToken)
         {
             results[(result.EnvironmentId, result.CommandId)] = result;
-            return ValueTask.CompletedTask;
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class CancellingCommandJournal(CancellationTokenSource cancellation) : ICommandJournal
+    {
+        private JournaledCommand? command;
+        private JournaledCommandResult? result;
+
+        public Task<JournaledCommand?> AppendIfAbsentAsync(
+            JournaledCommand candidate,
+            CancellationToken cancellationToken)
+        {
+            if (command is not null)
+            {
+                return Task.FromResult<JournaledCommand?>(command);
+            }
+
+            command = candidate;
+            cancellation.Cancel();
+            return Task.FromResult<JournaledCommand?>(null);
+        }
+
+        public Task<JournaledCommandResult?> FindResultAsync(
+            Guid environmentId,
+            Guid commandId,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(result);
+
+        public Task SaveResultAsync(
+            JournaledCommandResult persistedResult,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            result = persistedResult;
+            return Task.CompletedTask;
         }
     }
 }

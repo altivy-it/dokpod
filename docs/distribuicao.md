@@ -24,11 +24,11 @@ O baseline inicial usa imagens mantidas no projeto público [`lzocateli/containe
 
 | Uso no Dokpod | Imagem de referência | Papel |
 | --- | --- | --- |
-| restore, build, testes e publicação .NET | `lzocateli/dotnet-sdk:10.0.400-noble` | estágio de build da API, BFF e agentes |
-| runtime da API, BFF e agente Linux | `lzocateli/dotnet-aspnet:10.0.11-noble` | base dos artefatos ASP.NET Core e do host do agente |
+| restore, build, testes e publicação .NET | `lzocateli/dotnet-sdk:10.0.402-noble-v1` | estágio de build da API, BFF e agentes |
+| runtime da API, BFF e agente Linux | `lzocateli/dotnet-aspnet:10.0.13-noble-v1` | base dos artefatos ASP.NET Core e do host do agente |
 | comandos oficiais do frontend | `lzocateli/angular-cli:22.1.0-node24.15.0-bookworm` | install, lint, typecheck, testes e build Angular |
 | toolchain JavaScript de apoio | `lzocateli/node:24.15.0-bookworm` | base do Angular CLI e tarefas Node sem Angular CLI |
-| runtime do web e proxy público | `lzocateli/nginx:1.28.0-bookworm` | base da imagem final com assets Angular e configuração Dokpod |
+| runtime do web e proxy público | `lzocateli/nginx:1.28.0-bookworm-v1` | base da imagem final com assets Angular e configuração Dokpod |
 | testes de carga | `lzocateli/k6:2.1.0-node24.15.0-bookworm` | cenários HTTP, SignalR e capacidade do plano de controle |
 | testes E2E black-box | `lzocateli/playwright-e2e:0.1.0` | pytest/Playwright contra o deployment containerizado |
 | detecção de secrets | `lzocateli/gitleaks:8.30.1` | workspace, diff e histórico no CI |
@@ -65,6 +65,57 @@ Diretórios lógicos:
 
 O socket nunca é publicado em porta TCP nem compartilhado com outro componente Dokpod. Podman rootless exige UID, socket e regras SELinux documentados para a distribuição homologada.
 
+### Engines homologados (spec 008)
+
+| Engine | Versão mínima homologada | Configuração (`EngineSupport`) | Socket padrão procurado |
+| --- | --- | --- | --- |
+| Docker Engine | 27.0.0 | `DockerMinimumVersion` | `/run/docker.sock`, `/var/run/docker.sock` |
+| Podman (API compatível com Docker) | 5.0.0 | `PodmanMinimumVersion` | `$XDG_RUNTIME_DIR/podman/podman.sock` (rootless), `/run/podman/podman.sock` (rootful) |
+
+- `DOKPOD_AGENT_DOCKER_SOCKET`, quando definido, sempre vence; sem ele o agente usa o primeiro socket existente na ordem acima. O engine efetivo é detectado por `/version` (`Components` contém "Podman Engine"), não pelo caminho.
+- Hosts abaixo da versão mínima aparecem como "Atualizar" e geram `engine.version_outdated`; versão não interpretável aparece como "Desconhecido".
+- Podman é qualificado pela API compatível com testes reais (`backend/tests/Dokpod.Agent.Podman.IntegrationTests`, `DOKPOD_TEST_PODMAN_SOCKET`). Diferenças tratadas pelo agente: `stop` de container pausado retoma antes de parar (o Podman recusa) e conflitos de estado (HTTP 500 `container state improper`) são mapeados como no Docker (`not_running`/`not_paused`). Pods e API Libpod não fazem parte desta entrega.
+- Evidência atual: Podman 5.7.0 rootless em Ubuntu 24.04 (2026-10-13). Podman rootful, Docker real e Windows: `NOT RUN` nesta entrega.
+
+O stream operacional com o plano de controle é habilitado quando estas variáveis são injetadas no processo:
+
+| Variável | Obrigatória | Finalidade |
+| --- | --- | --- |
+| `DOKPOD_AGENT_CONTROL_PLANE_ENDPOINT` | para conexão remota | URL HTTPS do endpoint gRPC do plano de controle |
+| `DOKPOD_AGENT_ENVIRONMENT_ID` | com endpoint configurado | UUID do ambiente associado ao certificado |
+| `DOKPOD_AGENT_CLIENT_CERTIFICATE_PATH` | com endpoint configurado | caminho absoluto do PFX; padrão `identity/agent.pfx` sob o diretório de dados |
+| `DOKPOD_AGENT_CLIENT_CERTIFICATE_PASSWORD` | quando o PFX exigir | senha injetada pelo mecanismo externo de secrets, nunca por argumento ou arquivo versionado |
+
+| `DOKPOD_AGENT_REGISTRY_AUTH_FILE` | não | caminho absoluto de um `config.json` no formato Docker (`auths`) com credenciais de registros privados para o pull (spec 012) |
+
+| `DOKPOD_AGENT_BIND_MOUNT_ALLOWLIST` | não | diretórios absolutos (separados por `:`) aceitos como origem de bind mount na criação de container (spec 013); só o diretório exato é aceito, sem subcaminhos, e diretórios aninhados impedem o agente de iniciar (proteção contra escape por link simbólico); vazio = somente volumes nomeados |
+
+### Terminal interativo (spec 014)
+
+- O agente abre o RPC `Exec` (mesmo canal mTLS) quando o servidor pede uma sessão e executa um único exec fixo: `/bin/sh -c` escolhe `/bin/bash` ou `/bin/sh` e anuncia o PID do shell. O engine **não encerra execs ao fechar a conexão** (comportamento observado no Podman 5.7); por isso o agente encerra o shell com `SIGHUP` (e `SIGKILL` após 5 s) por um exec destacado `kill` e confirma `Running=false`. Imagens sem `/bin/sh` recebem `shell_not_available`.
+- Execs ativos ficam em `<diretório de dados>/exec-sessions.json`; após reinício o agente encerra os que ainda rodam e publica `container.exec_orphan_suspected` quando não consegue.
+- A conexão crua com o socket (`EngineRawConnector`) é usada somente para `/exec/{id}/start`. `CAPABILITY_CONTAINER_EXEC` só é anunciada no Linux.
+- A API exige WebSocket para o terminal e usa keepalive do hub de 15 s/timeout de 30 s. Configuração em `Terminal__*` (ociosidade, duração, limites, estágios com justificativa, MFA recente).
+- Evidência: Podman 5.7.0 rootless (eco, resize, término por `exit`, fechamento, queda do cliente, container parado, recuperação de órfãos) e teste .NET ponta a ponta API + agente + RPC `Exec` com mTLS. Docker real e carga de 4 sessões (SC-004): `NOT RUN`.
+
+### Criação de container (spec 013)
+
+- O agente cria e inicia containers pela API compatível; no Podman, segredos do Podman (`secret_env`) e health check com reinício (`health_check_on_failure_action`) usam `POST /libpod/containers/create`. A capability `CAPABILITY_CONTAINER_CREATE` só é anunciada no Linux.
+- Segredos "do cofre": segredos do Podman (`podman secret create`) ou arquivos em `<diretório de dados>/secrets/<nome>` (nome `[a-zA-Z0-9][a-zA-Z0-9_.-]*`, até 32 KiB, sem link simbólico e sem leitura por "outros", ex.: `chmod 600`). O agente lê o arquivo somente no momento da criação; o valor não vai ao plano de controle.
+- Bind mounts ficam proibidos por padrão; o socket do engine e `/`, `/etc`, `/proc`, `/sys`, `/dev`, `/run`, `/var/run`, `/boot`, `/root`, `/var/lib/docker` e `/var/lib/containers` são sempre recusados.
+- A API cifra os valores de variáveis com key ring próprio de Data Protection (`DataProtection__KeysPath`, volume `dokpod-api-keys` no compose); proteja o volume como segredo e faça backup junto com o banco. Perder o key ring faz comandos ainda não executados falharem com `parameters_unavailable`; nenhum container é criado sem os valores.
+- Evidência: criação real em Podman 5.7.0 rootless (configuração aplicada, Libpod com segredo e health check com reinício, conflito de porta com rollback e reconciliação por label) em `Dokpod.Agent.Podman.IntegrationTests`. Docker real e Podman rootful: `NOT RUN`.
+
+### Download de imagens (spec 012)
+
+- O pull é executado pelo agente no engine local (`POST /images/create`), com prazo do comando (padrão de 10 min na interface, máximo de 30 min).
+- Credenciais de registro ficam **somente no host**: o agente lê `DOKPOD_AGENT_REGISTRY_AUTH_FILE` a cada pull e envia o cabeçalho `X-Registry-Auth` ao engine local. Nada é enviado ao plano de controle, gravado no PostgreSQL ou registrado em log. Proteja o arquivo com permissão `0600` para o usuário do agente; sem o arquivo, o engine usa a própria configuração (por exemplo `~/.docker/config.json` ou `auth.json` do Podman).
+- Lista opcional de registros permitidos por estágio na API: `Images__AllowedRegistriesByStage__production__0=registry.empresa.com` (chaves `production`, `staging`, `development`, `none`); sem lista, qualquer registro é aceito.
+- Retenção de comandos: `Commands__Retention` (padrão `90.00:00:00`).
+- Evidência: pull real de `quay.io/podman/hello` e falha `image_not_found` em Podman 5.7.0 rootless (`Dokpod.Agent.Podman.IntegrationTests`, `DOKPOD_TEST_REGISTRY_NETWORK=1`). Registro privado de laboratório (`registry:2`, D-004) e Docker real: `NOT RUN`.
+
+Sem `DOKPOD_AGENT_CONTROL_PLANE_ENDPOINT`, o agente mantém somente a inspeção local e não abre sessão remota. O certificado e sua chave privada permanecem no volume protegido do agente; a cadeia do servidor deve ser confiável pelo sistema operacional.
+
 ## Agente Windows
 
 O projeto `backend/apps/agent` produz um Worker Service .NET 10. Cada release Windows é publicada com `--self-contained true` para um RID homologado, inicialmente candidato a `win-x64`. Não é necessário instalar runtime ou SDK .NET no servidor.
@@ -96,9 +147,50 @@ O mecanismo exato de empacotamento será escolhido após o spike, mas deve cumpr
 
 Desinstalação remove serviço e binários. Dados e identidade só são removidos por opção explícita, pois sua exclusão exige novo enrollment.
 
+### Script de gerenciamento do Windows Service
+
+O script `deploy/agent/manage-windows-service.ps1` recebe os dados da
+instalação e gerencia o ciclo de vida do serviço. Execute o PowerShell como
+Administrador para operações reais. `-DryRun` valida os parâmetros e mostra as
+ações sem alterar o SCM ou o registro.
+
+```powershell
+$certificateDirectory = Join-Path $env:APPDATA 'Microsoft\UserSecrets\Dokpod\certs'
+$agentDataDirectory = Join-Path $env:ProgramData 'Dokpod\Agent'
+$agentBinary = Join-Path $env:ProgramFiles 'Dokpod\Agent\Dokpod.Agent.exe'
+
+./deploy/agent/manage-windows-service.ps1 -Action Install `
+	-FailureRestartDelaySeconds 60 `
+	-BinaryPath $agentBinary `
+	-ControlPlaneEndpoint 'https://controlplane.example:7443' `
+	-EnvironmentId '<uuid-do-ambiente>' `
+	-DockerSocket 'docker_engine' `
+	-ClientCertificatePath (Join-Path $certificateDirectory 'dokpod-agent.pfx') `
+	-ServerCaCertificatePath (Join-Path $certificateDirectory 'dokpod-dev-ca.crt') `
+	-DataDirectory $agentDataDirectory
+
+./deploy/agent/manage-windows-service.ps1 -Action Start
+./deploy/agent/manage-windows-service.ps1 -Action Stop
+./deploy/agent/manage-windows-service.ps1 -Action Restart
+./deploy/agent/manage-windows-service.ps1 -Action Status
+./deploy/agent/manage-windows-service.ps1 -Action Remove -Confirm
+```
+
+`Remove` preserva o diretório de dados, certificados, identidade e journal.
+Para apagar o diretório de dados é necessário informar `-RemoveData` e
+`-DataDirectory` explicitamente. A remoção de dados exige confirmação e não
+remove certificados fora desse diretório.
+
+Durante `Install`, o script configura inicialização atrasada e duas tentativas
+de reinício automático após falha. O intervalo é controlado por
+`-FailureRestartDelaySeconds`; depois das tentativas configuradas, o SCM não
+reinicia indefinidamente o processo.
+
 ## Configuração
 
 Configuração não secreta pode vir de arquivo montado no Linux ou arquivo protegido no Windows. Secrets e chaves privadas usam arquivos com permissões mínimas ou provider seguro. Variáveis de ambiente são aceitas somente quando o ambiente operacional impedir exposição por inspeção de processo e houver justificativa.
+
+O endpoint gRPC do plano de controle exige um certificado de servidor explícito em `DOKPOD_API_CERTIFICATE_PATH`; a senha opcional do PFX vem de `DOKPOD_API_CERTIFICATE_PASSWORD`. Em produção, use certificado emitido pela PKI da organização ou por uma autoridade confiável, montado como arquivo somente leitura. Não gere certificado autoassinado no startup e não dependa do certificado de desenvolvimento do SDK. Em testes automatizados, certificados autoassinados efêmeros e restritos ao processo são aceitáveis. Em laboratório, uma CA local controlada pode emitir os certificados de servidor e agente, desde que sua raiz seja distribuída explicitamente aos participantes e nunca seja desabilitada a validação da cadeia.
 
 Campos mínimos:
 

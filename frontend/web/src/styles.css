@@ -1,0 +1,146 @@
+@import "./styles/fonts.css";
+@import "./styles/tokens.css";
+@import "./styles/app-text.css";
+@import "./styles/altivy-kit.css";
+
+/* Base global do console (spec 007): tema único escuro, densidade de app. */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  min-height: 100%;
+  margin: 0;
+  background: var(--surface-base);
+}
+
+body {
+  min-width: 320px;
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+a {
+  color: var(--teal-light);
+}
+
+a:hover {
+  color: var(--foreground);
+}
+
+:focus-visible {
+  outline: 2px solid var(--teal-light);
+  outline-offset: 3px;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.dok-skip-link {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 2000;
+  padding: 8px 14px;
+  border-radius: var(--radius-pill);
+  background: var(--teal-light);
+  color: var(--ink);
+  font-weight: 600;
+  text-decoration: none;
+  transform: translateY(-200%);
+}
+
+.dok-skip-link:focus {
+  transform: none;
+}
+
+.dok-page-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.dok-page-head__text {
+  display: flex;
+  flex: 1 1 280px;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.dok-page-head__text .eyebrow {
+  color: var(--teal-light);
+}
+
+.dok-page-head__text h1 {
+  margin: 0;
+  color: var(--text-strong);
+}
+
+.dok-page-head__text p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.dok-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.dok-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 8px;
+}
+
+.dok-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: stretch;
+}
+
+.dok-row__main {
+  flex: 999 1 560px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.dok-row__side {
+  flex: 1 1 340px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.dok-row__main > *,
+.dok-row__side > * {
+  flex: 1 1 auto;
+}

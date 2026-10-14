@@ -71,6 +71,69 @@ public sealed class DockerEngineClientTests
         Assert.Null(result);
     }
 
+    private const string PodmanVersion = """{"Version":"5.7.0","ApiVersion":"1.41","MinAPIVersion":"1.24","Components":[{"Name":"Podman Engine"}]}""";
+
+    [Theory]
+    [InlineData(AgentCommandKind.PauseContainer, "not_running")]
+    [InlineData(AgentCommandKind.UnpauseContainer, "not_paused")]
+    public async Task ExecuteAsync_MapsPodmanStateImproperLikeDockerConflict(AgentCommandKind kind, string expected)
+    {
+        var handler = new RecordingHandler(request => request.RequestUri!.AbsolutePath == "/version"
+            ? JsonResponse(PodmanVersion)
+            : new HttpResponseMessage(HttpStatusCode.InternalServerError)
+            {
+                Content = new StringContent("""{"cause":"container state improper","message":"x","response":500}""", Encoding.UTF8, "application/json"),
+            });
+
+        var result = await CreateClient(handler).ExecuteAsync(kind, ContainerId, TestContext.Current.CancellationToken);
+
+        Assert.Equal(expected, result.FailureCode);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_PodmanGenericServerErrorStaysOperationFailed()
+    {
+        var handler = new RecordingHandler(request => request.RequestUri!.AbsolutePath == "/version"
+            ? JsonResponse(PodmanVersion)
+            : new HttpResponseMessage(HttpStatusCode.InternalServerError) { Content = new StringContent("""{"cause":"io error"}""") });
+
+        var result = await CreateClient(handler).ExecuteAsync(AgentCommandKind.PauseContainer, ContainerId, TestContext.Current.CancellationToken);
+
+        Assert.Equal("operation_failed", result.FailureCode);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_PodmanUnpausesBeforeStoppingPausedContainer()
+    {
+        var handler = new RecordingHandler(request => request.RequestUri!.AbsolutePath switch
+        {
+            "/version" => JsonResponse(PodmanVersion),
+            var path when path.EndsWith("/json", StringComparison.Ordinal) => JsonResponse($$$"""
+                {"Id":"{{{ContainerId}}}","Name":"/w","Created":"2026-10-13T00:00:00Z","Config":{"Image":"nginx"},"State":{"Status":"paused"}}
+                """),
+            _ => new HttpResponseMessage(HttpStatusCode.NoContent),
+        });
+
+        var result = await CreateClient(handler).ExecuteAsync(AgentCommandKind.StopContainer, ContainerId, TestContext.Current.CancellationToken);
+
+        Assert.True(result.Succeeded);
+        var mutations = handler.Requests.Where(r => r.Method == HttpMethod.Post).Select(r => r.RequestUri!.AbsolutePath).ToArray();
+        Assert.Equal([$"/v1.41/containers/{ContainerId}/unpause", $"/v1.41/containers/{ContainerId}/stop"], mutations);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_DockerStopsPausedContainerDirectly()
+    {
+        var handler = new RecordingHandler(request => request.RequestUri!.AbsolutePath == "/version"
+            ? JsonResponse("""{"Version":"27.5.1","ApiVersion":"1.47","MinAPIVersion":"1.24"}""")
+            : new HttpResponseMessage(HttpStatusCode.NoContent));
+
+        await CreateClient(handler).ExecuteAsync(AgentCommandKind.StopContainer, ContainerId, TestContext.Current.CancellationToken);
+
+        Assert.Equal(2, handler.Requests.Count);
+        Assert.EndsWith("/stop", handler.Requests.Last().RequestUri!.AbsolutePath);
+    }
+
     private static DockerEngineClient CreateClient(HttpMessageHandler handler) =>
         new(new HttpClient(handler) { BaseAddress = new Uri("http://docker/") });
 

@@ -1,0 +1,100 @@
+.cl-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.cl-filters dok-select {
+  width: 200px;
+}
+
+.cl-muted {
+  color: var(--muted);
+}
+
+.cl-chip-btn {
+  all: unset;
+  display: inline-flex;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+}
+
+.cl-chip-btn[aria-pressed='true'] {
+  box-shadow: 0 0 0 1px var(--accent-border);
+  background: var(--accent-tint);
+}
+
+.cl-chip-btn:focus-visible {
+  outline: 2px solid var(--teal-light);
+  outline-offset: 2px;
+}
+
+.cl-more {
+  position: relative;
+  display: inline-flex;
+}
+
+.cl-more__menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 40;
+  min-width: 180px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.cl-batch {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 16px;
+  border-radius: var(--radius-lg);
+}
+
+.cl-batch__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.cl-batch__head strong {
+  color: var(--text-strong);
+  font-size: 14px;
+}
+
+.cl-batch__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 4px 16px;
+  max-height: 160px;
+  overflow: auto;
+}
+
+.cl-batch__list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  min-width: 0;
+}
+
+.cl-batch__name {
+  color: var(--foreground);
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 560px) {
+  .cl-filters dok-select {
+    width: 100%;
+  }
+}

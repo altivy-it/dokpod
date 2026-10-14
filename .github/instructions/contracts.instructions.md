@@ -1,7 +1,7 @@
 ---
 name: "Contratos de API e agente"
 description: "Use ao alterar OpenAPI, Protocol Buffers, DTOs públicos, eventos, paginação ou compatibilidade."
-applyTo: "contracts/**, backend/apps/api/**, frontend/**/data-access/**"
+applyTo: "contracts/**, backend/apps/Dokpod.ControlPlane.Api/**, frontend/**/data-access/**"
 ---
 
 # Contratos

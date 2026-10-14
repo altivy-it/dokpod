@@ -9,7 +9,89 @@ public sealed record EngineContainer(
     string Name,
     string ImageReference,
     string State,
-    string Revision);
+    string Revision)
+{
+    public DateTimeOffset? CreatedAtUtc { get; init; }
+    public DateTimeOffset? StartedAtUtc { get; init; }
+    /// <summary>`none`, `starting`, `healthy` ou `unhealthy`; nulo quando desconhecido.</summary>
+    public string? Health { get; init; }
+    public int? RestartCount { get; init; }
+    public int? ExitCode { get; init; }
+    public bool? OomKilled { get; init; }
+    public IReadOnlyList<EnginePortBinding> Ports { get; init; } = [];
+    public double? CpuLimitCores { get; init; }
+    /// <summary>`ImageID` do engine (spec 012), base de "imagem em uso".</summary>
+    public string? ImageId { get; init; }
+}
+
+/// <summary>Imagem local do engine (spec 012); somente metadados, nunca camadas ou conteúdo.</summary>
+public sealed record EngineImage(
+    string ImageId,
+    IReadOnlyList<string> RepoTags,
+    IReadOnlyList<string> RepoDigests,
+    long SizeBytes,
+    DateTimeOffset? CreatedAtUtc);
+
+/// <summary>
+/// Pedido de criação já resolvido no agente (spec 013): valores literais e de segredos em arquivo em `Environment`;
+/// segredos do Podman só por nome em `PodmanSecrets` (variável → segredo), resolvidos pelo próprio engine.
+/// </summary>
+public sealed record EngineCreateRequest(
+    Dokpod.Domain.Containers.ContainerCreationSpec Spec,
+    IReadOnlyList<KeyValuePair<string, string>> Environment,
+    IReadOnlyDictionary<string, string> PodmanSecrets,
+    Guid CommandId);
+
+public sealed record EngineCreateResult(string? ContainerId, string? FailureCode);
+
+/// <summary>Imagem local: presença e destinos `VOLUME` declarados (regra de remoção automática, FR-011).</summary>
+public sealed record EngineImageConfig(bool Present, IReadOnlyList<string> Volumes);
+
+/// <summary>Objeto do host para o formulário de criação: segredo do Podman, rede ou volume (somente nomes).</summary>
+public sealed record EngineHostObject(string Name, string? Driver = null);
+
+public enum EngineHostObjectKind
+{
+    PodmanSecrets,
+    Networks,
+    Volumes,
+}
+
+/// <summary>
+/// Exec interativo iniciado (spec 014): `Stream` é a conexão sequestrada do engine (TTY bidirecional).
+/// Fechar o stream fecha o TTY e o shell recebe SIGHUP.
+/// </summary>
+public sealed record EngineExecSession(string ExecId, Stream Stream) : IAsyncDisposable
+{
+    public ValueTask DisposeAsync() => Stream.DisposeAsync();
+}
+
+public sealed record EngineExecState(bool Running, int? ExitCode);
+
+/// <summary>Falha ao criar/iniciar o exec; `ExecutableNotFound` permite cair de `/bin/bash` para `/bin/sh`.</summary>
+public sealed class EngineExecException(string message, bool executableNotFound) : Exception(message)
+{
+    public bool ExecutableNotFound { get; } = executableNotFound;
+}
+
+/// <summary>Resultado do pull: digest resolvido e tamanho, ou código de falha do contrato da 012.</summary>
+public sealed record ImagePullResult(bool Succeeded, string? FailureCode, string? ResolvedDigest = null, long? SizeBytes = null);
+
+public sealed record EnginePortBinding(string? HostIp, int HostPort, int ContainerPort, string Protocol);
+
+/// <summary>Descritor do host (spec 008): engine detectado, nome, CPUs, memória e modo rootless.</summary>
+public sealed record EngineHostInfo(string Engine, string? HostName, int? CpuCount, long? MemoryBytes, bool? Rootless);
+
+/// <summary>Evento bruto do stream `/events` do engine, já reduzido à allowlist de atributos.</summary>
+public sealed record EngineEventRecord(
+    string Type,
+    string Action,
+    string SubjectId,
+    string? Name,
+    string? Image,
+    int? ExitCode,
+    DateTimeOffset OccurredAtUtc,
+    long TimeNano);
 
 public sealed record ContainerMutationResult(bool Succeeded, string? FailureCode);
 
@@ -25,4 +107,88 @@ public interface IContainerEngine
         AgentCommandKind commandKind,
         string containerId,
         CancellationToken cancellationToken);
+
+    Task<EngineHostInfo?> DescribeHostAsync(CancellationToken cancellationToken) =>
+        Task.FromResult<EngineHostInfo?>(null);
+
+    IAsyncEnumerable<EngineEventRecord> WatchEventsAsync(CancellationToken cancellationToken) =>
+        AsyncEnumerable.Empty<EngineEventRecord>();
+
+    /// <summary>JSON bruto de `/containers/{id}/json` (nulo quando o container não existe). Nunca sai do agente sem sanitização.</summary>
+    Task<string?> GetContainerJsonAsync(string containerId, CancellationToken cancellationToken) =>
+        Task.FromResult<string?>(null);
+
+    /// <summary>Linhas de log (com timestamp do engine) de stdout e stderr; `Follow` mantém o stream aberto.</summary>
+    IAsyncEnumerable<EngineLogLine> ReadLogsAsync(string containerId, EngineLogRequest request, CancellationToken cancellationToken) =>
+        AsyncEnumerable.Empty<EngineLogLine>();
+
+    /// <summary>Imagens locais (`/images/json`, spec 012).</summary>
+    Task<IReadOnlyList<EngineImage>> ListImagesAsync(CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<EngineImage>>([]);
+
+    /// <summary>Baixa a imagem (`/images/create`); credenciais, se houver, ficam no host (spec 012).</summary>
+    Task<ImagePullResult> PullImageAsync(Dokpod.Domain.Images.ImageReference reference, CancellationToken cancellationToken) =>
+        Task.FromResult(new ImagePullResult(false, "not_supported"));
+
+    /// <summary>Inspeção da imagem local (`/images/{ref}/json`) para presença e `Config.Volumes`.</summary>
+    Task<EngineImageConfig> InspectImageConfigAsync(Dokpod.Domain.Images.ImageReference reference, CancellationToken cancellationToken) =>
+        Task.FromResult(new EngineImageConfig(false, []));
+
+    /// <summary>Container com o label informado (reconciliação por `dokpod.command-id`, D-004).</summary>
+    Task<EngineContainer?> FindByLabelAsync(string label, string value, CancellationToken cancellationToken) =>
+        Task.FromResult<EngineContainer?>(null);
+
+    /// <summary>`POST /containers/create` (ou Libpod no Podman, quando exigido); não inicia o container.</summary>
+    Task<EngineCreateResult> CreateContainerAsync(EngineCreateRequest request, CancellationToken cancellationToken) =>
+        Task.FromResult(new EngineCreateResult(null, "not_supported"));
+
+    /// <summary>Inicia o container recém-criado; devolve código de falha do contrato da 013 ou nulo.</summary>
+    Task<string?> StartCreatedContainerAsync(string containerId, CancellationToken cancellationToken) =>
+        Task.FromResult<string?>("not_supported");
+
+    /// <summary>Remove o container recém-criado (rollback de conflito de porta); nunca remove volumes.</summary>
+    Task RemoveCreatedContainerAsync(string containerId, CancellationToken cancellationToken) => Task.CompletedTask;
+
+    /// <summary>Nomes de segredos do Podman, redes ou volumes do host (sem valores).</summary>
+    Task<IReadOnlyList<EngineHostObject>> ListHostObjectsAsync(EngineHostObjectKind kind, CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<EngineHostObject>>([]);
+
+    /// <summary>Cria e inicia exec com TTY e comando fixo (spec 014); conexão sequestrada (`Upgrade: tcp`).</summary>
+    Task<EngineExecSession> StartExecAsync(string containerId, IReadOnlyList<string> command, int cols, int rows, CancellationToken cancellationToken) =>
+        throw new NotSupportedException("Exec is not supported by this engine adapter.");
+
+    /// <summary>`GET /exec/{id}/json`: nulo se o exec não existe mais.</summary>
+    Task<EngineExecState?> InspectExecAsync(string execId, CancellationToken cancellationToken) =>
+        Task.FromResult<EngineExecState?>(null);
+
+    Task ResizeExecAsync(string execId, int cols, int rows, CancellationToken cancellationToken) => Task.CompletedTask;
+
+    /// <summary>
+    /// Envia sinal ao processo do shell da sessão (PID no namespace do container) por um exec destacado e fixo
+    /// (`kill -HUP|-KILL &lt;pid&gt;`): o engine não encerra execs ao fechar a conexão (spec 014 D-007).
+    /// </summary>
+    Task SignalContainerProcessAsync(string containerId, int pid, string signal, CancellationToken cancellationToken) => Task.CompletedTask;
+
+    /// <summary>`docker` ou `podman`, detectado na negociação.</summary>
+    Task<string> GetEngineKindAsync(CancellationToken cancellationToken) => Task.FromResult("docker");
+
+    /// <summary>Contadores brutos de `/containers/{id}/stats?stream=false` (spec 009); nulo se indisponível.</summary>
+    Task<EngineContainerStats?> GetContainerStatsAsync(string containerId, CancellationToken cancellationToken) =>
+        Task.FromResult<EngineContainerStats?>(null);
 }
+
+public sealed record EngineContainerStats(
+    ulong CpuTotalNanos,
+    ulong SystemCpuNanos,
+    int OnlineCpus,
+    ulong MemoryUsedBytes,
+    ulong? MemoryLimitBytes,
+    ulong NetRxBytes,
+    ulong NetTxBytes,
+    ulong BlockReadBytes,
+    ulong BlockWriteBytes);
+
+public sealed record EngineLogRequest(int? Tail, DateTimeOffset? Since, DateTimeOffset? Until, bool Follow);
+
+/// <summary>Stream 1 = stdout, 2 = stderr; `Raw` começa com o timestamp RFC 3339 do engine.</summary>
+public sealed record EngineLogLine(int Stream, string Raw);

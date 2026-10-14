@@ -13,11 +13,26 @@ public interface IAgentIdentityRegistry
     ValueTask<AgentIdentity?> FindByFingerprintAsync(
         string certificateFingerprint,
         CancellationToken cancellationToken);
+
+    Task<bool> RevokeEnvironmentAsync(
+        Guid environmentId,
+        DateTimeOffset revokedAtUtc,
+        CancellationToken cancellationToken);
 }
 
 public interface IAgentSessionStore
 {
     ValueTask<AgentSession> ActivateAsync(Guid environmentId, CancellationToken cancellationToken);
+
+    ValueTask<AgentSession?> FindActiveAsync(Guid environmentId, CancellationToken cancellationToken);
+
+    ValueTask InvalidateEnvironmentAsync(Guid environmentId, CancellationToken cancellationToken);
+
+    bool IsActive(AgentSession session);
+
+    Task WaitUntilInactiveAsync(AgentSession session, CancellationToken cancellationToken);
+
+    ValueTask DeactivateAsync(AgentSession session, CancellationToken cancellationToken);
 }
 
 public sealed class AgentSessionNegotiator(
@@ -44,11 +59,15 @@ public sealed class AgentSessionNegotiator(
             throw new AgentSessionRejectedException("protocol_version_unsupported");
         }
 
-        if (hello.Engine == EngineKind.Unspecified ||
+        if (!Enum.IsDefined(hello.Engine) ||
+            hello.Engine == EngineKind.Unspecified ||
+            !Enum.IsDefined(hello.OperatingSystem) ||
             hello.OperatingSystem == Agent.Contracts.V1.OperatingSystem.Unspecified ||
+            !Enum.IsDefined(hello.Architecture) ||
             hello.Architecture == Architecture.Unspecified ||
             hello.Capabilities.Count == 0 ||
-            hello.Capabilities.Contains(Capability.Unspecified))
+            hello.Capabilities.Any(capability =>
+                !Enum.IsDefined(capability) || capability == Capability.Unspecified))
         {
             throw new AgentSessionRejectedException("agent_hello_invalid");
         }
