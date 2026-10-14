@@ -76,6 +76,14 @@ public sealed class FileCommandJournal : ICommandJournal
             return await ReadAsync<JournaledCommand>(recordPath, cancellationToken);
         }
 
+        // `File.Move` sem sobrescrita não é atômico em todo sistema de arquivos (o .NET recai em verificar e
+        // renomear quando `link()` falha): sem a trava, dois escritores publicavam o mesmo comando.
+        await using var appendLock = await AcquireAppendLockAsync(cancellationToken);
+        if (File.Exists(recordPath))
+        {
+            return await ReadAsync<JournaledCommand>(recordPath, cancellationToken);
+        }
+
         var temporaryPath = $"{recordPath}.{Guid.NewGuid():N}.tmp";
 
         try
@@ -97,6 +105,23 @@ public sealed class FileCommandJournal : ICommandJournal
         finally
         {
             File.Delete(temporaryPath);
+        }
+    }
+
+    /// <summary>Trava exclusiva entre instâncias e processos (`flock` no Linux, compartilhamento no Windows).</summary>
+    private async Task<FileStream> AcquireAppendLockAsync(CancellationToken cancellationToken)
+    {
+        var lockPath = Path.Combine(journalDirectory, ".append.lock");
+        while (true)
+        {
+            try
+            {
+                return new FileStream(lockPath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
+            }
+            catch (IOException)
+            {
+                await Task.Delay(TimeSpan.FromMilliseconds(5), cancellationToken);
+            }
         }
     }
 
