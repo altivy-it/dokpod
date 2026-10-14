@@ -133,6 +133,7 @@ public static class ConsoleEndpoints
         AuthorizedEnvironmentsService authorizedEnvironments,
         HostQueryService hostQuery,
         OverviewQueryService overview,
+        Dokpod.ControlPlane.Application.Images.IImageInventoryStore imageStore,
         CancellationToken cancellationToken)
     {
         if (!TryAuthenticate(context, out var actor, out var token, out var unauthorized)) return unauthorized!;
@@ -151,6 +152,20 @@ public static class ConsoleEndpoints
         if (authorized.Error is not null) return authorized.Error;
         var hosts = await hostQuery.DescribeAsync(authorized.Registrations, cancellationToken);
         var summary = await overview.SummarizeAsync(parsedStage, hosts, cancellationToken);
+        var imageHosts = hosts
+            .Where(h => h.Registration.Enabled && (parsedStage is null || h.Registration.Stage == parsedStage))
+            .Select(h => h.Registration.EnvironmentId)
+            .ToArray();
+        Dokpod.ControlPlane.Application.Images.ImageSummary images;
+        try
+        {
+            images = await imageStore.SummarizeAsync(imageHosts, cancellationToken);
+        }
+        catch (InvalidOperationException)
+        {
+            images = new Dokpod.ControlPlane.Application.Images.ImageSummary(0, 0, 0, true);
+        }
+
         return Results.Ok(new
         {
             stage = summary.Stage is null ? null : EnvironmentStages.ToValue(summary.Stage.Value),
@@ -165,6 +180,7 @@ public static class ConsoleEndpoints
                 versions = engine.Versions.Select(v => new { version = v.Version, hosts = v.Hosts }),
             }),
             attentionEvents24h = summary.AttentionEvents24h,
+            images = new { total = images.Total, unused = images.Unused, partial = images.Partial },
         });
     }
 

@@ -11,7 +11,8 @@ public sealed record AgentOptions(
     string ClientCertificatePath,
     string? ClientCertificatePassword,
     string? ServerCaCertificatePath,
-    TimeSpan MetricsInterval = default)
+    TimeSpan MetricsInterval = default,
+    string? RegistryAuthFile = null)
 {
     /// <summary>Intervalo de amostragem de recursos (spec 009): padrão 15 s, máximo 30 s.</summary>
     public TimeSpan EffectiveMetricsInterval => MetricsInterval > TimeSpan.Zero ? MetricsInterval : TimeSpan.FromSeconds(15);
@@ -44,7 +45,9 @@ public sealed record AgentOptions(
                 Path.Combine(dataDirectory, "identity", "agent.pfx")),
             Environment.GetEnvironmentVariable("DOKPOD_AGENT_CLIENT_CERTIFICATE_PASSWORD"),
             GetOptionalAbsolutePath("DOKPOD_AGENT_SERVER_CA_CERTIFICATE_PATH"),
-            TimeSpan.FromSeconds(GetBoundedInteger("DOKPOD_AGENT_METRICS_INTERVAL_SECONDS", 15, 5, 30)));
+            TimeSpan.FromSeconds(GetBoundedInteger("DOKPOD_AGENT_METRICS_INTERVAL_SECONDS", 15, 5, 30)),
+            // Spec 012: config.json (formato Docker, `auths`) com credenciais de registro que ficam no host.
+            GetOptionalAbsolutePath("DOKPOD_AGENT_REGISTRY_AUTH_FILE"));
     }
 
     private static string GetAbsolutePath(string variableName, string defaultValue)

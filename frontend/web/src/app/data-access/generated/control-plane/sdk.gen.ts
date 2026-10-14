@@ -2,7 +2,7 @@
 
 import type { Client, Options as Options2, TDataShape } from './client';
 import { client } from './client.gen';
-import type { GetContainerCommandData, GetContainerCommandErrors, GetContainerCommandResponses, GetContainerData, GetContainerErrors, GetContainerLogsData, GetContainerLogsErrors, GetContainerLogsResponses, GetContainerMetricsData, GetContainerMetricsErrors, GetContainerMetricsResponses, GetContainerResponses, GetContainerSummaryData, GetContainerSummaryErrors, GetContainerSummaryResponses, GetEnvironmentData, GetEnvironmentErrors, GetEnvironmentResponses, GetOverviewData, GetOverviewErrors, GetOverviewResponses, GetStageMetricsData, GetStageMetricsErrors, GetStageMetricsResponses, InspectContainerData, InspectContainerErrors, InspectContainerResponses, ListContainersData, ListContainersErrors, ListContainersResponses, ListEnvironmentContainersData, ListEnvironmentContainersErrors, ListEnvironmentContainersResponses, ListEnvironmentsData, ListEnvironmentsErrors, ListEnvironmentsResponses, ListEventsData, ListEventsErrors, ListEventsResponses, ListHostMetricsData, ListHostMetricsErrors, ListHostMetricsResponses, RegisterEnvironmentData, RegisterEnvironmentErrors, RegisterEnvironmentResponses, RevokeAgentIdentityData, RevokeAgentIdentityErrors, RevokeAgentIdentityResponses, SetEnvironmentStageData, SetEnvironmentStageErrors, SetEnvironmentStageResponses, SubmitContainerCommandData, SubmitContainerCommandErrors, SubmitContainerCommandResponses } from './types.gen';
+import type { GetContainerCommandData, GetContainerCommandErrors, GetContainerCommandResponses, GetContainerData, GetContainerErrors, GetContainerLogsData, GetContainerLogsErrors, GetContainerLogsResponses, GetContainerMetricsData, GetContainerMetricsErrors, GetContainerMetricsResponses, GetContainerResponses, GetContainerSummaryData, GetContainerSummaryErrors, GetContainerSummaryResponses, GetEnvironmentData, GetEnvironmentErrors, GetEnvironmentResponses, GetOverviewData, GetOverviewErrors, GetOverviewResponses, GetStageMetricsData, GetStageMetricsErrors, GetStageMetricsResponses, InspectContainerData, InspectContainerErrors, InspectContainerResponses, ListContainersData, ListContainersErrors, ListContainersResponses, ListEnvironmentContainersData, ListEnvironmentContainersErrors, ListEnvironmentContainersResponses, ListEnvironmentsData, ListEnvironmentsErrors, ListEnvironmentsResponses, ListEventsData, ListEventsErrors, ListEventsResponses, ListHostMetricsData, ListHostMetricsErrors, ListHostMetricsResponses, ListImagesData, ListImagesErrors, ListImagesResponses, LookupImageData, LookupImageErrors, LookupImageResponses, PullImageData, PullImageErrors, PullImageResponses, RegisterEnvironmentData, RegisterEnvironmentErrors, RegisterEnvironmentResponses, RevokeAgentIdentityData, RevokeAgentIdentityErrors, RevokeAgentIdentityResponses, SetEnvironmentStageData, SetEnvironmentStageErrors, SetEnvironmentStageResponses, SubmitContainerCommandData, SubmitContainerCommandErrors, SubmitContainerCommandResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -127,6 +127,37 @@ export const listContainers = <ThrowOnError extends boolean = false>(options?: O
     security: [{ scheme: 'bearer', type: 'http' }],
     url: '/api/v1/containers',
     ...options
+});
+
+/**
+ * Inventário de imagens dos hosts autorizados (spec 012)
+ */
+export const listImages = <ThrowOnError extends boolean = false>(options?: Options<ListImagesData, ThrowOnError>) => (options?.client ?? client).get<ListImagesResponses, ListImagesErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/images',
+    ...options
+});
+
+/**
+ * Verifica se a imagem existe no host, sem consultar o registro
+ */
+export const lookupImage = <ThrowOnError extends boolean = false>(options: Options<LookupImageData, ThrowOnError>) => (options.client ?? client).get<LookupImageResponses, LookupImageErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/environments/{environmentId}/images/lookup',
+    ...options
+});
+
+/**
+ * Baixa uma imagem no host (scope image:pull)
+ */
+export const pullImage = <ThrowOnError extends boolean = false>(options: Options<PullImageData, ThrowOnError>) => (options.client ?? client).post<PullImageResponses, PullImageErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/environments/{environmentId}/images/pull',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
 });
 
 /**

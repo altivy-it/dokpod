@@ -107,7 +107,8 @@ def host_view(h) -> dict:
             "hostName": name,
             "cpuCount": cpus,
             "memoryBytes": mem * 1024**3,
-            "capabilities": ["CONTAINER_LIFECYCLE", "ENGINE_EVENTS", "RESOURCE_METRICS", "CONTAINER_PAUSE", "CONTAINER_UNPAUSE", "CONTAINER_INSPECT", "CONTAINER_LOGS"],
+            "capabilities": ["CONTAINER_LIFECYCLE", "ENGINE_EVENTS", "RESOURCE_METRICS", "CONTAINER_PAUSE", "CONTAINER_UNPAUSE", "CONTAINER_INSPECT", "CONTAINER_LOGS"]
+            + ([] if situation == "update_required" else ["ImageInventory", "ImagePull"]),
         },
     }
 
@@ -284,7 +285,71 @@ def overview(stage: str | None) -> dict:
         "containers": {"total": len(cs), "byDisplayStatus": count_map(c["displayStatus"] for c in cs)},
         "engines": engines,
         "attentionEvents24h": sum(1 for e in events() if e["severity"] in ("error", "warning") and (not stage or host_stage(e["environmentId"]) == stage)),
+        "images": (lambda rows: {k: v for k, v in images_summary(rows, {h["environmentId"] for h in hs}).items() if k != "totalSizeBytes"})(
+            [i for i in images() if not stage or i["stage"] == stage]),
     }
+
+
+EXTRA_IMAGES = {
+    # imagens sem uso por host (spec 012)
+    1: [("registry.empresa.com/loja/checkout:5.1.9", 310), ("docker.io/library/nginx:1.27", 188)],
+    2: [("docker.io/library/postgres:15.8", 412)],
+    3: [("registry.empresa.com/pedidos/api:3.14.1", 240), ("<none>", 96)],
+    6: [("docker.io/library/nginx:1.27", 188)],
+}
+
+
+def images() -> list[dict]:
+    """Inventário de imagens: uma por imagem de container (em uso) mais as sem uso; host 4 (agente 0.8.2) não tem inventário."""
+    rows: dict[tuple, dict] = {}
+    by_n = {h[0]: h for h in all_hosts()}
+    for c in all_containers():
+        n, ref = c[1], c[2]
+        if by_n[n][5] == "update_required":
+            continue
+        key = (n, ref)
+        if key in rows:
+            rows[key]["containers"] += 1
+            continue
+        rows[key] = {"n": n, "ref": ref, "size": 120 + stable(ref, 400), "containers": 1}
+    if STATE["scenario"] != "large":
+        for n, extra in EXTRA_IMAGES.items():
+            for ref, size in extra:
+                rows.setdefault((n, ref), {"n": n, "ref": ref, "size": size, "containers": 0})
+    for n, ref in STATE.get("pulled", []):
+        rows.setdefault((n, ref), {"n": n, "ref": ref, "size": 150, "containers": 0})
+    result = []
+    for (n, ref), r in rows.items():
+        h = by_n[n]
+        digest_seed = f"{n}-{ref}"
+        image_id = "sha256:" + (uuid.uuid5(uuid.NAMESPACE_URL, digest_seed).hex * 2)
+        canonical = ref if ref == "<none>" else canonical_reference(ref)
+        tags = [] if ref == "<none>" else [canonical]
+        repository, _, tag = canonical.rpartition(":") if tags else (None, None, None)
+        result.append({
+            "environmentId": env_id(n), "environmentName": h[1], "stage": STATE["stages"].get(env_id(n), h[2]), "engine": h[3],
+            "imageId": image_id, "repository": repository, "tag": tag, "repoTags": tags, "repoDigests": [],
+            "sizeBytes": r["size"] * 1024**2, "createdAt": iso(60 * 24 * (3 + stable(ref, 40))), "architecture": "amd64", "os": "linux",
+            "truncated": False, "containers": r["containers"], "inUse": r["containers"] > 0, "observedAt": iso(0.5),
+            "canPull": "image:pull" in scopes() and h[5] not in ("disconnected", "update_required"),
+        })
+    return result
+
+
+def canonical_reference(ref: str) -> str:
+    name, tag = (ref.rsplit(":", 1) + ["latest"])[:2] if ":" in ref.split("/")[-1] else (ref, "latest")
+    parts = name.split("/")
+    if len(parts) == 1 or not ("." in parts[0] or ":" in parts[0] or parts[0] == "localhost"):
+        parts = ["docker.io"] + (["library"] + parts if len(parts) == 1 else parts)
+    return "/".join(parts) + ":" + tag
+
+
+REFERENCE = re.compile(r"^(?:[a-z0-9.-]+(?::[0-9]+)?/)?[a-z0-9]+(?:[._-]+[a-z0-9]+)*(?:/[a-z0-9]+(?:[._-]+[a-z0-9]+)*)*(?::[\w][\w.-]{0,127})?(?:@sha256:[a-f0-9]{64})?$")
+
+
+def images_summary(rows: list[dict], host_ids: set[str]) -> dict:
+    partial = any(h[5] == "update_required" for h in all_hosts() if env_id(h[0]) in host_ids)
+    return {"total": len(rows), "unused": sum(1 for r in rows if not r["inUse"]), "totalSizeBytes": sum(r["sizeBytes"] for r in rows), "partial": partial}
 
 
 def host_stage(environment_id: str) -> str | None:
@@ -342,6 +407,7 @@ class Handler(BaseHTTPRequestHandler):
             STATE["registered"].clear()
             STATE["revoked"].clear()
             STATE["submitted"] = []
+            STATE["pulled"] = []
             return self.send_json(200, {"scenario": STATE["scenario"]})
         if path == "/__mock/submitted":
             return self.send_json(200, STATE.get("submitted", []))
@@ -411,6 +477,24 @@ class Handler(BaseHTTPRequestHandler):
             rows.sort(key=lambda c: (c["environmentName"] if key == "environment" else c.get(key) or ""), reverse=reverse)
             return self.send_json(200, {"containers": rows, "summary": {"total": len(rows), "byDisplayStatus": count_map(c["displayStatus"] for c in rows)}, "observedAt": iso(0.5), "nextCursor": None})
 
+        if path == "/api/v1/images":
+            rows = [i for i in images() if not q("stage") or i["stage"] == q("stage")]
+            visible_hosts = {h["environmentId"] for h in hosts() if not q("stage") or h["stage"] == q("stage")}
+            for key in ("environmentId", "engine"):
+                if query.get(key):
+                    rows = [i for i in rows if i[key] in query[key]]
+                    if key == "environmentId":
+                        visible_hosts &= set(query[key])
+            summary = images_summary(rows, visible_hosts)
+            if q("unused") == "true":
+                rows = [i for i in rows if not i["inUse"]]
+            if q("q"):
+                rows = [i for i in rows if q("q").lower() in " ".join(i["repoTags"] + [i["imageId"]]).lower()]
+            sort = q("sort") or "name"
+            key = {"name": lambda i: (i["repoTags"] or ["~" + i["imageId"]])[0], "size": lambda i: i["sizeBytes"], "createdAt": lambda i: i["createdAt"]}[sort.lstrip("-")]
+            rows.sort(key=key, reverse=sort.startswith("-"))
+            return self.send_json(200, {"images": rows, "summary": summary, "nextCursor": None})
+
         m = re.fullmatch(r"/api/v1/environments/([^/]+)(/.*)?", path)
         if not m:
             return self.send_json(404, problem(404, "Rota inexistente"))
@@ -434,11 +518,58 @@ class Handler(BaseHTTPRequestHandler):
         if rest == "/containers":
             rows = [c for c in containers() if c["environmentId"] == environment_id]
             return self.send_json(200, {"environmentId": environment_id, "revision": 7, "observedAt": iso(0.5), "ageSeconds": 30, "containers": rows, "nextCursor": None})
+        if rest == "/images/lookup":
+            ref = q("reference") or ""
+            if not REFERENCE.fullmatch(ref):
+                return self.send_json(400, problem(400, "Referência inválida", "invalid_reference"), "application/problem+json")
+            canonical = canonical_reference(ref)
+            found = next((i for i in images() if i["environmentId"] == environment_id and canonical in i["repoTags"]), None)
+            return self.send_json(200, {"reference": canonical, "mutableTag": "@" not in ref, "present": found is not None,
+                                        "imageId": found and found["imageId"], "sizeBytes": found and found["sizeBytes"],
+                                        "createdAt": found and found["createdAt"], "digest": None})
+        if rest == "/images/pull" and method == "POST":
+            body = self.read_body()
+            ref = body.get("reference") or ""
+            if not REFERENCE.fullmatch(ref):
+                return self.send_json(400, problem(400, "Referência inválida", "invalid_reference"), "application/problem+json")
+            if "image:pull" not in scopes():
+                return self.send_json(403, problem(403, "Acesso negado", "authorization_denied"), "application/problem+json")
+            if not host["agent"]["connected"]:
+                return self.send_json(409, problem(409, "Agente desconectado", "agent_disconnected"), "application/problem+json")
+            if "ImagePull" not in host["agent"]["capabilities"]:
+                return self.send_json(422, problem(422, "Agente sem suporte", "not_supported"), "application/problem+json")
+            key = self.headers.get("Idempotency-Key")
+            existing = next((c for c in STATE["commands"].values() if c.get("idempotencyKey") == key), None)
+            if existing:
+                return self.send_json(202, {"commandId": existing["commandId"], "reference": existing["reference"]})
+            command_id = str(uuid.uuid4())
+            canonical = canonical_reference(ref)
+            failure = "image_not_found" if "inexistente" in ref else "registry_unauthorized" if "privado" in ref else None
+            STATE["commands"][command_id] = {
+                "environmentId": environment_id, "commandId": command_id, "action": "pull", "kind": "image", "containerId": None,
+                "expectedContainerRevision": None, "reference": canonical, "state": "pending", "failureCode": None, "result": None,
+                "observedContainerRevision": None, "deadlineUtc": body.get("deadlineUtc"), "createdAtUtc": iso(0), "updatedAtUtc": iso(0),
+                "completedAtUtc": None, "idempotencyKey": key, "polls": 0, "failure": failure,
+            }
+            STATE.setdefault("submitted", []).append(("pull", host["name"], canonical))
+            return self.send_json(202, {"commandId": command_id, "reference": canonical})
         cm = re.fullmatch(r"/commands/([^/]+)", rest)
         if cm:
             command = STATE["commands"].get(cm.group(1))
             if not command:
                 return self.send_json(404, problem(404, "Comando não encontrado"))
+            if command["action"] == "pull":
+                command["polls"] += 1
+                if command["polls"] == 1:
+                    command["state"] = "accepted"
+                elif command["state"] not in ("succeeded", "failed"):
+                    failure = command["failure"]
+                    command.update({"state": "failed" if failure else "succeeded", "failureCode": failure, "completedAtUtc": iso(0),
+                                    "result": None if failure else {"resolvedImageDigest": "sha256:" + "ab" * 32, "imageSizeBytes": 150 * 1024**2}})
+                    if not failure:
+                        n = next(h[0] for h in all_hosts() if env_id(h[0]) == environment_id)
+                        STATE.setdefault("pulled", []).append((n, command["reference"]))
+                return self.send_json(200, {k: v for k, v in command.items() if k not in ("idempotencyKey", "polls", "failure")})
             failed = command["action"] == "start" and command.get("containerName", "").startswith("migracao")
             command.update({"state": "failed" if failed else "succeeded", "failureCode": "start_failed" if failed else None,
                             "updatedAtUtc": iso(0), "completedAtUtc": iso(0)})

@@ -1,3 +1,4 @@
+using Dokpod.Domain.Commands;
 using Dokpod.Domain.Auditing;
 
 namespace Dokpod.ControlPlane.Application.Commands;
@@ -58,7 +59,8 @@ public sealed class AgentCommandStatusService(IAgentCommandStore commandStore)
         string? failureCode,
         string? observedContainerRevision,
         DateTimeOffset completedAtUtc,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        AgentCommandOutput? output = null)
     {
         if (state is not (ControlPlaneCommandState.Succeeded or
             ControlPlaneCommandState.Failed or
@@ -79,7 +81,8 @@ public sealed class AgentCommandStatusService(IAgentCommandStore commandStore)
             failureCode,
             observedContainerRevision,
             completedAtUtc,
-            cancellationToken);
+            cancellationToken,
+            output);
     }
 
     private Task<AgentCommandStatusUpdateResult> ApplyTerminalAsync(
@@ -89,16 +92,25 @@ public sealed class AgentCommandStatusService(IAgentCommandStore commandStore)
         string? failureCode,
         string? observedContainerRevision,
         DateTimeOffset updatedAtUtc,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        AgentCommandOutput? output = null)
     {
         ValidateUpdate(environmentId, commandId, failureCode, observedContainerRevision, updatedAtUtc);
+        if (output?.ResolvedImageDigest?.Length > 160 || output?.ImageSizeBytes < 0)
+        {
+            throw new ArgumentException("Command output exceeds its limits.", nameof(output));
+        }
+
         var update = new AgentCommandStatusUpdate(
             environmentId,
             commandId,
             state,
             failureCode,
             observedContainerRevision,
-            updatedAtUtc);
+            updatedAtUtc)
+        {
+            Output = state == ControlPlaneCommandState.Succeeded ? output : null,
+        };
         var auditEvent = AuditEvent.Create(
             Guid.NewGuid(),
             updatedAtUtc,

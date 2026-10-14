@@ -25,6 +25,9 @@ public sealed record ContainerInventory(
     public bool? OomKilled { get; init; }
     public IReadOnlyList<ContainerPortBinding> Ports { get; init; } = [];
 
+    /// <summary>`ImageID` do engine (spec 012); nulo para agente N-1.</summary>
+    public string? ImageId { get; init; }
+
     public ContainerDisplayStatus DisplayStatus =>
         ContainerDisplayStatuses.Evaluate(State, Health, ExitCode, OomKilled);
 }

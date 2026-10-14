@@ -34,7 +34,8 @@ describe('navigation', () => {
     expect(activeNavId('/?stage=production')).toBe('overview');
     expect(activeNavId('/containers/env/abc?tab=logs')).toBe('containers');
     expect(activeNavId('/em-breve/redes')).toBe('networks');
-    expect(activeNavId('/em-breve/imagens')).toBe('images');
+    expect(activeNavId('/imagens?semUso=1')).toBe('images');
+    expect(activeNavId('/em-breve/pods')).toBe('pods');
     expect(activeNavId('/nao-existe')).toBe('');
   });
 });

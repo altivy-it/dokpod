@@ -105,8 +105,13 @@ public static class ContainerCommandEndpoints
             command.EnvironmentId,
             command.CommandId,
             action = MapKind(command.Kind),
-            command.ContainerId,
-            command.ExpectedContainerRevision,
+            kind = AgentCommandKinds.IsHostTarget(command.Kind) ? "image" : "container",
+            containerId = command.ContainerId.Length == 0 ? null : command.ContainerId,
+            expectedContainerRevision = command.ExpectedContainerRevision.Length == 0 ? null : command.ExpectedContainerRevision,
+            reference = command.ImageReference,
+            result = command.Output is null
+                ? null
+                : new { resolvedImageDigest = command.Output.ResolvedImageDigest, imageSizeBytes = command.Output.ImageSizeBytes },
             state = MapState(command.State),
             command.FailureCode,
             command.ObservedContainerRevision,
@@ -239,6 +244,7 @@ public static class ContainerCommandEndpoints
         AgentCommandKind.DeleteContainer => "delete",
         AgentCommandKind.PauseContainer => "pause",
         AgentCommandKind.UnpauseContainer => "unpause",
+        AgentCommandKind.PullImage => "pull",
         _ => throw new ArgumentOutOfRangeException(nameof(kind)),
     };
 

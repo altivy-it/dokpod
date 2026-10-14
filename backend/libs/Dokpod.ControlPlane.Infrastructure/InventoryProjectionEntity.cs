@@ -24,6 +24,7 @@ public sealed class InventoryContainerEntity
     public int? ExitCode { get; set; }
     public bool? OomKilled { get; set; }
     public string? Ports { get; set; }
+    public string? ImageId { get; set; }
     public string DisplayStatus { get; set; } = "stopped";
     public InventoryProjectionEntity Projection { get; set; } = null!;
 }

@@ -153,7 +153,14 @@ public static class ApiHost
         builder.Services.AddScoped<ContainerCommandService>();
         builder.Services.AddScoped<ContainerCommandQueryService>();
         builder.Services.AddScoped<AgentCommandStatusService>();
+        var commandRetention = builder.Configuration.GetSection(CommandRetentionOptions.SectionName).Get<CommandRetentionOptions>() ?? new CommandRetentionOptions();
+        if (!commandRetention.IsValid()) throw new InvalidOperationException("Commands:Retention is invalid.");
+        builder.Services.AddSingleton(commandRetention);
         builder.Services.AddHostedService<AgentCommandExpirationWorker>();
+        var imagePullPolicy = builder.Configuration.GetSection("Images").Get<Dokpod.ControlPlane.Application.Images.ImagePullPolicy>() ?? new Dokpod.ControlPlane.Application.Images.ImagePullPolicy();
+        builder.Services.AddSingleton(imagePullPolicy);
+        builder.Services.AddScoped<Dokpod.ControlPlane.Application.Images.IImageInventoryStore, UnavailableImageInventoryStore>();
+        builder.Services.AddScoped<Dokpod.ControlPlane.Application.Images.ImagePullService>();
         builder.Services.AddScoped<InventoryProjectionService>();
         builder.Services.AddScoped<InventoryQueryService>();
         var engineSupport = builder.Configuration.GetSection(EngineSupportOptions.SectionName).Get<EngineSupportOptions>() ?? new EngineSupportOptions();
@@ -236,6 +243,7 @@ public static class ApiHost
         EnvironmentEndpoints.Map(app);
         InventoryEndpoints.Map(app);
         ConsoleEndpoints.Map(app);
+        ImageEndpoints.Map(app);
         ContainerDetailEndpoints.Map(app);
         MetricsEndpoints.Map(app);
         ContainerCommandEndpoints.Map(app);

@@ -26,6 +26,10 @@ export const routes: Routes = [
     redirectTo: ({ params }) => `/containers?environmentId=${encodeURIComponent(params['environmentId'])}`,
   },
   {
+    path: 'imagens',
+    loadComponent: () => import('./features/images/images.page').then(m => m.ImagesPage),
+  },
+  {
     path: 'em-breve/:item',
     loadComponent: () => import('./shell/pages/coming-soon.page').then(m => m.ComingSoonPage),
   },

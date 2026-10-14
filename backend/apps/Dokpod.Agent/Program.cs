@@ -18,6 +18,7 @@ builder.Services.AddSingleton<ICommandJournal>(_ => new FileCommandJournal(optio
 builder.Services.AddSingleton(_ => OperatingSystem.IsWindows()
     ? DockerEngineClient.CreateNamedPipeClient(options.DockerSocketPath, options.EngineTimeout)
     : DockerEngineClient.CreateUnixSocketClient(options.DockerSocketPath, options.EngineTimeout));
+builder.Services.AddSingleton(new Dokpod.Agent.Infrastructure.Engines.RegistryCredentialFile(options.RegistryAuthFile));
 builder.Services.AddSingleton<IContainerEngine, DockerEngineClient>();
 builder.Services.AddSingleton<Dokpod.Agent.Application.Metrics.IHostResourceProbe, Dokpod.Agent.Infrastructure.Metrics.ProcHostProbe>();
 builder.Services.AddSingleton<AgentCommandGate>();

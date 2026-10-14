@@ -40,6 +40,8 @@ public sealed class AgentHostActivity(
         Capability.ContainerUnpause,
         Capability.ContainerInspect,
         Capability.ContainerLogs,
+        Capability.ImageInventory,
+        Capability.ImagePull,
     ];
 
     public static IEnumerable<Capability> Accept(AgentHello hello) =>

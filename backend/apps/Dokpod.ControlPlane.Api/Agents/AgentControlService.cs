@@ -26,6 +26,7 @@ public sealed class AgentControlService(
     IControlPlaneNotifier notifier,
     Dokpod.ControlPlane.Application.Queries.AgentQueryDispatcher queryDispatcher,
     Dokpod.ControlPlane.Application.Metrics.MetricsIngestionService metricsIngestion,
+    Dokpod.ControlPlane.Application.Images.IImageInventoryStore imageStore,
     ILogger<AgentControlService> logger) : AgentControl.AgentControlBase
 {
     private const int MaximumMessageBytes = 1_048_576;
@@ -111,6 +112,10 @@ public sealed class AgentControlService(
             ulong lastSequence = 0;
             ulong serverSequence = 1;
             var snapshotAccumulator = new InventorySnapshotAccumulator(session.EnvironmentId);
+            var imageAccumulator = new Dokpod.ControlPlane.Application.Images.ImageSnapshotAccumulator(session.EnvironmentId, TimeProvider.System);
+            var imagesAccepted = hello.Capabilities.Contains(Capability.ImageInventory);
+            ulong appliedImageRevision = 0;
+            var lastImageSnapshotRequest = DateTimeOffset.MinValue;
             var recoveredCommands = new Queue<PersistedAgentCommand>(
                 await commandStore.ClaimDispatchableAsync(
                     session.EnvironmentId,
@@ -230,6 +235,44 @@ public sealed class AgentControlService(
                             session.EnvironmentId,
                             requestStream.Current.Heartbeat.InventoryRevision,
                             context.CancellationToken);
+                        // Spec 012 D-007: revisão de imagens divergente = snapshot perdido; pede só imagens (no máximo 1/min).
+                        var imageRevision = requestStream.Current.Heartbeat.ImageRevision;
+                        if (imagesAccepted && imageRevision != 0 && imageRevision != appliedImageRevision &&
+                            DateTimeOffset.UtcNow - lastImageSnapshotRequest >= TimeSpan.FromMinutes(1))
+                        {
+                            lastImageSnapshotRequest = DateTimeOffset.UtcNow;
+                            await responseStream.WriteAsync(new ControlPlaneMessage
+                            {
+                                Metadata = CreateServerMetadata(session, ++serverSequence),
+                                SnapshotRequest = new SnapshotRequest { ReasonCode = "image_revision_mismatch", Scope = SnapshotScope.Images },
+                            });
+                        }
+
+                        break;
+
+                    case AgentMessage.PayloadOneofCase.ImageSnapshotPage when imagesAccepted:
+                        var imageSnapshot = imageAccumulator.AddPage(MapImagePage(requestStream.Current.ImageSnapshotPage), out var imageFailure);
+                        if (imageFailure is not null)
+                        {
+                            throw new RpcException(new Status(StatusCode.InvalidArgument, imageFailure));
+                        }
+
+                        if (imageSnapshot is not null &&
+                            await imageStore.ReplaceSnapshotAsync(imageSnapshot, context.CancellationToken) == Dokpod.ControlPlane.Application.Images.ImageSnapshotOutcome.Accepted)
+                        {
+                            appliedImageRevision = imageSnapshot.Revision;
+                            await notifier.NotifyAsync(session.EnvironmentId, InvalidationKinds.Images, context.CancellationToken);
+                        }
+
+                        break;
+
+                    case AgentMessage.PayloadOneofCase.ImageDelta when imagesAccepted:
+                        // Este servidor projeta imagens só por snapshot; um delta vira pedido de snapshot de imagens.
+                        await responseStream.WriteAsync(new ControlPlaneMessage
+                        {
+                            Metadata = CreateServerMetadata(session, ++serverSequence),
+                            SnapshotRequest = new SnapshotRequest { ReasonCode = "image_snapshot_required", Scope = SnapshotScope.Images },
+                        });
                         break;
 
                     case AgentMessage.PayloadOneofCase.ContainerQueryResponse
@@ -361,6 +404,7 @@ public sealed class AgentControlService(
     {
         Dokpod.Domain.Commands.AgentCommandKind.PauseContainer => hello.Capabilities.Contains(Capability.ContainerPause),
         Dokpod.Domain.Commands.AgentCommandKind.UnpauseContainer => hello.Capabilities.Contains(Capability.ContainerUnpause),
+        Dokpod.Domain.Commands.AgentCommandKind.PullImage => hello.Capabilities.Contains(Capability.ImagePull),
         _ => true,
     };
 
@@ -419,7 +463,35 @@ public sealed class AgentControlService(
         return new Dokpod.Domain.Inventory.InventoryDelta(message.BaseRevision, message.InventoryRevision, changes);
     }
 
+    private static Dokpod.ControlPlane.Application.Images.ImageSnapshotPage MapImagePage(ImageSnapshotPage page) =>
+        new(
+            page.SnapshotId,
+            page.ImageRevision,
+            page.PageNumber,
+            page.IsLastPage,
+            page.Images.Select(image => new Dokpod.ControlPlane.Application.Images.ImageInventoryItem(
+                image.ImageId,
+                image.RepoTags.Take(64).Where(tag => tag.Length <= 255).ToArray(),
+                image.RepoDigests.Take(64).Where(digest => digest.Length <= 255).ToArray(),
+                (long)Math.Min(image.SizeBytes, long.MaxValue),
+                IsValidTimestamp(image.CreatedAt) && image.CreatedAt.Seconds > 0 ? image.CreatedAt.ToDateTimeOffset() : null,
+                image.Architecture,
+                image.Os,
+                image.Truncated || image.RepoTags.Count > 64 || image.RepoDigests.Count > 64)).ToArray());
+
     private static Dokpod.Agent.Contracts.V1.AgentCommand MapCommand(
+        Dokpod.Domain.Commands.AgentCommand command)
+    {
+        var message = MapCommandEnvelope(command);
+        if (command.Parameters is Dokpod.Domain.Commands.PullImageParameters pull)
+        {
+            message.PullImage = new Dokpod.Agent.Contracts.V1.PullImageParameters { Reference = pull.Reference.Canonical };
+        }
+
+        return message;
+    }
+
+    private static Dokpod.Agent.Contracts.V1.AgentCommand MapCommandEnvelope(
         Dokpod.Domain.Commands.AgentCommand command) => new()
         {
             CommandId = command.CommandId.ToString("D"),
@@ -431,6 +503,7 @@ public sealed class AgentControlService(
                 Dokpod.Domain.Commands.AgentCommandKind.DeleteContainer => CommandKind.DeleteContainer,
                 Dokpod.Domain.Commands.AgentCommandKind.PauseContainer => CommandKind.PauseContainer,
                 Dokpod.Domain.Commands.AgentCommandKind.UnpauseContainer => CommandKind.UnpauseContainer,
+                Dokpod.Domain.Commands.AgentCommandKind.PullImage => CommandKind.PullImage,
                 _ => CommandKind.Unspecified,
             },
             ContainerId = command.ContainerId,
@@ -501,7 +574,12 @@ public sealed class AgentControlService(
                 message.FailureCode,
                 message.ObservedContainerRevision,
                 message.CompletedAt.ToDateTimeOffset(),
-                cancellationToken));
+                cancellationToken,
+                string.IsNullOrEmpty(message.ResolvedImageDigest) && message.ImageSizeBytes == 0
+                    ? null
+                    : new Dokpod.Domain.Commands.AgentCommandOutput(
+                        string.IsNullOrEmpty(message.ResolvedImageDigest) ? null : message.ResolvedImageDigest,
+                        message.ImageSizeBytes == 0 ? null : (long)Math.Min(message.ImageSizeBytes, long.MaxValue))));
         }
         catch (ArgumentException)
         {
@@ -560,6 +638,7 @@ public sealed class AgentControlService(
             RestartCount = container.RestartCount == 0 && container.CreatedAt is null ? null : (int)Math.Min(container.RestartCount, int.MaxValue),
             ExitCode = container.HasExitCode ? container.ExitCode : null,
             OomKilled = container.CreatedAt is null ? null : container.OomKilled,
+            ImageId = string.IsNullOrEmpty(container.ImageId) ? null : container.ImageId,
             Ports = container.Ports
                 .Take(ContainerPortBinding.MaxPerContainer)
                 .Where(port => port.ContainerPort is > 0 and <= 65535 && port.HostPort <= 65535)

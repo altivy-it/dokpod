@@ -68,7 +68,7 @@ public sealed class PostgresInventoryProjectionStore(ControlPlaneDbContext dbCon
     /// </summary>
     private async Task<T> RetrySerializableAsync<T>(Func<Task<T>> operation, CancellationToken cancellationToken)
     {
-        const int maxAttempts = 5;
+        const int maxAttempts = 10;
         for (var attempt = 1; ; attempt++)
         {
             try
@@ -78,7 +78,9 @@ public sealed class PostgresInventoryProjectionStore(ControlPlaneDbContext dbCon
             catch (Exception exception) when (attempt < maxAttempts && IsSerializationFailure(exception))
             {
                 dbContext.ChangeTracker.Clear();
-                await Task.Delay(TimeSpan.FromMilliseconds(Random.Shared.Next(10, 50) * attempt), cancellationToken).ConfigureAwait(false);
+                // Recuo exponencial com jitter (até ~1 s): muitos agentes publicando ao mesmo tempo disputam os mesmos índices.
+                var ceiling = Math.Min(1_000, 20 << Math.Min(attempt, 6));
+                await Task.Delay(TimeSpan.FromMilliseconds(Random.Shared.Next(ceiling / 2, ceiling)), cancellationToken).ConfigureAwait(false);
             }
         }
     }
@@ -259,6 +261,7 @@ public sealed class PostgresInventoryProjectionStore(ControlPlaneDbContext dbCon
             ? null
             : JsonSerializer.Serialize(container.Ports.Take(ContainerPortBinding.MaxPerContainer));
         entity.DisplayStatus = ContainerDisplayStatuses.ToValue(container.DisplayStatus);
+        entity.ImageId = string.IsNullOrEmpty(container.ImageId) || container.ImageId.Length > 160 ? null : container.ImageId;
     }
 
     internal static ContainerInventory ToDomain(InventoryContainerEntity container) =>
@@ -286,6 +289,7 @@ public sealed class PostgresInventoryProjectionStore(ControlPlaneDbContext dbCon
             Ports = string.IsNullOrEmpty(container.Ports)
                 ? []
                 : JsonSerializer.Deserialize<ContainerPortBinding[]>(container.Ports) ?? [],
+            ImageId = container.ImageId,
         };
 
     private static InventorySnapshot ToSnapshot(InventoryProjectionEntity projection) =>

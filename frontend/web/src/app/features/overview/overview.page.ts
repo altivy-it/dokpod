@@ -74,6 +74,12 @@ export class OverviewPage {
           : null,
     };
   });
+  /** KPI "Imagens sem uso" (spec 012 T011): link para a tela Imagens já filtrada. */
+  protected readonly imagesKpiLabel = computed(() => {
+    const images = this.facade.summary()?.images;
+    if (!images) return 'Imagens sem uso: indisponível. Abrir a tela Imagens';
+    return `${images.unused} ${images.unused === 1 ? 'imagem sem uso' : 'imagens sem uso'}${images.partial ? ', contagem parcial' : ''}. Abrir a tela Imagens filtrada`;
+  });
   private readonly stageFilter = inject(StageFilterService);
   private readonly context = inject(ShellContextService);
   private readonly router = inject(Router);

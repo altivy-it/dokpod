@@ -497,6 +497,166 @@ paths:
           $ref: '#/components/responses/AuthenticationRequired'
         '503':
           $ref: '#/components/responses/DependencyUnavailable'
+  /api/v1/images:
+    get:
+      operationId: listImages
+      summary: Inventário de imagens dos hosts autorizados (spec 012)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: stage
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/Stage'
+        - name: environmentId
+          in: query
+          required: false
+          style: form
+          explode: true
+          schema:
+            type: array
+            items:
+              type: string
+              format: uuid
+        - name: engine
+          in: query
+          required: false
+          style: form
+          explode: true
+          schema:
+            type: array
+            items:
+              $ref: '#/components/schemas/EngineKind'
+        - name: unused
+          in: query
+          required: false
+          schema:
+            type: boolean
+        - name: q
+          in: query
+          required: false
+          schema:
+            type: string
+            minLength: 2
+            maxLength: 128
+        - name: sort
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [name, -name, size, -size, createdAt, -createdAt]
+            default: name
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+        - $ref: '#/components/parameters/CorrelationId'
+      responses:
+        '200':
+          description: Página do inventário de imagens com resumo.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImageListPage'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '503':
+          $ref: '#/components/responses/DependencyUnavailable'
+  /api/v1/environments/{environmentId}/images/lookup:
+    get:
+      operationId: lookupImage
+      summary: Verifica se a imagem existe no host, sem consultar o registro
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: environmentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: reference
+          in: query
+          required: true
+          schema:
+            type: string
+            maxLength: 255
+        - $ref: '#/components/parameters/CorrelationId'
+      responses:
+        '200':
+          description: Resultado da consulta pela referência normalizada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImageLookup'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '403':
+          $ref: '#/components/responses/AccessDenied'
+        '503':
+          $ref: '#/components/responses/DependencyUnavailable'
+  /api/v1/environments/{environmentId}/images/pull:
+    post:
+      operationId: pullImage
+      summary: Baixa uma imagem no host (scope image:pull)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: environmentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Uma chave por host; o retry com a mesma chave e a mesma referência é idempotente.
+        - $ref: '#/components/parameters/CorrelationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PullImageRequest'
+      responses:
+        '202':
+          description: Comando de pull aceito.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PullImageAccepted'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '403':
+          $ref: '#/components/responses/AccessDenied'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/InvalidRequest'
+        '503':
+          $ref: '#/components/responses/DependencyUnavailable'
   /api/v1/environments/{environmentId}/containers/{containerId}:
     get:
       operationId: getContainer
@@ -829,6 +989,129 @@ components:
         deadlineUtc:
           type: string
           format: date-time
+    ImageListPage:
+      type: object
+      required: [images, summary, nextCursor]
+      additionalProperties: false
+      properties:
+        images:
+          type: array
+          items:
+            $ref: '#/components/schemas/ImageItem'
+        summary:
+          type: object
+          required: [total, unused, totalSizeBytes, partial]
+          additionalProperties: false
+          properties:
+            total:
+              type: integer
+            unused:
+              type: integer
+            totalSizeBytes:
+              type: integer
+              format: int64
+            partial:
+              type: boolean
+        nextCursor:
+          type: [string, 'null']
+    ImageItem:
+      type: object
+      required: [environmentId, environmentName, imageId, repoTags, repoDigests, sizeBytes, containers, inUse, truncated, observedAt, canPull]
+      additionalProperties: false
+      properties:
+        environmentId:
+          type: string
+          format: uuid
+        environmentName:
+          type: string
+        stage:
+          oneOf:
+            - $ref: '#/components/schemas/Stage'
+            - type: 'null'
+        engine:
+          oneOf:
+            - $ref: '#/components/schemas/EngineKind'
+            - type: 'null'
+        imageId:
+          type: string
+        repository:
+          type: [string, 'null']
+        tag:
+          type: [string, 'null']
+        repoTags:
+          type: array
+          maxItems: 64
+          items:
+            type: string
+        repoDigests:
+          type: array
+          maxItems: 64
+          items:
+            type: string
+        sizeBytes:
+          type: integer
+          format: int64
+        createdAt:
+          type: [string, 'null']
+          format: date-time
+        architecture:
+          type: [string, 'null']
+        os:
+          type: [string, 'null']
+        truncated:
+          type: boolean
+        containers:
+          type: integer
+        inUse:
+          type: boolean
+        observedAt:
+          type: string
+          format: date-time
+        canPull:
+          type: boolean
+    ImageLookup:
+      type: object
+      required: [reference, mutableTag, present]
+      additionalProperties: false
+      properties:
+        reference:
+          type: string
+        mutableTag:
+          type: boolean
+        present:
+          type: boolean
+        imageId:
+          type: [string, 'null']
+        sizeBytes:
+          type: [integer, 'null']
+          format: int64
+        createdAt:
+          type: [string, 'null']
+          format: date-time
+        digest:
+          type: [string, 'null']
+    PullImageRequest:
+      type: object
+      required: [reference, deadlineUtc]
+      additionalProperties: false
+      properties:
+        reference:
+          type: string
+          minLength: 1
+          maxLength: 255
+        deadlineUtc:
+          type: string
+          format: date-time
+    PullImageAccepted:
+      type: object
+      required: [commandId]
+      additionalProperties: false
+      properties:
+        commandId:
+          type: string
+          format: uuid
+        reference:
+          type: [string, 'null']
     ContainerCommandAccepted:
       type: object
       required: [commandId]
@@ -862,14 +1145,34 @@ components:
           format: uuid
         action:
           type: string
-          enum: [start, stop, restart, delete, pause, unpause]
+          enum: [start, stop, restart, delete, pause, unpause, pull]
+        kind:
+          type: string
+          enum: [container, image]
+          description: Alvo do comando (spec 012); `image` para pull com alvo de host.
         containerId:
-          type: string
+          type: [string, 'null']
           pattern: '^[0-9a-fA-F]{64}$'
+          description: Nulo para comandos com alvo de host.
         expectedContainerRevision:
-          type: string
+          type: [string, 'null']
           minLength: 1
           maxLength: 255
+        reference:
+          type: [string, 'null']
+          maxLength: 255
+          description: Referência canônica do pull (spec 012).
+        result:
+          oneOf:
+            - type: 'null'
+            - type: object
+              additionalProperties: false
+              properties:
+                resolvedImageDigest:
+                  type: [string, 'null']
+                imageSizeBytes:
+                  type: [integer, 'null']
+                  format: int64
         state:
           type: string
           enum: [pending, dispatched, accepted, succeeded, failed, indeterminate]
@@ -1533,6 +1836,18 @@ components:
                       type: string
                     hosts:
                       type: integer
+        images:
+          type: object
+          required: [total, unused, partial]
+          additionalProperties: false
+          description: Inventário de imagens (spec 012); `partial` indica host sem inventário ou agente N-1.
+          properties:
+            total:
+              type: integer
+            unused:
+              type: integer
+            partial:
+              type: boolean
         attentionEvents24h:
           type: integer
           minimum: 0

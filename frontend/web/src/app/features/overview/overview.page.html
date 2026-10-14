@@ -32,7 +32,16 @@
       <dok-info-kpi [value]="kpis().failing" description="Com falha ou reiniciando" icon="alert" color="error" [loading]="facade.loading()" />
       <dok-info-kpi [value]="metrics.stage()?.current?.cpuPercent ?? null" [decimals]="1" unit="%" description="CPU média do cluster" icon="gauge" color="primary" unavailableLabel="indisponível" />
       <dok-info-kpi [value]="metrics.stage()?.current?.memoryPercent ?? null" [decimals]="1" unit="%" description="Memória alocada" icon="activity" color="info" unavailableLabel="indisponível" />
-      <dok-info-kpi [value]="null" description="Imagens sem uso" icon="package" color="warning" unavailableLabel="indisponível até o inventário de imagens" />
+      <a class="ov-kpi-link" routerLink="/imagens" [queryParams]="{ semUso: 1 }" queryParamsHandling="merge" [attr.aria-label]="imagesKpiLabel()">
+        <dok-info-kpi
+          [value]="facade.summary()?.images?.unused ?? null"
+          [description]="facade.summary()?.images?.partial ? 'Imagens sem uso · contagem parcial' : 'Imagens sem uso'"
+          icon="package"
+          color="warning"
+          [loading]="facade.loading()"
+          unavailableLabel="indisponível"
+        />
+      </a>
     </div>
 
     <div class="dok-row">

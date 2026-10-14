@@ -38,6 +38,7 @@ public sealed record AuditEvent
         "container.pause",
         "container.unpause",
         "container.command.result",
+        "image.pull",
     ];
 
     private static readonly HashSet<string> CommandActions =
@@ -49,6 +50,7 @@ public sealed record AuditEvent
         "container.pause",
         "container.unpause",
         "container.command.result",
+        "image.pull",
     ];
 
     private AuditEvent(

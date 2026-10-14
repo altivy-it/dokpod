@@ -3,7 +3,7 @@ import { HubConnection, HubConnectionBuilder, HubConnectionState } from '@micros
 import { SessionService } from './session.service';
 import { controlPlaneHubUrl, type ControlPlaneRealtimeStatus } from './control-plane-realtime.service';
 
-export type InvalidationKind = 'inventory' | 'host' | 'events';
+export type InvalidationKind = 'inventory' | 'host' | 'events' | 'images';
 
 export interface LiveLogLine {
   timestamp: string | null;

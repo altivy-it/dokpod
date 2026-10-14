@@ -16,6 +16,9 @@ import {
   listEnvironmentContainers,
   listEnvironments,
   listEvents,
+  listImages,
+  lookupImage,
+  pullImage,
   registerEnvironment,
   revokeAgentIdentity,
   setEnvironmentStage,
@@ -34,6 +37,9 @@ import {
   type ListContainersData,
   type ListEnvironmentsData,
   type ListEventsData,
+  type ListImagesData,
+  type ImageListPage,
+  type ImageLookup,
   type OperationalEventPage,
   type OverviewSummary,
   type Stage,
@@ -157,6 +163,30 @@ export class ControlPlaneApiService {
   ): Promise<ContainerLogPage> {
     const result = await getContainerLogs({ path: { environmentId, containerId }, query, throwOnError: true });
     return result.data;
+  }
+
+  /** Inventário de imagens dos hosts autorizados (spec 012). */
+  async listImages(query: NonNullable<ListImagesData['query']>): Promise<ImageListPage> {
+    const result = await listImages({ query, throwOnError: true });
+    return result.data;
+  }
+
+  /** Imagem presente no host pela referência normalizada, sem consultar o registro (spec 012 T012). */
+  async lookupImage(environmentId: string, reference: string): Promise<ImageLookup> {
+    const result = await lookupImage({ path: { environmentId }, query: { reference }, throwOnError: true });
+    return result.data;
+  }
+
+  /** Pull por host; uma chave de idempotência por host torna o retry seguro (spec 012 D-002). */
+  async pullImage(environmentId: string, reference: string, idempotencyKey: string): Promise<string> {
+    const requestToken = await this.antiforgery();
+    const accepted = await pullImage({
+      path: { environmentId },
+      headers: { 'Idempotency-Key': idempotencyKey, 'X-Dokpod-Antiforgery': requestToken },
+      body: { reference, deadlineUtc: new Date(Date.now() + 10 * 60_000).toISOString() },
+      throwOnError: true,
+    });
+    return accepted.data.commandId;
   }
 
   async getOverview(stage?: Stage | null): Promise<OverviewSummary> {

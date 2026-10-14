@@ -31,7 +31,14 @@ public sealed record AgentCommandStatusSnapshot(
     DateTimeOffset DeadlineUtc,
     DateTimeOffset CreatedAtUtc,
     DateTimeOffset UpdatedAtUtc,
-    DateTimeOffset? CompletedAtUtc);
+    DateTimeOffset? CompletedAtUtc)
+{
+    /// <summary>Digest e tamanho do pull (spec 012); nulo para comandos de container.</summary>
+    public AgentCommandOutput? Output { get; init; }
+
+    /// <summary>Referência canônica do pull (spec 012).</summary>
+    public string? ImageReference { get; init; }
+}
 
 public enum AgentCommandEnqueueResult
 {
@@ -46,7 +53,10 @@ public sealed record AgentCommandStatusUpdate(
     ControlPlaneCommandState State,
     string? FailureCode,
     string? ObservedContainerRevision,
-    DateTimeOffset UpdatedAtUtc);
+    DateTimeOffset UpdatedAtUtc)
+{
+    public AgentCommandOutput? Output { get; init; }
+}
 
 public enum AgentCommandStatusUpdateResult
 {
@@ -84,6 +94,10 @@ public interface IAgentCommandStore
     Task<int> ExpireNonTerminalAsync(
         DateTimeOffset nowUtc,
         CancellationToken cancellationToken);
+
+    /// <summary>Remove comandos concluídos ou com falha (e seus parâmetros) criados antes do corte; nunca pendentes nem indeterminados (012 D-008).</summary>
+    Task<int> PurgeTerminalAsync(DateTimeOffset cutoffUtc, int batchSize, CancellationToken cancellationToken) =>
+        Task.FromResult(0);
 
     Task<IReadOnlyList<PersistedAgentCommand>> ClaimDispatchableAsync(
         Guid environmentId,

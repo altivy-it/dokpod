@@ -63,3 +63,23 @@ public sealed class UnavailableHostMetricsStore : Dokpod.ControlPlane.Applicatio
 
     public Task<long> ApplyRetentionAsync(TimeSpan retention, CancellationToken cancellationToken) => Task.FromResult(0L);
 }
+
+public sealed class UnavailableImageInventoryStore : Dokpod.ControlPlane.Application.Images.IImageInventoryStore
+{
+    public Task<Dokpod.ControlPlane.Application.Images.ImageSnapshotOutcome> ReplaceSnapshotAsync(
+        Dokpod.ControlPlane.Application.Images.ImageSnapshot snapshot, CancellationToken cancellationToken) =>
+        Task.FromResult(Dokpod.ControlPlane.Application.Images.ImageSnapshotOutcome.Accepted);
+
+    public Task<ulong?> GetRevisionAsync(Guid environmentId, CancellationToken cancellationToken) => Task.FromResult<ulong?>(null);
+
+    public Task<Dokpod.ControlPlane.Application.Images.ImageSearchResult> SearchAsync(
+        Dokpod.ControlPlane.Application.Images.ImageSearchQuery query, CancellationToken cancellationToken) =>
+        throw new InvalidOperationException("Image inventory persistence is unavailable.");
+
+    public Task<Dokpod.ControlPlane.Application.Images.ImageSummary> SummarizeAsync(IReadOnlyCollection<Guid> environmentIds, CancellationToken cancellationToken) =>
+        Task.FromResult(new Dokpod.ControlPlane.Application.Images.ImageSummary(0, 0, 0, environmentIds.Count > 0));
+
+    public Task<Dokpod.ControlPlane.Application.Images.ImageLookupResult> LookupAsync(
+        Guid environmentId, Dokpod.Domain.Images.ImageReference reference, CancellationToken cancellationToken) =>
+        throw new InvalidOperationException("Image inventory persistence is unavailable.");
+}

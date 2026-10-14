@@ -4,7 +4,7 @@
 
 **Criada em**: 2026-10-12
 
-**Estado**: `draft` - aguardando revisão humana e threat model (operação privilegiada: o host baixa imagens de registros).
+**Estado**: `implemented` - concluída em 2026-10-14; revisão humana de segurança antes de release; evidências e itens `NOT RUN` em [tasks.md](tasks.md).
 
 **Entrada**: Board `01 · Visão geral` (botão "Baixar imagem", KPI "Imagens sem uso", evento "Imagem atualizada"), board `04 · Novo container` (campo Imagem com ajuda "Assinatura verificada · 184 MB · publicada em 09/10/2026") e item de menu "Imagens". A tela Imagens não tem board próprio e deriva do padrão de `Containers.dc.html`.
 

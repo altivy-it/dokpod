@@ -93,4 +93,30 @@ public sealed class ProtocolCompatibilityTests
         output.Flush();
         return stream.ToArray();
     }
+
+    [Fact]
+    public void Spec012_ServerAcceptsImageCapabilitiesAndAgentNMinus1WithoutThemGetsNone()
+    {
+        var current = new AgentHello { Capabilities = { Capability.Inventory, Capability.ImageInventory, Capability.ImagePull } };
+        var legacy = new AgentHello { Capabilities = { Capability.Inventory, Capability.ContainerLogs } };
+
+        Assert.Contains(Capability.ImagePull, AgentHostActivity.Accept(current));
+        Assert.Contains(Capability.ImageInventory, AgentHostActivity.Accept(current));
+        Assert.DoesNotContain(Capability.ImagePull, AgentHostActivity.Accept(legacy));
+    }
+
+    [Fact]
+    public void Spec012_NewFieldsAreIgnoredByOlderParsersAndDefaultWhenAbsent()
+    {
+        // Heartbeat/ContainerState/SnapshotRequest de versões anteriores: campos novos assumem o padrão (0/vazio = N-1).
+        var heartbeat = Heartbeat.Parser.ParseFrom(new Heartbeat { InventoryRevision = 3 }.ToByteArray());
+        var request = SnapshotRequest.Parser.ParseFrom(new SnapshotRequest { ReasonCode = "x" }.ToByteArray());
+        Assert.Equal(0UL, heartbeat.ImageRevision);
+        Assert.Equal(SnapshotScope.Unspecified, request.Scope);
+
+        // Um parser que conhece só os campos 1-6 de AgentCommand preserva os parâmetros como campo desconhecido.
+        var command = new AgentCommand { CommandId = Guid.NewGuid().ToString("D"), Kind = CommandKind.PullImage, PullImage = new PullImageParameters { Reference = "nginx" } };
+        var legacyView = Google.Protobuf.WellKnownTypes.Empty.Parser.ParseFrom(command.ToByteArray());
+        Assert.Equal(command.ToByteArray(), legacyView.ToByteArray());
+    }
 }

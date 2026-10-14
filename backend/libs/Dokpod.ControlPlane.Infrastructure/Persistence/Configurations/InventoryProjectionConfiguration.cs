@@ -39,6 +39,7 @@ public sealed class InventoryContainerConfiguration : IEntityTypeConfiguration<I
         builder.Property(container => container.ExitCode).HasColumnName("exit_code");
         builder.Property(container => container.OomKilled).HasColumnName("oom_killed");
         builder.Property(container => container.Ports).HasColumnName("ports").HasColumnType("jsonb");
+        builder.Property(container => container.ImageId).HasColumnName("image_id").HasMaxLength(160);
         builder.Property(container => container.DisplayStatus).HasColumnName("display_status").HasMaxLength(16).IsRequired();
     }
 }

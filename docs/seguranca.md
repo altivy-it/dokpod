@@ -80,6 +80,28 @@ A telemetria usa allowlist de campos, limites e normalização de caracteres de 
 
 **Risco residual**: segredos sem padrão reconhecível em campos fora da denylist podem aparecer na inspeção; a interface avisa que o mascaramento é best-effort. Aprovação: decisão do solicitante registrada em `specs/README.md` (2026-10-13), com revisão humana de segurança pendente antes de release.
 
+## Threat model: inventário de imagens e pull (spec 012)
+
+**Fronteira nova**: navegador → BFF → API → fila de comandos (PostgreSQL) → stream mTLS do agente → `POST /images/create` do engine → registro de imagens. O agente passa a falar, indiretamente, com registros externos escolhidos pelo usuário.
+
+**Atores**: operador com `image:pull`, usuário sem o scope, usuário de outro ambiente, registro malicioso ou comprometido, agente comprometido, administrador do host (dono das credenciais de registro).
+
+| Ameaça | Mitigação | Teste negativo |
+| --- | --- | --- |
+| Injeção na referência repassada ao engine | Gramática OCI estrita (`ImageReference`) na API **e** no agente; nome e tag/digest vão como parâmetros codificados (`fromImage`, `tag`), nunca concatenados ao caminho | referências com espaço, `?`, `#`, `\`, maiúsculas no caminho, `;`, quebra de linha ou fora da gramática → `invalid_reference` (`ImageReferenceTests`, `ImagePullServiceTests`, `ImagePullTests`) |
+| Credencial embutida na referência (`user:senha@registry/...`) | Recusada pela gramática (o `@` só é aceito antes de digest válido); credenciais de registro ficam no host (`DOKPOD_AGENT_REGISTRY_AUTH_FILE`) e só seguem do agente ao engine local em `X-Registry-Auth` | referência com credencial → 400; arquivo de credenciais nunca lido pela API; varredura gitleaks |
+| Uso do host como proxy para registros internos ou não confiáveis | Lista opcional `Images:AllowedRegistriesByStage` (por estágio; vazia = qualquer registro); scope `image:pull` por host | registro fora da lista → `registry_not_allowed` (403) |
+| Scope ausente / ambiente não autorizado | Decisão Keycloak `image:pull` por ambiente antes de ler o cadastro; falha do Keycloak = negado (`authorization_unavailable`) | 403 sem o scope; nenhum comando persistido |
+| Agente sem suporte | Servidor só envia `PULL_IMAGE` a agentes com capability 13; API responde 422 `not_supported` | agente sem `ImagePull` → 422 |
+| Replay e conflito de idempotência | `Idempotency-Key` por host; hash `v2` cobre tipo, alvo e referência canônica (sem prazo) | mesma chave com outra referência → 409 `command_id_conflict` |
+| Esgotamento de disco / pull infinito | Prazo do comando (≤ 30 min) aplicado no agente; `insufficient_storage` mapeado; um pull por imagem por host ao mesmo tempo (trava por nome) | prazo curto → `deadline_exceeded` |
+| Imagem maliciosa (supply chain) | Fora do escopo: sem verificação de assinatura nesta spec (D-005); aviso de tag mutável e recomendação de digest na interface; auditoria `image.pull` com ator, host e comando | — (risco residual) |
+| Agente comprometido falsificando inventário | Snapshot paginado validado (ordem, identidade, ≤ 200 imagens e 256 KiB por página, ≤ 64 tags/digests); dados tratados como não confiáveis e só exibidos como texto | página fora de ordem encerra a sessão (`image_snapshot_invalid`) |
+
+**Retenção de comandos (D-008)**: comandos concluídos ou com falha (e seus parâmetros, por `ON DELETE CASCADE`) são removidos após `Commands:Retention` (padrão 90 dias) em lotes pelo `AgentCommandExpirationWorker`; pendentes e indeterminados nunca são removidos (ver `docs/runbooks/operacao-comandos-postgresql.md`). A trilha de auditoria não é afetada.
+
+**Risco residual**: sem verificação de assinatura, um registro comprometido pode entregar imagem maliciosa a um usuário autorizado; a mitigação é operacional (registros permitidos por estágio, digests, revisão). Aprovação: decisão do solicitante registrada em `specs/README.md`, com revisão humana de segurança pendente antes de release.
+
 ## Desenvolvimento e release
 
 - threat model atualizado para cada nova fronteira;

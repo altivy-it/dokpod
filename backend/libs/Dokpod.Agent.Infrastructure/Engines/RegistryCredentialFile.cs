@@ -27,7 +27,12 @@ public sealed class RegistryCredentialFile(string? path)
                 var decoded = Encoding.UTF8.GetString(Convert.FromBase64String(auth.GetString() ?? string.Empty));
                 var separator = decoded.IndexOf(':');
                 if (separator <= 0) return null;
-                var json = JsonSerializer.Serialize(new { username = decoded[..separator], password = decoded[(separator + 1)..], serveraddress = registry });
+                var json = JsonSerializer.Serialize(new Dictionary<string, string>
+                {
+                    ["username"] = decoded[..separator],
+                    ["password"] = decoded[(separator + 1)..],
+                    ["serveraddress"] = registry,
+                });
                 return Convert.ToBase64String(Encoding.UTF8.GetBytes(json)).Replace('+', '-').Replace('/', '_');
             }
         }

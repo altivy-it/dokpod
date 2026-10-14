@@ -10,6 +10,58 @@ export type SubmitContainerCommandRequest = {
     deadlineUtc: string;
 };
 
+export type ImageListPage = {
+    images: Array<ImageItem>;
+    summary: {
+        total: number;
+        unused: number;
+        totalSizeBytes: number;
+        partial: boolean;
+    };
+    nextCursor: string | null;
+};
+
+export type ImageItem = {
+    environmentId: string;
+    environmentName: string;
+    stage?: Stage | null;
+    engine?: EngineKind | null;
+    imageId: string;
+    repository?: string | null;
+    tag?: string | null;
+    repoTags: Array<string>;
+    repoDigests: Array<string>;
+    sizeBytes: number;
+    createdAt?: string | null;
+    architecture?: string | null;
+    os?: string | null;
+    truncated: boolean;
+    containers: number;
+    inUse: boolean;
+    observedAt: string;
+    canPull: boolean;
+};
+
+export type ImageLookup = {
+    reference: string;
+    mutableTag: boolean;
+    present: boolean;
+    imageId?: string | null;
+    sizeBytes?: number | null;
+    createdAt?: string | null;
+    digest?: string | null;
+};
+
+export type PullImageRequest = {
+    reference: string;
+    deadlineUtc: string;
+};
+
+export type PullImageAccepted = {
+    commandId: string;
+    reference?: string | null;
+};
+
 export type ContainerCommandAccepted = {
     commandId: string;
 };
@@ -17,9 +69,24 @@ export type ContainerCommandAccepted = {
 export type ContainerCommandStatus = {
     environmentId: string;
     commandId: string;
-    action: 'start' | 'stop' | 'restart' | 'delete' | 'pause' | 'unpause';
-    containerId: string;
-    expectedContainerRevision: string;
+    action: 'start' | 'stop' | 'restart' | 'delete' | 'pause' | 'unpause' | 'pull';
+    /**
+     * Alvo do comando (spec 012); `image` para pull com alvo de host.
+     */
+    kind?: 'container' | 'image';
+    /**
+     * Nulo para comandos com alvo de host.
+     */
+    containerId: string | null;
+    expectedContainerRevision: string | null;
+    /**
+     * Referência canônica do pull (spec 012).
+     */
+    reference?: string | null;
+    result?: null | {
+        resolvedImageDigest?: string | null;
+        imageSizeBytes?: number | null;
+    };
     state: 'pending' | 'dispatched' | 'accepted' | 'succeeded' | 'failed' | 'indeterminate';
     failureCode: string | null;
     observedContainerRevision: string | null;
@@ -312,6 +379,14 @@ export type OverviewSummary = {
             hosts: number;
         }>;
     }>;
+    /**
+     * Inventário de imagens (spec 012); `partial` indica host sem inventário ou agente N-1.
+     */
+    images?: {
+        total: number;
+        unused: number;
+        partial: boolean;
+    };
     attentionEvents24h: number;
 };
 
@@ -898,6 +973,162 @@ export type ListContainersResponses = {
 };
 
 export type ListContainersResponse = ListContainersResponses[keyof ListContainersResponses];
+
+export type ListImagesData = {
+    body?: never;
+    headers?: {
+        /**
+         * Identificador técnico opcional para correlação server-side.
+         */
+        'X-Correlation-Id'?: string;
+    };
+    path?: never;
+    query?: {
+        stage?: Stage;
+        environmentId?: Array<string>;
+        engine?: Array<EngineKind>;
+        unused?: boolean;
+        q?: string;
+        sort?: 'name' | '-name' | 'size' | '-size' | 'createdAt' | '-createdAt';
+        cursor?: string;
+        limit?: number;
+    };
+    url: '/api/v1/images';
+};
+
+export type ListImagesErrors = {
+    /**
+     * Requisição inválida.
+     */
+    400: ProblemDetails;
+    /**
+     * Autenticação ausente ou inválida.
+     */
+    401: ProblemDetails;
+    /**
+     * Autorização ou persistência indisponível.
+     */
+    503: ProblemDetails;
+};
+
+export type ListImagesError = ListImagesErrors[keyof ListImagesErrors];
+
+export type ListImagesResponses = {
+    /**
+     * Página do inventário de imagens com resumo.
+     */
+    200: ImageListPage;
+};
+
+export type ListImagesResponse = ListImagesResponses[keyof ListImagesResponses];
+
+export type LookupImageData = {
+    body?: never;
+    headers?: {
+        /**
+         * Identificador técnico opcional para correlação server-side.
+         */
+        'X-Correlation-Id'?: string;
+    };
+    path: {
+        environmentId: string;
+    };
+    query: {
+        reference: string;
+    };
+    url: '/api/v1/environments/{environmentId}/images/lookup';
+};
+
+export type LookupImageErrors = {
+    /**
+     * Requisição inválida.
+     */
+    400: ProblemDetails;
+    /**
+     * Autenticação ausente ou inválida.
+     */
+    401: ProblemDetails;
+    /**
+     * Decisão do Keycloak negou o cadastro.
+     */
+    403: ProblemDetails;
+    /**
+     * Autorização ou persistência indisponível.
+     */
+    503: ProblemDetails;
+};
+
+export type LookupImageError = LookupImageErrors[keyof LookupImageErrors];
+
+export type LookupImageResponses = {
+    /**
+     * Resultado da consulta pela referência normalizada.
+     */
+    200: ImageLookup;
+};
+
+export type LookupImageResponse = LookupImageResponses[keyof LookupImageResponses];
+
+export type PullImageData = {
+    body: PullImageRequest;
+    headers: {
+        /**
+         * Uma chave por host; o retry com a mesma chave e a mesma referência é idempotente.
+         */
+        'Idempotency-Key': string;
+        /**
+         * Identificador técnico opcional para correlação server-side.
+         */
+        'X-Correlation-Id'?: string;
+    };
+    path: {
+        environmentId: string;
+    };
+    query?: never;
+    url: '/api/v1/environments/{environmentId}/images/pull';
+};
+
+export type PullImageErrors = {
+    /**
+     * Requisição inválida.
+     */
+    400: ProblemDetails;
+    /**
+     * Autenticação ausente ou inválida.
+     */
+    401: ProblemDetails;
+    /**
+     * Decisão do Keycloak negou o cadastro.
+     */
+    403: ProblemDetails;
+    /**
+     * O ambiente não foi encontrado após autorização.
+     */
+    404: ProblemDetails;
+    /**
+     * O ambiente já existe.
+     */
+    409: ProblemDetails;
+    /**
+     * Requisição inválida.
+     */
+    422: ProblemDetails;
+    /**
+     * Autorização ou persistência indisponível.
+     */
+    503: ProblemDetails;
+};
+
+export type PullImageError = PullImageErrors[keyof PullImageErrors];
+
+export type PullImageResponses = {
+    /**
+     * Comando de pull aceito.
+     */
+    202: PullImageAccepted;
+};
+
+export type PullImageResponse = PullImageResponses[keyof PullImageResponses];
 
 export type GetContainerData = {
     body?: never;

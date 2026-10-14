@@ -41,6 +41,7 @@ public static class ControlPlaneInfrastructureServiceCollectionExtensions
         services.AddScoped<IOperationalEventStore, PostgresOperationalEventStore>();
         services.AddScoped<Dokpod.ControlPlane.Application.Metrics.IHostMetricsStore, PostgresHostMetricsStore>();
         services.AddScoped<IContainerSearchStore, PostgresContainerSearchStore>();
+        services.AddScoped<Dokpod.ControlPlane.Application.Images.IImageInventoryStore, PostgresImageInventoryStore>();
 
         return services;
     }
