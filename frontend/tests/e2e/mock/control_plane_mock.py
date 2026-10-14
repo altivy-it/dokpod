@@ -178,8 +178,46 @@ def container_item(c) -> dict:
     }
 
 
+def stable(text: str, modulo: int) -> int:
+    return int.from_bytes(text.encode()[:8].ljust(8, b"\0"), "little") % modulo
+
+
+def with_resources(item: dict) -> dict:
+    """Spec 009: recursos atuais só para containers em execução cujo host publica métricas."""
+    if item["displayStatus"] in ("running", "starting", "restarting") and item["hostConnected"] and STATE["scenario"] != "no-metrics":
+        item["resources"] = {
+            "cpuPercent": float(5 + stable(item["name"], 80)),
+            "memoryUsedBytes": (64 + stable(item["name"][::-1], 900)) * 1024 * 1024,
+            "memoryLimitBytes": 1024 * 1024 * 1024,
+            "sampledAt": iso(0.2),
+        }
+    return item
+
+
+def host_cpu(host: dict) -> float | None:
+    if not host["agent"] or not host["agent"]["connected"] or STATE["scenario"] == "no-metrics":
+        return None
+    return float(20 + stable(host["name"], 70))
+
+
+def stage_metrics(stage: str | None) -> dict:
+    hs = [h for h in hosts() if h["enabled"] and (not stage or h["stage"] == stage)]
+    sampled = [h for h in hs if host_cpu(h) is not None]
+    cores = sum(h["agent"]["cpuCount"] for h in sampled) or 1
+    cpu = round(sum(host_cpu(h) * h["agent"]["cpuCount"] for h in sampled) / cores, 1) if sampled else None
+    memory = 61.2 if sampled else None
+    x = [(NOW.replace(minute=0, second=0) - timedelta(hours=11 - i)).isoformat().replace("+00:00", "Z") for i in range(12)]
+    cpu_series = [None if (i == 4 or not sampled) else round(30 + i * 1.6, 1) for i in range(12)]
+    mem_series = [None if (i == 4 or not sampled) else round(55 + i * 0.6, 1) for i in range(12)]
+    return {
+        "current": {"cpuPercent": cpu, "memoryPercent": memory, "hostsSampled": len(sampled), "hostsTotal": len(hs), "sampledAt": iso(0.2) if sampled else None},
+        "series": {"x": x, "cpu": cpu_series, "memory": mem_series},
+        "operationalLimitPercent": 80,
+    }
+
+
 def containers() -> list[dict]:
-    return [] if STATE["scenario"] == "empty" else [container_item(c) for c in all_containers()]
+    return [] if STATE["scenario"] == "empty" else [with_resources(container_item(c)) for c in all_containers()]
 
 
 def find_container(environment_id: str, container_id: str):
@@ -327,6 +365,17 @@ class Handler(BaseHTTPRequestHandler):
 
         if path == "/api/v1/overview":
             return self.send_json(200, overview(q("stage")))
+        if path == "/api/v1/metrics/overview":
+            if q("window") not in (None, "30m", "1h", "6h", "12h", "24h"):
+                return self.send_json(400, problem(400, "Janela inválida", "invalid_metrics_query"), "application/problem+json")
+            return self.send_json(200, stage_metrics(q("stage")))
+        if path == "/api/v1/metrics/hosts":
+            rows = [h for h in hosts() if not q("stage") or h["stage"] == q("stage")]
+            return self.send_json(200, {"hosts": [{
+                "environmentId": h["environmentId"], "cpuPercent": host_cpu(h),
+                "memoryUsedBytes": None if host_cpu(h) is None else int(h["agent"]["memoryBytes"] * 0.6),
+                "memoryTotalBytes": None if host_cpu(h) is None else h["agent"]["memoryBytes"],
+                "sampledAt": None if host_cpu(h) is None else iso(0.2)} for h in rows], "operationalLimitPercent": 80})
         if path == "/api/v1/events":
             rows = [e for e in events() if (not q("stage") or host_stage(e["environmentId"]) == q("stage")) and (not q("environmentId") or e["environmentId"] == q("environmentId")) and (not q("severity") or e["severity"] == q("severity"))]
             return self.send_json(200, {"events": rows[: int(q("limit") or 50)], "nextCursor": None})
@@ -398,6 +447,19 @@ class Handler(BaseHTTPRequestHandler):
         sub = cm.group(2) or ""
         if sub == "":
             return self.send_json(200, {**container, "restartsLast24h": container["restartCount"] or 0, "hostName": host["name"], "capabilities": host["agent"]["capabilities"]})
+        if sub == "/metrics":
+            if q("window") not in (None, "30m"):
+                return self.send_json(400, problem(400, "Janela acima de 30 minutos", "invalid_metrics_query"), "application/problem+json")
+            resources = container.get("resources")
+            x = [(NOW.replace(second=0) - timedelta(minutes=29 - i)).isoformat().replace("+00:00", "Z") for i in range(30)]
+            current = None if not resources else {
+                "cpuPercent": resources["cpuPercent"], "cpuPercentOfLimit": resources["cpuPercent"], "cpuPercentOfHost": resources["cpuPercent"] / 4,
+                "cpuLimitCores": 2, "memoryUsedBytes": resources["memoryUsedBytes"], "memoryLimitBytes": resources["memoryLimitBytes"],
+                "netRxBps": 18432, "netTxBps": 6144, "blkReadBps": 0, "blkWriteBps": 4096, "sampledAt": resources["sampledAt"]}
+            series = {"x": x,
+                      "cpu": [None if (not resources or i < 3) else round(resources["cpuPercent"] * (0.8 + (i % 5) / 20), 1) for i in range(30)],
+                      "memory": [None if (not resources or i < 3) else round(resources["memoryUsedBytes"] / resources["memoryLimitBytes"] * 100, 1) for i in range(30)]}
+            return self.send_json(200, {"current": current, "series": series, "operationalLimitPercent": 80})
         if sub == "/summary":
             return self.send_json(200, {
                 "command": "node dist/server.js", "user": "app", "workingDir": "/srv/app",

@@ -30,8 +30,8 @@
       <dok-info-kpi [value]="kpis().running" description="Em execução" icon="play" color="success" [loading]="facade.loading()" />
       <dok-info-kpi [value]="kpis().stopped" description="Parados" icon="pause" color="secondary" [loading]="facade.loading()" />
       <dok-info-kpi [value]="kpis().failing" description="Com falha ou reiniciando" icon="alert" color="error" [loading]="facade.loading()" />
-      <dok-info-kpi [value]="null" [decimals]="1" unit="%" description="CPU média do cluster" icon="gauge" color="primary" unavailableLabel="indisponível até as métricas" />
-      <dok-info-kpi [value]="null" [decimals]="1" unit="%" description="Memória alocada" icon="activity" color="info" unavailableLabel="indisponível até as métricas" />
+      <dok-info-kpi [value]="metrics.stage()?.current?.cpuPercent ?? null" [decimals]="1" unit="%" description="CPU média do cluster" icon="gauge" color="primary" unavailableLabel="indisponível" />
+      <dok-info-kpi [value]="metrics.stage()?.current?.memoryPercent ?? null" [decimals]="1" unit="%" description="Memória alocada" icon="activity" color="info" unavailableLabel="indisponível" />
       <dok-info-kpi [value]="null" description="Imagens sem uso" icon="package" color="warning" unavailableLabel="indisponível até o inventário de imagens" />
     </div>
 
@@ -41,7 +41,14 @@
           title="Uso de recursos do cluster"
           subtitle="% da capacidade · últimas 12 horas"
           [height]="190"
-          unavailable="Métricas de CPU e memória indisponíveis: o agente ainda não publica amostras de recursos."
+          [x]="resourceChart().x"
+          [series]="resourceChart().series"
+          [reference]="resourceChart().reference"
+          [yMin]="0"
+          [yMax]="100"
+          [format]="percent"
+          [note]="resourceChart().note"
+          [unavailable]="resourceChart().unavailable"
         />
       </div>
       <div class="dok-row__side ov-center">
@@ -77,7 +84,10 @@
                   </span>
                   <span><dok-status-circle [color]="row.situation.tone" [text]="row.situation.label" size="small" /></span>
                   <span class="alt-num ov-num">{{ row.host.containerCount ?? '—' }}</span>
-                  <span class="ov-cpu"><span class="ct-bar" style="flex: 1"><span style="width: 0%"></span></span><span class="alt-num ov-cpu__value">—</span></span>
+                  <span class="ov-cpu">
+                    <span class="ct-bar" [class.ct-bar--warn]="row.cpuWarn" style="flex: 1" aria-hidden="true"><span [style.width.%]="row.cpu ?? 0"></span></span>
+                    <span class="alt-num ov-cpu__value" [attr.aria-label]="row.cpu === null ? 'CPU indisponível' : 'CPU ' + formatPct(row.cpu) + (row.cpuWarn ? ', acima do limite operacional' : '')">{{ row.cpu === null ? '—' : formatPct(row.cpu) }}</span>
+                  </span>
                 </div>
               } @empty {
                 <p class="app-small ov-muted ov-pad">Nenhum host habilitado.</p>

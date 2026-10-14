@@ -87,7 +87,7 @@ const defaultFormat = (value: number) => formatNumber(value, 1);
         @if (unavailable()) {
           <div class="app-small" style="display: grid; place-items: center; color: var(--muted)" [style.height.px]="height()">{{ unavailable() }}</div>
         } @else if (asTable()) {
-          <div class="alt-graphics__tablewrap alt-scroll">
+          <div class="alt-graphics__tablewrap alt-scroll" tabindex="0" role="region" [attr.aria-label]="title() + ', tabela de valores'">
             <table class="alt-graphics__table alt-num">
               <caption class="sr-only">{{ title() }}</caption>
               <thead>

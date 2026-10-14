@@ -25,7 +25,12 @@ import { tone } from '../tone';
             }
           </div>
         }
-        <div class="alt-info-kpi__desc">{{ description() }}</div>
+        <div class="alt-info-kpi__desc">
+          {{ description() }}
+          @if (!loading() && value() === null && unavailableLabel()) {
+            <span style="color: var(--slate)"> · {{ unavailableLabel() }}</span>
+          }
+        </div>
       </div>
     </div>
   `,

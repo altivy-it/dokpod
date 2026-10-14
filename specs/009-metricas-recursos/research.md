@@ -18,7 +18,7 @@
 | B. Tudo em memória | Zero escrita. | Perde 12 h de série de host em restart/deploy. |
 | C. Banco de séries temporais dedicado | Adequado ao problema. | Novo datastore exige ADR e operação; desproporcional. |
 
-**Estado**: Opção A′ proposta; requer aprovação humana. Memória estimada da série de container: 1.120 containers × 30 pontos × ~80 bytes ≈ 2,7 MB (5 MB na margem de 2.000 containers).
+**Estado**: Opção A′ aprovada em 2026-10-13 (autorização de execução com as recomendações, [specs/README.md](../README.md)) e implementada (`host_resource_samples`, `ContainerMetricsBuffer`). Memória estimada da série de container: 1.120 containers × 30 pontos × ~80 bytes ≈ 2,7 MB (5 MB na margem de 2.000 containers).
 
 ## D-003 Métricas do host
 

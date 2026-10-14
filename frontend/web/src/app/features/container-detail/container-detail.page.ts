@@ -18,12 +18,14 @@ import {
   DokTabs,
   formatBytes,
   formatDuration,
+  formatPercent,
   ToastService,
   type KeyValueItem,
   type TabItem,
 } from '../../design-system';
 import { ShellContextService } from '../../shell/shell-context.service';
 import { toLoadError, type LoadError } from '../overview/overview.facade';
+import { ContainerMetricsFacade } from './container-metrics.facade';
 import { LogsPanel } from './logs.panel';
 
 type TabId = 'resumo' | 'logs' | 'inspecionar' | 'estatisticas' | 'terminal';
@@ -51,6 +53,7 @@ const HEALTH: Record<string, string> = { healthy: 'saudável', unhealthy: 'não 
   ],
   styleUrl: './container-detail.page.css',
   templateUrl: './container-detail.page.html',
+  providers: [ContainerMetricsFacade],
 })
 export class ContainerDetailPage {
   readonly environmentId = input.required<string>();
@@ -58,6 +61,9 @@ export class ContainerDetailPage {
   readonly aba = input<string | undefined>();
 
   private readonly api = inject(ControlPlaneApiService);
+  protected readonly metrics = inject(ContainerMetricsFacade);
+  protected readonly percent = (value: number) => formatPercent(value, 1);
+  protected readonly isStopped = computed(() => ['stopped', 'failed'].includes(this.detail()?.displayStatus ?? ''));
   private readonly realtime = inject(ConsoleRealtimeService);
   private readonly router = inject(Router);
   private readonly toast = inject(ToastService);
@@ -158,6 +164,11 @@ export class ContainerDetailPage {
   });
 
   constructor() {
+    effect(() => {
+      const environmentId = this.environmentId();
+      const containerId = this.containerId();
+      untracked(() => this.metrics.watch(environmentId, containerId));
+    });
     effect(() => {
       const env = this.environmentId();
       const id = this.containerId();

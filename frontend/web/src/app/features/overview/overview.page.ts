@@ -14,10 +14,12 @@ import {
   DokStatusCircle,
   formatDateTime,
   formatNumber,
+  formatPercent,
   formatTime,
 } from '../../design-system';
 import { ShellContextService } from '../../shell/shell-context.service';
 import { StageFilterService, stageLabel } from '../../shell/stage-filter.service';
+import { OverviewMetricsFacade } from './overview-metrics.facade';
 import { OverviewFacade } from './overview.facade';
 
 const STAGE_EYEBROW: Record<string, string> = {
@@ -42,12 +44,36 @@ const STAGE_EYEBROW: Record<string, string> = {
     DokStatusCircle,
     RouterLink,
   ],
-  providers: [OverviewFacade],
+  providers: [OverviewFacade, OverviewMetricsFacade],
   styleUrl: './overview.page.css',
   templateUrl: './overview.page.html',
 })
 export class OverviewPage {
   protected readonly facade = inject(OverviewFacade);
+  protected readonly metrics = inject(OverviewMetricsFacade);
+
+  /** Gráfico "Uso de recursos do cluster" (spec 009 T014): série de 12 h com referência ao limite operacional. */
+  protected readonly resourceChart = computed(() => {
+    const stage = this.metrics.stage();
+    const limit = this.metrics.operationalLimit();
+    const empty = !stage || (stage.current.hostsSampled === 0 && stage.series.cpu.every(v => v === null) && stage.series.memory.every(v => v === null));
+    return {
+      x: stage?.series.x.map(value => formatTime(value)) ?? [],
+      series: stage
+        ? [
+            { name: 'CPU', data: stage.series.cpu, area: true },
+            { name: 'Memória', data: stage.series.memory },
+          ]
+        : [],
+      reference: { value: limit, label: `Limite ${formatNumber(limit)}%` },
+      note: `Limite operacional de ${formatNumber(limit)}% definido para escalonamento automático.`,
+      unavailable: this.metrics.failed()
+        ? 'Não foi possível consultar as métricas de recursos.'
+        : empty
+          ? 'Métricas de CPU e memória indisponíveis: nenhum host autorizado publica amostras de recursos.'
+          : null,
+    };
+  });
   private readonly stageFilter = inject(StageFilterService);
   private readonly context = inject(ShellContextService);
   private readonly router = inject(Router);
@@ -99,10 +125,15 @@ export class OverviewPage {
       .filter(host => host.enabled)
       .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'))
       .slice(0, 8)
-      .map(host => ({
-        host,
-        situation: HOST_SITUATION[host.situation ?? 'unknown'],
-      })),
+      .map(host => {
+        const cpu = this.metrics.hosts().get(host.environmentId)?.cpuPercent ?? null;
+        return {
+          host,
+          situation: HOST_SITUATION[host.situation ?? 'unknown'],
+          cpu,
+          cpuWarn: cpu !== null && cpu >= this.metrics.operationalLimit(),
+        };
+      }),
   );
 
   protected readonly eventRows = computed(() =>
@@ -125,6 +156,12 @@ export class OverviewPage {
       this.context.notifications.set(this.attention() || null);
       this.context.alertCount.set(this.attention() || null);
     });
+  }
+
+  protected readonly percent = (value: number) => formatPercent(value, 1);
+
+  protected formatPct(value: number): string {
+    return formatPercent(value, 0);
   }
 
   protected openHosts(): void {

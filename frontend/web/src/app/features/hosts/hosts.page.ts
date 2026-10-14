@@ -18,6 +18,7 @@ import {
   DokSelect,
   DokStatusCircle,
   formatBytes,
+  formatPercent,
   formatDateTime,
   formatRelative,
   ToastService,
@@ -26,6 +27,7 @@ import {
 } from '../../design-system';
 import { ShellContextService } from '../../shell/shell-context.service';
 import { STAGES, StageFilterService, stageLabel } from '../../shell/stage-filter.service';
+import { OverviewMetricsFacade } from '../overview/overview-metrics.facade';
 import { toLoadError, type LoadError } from '../overview/overview.facade';
 
 interface HostRow {
@@ -39,6 +41,9 @@ interface HostRow {
   agentVersion: string;
   situation: string;
   containers: number | null;
+  cpu: number | null;
+  memory: number | null;
+  memoryText: string;
   lastSeen: string;
   source: EnvironmentState;
 }
@@ -63,11 +68,17 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-
     ReactiveFormsModule,
   ],
   templateUrl: './hosts.page.html',
+  providers: [OverviewMetricsFacade],
+  styles: `
+    .hosts-usage { display: grid; grid-template-columns: minmax(48px, 1fr) 44px; align-items: center; gap: 8px; width: 100%; }
+    .hosts-usage .alt-num { text-align: right; }
+  `,
 })
 export class HostsPage {
   readonly q = input<string | undefined>();
 
   private readonly api = inject(ControlPlaneApiService);
+  protected readonly metrics = inject(OverviewMetricsFacade);
   private readonly realtime = inject(ConsoleRealtimeService);
   private readonly directory = inject(EnvironmentDirectoryService);
   private readonly toast = inject(ToastService);
@@ -106,6 +117,8 @@ export class HostsPage {
     { field: 'agentVersion', header: 'Agente', width: 110, mono: true },
     { field: 'situation', header: 'Situação', type: 'status', width: 150, filterable: true },
     { field: 'containers', header: 'Containers', type: 'number', width: 124 },
+    { field: 'cpu', header: 'CPU', type: 'number', width: 150 },
+    { field: 'memory', header: 'Memória', type: 'number', width: 190 },
     { field: 'lastSeen', header: 'Último contato', width: 150, sortable: false },
   ];
   protected readonly tones = Object.fromEntries(Object.values(HOST_SITUATION).map(s => [s.label, s.tone]));
@@ -126,6 +139,7 @@ export class HostsPage {
         agentVersion: agent?.agentVersion ?? '—',
         situation: HOST_SITUATION[host.situation ?? 'unknown'].label,
         containers: host.containerCount ?? null,
+        ...this.resources(host.environmentId),
         lastSeen: agent?.connected ? 'Conectado agora' : agent?.lastSeenAt ? formatRelative(agent.lastSeenAt) : 'Nunca',
         source: host,
       };
@@ -154,6 +168,25 @@ export class HostsPage {
         });
       }
     });
+  }
+
+  /** CPU e memória atuais do host (spec 009 T015); `null` = sem amostra recente. */
+  private resources(environmentId: string): Pick<HostRow, 'cpu' | 'memory' | 'memoryText'> {
+    const metric = this.metrics.hosts().get(environmentId);
+    const memory = metric?.memoryUsedBytes != null && metric.memoryTotalBytes ? (metric.memoryUsedBytes / metric.memoryTotalBytes) * 100 : null;
+    return {
+      cpu: metric?.cpuPercent ?? null,
+      memory,
+      memoryText: memory === null ? '—' : `${formatBytes(metric!.memoryUsedBytes!)} de ${formatBytes(metric!.memoryTotalBytes!)}`,
+    };
+  }
+
+  protected pct(value: number | null, decimals: number): string {
+    return formatPercent(value, decimals);
+  }
+
+  protected isWarn(value: number | null): boolean {
+    return value !== null && value >= this.metrics.operationalLimit();
   }
 
   protected rowActions(row: HostRow): GridRowAction[] {

@@ -4,7 +4,7 @@
 
 **Criada em**: 2026-10-12
 
-**Estado**: `draft` - aguardando revisão humana.
+**Estado**: `implemented` - aprovada em 2026-10-13 ([specs/README.md](../README.md)); evidências e itens `NOT RUN` em [tasks.md](tasks.md).
 
 **Entrada**: Board `01 · Visão geral` (KPIs "CPU média do cluster" e "Memória alocada", gráfico "Uso de recursos do cluster · últimas 12 horas", coluna CPU dos hosts), board `02 · Containers` (colunas CPU e Memória), board `03 · Detalhe` (card "Recursos agora", aba "Estatísticas · últimos 30 minutos") e board `04 · Novo container` (CPU do host na seleção).
 
@@ -68,10 +68,10 @@ Como operador, quero ver CPU (%) e memória (MiB) de cada container na lista, e 
 
 ### Requisitos Funcionais
 
-- **FR-001**: O agente DEVE coletar, em intervalo configurável (padrão proposto: 15 s, alinhado ao heartbeat; máximo 30 s), para o host, sem montar diretórios do host além do socket do engine (CPU e memória lidas de `/proc/stat` e `/proc/meminfo` do próprio container, que refletem o host, e capacidade de `/info`): CPU em uso (%), memória usada e total; para cada container em execução: CPU (% do host, 0-100, e % do limite), memória usada e limite, bytes de rede recebidos/enviados por segundo e bytes de disco lidos/escritos por segundo.
+- **FR-001**: O agente DEVE coletar, em intervalo configurável (padrão 15 s, alinhado ao heartbeat; máximo 30 s; `DOKPOD_AGENT_METRICS_INTERVAL_SECONDS`), para o host, sem montar diretórios do host além do socket do engine (CPU e memória lidas de `/proc/stat` e `/proc/meminfo` do próprio container, que refletem o host, e capacidade de `/info`): CPU em uso (%), memória usada e total; para cada container em execução: CPU (% do host, 0-100, e % do limite), memória usada e limite, bytes de rede recebidos/enviados por segundo e bytes de disco lidos/escritos por segundo.
 - **FR-002**: O agente DEVE enviar uma amostra por intervalo, sem média prévia, em lotes de no máximo 500 containers por mensagem e 4 mensagens por intervalo, informando a quantidade descartada, sem bloquear comandos nem inventário. Acima da capacidade do intervalo, amostra uma parte dos containers por ciclo, em rodízio.
 - **FR-003**: O plano de controle DEVE manter o valor mais recente por host e por container para consulta imediata.
-- **FR-004**: O plano de controle DEVE manter séries com resolução de 1 minuto: por host no PostgreSQL, por pelo menos 12 horas, com retenção configurável (padrão proposto: 48 h); por container somente em memória, nos últimos 30 minutos, sem persistência.
+- **FR-004**: O plano de controle DEVE manter séries com resolução de 1 minuto: por host no PostgreSQL, por pelo menos 12 horas, com retenção configurável (padrão 48 h, `Metrics:HostRetention`); por container somente em memória, nos últimos 30 minutos, sem persistência.
 - **FR-005**: A API DEVE fornecer: agregado do estágio (CPU média ponderada pela capacidade e memória em uso sobre memória total) atual e série; uso atual por host; uso atual por container (inclusive na listagem de containers); série por container.
 - **FR-006**: Todas as consultas DEVEM considerar somente hosts autorizados por `environment:read`.
 - **FR-007**: Limite operacional de 80% DEVE ser configurável e retornado pela API para que a interface desenhe a referência e o destaque.

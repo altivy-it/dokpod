@@ -108,7 +108,7 @@ Não existe garantia distribuída de exactly-once. O desenho usa entrega at-leas
 
 O baseline de capacidade é 56 agentes, aproximadamente 1.120 containers e 30 usuários simultâneos. O teste de margem antes da release usa pelo menos 100 agentes, 2.000 containers e 50 usuários, incluindo reconexão simultânea, inventário degradado e comandos concorrentes em ambientes distintos.
 
-O monólito modular é suficiente para essa carga. O MVP inicia com uma instância de API contendo endpoints HTTP, hub SignalR, scheduler de comandos e sessões gRPC; BFF e web permanecem processos separados. PostgreSQL fornece coordenação durável, e memória local é apenas cache efêmero. Métricas de container não são armazenadas como série temporal ilimitada no banco transacional.
+O monólito modular é suficiente para essa carga. O MVP inicia com uma instância de API contendo endpoints HTTP, hub SignalR, scheduler de comandos e sessões gRPC; BFF e web permanecem processos separados. PostgreSQL fornece coordenação durável, e memória local é apenas cache efêmero. Métricas de container não são armazenadas como série temporal ilimitada no banco transacional: desde a spec 009, a série de host (1 minuto) fica em `host_resource_samples` com retenção de 48 h e a série de container (30 minutos) e o último valor ficam somente em memória da API, recompostos pelas amostras seguintes após reinício.
 
 Escala horizontal da API não faz parte da primeira release. Quando disponibilidade ou medidas exigirem múltiplas réplicas, um ADR deve definir ownership temporário de conexões por lease, fencing e roteamento durável de comandos até a réplica dona do stream.
 

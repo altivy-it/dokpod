@@ -9,6 +9,9 @@ import {
   inspectContainer,
   getEnvironment,
   getOverview,
+  getContainerMetrics,
+  getStageMetrics,
+  listHostMetrics,
   listContainers,
   listEnvironmentContainers,
   listEnvironments,
@@ -18,6 +21,11 @@ import {
   setEnvironmentStage,
   submitContainerCommand,
   type ContainerConfigSummary,
+  type ContainerMetrics,
+  type HostMetricsPage,
+  type MetricsStep,
+  type MetricsWindow,
+  type StageMetrics,
   type ContainerDetail,
   type ContainerInspection,
   type ContainerListPage,
@@ -75,6 +83,22 @@ export class ControlPlaneApiService {
       throwOnError: true,
     });
 
+    return result.data;
+  }
+
+  /** Métricas (spec 009): agregado do estágio, último valor por host e série de container (até 30 min). */
+  async getStageMetrics(stage: Stage | null, window: MetricsWindow = '12h', step: MetricsStep = '1h'): Promise<StageMetrics> {
+    const result = await getStageMetrics({ query: { ...(stage ? { stage } : {}), window, step }, throwOnError: true });
+    return result.data;
+  }
+
+  async listHostMetrics(stage: Stage | null): Promise<HostMetricsPage> {
+    const result = await listHostMetrics({ query: stage ? { stage } : {}, throwOnError: true });
+    return result.data;
+  }
+
+  async getContainerMetrics(environmentId: string, containerId: string, window: MetricsWindow = '30m', step: MetricsStep = '1m'): Promise<ContainerMetrics> {
+    const result = await getContainerMetrics({ path: { environmentId, containerId }, query: { window, step }, throwOnError: true });
     return result.data;
   }
 

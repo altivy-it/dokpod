@@ -42,6 +42,18 @@
           —
         }
       </ng-template>
+      <ng-template dokCell="cpu" let-row>
+        <span class="hosts-usage">
+          <span class="ct-bar" [class.ct-bar--warn]="isWarn(row.cpu)" aria-hidden="true"><span [style.width.%]="row.cpu ?? 0"></span></span>
+          <span class="alt-num" [attr.aria-label]="row.cpu === null ? 'CPU indisponível' : null">{{ pct(row.cpu, 1) }}</span>
+        </span>
+      </ng-template>
+      <ng-template dokCell="memory" let-row>
+        <span class="hosts-usage" [attr.title]="row.memoryText">
+          <span class="ct-bar" [class.ct-bar--warn]="isWarn(row.memory)" aria-hidden="true"><span [style.width.%]="row.memory ?? 0"></span></span>
+          <span class="alt-num" [attr.aria-label]="row.memory === null ? 'Memória indisponível' : row.memoryText">{{ pct(row.memory, 0) }}</span>
+        </span>
+      </ng-template>
       <ng-template dokCell="situation" let-row>
         <dok-status-circle [text]="row.situation" [color]="tones[row.situation]" size="small" />
       </ng-template>

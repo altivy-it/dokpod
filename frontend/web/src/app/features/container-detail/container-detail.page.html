@@ -113,7 +113,15 @@
                 title="CPU e memória do container"
                 subtitle="% do limite · últimos 30 minutos"
                 [height]="260"
-                unavailable="Métricas indisponíveis: o agente deste host ainda não publica amostras de recursos."
+                xLabel="Minuto"
+                [x]="metrics.chart().x"
+                [series]="metrics.chart().series"
+                [reference]="metrics.chart().reference"
+                [yMin]="0"
+                [yMax]="100"
+                [format]="percent"
+                [note]="metrics.chart().partial ? 'Série parcial: o plano de controle guarda somente os últimos 30 minutos em memória e recompõe a série após reinício.' : null"
+                [unavailable]="isStopped() ? 'Container parado: sem métricas de recursos.' : metrics.failed() ? 'Não foi possível consultar as métricas.' : metrics.chart().empty ? 'Métricas indisponíveis: o agente deste host ainda não publica amostras de recursos.' : null"
               />
             }
           }
@@ -122,13 +130,27 @@
       <div class="dok-row__side cd-side">
         <dok-card title="Recursos agora">
           <div class="cd-resources">
-            @for (resource of [{ label: 'CPU · ' + limits().cpu }, { label: 'Memória · ' + limits().memory }, { label: 'Rede · entrada / saída' }, { label: 'Disco · leitura / escrita' }]; track resource.label) {
-              <div class="cd-resource">
-                <div class="cd-resource__row"><span class="app-small cd-muted">{{ resource.label }}</span><span class="app-small alt-num">—</span></div>
-                <div class="ct-bar"><span style="width: 0%"></span></div>
-              </div>
+            @if (metrics.resources(); as resources) {
+              @for (resource of resources; track resource.label) {
+                <div class="cd-resource">
+                  <div class="cd-resource__row">
+                    <span class="app-small cd-muted">{{ resource.label }}@if ($index === 0) { · {{ limits().cpu }} }</span>
+                    <span class="app-small alt-num">{{ resource.value }}</span>
+                  </div>
+                  @if (resource.percent !== null) {
+                    <div class="ct-bar" [class.ct-bar--warn]="resource.warn" role="progressbar" aria-valuemin="0" aria-valuemax="100" [attr.aria-valuenow]="resource.percent" [attr.aria-label]="resource.label"><span [style.width.%]="resource.percent"></span></div>
+                  }
+                </div>
+              }
+            } @else {
+              @for (label of ['CPU · ' + limits().cpu, 'Memória · ' + limits().memory, 'Rede · entrada / saída', 'Disco · leitura / escrita']; track label) {
+                <div class="cd-resource">
+                  <div class="cd-resource__row"><span class="app-small cd-muted">{{ label }}</span><span class="app-small alt-num">—</span></div>
+                  <div class="ct-bar" aria-hidden="true"><span style="width: 0%"></span></div>
+                </div>
+              }
+              <p class="app-caption cd-muted" style="margin: 0">{{ isStopped() ? 'Container parado: sem consumo de recursos.' : 'Valores indisponíveis: o agente deste host ainda não publicou amostras recentes.' }}</p>
             }
-            <p class="app-caption cd-muted" style="margin: 0">Valores indisponíveis até o agente publicar métricas de recursos.</p>
           </div>
         </dok-card>
         <dok-card title="Rede e armazenamento">
