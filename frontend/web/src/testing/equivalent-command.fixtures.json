@@ -1,0 +1,61 @@
+[
+  {
+    "name": "mínimo com porta (Docker)",
+    "engine": "docker",
+    "request": { "image": "nginx", "name": "web-01", "ports": [{ "hostPort": 8081, "containerPort": 80, "protocol": "tcp" }], "environment": [], "volumes": [], "restartPolicy": { "name": "no" }, "autoRemove": false },
+    "expected": "docker run -d --name web-01 -p 8081:80 docker.io/library/nginx:latest"
+  },
+  {
+    "name": "board 04 (Podman, segredos, volume, limites, health check com reinício)",
+    "engine": "podman",
+    "request": {
+      "image": "registry.empresa.com/pedidos/api:3.14.2",
+      "name": "api-pedidos-b21e",
+      "ports": [{ "hostPort": 8081, "containerPort": 80, "protocol": "tcp" }],
+      "environment": [
+        { "name": "NODE_ENV", "value": "production", "sensitive": false },
+        { "name": "DATABASE_URL", "value": "postgres://pedidos@postgres-principal:5432/pedidos", "sensitive": true },
+        { "name": "JWT_SECRET", "secret": { "kind": "podman_secret", "name": "jwt-pedidos" }, "sensitive": true }
+      ],
+      "volumes": [{ "type": "volume", "source": "vol-pedidos-uploads", "target": "/srv/app/uploads", "readOnly": false }],
+      "cpuLimitCores": 2,
+      "memoryLimitBytes": 536870912,
+      "restartPolicy": { "name": "unless-stopped" },
+      "healthcheck": { "test": ["CMD-SHELL", "curl -fsS http://localhost:80/healthz || wget -qO- http://localhost:80/healthz || exit 1"], "intervalSeconds": 15, "timeoutSeconds": 5, "retries": 3, "startPeriodSeconds": 0, "onFailure": "restart" },
+      "autoRemove": false
+    },
+    "expected": "podman run -d --name api-pedidos-b21e -p 8081:80 -e NODE_ENV=*** -e DATABASE_URL=*** --secret jwt-pedidos,type=env,target=JWT_SECRET -v vol-pedidos-uploads:/srv/app/uploads --cpus 2 --memory 512m --restart unless-stopped --health-cmd 'curl -fsS http://localhost:80/healthz || wget -qO- http://localhost:80/healthz || exit 1' --health-interval=15s --health-timeout=5s --health-retries=3 --health-on-failure=restart registry.empresa.com/pedidos/api:3.14.2"
+  },
+  {
+    "name": "segredo em arquivo, UDP com IP, volume somente leitura, rede, on-failure e remoção automática",
+    "engine": "docker",
+    "request": {
+      "image": "quay.io/org/app@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "name": "app.v2",
+      "ports": [{ "hostIp": "127.0.0.1", "hostPort": 5353, "containerPort": 53, "protocol": "udp" }, { "hostPort": 0, "containerPort": 9000, "protocol": "tcp" }],
+      "environment": [{ "name": "TOKEN", "secret": { "kind": "file", "name": "token-app" }, "sensitive": true }],
+      "volumes": [{ "type": "volume", "source": "dados", "target": "/data", "readOnly": true }],
+      "network": "rede-app",
+      "cpuLimitCores": 0.5,
+      "memoryLimitBytes": 100000000,
+      "restartPolicy": { "name": "no" },
+      "autoRemove": true
+    },
+    "expected": "docker run -d --name app.v2 -p 127.0.0.1:5353:53/udp -p 9000 -e 'TOKEN=<segredo:token-app>' -v dados:/data:ro --network rede-app --cpus 0.5 --memory 100000000b --rm quay.io/org/app@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  {
+    "name": "on-failure com máximo e start period",
+    "engine": "podman",
+    "request": {
+      "image": "redis:7.4-alpine",
+      "name": "cache",
+      "ports": [],
+      "environment": [],
+      "volumes": [],
+      "restartPolicy": { "name": "on-failure", "maximumRetryCount": 5 },
+      "healthcheck": { "test": ["CMD", "redis-cli", "ping"], "intervalSeconds": 10, "timeoutSeconds": 3, "retries": 5, "startPeriodSeconds": 20, "onFailure": "none" },
+      "autoRemove": false
+    },
+    "expected": "podman run -d --name cache --restart on-failure:5 --health-cmd 'redis-cli ping' --health-interval=10s --health-timeout=3s --health-retries=5 --health-start-period=20s docker.io/library/redis:7.4-alpine"
+  }
+]

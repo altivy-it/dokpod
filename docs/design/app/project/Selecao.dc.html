@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Seleção</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="altivy-app.css">
+<link rel="stylesheet" href="ds/altivy/components/bundle.css">
+<script src="ds/altivy/components/bundle.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div onBlur="{{blurWrap}}" style="position: relative; display: flex; flex-direction: column; gap: 6px; min-width: 0; font-family: 'Outfit', system-ui, sans-serif; color: #e2e8f0">
+<sc-if value="{{hasLabel}}" hint-placeholder-val="{{ true }}">
+<span id="{{labelId}}" style="font-size: 12px; font-weight: 600; letter-spacing: 0.02em; color: #a0aec0">{{label}}</span>
+</sc-if>
+<button type="button" aria-haspopup="listbox" aria-expanded="{{openStr}}" aria-labelledby="{{labelledBy}}" aria-label="{{aria}}" onClick="{{toggle}}" onKeyDown="{{keys}}" onFocus="{{focus}}" style="{{triggerStyle}}">
+<span id="{{valueId}}" style="flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">
+<sc-if value="{{current.hasDot}}" hint-placeholder-val="{{ false }}">
+<span style="{{current.dotStyle}}"></span>
+</sc-if>
+<span style="overflow: hidden; text-overflow: ellipsis">{{current.label}}</span>
+<sc-if value="{{current.hasCaption}}" hint-placeholder-val="{{ false }}">
+<span style="color: #a0aec0; font-size: 12px">{{current.caption}}</span>
+</sc-if>
+</span>
+<span style="{{chevStyle}}"><x-import component-from-global-scope="Altivy.Icon" name="chevron-down" size="{{iconSize}}"></x-import></span>
+</button>
+<sc-if value="{{open}}" hint-placeholder-val="{{ false }}">
+<div role="listbox" aria-labelledby="{{labelledBy}}" style="position: absolute; left: 0; right: 0; top: 100%; margin-top: 6px; z-index: 40; padding: 6px; border-radius: 12px; background: #121821; border: 1px solid rgba(255, 255, 255, 0.14); box-shadow: 0 16px 40px rgba(3, 7, 12, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.08); display: flex; flex-direction: column; gap: 2px; max-height: 260px; overflow: auto">
+<sc-for list="{{items}}" as="o" hint-placeholder-count="3">
+<button type="button" role="option" aria-selected="{{o.selStr}}" tabindex="-1" onMouseDown="{{o.pick}}" onMouseEnter="{{o.hover}}" style="{{o.style}}">
+<sc-if value="{{o.hasDot}}" hint-placeholder-val="{{ false }}">
+<span style="{{o.dotStyle}}"></span>
+</sc-if>
+<span style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; text-align: left">
+<span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{o.label}}</span>
+<sc-if value="{{o.hasCaption}}" hint-placeholder-val="{{ false }}">
+<span style="font-size: 12px; color: #a0aec0">{{o.caption}}</span>
+</sc-if>
+</span>
+<sc-if value="{{o.selected}}" hint-placeholder-val="{{ false }}">
+<span style="color: #5eead4; display: flex"><x-import component-from-global-scope="Altivy.Icon" name="check" size="{{iconSize}}" stroke-width="{{checkStroke}}"></x-import></span>
+</sc-if>
+</button>
+</sc-for>
+</div>
+</sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"label":{"editor":"text","default":"Engine"},"size":{"editor":"enum","options":["md","sm"],"default":"md"},"ariaLabel":{"editor":"text","default":""},"options":{"editor":null,"tsType":"{value:string,label:string,caption?:string,dot?:string}[]"},"value":{"editor":"text","default":"podman"},"$preview":{"width":360,"height":200}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    const u = Math.random().toString(36).slice(2, 8);
+    this.ids = { label: 'sl-l-' + u, value: 'sl-v-' + u };
+    this.state = { open: false, sel: null, active: 0, focused: false };
+  }
+  opts() {
+    return this.props.options ?? [
+      { value: 'podman', label: 'Podman 5.2.3', caption: 'rootless', dot: '#fb923c' },
+      { value: 'docker', label: 'Docker 27.3.1', caption: 'daemon', dot: '#60a5fa' }
+    ];
+  }
+  selectedValue() {
+    const o = this.opts();
+    return this.state.sel ?? this.props.value ?? (o[0] && o[0].value);
+  }
+  choose(i) {
+    const o = this.opts()[i];
+    if (o) this.setState({ sel: o.value, open: false, active: i });
+  }
+  renderVals() {
+    const p = this.props;
+    const sm = (p.size ?? 'md') === 'sm';
+    const opts = this.opts();
+    const sv = this.selectedValue();
+    const cur = opts.find((o) => o.value === sv) || opts[0] || { label: '' };
+    const open = this.state.open;
+    const hl = open || this.state.focused;
+    const label = p.label ?? 'Engine';
+    const dot = (c) => 'width: 8px; height: 8px; border-radius: 999px; flex: none; background: ' + c;
+    const items = opts.map((o, i) => {
+      const selected = o.value === sv;
+      const active = i === this.state.active;
+      return {
+        label: o.label, caption: o.caption || '', hasCaption: !!o.caption,
+        hasDot: !!o.dot, dotStyle: dot(o.dot || 'transparent'),
+        selected, selStr: selected ? 'true' : 'false',
+        pick: (e) => { e.preventDefault(); this.choose(i); },
+        hover: () => this.setState({ active: i }),
+        style: [
+          'display: flex', 'align-items: center', 'gap: 10px', 'width: 100%', 'min-height: ' + (sm ? 32 : 36) + 'px',
+          'padding: 6px 10px', 'border: 1px solid ' + (selected ? 'rgba(94, 234, 212, 0.26)' : 'transparent'), 'border-radius: 8px',
+          'background: ' + (selected ? 'rgba(94, 234, 212, 0.10)' : active ? 'rgba(255, 255, 255, 0.05)' : 'transparent'),
+          'color: ' + (selected ? '#ffffff' : '#e2e8f0'), 'font: inherit', 'font-size: ' + (sm ? 13 : 14) + 'px',
+          'font-weight: ' + (selected ? 600 : 400), 'cursor: pointer', 'box-sizing: border-box'
+        ].join('; ')
+      };
+    });
+    const triggerStyle = [
+      'display: flex', 'align-items: center', 'gap: 8px', 'width: 100%',
+      'height: ' + (sm ? 34 : 40) + 'px', 'padding: 0 10px 0 12px', 'box-sizing: border-box',
+      'border-radius: 12px', 'background: rgba(255, 255, 255, 0.04)',
+      'border: 1px solid ' + (hl ? '#5eead4' : 'rgba(255, 255, 255, 0.14)'),
+      'box-shadow: ' + (hl ? '0 0 0 4px rgba(94, 234, 212, 0.16)' : 'inset 0 1px 2px rgba(0, 0, 0, 0.25)'),
+      'color: #e2e8f0', 'font: inherit', 'font-size: ' + (sm ? 13 : 14) + 'px', 'cursor: pointer', 'outline: none',
+      'font-variant-numeric: tabular-nums', 'transition: border-color .15s, box-shadow .15s'
+    ].join('; ');
+    return {
+      label, hasLabel: !!label, labelId: this.ids.label, valueId: this.ids.value,
+      labelledBy: label ? this.ids.label + ' ' + this.ids.value : undefined,
+      aria: label ? undefined : (p.ariaLabel || undefined),
+      open, openStr: open ? 'true' : 'false',
+      current: { label: cur.label, caption: cur.caption || '', hasCaption: !!cur.caption, hasDot: !!cur.dot, dotStyle: dot(cur.dot || 'transparent') },
+      items, iconSize: 16, checkStroke: 2.4,
+      triggerStyle,
+      chevStyle: 'display: flex; color: #a0aec0; transition: transform .15s; transform: rotate(' + (open ? 180 : 0) + 'deg)',
+      toggle: () => this.setState({ open: !open, active: Math.max(0, opts.findIndex((o) => o.value === sv)) }),
+      focus: () => this.setState({ focused: true }),
+      blurWrap: (e) => { if (!e.currentTarget.contains(e.relatedTarget)) this.setState({ open: false, focused: false }); },
+      keys: (e) => {
+        const n = opts.length;
+        if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+          e.preventDefault();
+          const d = e.key === 'ArrowDown' ? 1 : -1;
+          if (!open) this.setState({ open: true });
+          else this.setState({ active: (this.state.active + d + n) % n });
+        } else if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          if (open) this.choose(this.state.active); else this.setState({ open: true });
+        } else if (e.key === 'Escape' && open) {
+          e.preventDefault(); this.setState({ open: false });
+        } else if (e.key === 'Home' && open) {
+          e.preventDefault(); this.setState({ active: 0 });
+        } else if (e.key === 'End' && open) {
+          e.preventDefault(); this.setState({ active: n - 1 });
+        }
+      }
+    };
+  }
+}
+</script>
+</body>
+</html>

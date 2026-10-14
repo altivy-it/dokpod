@@ -1,0 +1,53 @@
+:host {
+  display: block;
+}
+
+.dok-shell-page {
+  min-height: 100vh;
+  padding: 16px;
+}
+
+.dok-shell {
+  height: calc(100vh - 32px);
+  min-height: 560px;
+}
+
+.dok-shell__content {
+  overflow: auto;
+  outline: none;
+}
+
+.dok-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--text-strong);
+  text-decoration: none;
+}
+
+.alt-app-shell__item {
+  text-decoration: none;
+}
+
+a.alt-app-header__btn {
+  color: var(--foreground);
+}
+
+@media (max-width: 560px) {
+  .dok-shell-page {
+    padding: 8px;
+  }
+
+  .dok-shell {
+    height: calc(100vh - 16px);
+    gap: 6px;
+    padding: 6px;
+  }
+
+  .alt-app-shell.is-collapsed {
+    grid-template-columns: 52px minmax(0, 1fr);
+  }
+}

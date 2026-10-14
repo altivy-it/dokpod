@@ -1,8 +1,11 @@
 name: Propor funcionalidade
 description: Descreva um problema e um resultado verificável
 title: "[Feature]: "
-labels: ["enhancement", "triage"]
+labels: ["type:feature", "status:triage"]
 body:
+  - type: markdown
+    attributes:
+      value: "Intake apenas: esta Issue não autoriza implementação. Requisitos, plano e tarefas pertencem ao Spec Kit; execução exige tarefas e autorização humana explícita referenciada."
   - type: textarea
     id: problem
     attributes:
@@ -28,6 +31,21 @@ body:
     attributes:
       label: Segurança, compatibilidade e operação
       description: Considere privilégio do engine, agentes antigos, rollback e auditoria.
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Prioridade percebida
+      options: [P0 - bloqueador, P1 - alta, P2 - normal, P3 - baixa]
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Áreas envolvidas
+      multiple: true
+      options: [Arquitetura, Backend, Frontend, Agente, Engines, Contratos, Banco de dados, Segurança, DevOps, Documentação, Testes]
+    validations:
+      required: true
   - type: checkboxes
     id: decision
     attributes:

@@ -1,0 +1,18 @@
+:host { display: block; }
+.tt { display: flex; flex-direction: column; gap: 10px; }
+.tt-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; min-height: 32px; }
+.tt-bar:focus-visible { outline: 2px solid var(--teal-light); outline-offset: 2px; border-radius: 8px; }
+.tt-spacer { flex: 1; }
+.tt-muted { color: var(--muted); }
+.tt-root, .tt-warn { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; padding: 2px 8px; border-radius: 999px; background: var(--warning-tint); color: var(--foreground); }
+.tt-term { min-height: 360px; height: 420px; padding: 12px; background: #0b1220; overflow: hidden; }
+.tt-term--hidden { display: none; }
+.tt-xterm { width: 100%; height: 100%; }
+.tt-reason { margin: 0; color: var(--foreground); }
+.tt-justify { display: flex; flex-direction: column; gap: 8px; padding: 16px; }
+.tt-textarea { width: 100%; box-sizing: border-box; resize: vertical; padding: 10px 12px; border-radius: var(--radius-md); border: 1px solid var(--glass-border-strong); background: var(--input-fill); color: var(--foreground); font: inherit; }
+.tt-textarea:focus-visible { outline: 2px solid var(--teal-light); outline-offset: 1px; }
+.tt-paste { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 12px; border-radius: var(--radius-md); background: var(--warning-tint); font-size: 13px; }
+@media (max-width: 560px) {
+  .tt-term { height: 360px; padding: 6px; }
+}

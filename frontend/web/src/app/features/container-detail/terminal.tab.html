@@ -1,0 +1,60 @@
+<div class="tt">
+  <div class="tt-bar" #statusBar tabindex="-1" aria-live="polite">
+    <dok-status-chip size="sm" [color]="statusChip().tone" [label]="statusChip().label" />
+    @if (facade.shell(); as shell) {
+      <span class="ct-mono app-caption tt-muted">{{ shell }}</span>
+    }
+    @if (facade.root() && facade.state() === 'connected') {
+      <span class="tt-root" role="note"><dok-icon name="alert" [size]="14" />Usuário root no container</span>
+    }
+    @if (facade.warning(); as warning) {
+      <span class="tt-warn" role="alert"><dok-icon name="clock" [size]="14" />{{ warning === 'idle_timeout' ? 'A sessão será encerrada em 1 minuto por inatividade.' : 'A sessão atinge o limite de duração em 1 minuto.' }}</span>
+    }
+    <span class="tt-spacer"></span>
+    <dok-checkbox label="Modo leitor de tela" [ngModel]="screenReader()" (ngModelChange)="toggleScreenReader($event)" />
+    @if (facade.state() === 'connected' || facade.state() === 'connecting') {
+      <button dok-button variant="ghost" size="xs" startIcon="x" type="button" (click)="facade.close()">Encerrar</button>
+    } @else if (facade.state() === 'closed' || facade.state() === 'error') {
+      <button dok-button variant="outline" size="xs" startIcon="refresh" type="button" (click)="reopen()">Abrir de novo</button>
+    }
+  </div>
+
+  @if (facade.state() === 'justification') {
+    <form class="tt-justify alt-panel" (submit)="$event.preventDefault(); submitJustification()">
+      <label for="tt-justification" class="alt-field__label">Justificativa (obrigatória em Produção)</label>
+      <textarea
+        id="tt-justification"
+        class="tt-textarea"
+        rows="3"
+        maxlength="500"
+        aria-describedby="tt-justification-help"
+        [ngModel]="justification()"
+        (ngModelChange)="justification.set($event)"
+        name="justification"
+      ></textarea>
+      <span id="tt-justification-help" class="app-caption tt-muted">De 10 a 500 caracteres. Fica registrada na auditoria (dados sensíveis são mascarados); o conteúdo da sessão não é gravado.</span>
+      <div>
+        <button dok-button variant="primary" size="sm" startIcon="command" type="submit" [disabled]="!justificationValid()">Abrir terminal</button>
+      </div>
+    </form>
+  }
+
+  @if (facade.reason(); as reason) {
+    @if (facade.state() !== 'connected') {
+      <p class="app-small tt-reason" role="status">{{ reasonText(reason) }}</p>
+    }
+  }
+
+  @if (pendingPaste(); as text) {
+    <div class="tt-paste" role="alertdialog" aria-labelledby="tt-paste-title">
+      <span id="tt-paste-title">Colar {{ pasteLines() }} linhas no terminal? Cada linha pode ser executada.</span>
+      <button dok-button variant="primary" size="xs" type="button" (click)="confirmPaste()">Colar</button>
+      <button dok-button variant="ghost" size="xs" type="button" (click)="cancelPaste()">Cancelar</button>
+    </div>
+  }
+
+  <div class="tt-term alt-panel ct-mono" [class.tt-term--hidden]="facade.state() === 'blocked' || facade.state() === 'justification'" role="group" aria-label="Terminal do container. Ctrl+] sai do foco do terminal.">
+    <div #term class="tt-xterm"></div>
+  </div>
+  <span class="app-caption tt-muted">Ctrl+] sai do foco do terminal. Colar várias linhas pede confirmação. O conteúdo da sessão não é gravado.</span>
+</div>

@@ -32,6 +32,16 @@ frontend/tests/
 
 Features integram por rotas, contratos públicos e fachadas pequenas; não importam detalhes internos umas das outras.
 
+### Lista unificada de containers e ações em lote (spec 010)
+
+- `/containers` lista containers de todos os hosts autorizados (`GET /api/v1/containers`) com cursor, busca no servidor, ordenação por nome/situação/host/criação e resumo das seis situações; a rota legada `/environments/:environmentId/containers` redireciona para a lista filtrada pelo host;
+- filtros (estágio global, host, engine, situação e busca) ficam na URL; os ativos aparecem como chips removíveis acima do grid ("Engine: …", "Ambiente: …") e são escolhidos pelo botão "Filtros" do grid com facetas fornecidas pela página;
+- o grid oferece Agrupar (linhas carregadas), densidade, seletor de colunas lembrado no navegador e exportação CSV da página carregada com neutralização de fórmulas;
+- ações por linha (logs, terminal, inspecionar, iniciar, parar, reiniciar, pausar, retomar, remover) seguem `allowedActions` (scope × capability do agente × situação × conexão);
+- lotes: até 50 containers, um comando individual por container com concorrência 5, chaves de idempotência e IDs em `sessionStorage` (escopo da aba), acompanhamento consultando o servidor e retomada após recarga sem reenvio automático;
+- a confirmação lista afetados e ignorados com motivo, informa que volumes não são removidos e, para remover mais de um container em Produção, exige digitar a quantidade;
+- toda mutação usa `X-Dokpod-Antiforgery`, chave de idempotência UUID v4 (com fallback a `crypto.getRandomValues` fora de contexto seguro) e a revisão observada do container.
+
 ## Experiência operacional
 
 - densidade informacional adequada a tarefas repetidas;
@@ -45,9 +55,9 @@ Features integram por rotas, contratos públicos e fachadas pequenas; não impor
 
 ## Design system
 
-O visual deve ser utilitário, preciso e próprio do Dokpod. Usar tokens semânticos, bordas discretas, baixa curvatura e tipografia adequada a dados operacionais. Evitar estética genérica de SaaS, gradientes decorativos, glassmorphism, sombras difusas e cards aninhados.
+O console segue o design system próprio derivado do Altivy (ADR 2026-0005), com os mockups de `docs/design/app` como fonte da verdade: tema escuro, vidro translúcido apenas em moldura, cards e overlays, conteúdo denso em painel opaco, tipografia Outfit (JetBrains Mono para dados técnicos) e `teal-light` como único acento. Tokens, fontes e utilitários globais ficam em `frontend/web/src/styles/` (`tokens.css`, `fonts.css`, `app-text.css`, `altivy-kit.css`) e componentes `dok-*` em `frontend/web/src/app/design-system/`; `frontend/libs/design-system/assets/` guarda apenas ativos de marca e ícones de navegador.
 
-Ícones vêm de uma biblioteca permissiva aprovada e sempre possuem nome acessível ou tooltip quando o significado não é óbvio.
+Ícones vêm de `dok-icon` (geometria do kit Altivy) e sempre possuem nome acessível ou tooltip quando o significado não é óbvio. Todo status leva palavra ou ícone além da cor.
 
 ## Acessibilidade e desempenho
 
@@ -70,4 +80,6 @@ O frontend não implementa tela de senha, cadastro, recuperação, MFA, grupos o
 - screenshots desktop/mobile para mudanças visuais;
 - build de produção, lint, typecheck e ausência de erros inesperados no console.
 
-Os assets de produção são servidos por uma imagem Dokpod derivada de `lzocateli/nginx:1.28.0-bookworm`; Node.js e Angular CLI não fazem parte da imagem final. A matriz completa e a política de digest estão em [Distribuição e operação](distribuicao.md#imagens-base-e-toolchains).
+Os testes unitários das features cobrem catálogo e cadastro de ambientes, sessão expirada, carregamento do inventário, negação `403`, submissão com antiforgery e idempotência e acompanhamento até estado terminal. A validação black-box autenticada permanece obrigatória na stack E2E.
+
+Os assets de produção são servidos por uma imagem Dokpod derivada de `lzocateli/nginx:1.28.0-bookworm-v1`; Node.js e Angular CLI não fazem parte da imagem final. A matriz completa e a política de digest estão em [Distribuição e operação](distribuicao.md#imagens-base-e-toolchains).

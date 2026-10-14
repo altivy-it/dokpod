@@ -9,7 +9,7 @@ namespace Dokpod.Agent.Docker.IntegrationTests;
 
 public sealed class DockerEngineLifecycleTests
 {
-    private const string FixtureImage = "lzocateli/dotnet-sdk:10.0.400-noble";
+    private const string FixtureImage = "lzocateli/dotnet-sdk:10.0.402-noble-v1";
 
     [Fact]
     public async Task Adapter_ExecutesSupportedLifecycleAgainstRealDockerEngine()
