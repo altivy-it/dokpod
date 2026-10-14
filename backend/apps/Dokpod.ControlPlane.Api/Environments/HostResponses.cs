@@ -62,6 +62,25 @@ internal static class HostResponses
 
     public static object ToContainer(ContainerInventory container) => ToContainerFields(container);
 
+    /// <summary>Recursos atuais (spec 009 T012); container parado ou sem amostra recente não recebe o campo.</summary>
+    public static IDictionary<string, object?> WithResources(
+        IDictionary<string, object?> item,
+        ContainerDisplayStatus status,
+        Dokpod.ControlPlane.Application.Metrics.ContainerMetricsSample? sample)
+    {
+        if (sample is null || status is ContainerDisplayStatus.Stopped or ContainerDisplayStatus.Failed or ContainerDisplayStatus.Paused) return item;
+        item["resources"] = new
+        {
+            cpuPercent = sample.CpuPercentOfLimit is { } ofLimit ? Math.Min(100, ofLimit) : sample.CpuPercentOfHost,
+            cpuPercentOfHost = sample.CpuPercentOfHost,
+            cpuLimitCores = sample.CpuLimitCores,
+            memoryUsedBytes = sample.MemoryUsedBytes,
+            memoryLimitBytes = sample.MemoryLimitBytes,
+            sampledAt = sample.SampledAtUtc,
+        };
+        return item;
+    }
+
     private static Dictionary<string, object?> ToContainerFields(ContainerInventory container) => new()
     {
         ["containerId"] = container.ContainerId,

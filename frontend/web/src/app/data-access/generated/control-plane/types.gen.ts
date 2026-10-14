@@ -83,6 +83,76 @@ export type ContainerInventory = {
     exitCode?: number | null;
     oomKilled?: boolean | null;
     ports?: Array<PortBinding>;
+    resources?: ContainerResources;
+};
+
+/**
+ * Uso atual (spec 009); ausente para container parado ou sem amostra recente.
+ */
+export type ContainerResources = {
+    /**
+     * % do limite de CPU (ou do host sem limite), limitado a 100 para exibição.
+     */
+    cpuPercent?: number | null;
+    cpuPercentOfHost?: number | null;
+    cpuLimitCores?: number | null;
+    memoryUsedBytes?: number | null;
+    memoryLimitBytes?: number | null;
+    sampledAt: string;
+};
+
+export type MetricsWindow = '30m' | '1h' | '6h' | '12h' | '24h';
+
+export type MetricsStep = '1m' | '5m' | '15m' | '1h';
+
+export type MetricsSeries = {
+    x: Array<string>;
+    cpu: Array<number | null>;
+    /**
+     * Memória em % (do total do host, ou do limite do container).
+     */
+    memory: Array<number | null>;
+};
+
+export type StageMetrics = {
+    current: {
+        cpuPercent?: number | null;
+        memoryPercent?: number | null;
+        hostsSampled: number;
+        hostsTotal: number;
+        sampledAt?: string | null;
+    };
+    series: MetricsSeries;
+    operationalLimitPercent: number;
+};
+
+export type HostMetricsPage = {
+    hosts: Array<{
+        environmentId: string;
+        cpuPercent?: number | null;
+        memoryUsedBytes?: number | null;
+        memoryTotalBytes?: number | null;
+        sampledAt?: string | null;
+    }>;
+    operationalLimitPercent: number;
+};
+
+export type ContainerMetrics = {
+    current?: null | {
+        cpuPercent?: number | null;
+        cpuPercentOfLimit?: number | null;
+        cpuPercentOfHost?: number | null;
+        cpuLimitCores?: number | null;
+        memoryUsedBytes?: number | null;
+        memoryLimitBytes?: number | null;
+        netRxBps?: number | null;
+        netTxBps?: number | null;
+        blkReadBps?: number | null;
+        blkWriteBps?: number | null;
+        sampledAt: string;
+    };
+    series: MetricsSeries;
+    operationalLimitPercent: number;
 };
 
 export type ContainerListItem = ContainerInventory & {
@@ -1068,3 +1138,143 @@ export type GetContainerLogsResponses = {
 };
 
 export type GetContainerLogsResponse = GetContainerLogsResponses[keyof GetContainerLogsResponses];
+
+export type GetStageMetricsData = {
+    body?: never;
+    headers?: {
+        /**
+         * Identificador técnico opcional para correlação server-side.
+         */
+        'X-Correlation-Id'?: string;
+    };
+    path?: never;
+    query?: {
+        stage?: Stage;
+        window?: MetricsWindow;
+        step?: MetricsStep;
+    };
+    url: '/api/v1/metrics/overview';
+};
+
+export type GetStageMetricsErrors = {
+    /**
+     * Requisição inválida.
+     */
+    400: ProblemDetails;
+    /**
+     * Autenticação ausente ou inválida.
+     */
+    401: ProblemDetails;
+    /**
+     * Autorização ou persistência indisponível.
+     */
+    503: ProblemDetails;
+};
+
+export type GetStageMetricsError = GetStageMetricsErrors[keyof GetStageMetricsErrors];
+
+export type GetStageMetricsResponses = {
+    /**
+     * Agregado do estágio; valores nulos são lacunas.
+     */
+    200: StageMetrics;
+};
+
+export type GetStageMetricsResponse = GetStageMetricsResponses[keyof GetStageMetricsResponses];
+
+export type ListHostMetricsData = {
+    body?: never;
+    headers?: {
+        /**
+         * Identificador técnico opcional para correlação server-side.
+         */
+        'X-Correlation-Id'?: string;
+    };
+    path?: never;
+    query?: {
+        stage?: Stage;
+    };
+    url: '/api/v1/metrics/hosts';
+};
+
+export type ListHostMetricsErrors = {
+    /**
+     * Requisição inválida.
+     */
+    400: ProblemDetails;
+    /**
+     * Autenticação ausente ou inválida.
+     */
+    401: ProblemDetails;
+    /**
+     * Autorização ou persistência indisponível.
+     */
+    503: ProblemDetails;
+};
+
+export type ListHostMetricsError = ListHostMetricsErrors[keyof ListHostMetricsErrors];
+
+export type ListHostMetricsResponses = {
+    /**
+     * Último valor por host; ausência de amostra recente resulta em valores nulos.
+     */
+    200: HostMetricsPage;
+};
+
+export type ListHostMetricsResponse = ListHostMetricsResponses[keyof ListHostMetricsResponses];
+
+export type GetContainerMetricsData = {
+    body?: never;
+    headers?: {
+        /**
+         * Identificador técnico opcional para correlação server-side.
+         */
+        'X-Correlation-Id'?: string;
+    };
+    path: {
+        environmentId: string;
+        containerId: string;
+    };
+    query?: {
+        /**
+         * Somente `30m`; janelas maiores retornam 400.
+         */
+        window?: MetricsWindow;
+        step?: MetricsStep;
+    };
+    url: '/api/v1/environments/{environmentId}/containers/{containerId}/metrics';
+};
+
+export type GetContainerMetricsErrors = {
+    /**
+     * Requisição inválida.
+     */
+    400: ProblemDetails;
+    /**
+     * Autenticação ausente ou inválida.
+     */
+    401: ProblemDetails;
+    /**
+     * Decisão do Keycloak negou o cadastro.
+     */
+    403: ProblemDetails;
+    /**
+     * O ambiente não foi encontrado após autorização.
+     */
+    404: ProblemDetails;
+    /**
+     * Autorização ou persistência indisponível.
+     */
+    503: ProblemDetails;
+};
+
+export type GetContainerMetricsError = GetContainerMetricsErrors[keyof GetContainerMetricsErrors];
+
+export type GetContainerMetricsResponses = {
+    /**
+     * Série possivelmente parcial após reinício da API.
+     */
+    200: ContainerMetrics;
+};
+
+export type GetContainerMetricsResponse = GetContainerMetricsResponses[keyof GetContainerMetricsResponses];

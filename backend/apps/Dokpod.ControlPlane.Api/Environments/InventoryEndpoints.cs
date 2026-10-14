@@ -18,6 +18,7 @@ public static class InventoryEndpoints
         int? limit,
         HttpContext context,
         InventoryQueryService queryService,
+        Dokpod.ControlPlane.Application.Metrics.MetricsQueryService metrics,
         CancellationToken cancellationToken)
     {
         var subject = context.User.FindFirstValue("sub");
@@ -73,7 +74,10 @@ public static class InventoryEndpoints
             revision = page.Revision,
             observedAt = page.ObservedAtUtc,
             ageSeconds = Math.Max(0, (long)(DateTimeOffset.UtcNow - page.ObservedAtUtc).TotalSeconds),
-            containers = page.Containers.Select(HostResponses.ToContainer),
+            containers = page.Containers.Select(container => HostResponses.WithResources(
+                (IDictionary<string, object?>)HostResponses.ToContainer(container),
+                container.DisplayStatus,
+                metrics.GetContainerResources(environmentId, container.ContainerId))),
             nextCursor = EncodeCursor(page.NextContainerId),
         });
     }

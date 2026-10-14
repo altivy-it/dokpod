@@ -35,6 +35,7 @@ public sealed class AgentHostActivity(
         Capability.ContainerRestart,
         Capability.ContainerDelete,
         Capability.EngineEvents,
+        Capability.ResourceMetrics,
         Capability.ContainerPause,
         Capability.ContainerUnpause,
         Capability.ContainerInspect,

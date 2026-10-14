@@ -75,6 +75,9 @@ public sealed class ControlPlaneHttpSurfaceTests
             "/api/v1/environments/{environmentId:guid}/containers/{containerId}/summary",
             "/api/v1/environments/{environmentId:guid}/containers/{containerId}/inspect",
             "/api/v1/environments/{environmentId:guid}/containers/{containerId}/logs",
+            "/api/v1/metrics/overview",
+            "/api/v1/metrics/hosts",
+            "/api/v1/environments/{environmentId:guid}/containers/{containerId}/metrics",
         ];
         foreach (var route in consoleRoutes)
         {

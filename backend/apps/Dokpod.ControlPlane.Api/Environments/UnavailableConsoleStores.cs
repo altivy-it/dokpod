@@ -52,3 +52,14 @@ public sealed class UnavailableContainerSearchStore : IContainerSearchStore
     public Task<Dokpod.Domain.Inventory.ContainerInventory?> GetAsync(Guid environmentId, string containerId, CancellationToken cancellationToken) =>
         Task.FromException<Dokpod.Domain.Inventory.ContainerInventory?>(new InvalidOperationException("Control Plane persistence is unavailable."));
 }
+
+public sealed class UnavailableHostMetricsStore : Dokpod.ControlPlane.Application.Metrics.IHostMetricsStore
+{
+    public Task UpsertAsync(IReadOnlyCollection<Dokpod.ControlPlane.Application.Metrics.HostMinuteSample> samples, CancellationToken cancellationToken) => Task.CompletedTask;
+
+    public Task<IReadOnlyList<Dokpod.ControlPlane.Application.Metrics.HostMinuteSample>> GetSeriesAsync(
+        IReadOnlyCollection<Guid> environmentIds, DateTimeOffset fromUtc, DateTimeOffset toUtc, CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<Dokpod.ControlPlane.Application.Metrics.HostMinuteSample>>([]);
+
+    public Task<long> ApplyRetentionAsync(TimeSpan retention, CancellationToken cancellationToken) => Task.FromResult(0L);
+}

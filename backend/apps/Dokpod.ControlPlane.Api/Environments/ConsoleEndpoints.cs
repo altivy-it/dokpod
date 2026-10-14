@@ -31,6 +31,7 @@ public static class ConsoleEndpoints
         AuthorizedEnvironmentsService authorizedEnvironments,
         HostQueryService hostQuery,
         ContainerSearchService search,
+        Dokpod.ControlPlane.Application.Metrics.MetricsQueryService metrics,
         CancellationToken cancellationToken)
     {
         if (!TryAuthenticate(context, out var actor, out var token, out var unauthorized)) return unauthorized!;
@@ -72,7 +73,10 @@ public static class ConsoleEndpoints
             cancellationToken);
         return Results.Ok(new
         {
-            containers = result.Items.Select(HostResponses.ToContainerListItem),
+            containers = result.Items.Select(item => HostResponses.WithResources(
+                HostResponses.ToContainerListItem(item),
+                item.Container.DisplayStatus,
+                metrics.GetContainerResources(item.Host.Registration.EnvironmentId, item.Container.ContainerId))),
             summary = new { total = result.Summary.Values.Sum(), byDisplayStatus = result.Summary },
             observedAt = result.ObservedAtUtc,
             nextCursor = EncodeContainerCursor(result.Next),
@@ -284,7 +288,7 @@ public static class ConsoleEndpoints
         };
     }
 
-    private static async Task<(IReadOnlyList<EnvironmentRegistration> Registrations, IResult? Error)> LoadAuthorizedAsync(
+    internal static async Task<(IReadOnlyList<EnvironmentRegistration> Registrations, IResult? Error)> LoadAuthorizedAsync(
         HttpContext context,
         AuthorizedEnvironmentsService authorizedEnvironments,
         AuthenticatedActor actor,
@@ -304,7 +308,7 @@ public static class ConsoleEndpoints
         }
     }
 
-    private static bool TryAuthenticate(HttpContext context, out AuthenticatedActor? actor, out string? token, out IResult? error)
+    internal static bool TryAuthenticate(HttpContext context, out AuthenticatedActor? actor, out string? token, out IResult? error)
     {
         var subject = context.User.FindFirstValue("sub");
         var authorization = context.Request.Headers.Authorization.ToString();
@@ -355,10 +359,10 @@ public static class ConsoleEndpoints
             : WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(
                 $"{cursor.OccurredAtUtc.UtcTicks.ToString(CultureInfo.InvariantCulture)}|{cursor.EventId:D}"));
 
-    private static Guid GetCorrelationId(HttpContext context) =>
+    internal static Guid GetCorrelationId(HttpContext context) =>
         Guid.TryParse(context.Request.Headers["X-Correlation-Id"], out var correlationId) ? correlationId : Guid.NewGuid();
 
-    private static IResult Problem(HttpContext context, int status, string code, string detail) =>
+    internal static IResult Problem(HttpContext context, int status, string code, string detail) =>
         Results.Problem(
             statusCode: status,
             title: status switch

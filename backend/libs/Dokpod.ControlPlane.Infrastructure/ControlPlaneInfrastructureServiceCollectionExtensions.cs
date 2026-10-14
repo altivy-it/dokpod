@@ -39,6 +39,7 @@ public static class ControlPlaneInfrastructureServiceCollectionExtensions
         services.AddScoped<IInventoryStatisticsStore>(provider => provider.GetRequiredService<PostgresAgentHostStore>());
         services.AddScoped<IEnvironmentStageStore>(provider => provider.GetRequiredService<PostgresAgentHostStore>());
         services.AddScoped<IOperationalEventStore, PostgresOperationalEventStore>();
+        services.AddScoped<Dokpod.ControlPlane.Application.Metrics.IHostMetricsStore, PostgresHostMetricsStore>();
         services.AddScoped<IContainerSearchStore, PostgresContainerSearchStore>();
 
         return services;

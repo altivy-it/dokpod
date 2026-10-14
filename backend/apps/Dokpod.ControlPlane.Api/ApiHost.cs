@@ -174,6 +174,17 @@ public static class ApiHost
         builder.Services.AddScoped<AgentHostActivity>();
         builder.Services.AddHostedService<AgentConnectionSweeper>();
         builder.Services.AddHostedService<EventRetentionWorker>();
+        var metricsOptions = builder.Configuration.GetSection(Dokpod.ControlPlane.Application.Metrics.MetricsOptions.SectionName)
+            .Get<Dokpod.ControlPlane.Application.Metrics.MetricsOptions>() ?? new Dokpod.ControlPlane.Application.Metrics.MetricsOptions();
+        if (!metricsOptions.IsValid()) throw new InvalidOperationException("Metrics options are invalid.");
+        builder.Services.AddSingleton(metricsOptions);
+        builder.Services.AddSingleton<Dokpod.ControlPlane.Application.Metrics.LatestMetricsCache>();
+        builder.Services.AddSingleton<Dokpod.ControlPlane.Application.Metrics.ContainerMetricsBuffer>();
+        builder.Services.AddSingleton<Dokpod.ControlPlane.Application.Metrics.HostMinuteAggregator>();
+        builder.Services.AddScoped<Dokpod.ControlPlane.Application.Metrics.IHostMetricsStore, UnavailableHostMetricsStore>();
+        builder.Services.AddScoped<Dokpod.ControlPlane.Application.Metrics.MetricsIngestionService>();
+        builder.Services.AddScoped<Dokpod.ControlPlane.Application.Metrics.MetricsQueryService>();
+        builder.Services.AddHostedService<Dokpod.ControlPlane.Api.Metrics.MetricsMaintenanceWorker>();
         var databaseConnectionString = builder.Configuration.GetConnectionString("ControlPlane");
         if (!string.IsNullOrWhiteSpace(databaseConnectionString))
         {
@@ -222,6 +233,7 @@ public static class ApiHost
         InventoryEndpoints.Map(app);
         ConsoleEndpoints.Map(app);
         ContainerDetailEndpoints.Map(app);
+        MetricsEndpoints.Map(app);
         ContainerCommandEndpoints.Map(app);
         app.MapHub<ControlPlaneHub>("/hubs/control-plane").RequireAuthorization();
     }

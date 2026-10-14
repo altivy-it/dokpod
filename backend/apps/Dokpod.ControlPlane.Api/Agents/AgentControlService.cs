@@ -25,6 +25,7 @@ public sealed class AgentControlService(
     AgentHostActivity hostActivity,
     IControlPlaneNotifier notifier,
     Dokpod.ControlPlane.Application.Queries.AgentQueryDispatcher queryDispatcher,
+    Dokpod.ControlPlane.Application.Metrics.MetricsIngestionService metricsIngestion,
     ILogger<AgentControlService> logger) : AgentControl.AgentControlBase
 {
     private const int MaximumMessageBytes = 1_048_576;
@@ -246,6 +247,14 @@ public sealed class AgentControlService(
                         await hostActivity.OnEngineEventsAsync(
                             session.EnvironmentId,
                             requestStream.Current.EngineEvents,
+                            context.CancellationToken);
+                        break;
+
+                    case AgentMessage.PayloadOneofCase.ResourceSamples
+                        when hello.Capabilities.Contains(Capability.ResourceMetrics):
+                        await metricsIngestion.IngestAsync(
+                            session.EnvironmentId,
+                            requestStream.Current.ResourceSamples,
                             context.CancellationToken);
                         break;
 

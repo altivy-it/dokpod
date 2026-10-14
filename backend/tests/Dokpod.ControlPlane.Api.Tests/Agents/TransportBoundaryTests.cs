@@ -307,6 +307,7 @@ public sealed class TransportBoundaryTests
                 options,
                 engine,
                 new AgentCommandProtocolHandler(processor),
+                new NoHostProbe(),
                 NullLogger<global::Dokpod.Agent.AgentControlWorker>.Instance);
             using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(
                 TestContext.Current.CancellationToken);
@@ -1077,5 +1078,10 @@ public sealed class TransportBoundaryTests
             Server.Dispose();
             Agent.Dispose();
         }
+    }
+
+    private sealed class NoHostProbe : global::Dokpod.Agent.Application.Metrics.IHostResourceProbe
+    {
+        public global::Dokpod.Agent.Application.Metrics.HostResourceReading? Read() => null;
     }
 }

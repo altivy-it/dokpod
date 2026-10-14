@@ -17,8 +17,11 @@ public sealed class AgentControlWorker(
     AgentOptions options,
     IContainerEngine engine,
     AgentCommandProtocolHandler commandHandler,
+    Dokpod.Agent.Application.Metrics.IHostResourceProbe hostProbe,
     ILogger<AgentControlWorker> logger) : BackgroundService
 {
+    // Containers em execução do último snapshot (alvo da amostragem de recursos, spec 009).
+    private IReadOnlyList<Dokpod.Agent.Application.Metrics.SampleTarget> runningTargets = [];
     private static readonly TimeSpan ReconnectDelay = TimeSpan.FromSeconds(5);
     private const int SnapshotPageSize = 100;
 
@@ -124,6 +127,10 @@ public sealed class AgentControlWorker(
         // Agente N só envia payloads novos com capability confirmada pelo servidor (008 D-009).
         var eventsAccepted = established.AcceptedCapabilities.Contains(Capability.EngineEvents);
         var events = WatchEngineEventsAsync(outbound.Writer, inventory, eventsAccepted, sessionCancellation.Token);
+        var metricsAccepted = established.AcceptedCapabilities.Contains(Capability.ResourceMetrics);
+        var metrics = metricsAccepted
+            ? SendResourceSamplesAsync(background.Writer, sessionCancellation.Token)
+            : Task.CompletedTask;
         var queries = new Dokpod.Agent.Application.Queries.ContainerQueryHandler(engine, TimeProvider.System);
         var logStreams = new Dokpod.Agent.Application.Queries.LogStreamManager(engine, TimeProvider.System);
         Task SendBackground(AgentMessage outgoing) => background.Writer.WriteAsync(outgoing, sessionCancellation.Token).AsTask();
@@ -181,6 +188,42 @@ public sealed class AgentControlWorker(
             await IgnoreCancellationAsync(writer);
             await IgnoreCancellationAsync(heartbeat);
             await IgnoreCancellationAsync(events);
+            await IgnoreCancellationAsync(metrics);
+        }
+    }
+
+    /// <summary>
+    /// Uma amostra por intervalo na fila de baixa prioridade (spec 009 FR-002): nunca espera por espaço,
+    /// para não atrasar comandos e inventário; lote que não cabe é descartado e contado no próximo.
+    /// </summary>
+    private async Task SendResourceSamplesAsync(ChannelWriter<AgentMessage> background, CancellationToken cancellationToken)
+    {
+        var sampler = new Dokpod.Agent.Application.Metrics.ResourceSampler(engine, hostProbe, TimeProvider.System);
+        sampler.EngineMemoryTotalBytes = (await TryDescribeHostAsync(cancellationToken))?.MemoryBytes;
+        uint lost = 0;
+        using var timer = new PeriodicTimer(options.EffectiveMetricsInterval);
+        while (await timer.WaitForNextTickAsync(cancellationToken))
+        {
+            IReadOnlyList<ResourceSampleBatch> batches;
+            try
+            {
+                batches = await sampler.SampleAsync(Volatile.Read(ref runningTargets), cancellationToken);
+            }
+            catch (Exception exception) when (exception is HttpRequestException or IOException)
+            {
+                logger.LogDebug(exception, "Resource sampling skipped");
+                continue;
+            }
+
+            batches[0].DroppedCount += lost;
+            lost = 0;
+            foreach (var batch in batches)
+            {
+                if (!background.TryWrite(new AgentMessage { ResourceSamples = batch }))
+                {
+                    lost += (uint)batch.Containers.Count;
+                }
+            }
         }
     }
 
@@ -242,6 +285,10 @@ public sealed class AgentControlWorker(
         CancellationToken cancellationToken)
     {
         var containers = await engine.ListContainersAsync(cancellationToken);
+        Volatile.Write(ref runningTargets, containers
+            .Where(container => string.Equals(container.State, "running", StringComparison.OrdinalIgnoreCase))
+            .Select(container => new Dokpod.Agent.Application.Metrics.SampleTarget(container.ContainerId, container.CpuLimitCores))
+            .ToArray());
         var observedAt = DateTimeOffset.UtcNow;
         var clockRevision = checked((ulong)observedAt.ToUnixTimeMilliseconds());
         var revision = Math.Max(previousRevision + 1, clockRevision);
@@ -449,6 +496,8 @@ public sealed class AgentControlWorker(
             },
             SupportedProtocolVersions = { "1" },
         };
+        // Métricas de host dependem de `/proc` do Linux; o agente Windows não anuncia (spec 009 FR-010).
+        if (!System.OperatingSystem.IsWindows()) hello.Capabilities.Add(Capability.ResourceMetrics);
         return new AgentMessage { Hello = hello };
     }
 

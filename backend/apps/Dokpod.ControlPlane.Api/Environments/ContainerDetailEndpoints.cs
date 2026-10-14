@@ -34,6 +34,7 @@ public static class ContainerDetailEndpoints
         HostQueryService hostQuery,
         IOperationalEventStore events,
         TimeProvider timeProvider,
+        Dokpod.ControlPlane.Application.Metrics.MetricsQueryService metrics,
         CancellationToken cancellationToken)
     {
         if (!TryAuthenticate(context, out var actor, out var token, out var error)) return error!;
@@ -47,6 +48,7 @@ public static class ContainerDetailEndpoints
         item["restartsLast24h"] = restarts;
         item["hostName"] = host.Descriptor?.HostName ?? registration.Host;
         item["capabilities"] = host.Descriptor?.Capabilities ?? [];
+        HostResponses.WithResources(item, access.Container!.DisplayStatus, metrics.GetContainerResources(environmentId, containerId));
         return Results.Ok(item);
     }
 

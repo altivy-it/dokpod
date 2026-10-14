@@ -688,6 +688,116 @@ paths:
           $ref: '#/components/responses/DependencyUnavailable'
         '504':
           $ref: '#/components/responses/DependencyUnavailable'
+  /api/v1/metrics/overview:
+    get:
+      operationId: getStageMetrics
+      summary: Agregado de CPU e memória dos hosts autorizados do estágio, atual e série (spec 009)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: stage
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/Stage'
+        - name: window
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/MetricsWindow'
+        - name: step
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/MetricsStep'
+        - $ref: '#/components/parameters/CorrelationId'
+      responses:
+        '200':
+          description: Agregado do estágio; valores nulos são lacunas.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StageMetrics'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '503':
+          $ref: '#/components/responses/DependencyUnavailable'
+  /api/v1/metrics/hosts:
+    get:
+      operationId: listHostMetrics
+      summary: Uso atual de CPU e memória por host autorizado (spec 009)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: stage
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/Stage'
+        - $ref: '#/components/parameters/CorrelationId'
+      responses:
+        '200':
+          description: Último valor por host; ausência de amostra recente resulta em valores nulos.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HostMetricsPage'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '503':
+          $ref: '#/components/responses/DependencyUnavailable'
+  /api/v1/environments/{environmentId}/containers/{containerId}/metrics:
+    get:
+      operationId: getContainerMetrics
+      summary: Uso atual e série de até 30 minutos de um container (somente memória do plano de controle)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: environmentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: containerId
+          in: path
+          required: true
+          schema:
+            type: string
+            maxLength: 128
+        - name: window
+          in: query
+          required: false
+          description: Somente `30m`; janelas maiores retornam 400.
+          schema:
+            $ref: '#/components/schemas/MetricsWindow'
+        - name: step
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/MetricsStep'
+        - $ref: '#/components/parameters/CorrelationId'
+      responses:
+        '200':
+          description: Série possivelmente parcial após reinício da API.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContainerMetrics'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '403':
+          $ref: '#/components/responses/AccessDenied'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '503':
+          $ref: '#/components/responses/DependencyUnavailable'
 components:
   securitySchemes:
     bearerAuth:
@@ -932,6 +1042,150 @@ components:
           maxItems: 64
           items:
             $ref: '#/components/schemas/PortBinding'
+        resources:
+          $ref: '#/components/schemas/ContainerResources'
+    ContainerResources:
+      type: object
+      description: Uso atual (spec 009); ausente para container parado ou sem amostra recente.
+      required: [sampledAt]
+      properties:
+        cpuPercent:
+          type: [number, 'null']
+          description: '% do limite de CPU (ou do host sem limite), limitado a 100 para exibição.'
+        cpuPercentOfHost:
+          type: [number, 'null']
+        cpuLimitCores:
+          type: [number, 'null']
+        memoryUsedBytes:
+          type: [integer, 'null']
+          format: int64
+        memoryLimitBytes:
+          type: [integer, 'null']
+          format: int64
+        sampledAt:
+          type: string
+          format: date-time
+    MetricsWindow:
+      type: string
+      enum: [30m, 1h, 6h, 12h, 24h]
+    MetricsStep:
+      type: string
+      enum: [1m, 5m, 15m, 1h]
+    MetricsSeries:
+      type: object
+      required: [x, cpu, memory]
+      properties:
+        x:
+          type: array
+          maxItems: 1440
+          items:
+            type: string
+            format: date-time
+        cpu:
+          type: array
+          maxItems: 1440
+          items:
+            type: [number, 'null']
+        memory:
+          type: array
+          maxItems: 1440
+          description: Memória em % (do total do host, ou do limite do container).
+          items:
+            type: [number, 'null']
+    StageMetrics:
+      type: object
+      required: [current, series, operationalLimitPercent]
+      properties:
+        current:
+          type: object
+          required: [hostsSampled, hostsTotal]
+          properties:
+            cpuPercent:
+              type: [number, 'null']
+            memoryPercent:
+              type: [number, 'null']
+            hostsSampled:
+              type: integer
+              minimum: 0
+            hostsTotal:
+              type: integer
+              minimum: 0
+            sampledAt:
+              type: [string, 'null']
+              format: date-time
+        series:
+          $ref: '#/components/schemas/MetricsSeries'
+        operationalLimitPercent:
+          type: number
+    HostMetricsPage:
+      type: object
+      required: [hosts, operationalLimitPercent]
+      properties:
+        hosts:
+          type: array
+          items:
+            type: object
+            required: [environmentId]
+            properties:
+              environmentId:
+                type: string
+                format: uuid
+              cpuPercent:
+                type: [number, 'null']
+              memoryUsedBytes:
+                type: [integer, 'null']
+                format: int64
+              memoryTotalBytes:
+                type: [integer, 'null']
+                format: int64
+              sampledAt:
+                type: [string, 'null']
+                format: date-time
+        operationalLimitPercent:
+          type: number
+    ContainerMetrics:
+      type: object
+      required: [series, operationalLimitPercent]
+      properties:
+        current:
+          oneOf:
+            - type: 'null'
+            - type: object
+              required: [sampledAt]
+              properties:
+                cpuPercent:
+                  type: [number, 'null']
+                cpuPercentOfLimit:
+                  type: [number, 'null']
+                cpuPercentOfHost:
+                  type: [number, 'null']
+                cpuLimitCores:
+                  type: [number, 'null']
+                memoryUsedBytes:
+                  type: [integer, 'null']
+                  format: int64
+                memoryLimitBytes:
+                  type: [integer, 'null']
+                  format: int64
+                netRxBps:
+                  type: [integer, 'null']
+                  format: int64
+                netTxBps:
+                  type: [integer, 'null']
+                  format: int64
+                blkReadBps:
+                  type: [integer, 'null']
+                  format: int64
+                blkWriteBps:
+                  type: [integer, 'null']
+                  format: int64
+                sampledAt:
+                  type: string
+                  format: date-time
+        series:
+          $ref: '#/components/schemas/MetricsSeries'
+        operationalLimitPercent:
+          type: number
     ContainerListItem:
       allOf:
         - $ref: '#/components/schemas/ContainerInventory'

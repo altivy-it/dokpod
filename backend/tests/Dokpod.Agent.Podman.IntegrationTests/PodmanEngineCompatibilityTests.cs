@@ -195,6 +195,38 @@ public sealed class PodmanEngineCompatibilityTests : IAsyncLifetime
         Assert.True(die.TimeNano > 0);
     }
 
+    [Fact]
+    public async Task Metrics_StatsOfRunningContainerAndHostProcMatchEngine()
+    {
+        RequirePodman();
+        var id = await CreateAsync(new { Image = FixtureImage });
+        Assert.True((await Engine.ExecuteAsync(AgentCommandKind.StartContainer, id, Token)).Succeeded);
+
+        var stats = await Engine.GetContainerStatsAsync(id, Token);
+        Assert.NotNull(stats);
+        Assert.True(stats.MemoryUsedBytes > 0);
+        Assert.True(stats.OnlineCpus > 0);
+        Assert.True(stats.SystemCpuNanos > 0);
+
+        var sampler = new Dokpod.Agent.Application.Metrics.ResourceSampler(
+            Engine, new Dokpod.Agent.Infrastructure.Metrics.ProcHostProbe(), TimeProvider.System)
+        {
+            EngineMemoryTotalBytes = (await Engine.DescribeHostAsync(Token))!.MemoryBytes,
+        };
+        await sampler.SampleAsync([new Dokpod.Agent.Application.Metrics.SampleTarget(id, null)], Token);
+        await Task.Delay(1500, Token);
+        var batch = (await sampler.SampleAsync([new Dokpod.Agent.Application.Metrics.SampleTarget(id, null)], Token)).Single();
+
+        // `/proc` lido de dentro de um container rootless reflete o host (D-003): memória coerente com `/info`.
+        Assert.True(batch.Host.HasMemoryTotalBytes, "host sem memória: /proc virtualizado ou ilegível");
+        Assert.True(batch.Host.HasCpuPercent);
+        Assert.InRange(batch.Host.CpuPercent, 0, 100);
+        var container = Assert.Single(batch.Containers);
+        Assert.True(container.HasCpuPercentOfHost);
+        Assert.InRange(container.CpuPercentOfHost, 0, 100);
+        Assert.True(container.MemoryUsedBytes > 0);
+    }
+
     private async Task<string> CreateAsync(object spec)
     {
         using var content = new StringContent(JsonSerializer.Serialize(spec), Encoding.UTF8, "application/json");

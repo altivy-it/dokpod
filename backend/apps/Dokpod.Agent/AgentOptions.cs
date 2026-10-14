@@ -10,8 +10,12 @@ public sealed record AgentOptions(
     Guid? EnvironmentId,
     string ClientCertificatePath,
     string? ClientCertificatePassword,
-    string? ServerCaCertificatePath)
+    string? ServerCaCertificatePath,
+    TimeSpan MetricsInterval = default)
 {
+    /// <summary>Intervalo de amostragem de recursos (spec 009): padrão 15 s, máximo 30 s.</summary>
+    public TimeSpan EffectiveMetricsInterval => MetricsInterval > TimeSpan.Zero ? MetricsInterval : TimeSpan.FromSeconds(15);
+
     public static AgentOptions FromEnvironment()
     {
         var defaultDataDirectory = OperatingSystem.IsWindows()
@@ -39,7 +43,8 @@ public sealed record AgentOptions(
                 "DOKPOD_AGENT_CLIENT_CERTIFICATE_PATH",
                 Path.Combine(dataDirectory, "identity", "agent.pfx")),
             Environment.GetEnvironmentVariable("DOKPOD_AGENT_CLIENT_CERTIFICATE_PASSWORD"),
-            GetOptionalAbsolutePath("DOKPOD_AGENT_SERVER_CA_CERTIFICATE_PATH"));
+            GetOptionalAbsolutePath("DOKPOD_AGENT_SERVER_CA_CERTIFICATE_PATH"),
+            TimeSpan.FromSeconds(GetBoundedInteger("DOKPOD_AGENT_METRICS_INTERVAL_SECONDS", 15, 5, 30)));
     }
 
     private static string GetAbsolutePath(string variableName, string defaultValue)
