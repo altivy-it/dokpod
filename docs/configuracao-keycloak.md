@@ -73,8 +73,9 @@ Scopes iniciais:
 | `container:exec` | abrir terminal interativo no container (spec 014) |
 | `alert:read` | ver alertas, regras e silenciamentos do ambiente (spec 016) |
 | `alert:manage` | reconhecer, resolver e silenciar alertas e gerenciar regras e silenciamentos do ambiente (spec 016) |
+| `volume:delete` | remover volume sem uso do host; nunca forçado (spec 018) |
 
-Os scopes são criados por `tools/scripts/configure-keycloak.ps1` no resource server `dokpod-api` e concedidos por ambiente com `tools/scripts/provision-environment-authorization.ps1 -Scope <scope>`. Scopes de operações privilegiadas (`container:create`, `container:exec`) devem ser concedidos a grupos restritos e revisados periodicamente.
+Os scopes são criados por `tools/scripts/configure-keycloak.ps1` no resource server `dokpod-api` e concedidos por ambiente com `tools/scripts/provision-environment-authorization.ps1 -Scope <scope>`. Scopes de operações privilegiadas (`container:create`, `container:exec`, `volume:delete`) devem ser concedidos a grupos restritos e revisados periodicamente.
 
 Roles podem agrupar permissões para administração, operação e auditoria, mas a decisão final continua associada ao recurso e scope. O Dokpod não persiste cópia de role ou membership como autorização local.
 
