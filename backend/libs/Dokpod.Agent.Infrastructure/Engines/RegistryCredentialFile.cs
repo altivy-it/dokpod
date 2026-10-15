@@ -12,6 +12,31 @@ public sealed class RegistryCredentialFile(string? path)
 {
     private static readonly string[] DockerHubKeys = ["https://index.docker.io/v1/", "index.docker.io", "docker.io", "registry-1.docker.io"];
 
+    /// <summary>
+    /// Registros com credencial configurada (spec 020): só as chaves de `auths`, normalizadas; os valores nunca são lidos
+    /// para fora deste método nem para fora do host.
+    /// </summary>
+    public IReadOnlyList<string> ListRegistries()
+    {
+        if (string.IsNullOrWhiteSpace(path) || !File.Exists(path)) return [];
+        try
+        {
+            using var document = JsonDocument.Parse(File.ReadAllText(path));
+            if (!document.RootElement.TryGetProperty("auths", out var auths) || auths.ValueKind != JsonValueKind.Object) return [];
+            return auths.EnumerateObject()
+                .Where(entry => entry.Value.ValueKind == JsonValueKind.Object && entry.Value.TryGetProperty("auth", out _))
+                .Select(entry => Dokpod.Domain.Images.RegistryNames.Normalize(entry.Name))
+                .OfType<string>()
+                .Distinct(StringComparer.Ordinal)
+                .Order(StringComparer.Ordinal)
+                .ToArray();
+        }
+        catch (Exception exception) when (exception is JsonException or IOException or UnauthorizedAccessException)
+        {
+            return [];
+        }
+    }
+
     /// <summary>Valor do cabeçalho `X-Registry-Auth` para o registro, ou nulo sem credencial configurada.</summary>
     public string? HeaderFor(string registry)
     {

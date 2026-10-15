@@ -16,7 +16,7 @@ public static class AuditCategories
         ["governance"] =
         [
             "alert.rule_created", "alert.rule_updated", "alert.rule_deleted", "alert.acknowledged", "alert.resolved", "alert.silenced",
-            "alert.silence_created", "alert.silence_ended", "container.justification_policy_changed",
+            "alert.silence_created", "alert.silence_ended", "container.justification_policy_changed", "registry.policy_changed",
         ],
         ["audit"] = ["audit.exported"],
     };

@@ -137,6 +137,14 @@ public sealed class AgentControlWorker(
         var networksAccepted = established.AcceptedCapabilities.Contains(Capability.NetworkInventory);
         var networks = new NetworkPublisher(this, outbound.Writer, networksAccepted);
         await networks.SendAsync(force: true, sessionCancellation.Token);
+        // Spec 020: configuração de registros na sessão nova e a cada 5 minutos, só quando muda.
+        var registries = new RegistryPublisher(this, outbound.Writer, established.AcceptedCapabilities.Contains(Capability.RegistryInventory));
+        await registries.SendAsync(force: true, sessionCancellation.Token);
+        _ = Task.Run(async () =>
+        {
+            using var timer = new PeriodicTimer(TimeSpan.FromMinutes(5));
+            while (await timer.WaitForNextTickAsync(sessionCancellation.Token)) await registries.SendAsync(force: false, sessionCancellation.Token);
+        }, sessionCancellation.Token).ContinueWith(_ => { }, TaskScheduler.Default);
         var heartbeat = SendHeartbeatsAsync(
             outbound.Writer,
             () => inventory.Revision,
@@ -192,7 +200,11 @@ public sealed class AgentControlWorker(
                             cancellationToken).AsTask(),
                         sessionCancellation.Token);
                     await inventory.SendAsync(sessionCancellation.Token);
-                    if (message.Command.Kind == CommandKind.PullImage) await images.SendAsync(force: false, sessionCancellation.Token);
+                    if (message.Command.Kind == CommandKind.PullImage)
+                    {
+                        await images.SendAsync(force: false, sessionCancellation.Token);
+                        await registries.SendAsync(force: false, sessionCancellation.Token);
+                    }
                     await volumes.SendAsync(force: false, sessionCancellation.Token);
                     await networks.SendAsync(force: false, sessionCancellation.Token);
                 }
@@ -201,6 +213,7 @@ public sealed class AgentControlWorker(
                     if (message.SnapshotRequest.Scope == SnapshotScope.Images) await images.SendAsync(force: true, sessionCancellation.Token);
                     else if (message.SnapshotRequest.Scope == SnapshotScope.Volumes) await volumes.SendAsync(force: true, sessionCancellation.Token);
                     else if (message.SnapshotRequest.Scope == SnapshotScope.Networks) await networks.SendAsync(force: true, sessionCancellation.Token);
+                    else if (message.SnapshotRequest.Scope == SnapshotScope.Registries) await registries.SendAsync(force: true, sessionCancellation.Token);
                     else await inventory.SendAsync(sessionCancellation.Token);
                 }
                 else if (message.PayloadCase == ControlPlaneMessage.PayloadOneofCase.ContainerQuery)
@@ -640,6 +653,45 @@ public sealed class AgentControlWorker(
 
     private Task<IReadOnlyList<EngineNetwork>> ListNetworksAsync(CancellationToken cancellationToken) => engine.ListNetworksAsync(cancellationToken);
 
+    private Task<EngineRegistryConfig> GetRegistryConfigAsync(CancellationToken cancellationToken) => engine.GetRegistryConfigAsync(cancellationToken);
+
+    private void LogRegistryInventoryUnavailable(Exception exception) => logger.LogWarning(exception, "Engine registry configuration unavailable");
+
+    /// <summary>Configuração de registros do host (spec 020): enviada quando muda; credenciais só como indicação.</summary>
+    private sealed class RegistryPublisher(AgentControlWorker worker, ChannelWriter<AgentMessage> messages, bool enabled)
+    {
+        private readonly SemaphoreSlim gate = new(1, 1);
+        private readonly Dokpod.Agent.Application.Registries.RegistryInventoryBuilder builder = new(TimeProvider.System);
+
+        public async Task SendAsync(bool force, CancellationToken cancellationToken)
+        {
+            if (!enabled) return;
+            await gate.WaitAsync(cancellationToken);
+            try
+            {
+                EngineRegistryConfig config;
+                try
+                {
+                    config = await worker.GetRegistryConfigAsync(cancellationToken);
+                }
+                catch (Exception exception) when (exception is HttpRequestException or IOException or InvalidDataException or System.Text.Json.JsonException)
+                {
+                    worker.LogRegistryInventoryUnavailable(exception);
+                    return;
+                }
+
+                if (builder.Build(config, force) is { } inventory)
+                {
+                    await messages.WriteAsync(new AgentMessage { RegistryInventory = inventory }, cancellationToken);
+                }
+            }
+            finally
+            {
+                gate.Release();
+            }
+        }
+    }
+
     private void LogNetworkInventoryUnavailable(Exception exception) => logger.LogWarning(exception, "Engine network inventory unavailable");
 
     /// <summary>Snapshot do inventário de redes quando o conjunto ou as conexões mudam (spec 019); revisão vai no heartbeat.</summary>
@@ -749,6 +801,7 @@ public sealed class AgentControlWorker(
                 Capability.VolumeRemove,
                 Capability.NetworkInventory,
                 Capability.NetworkRemove,
+                Capability.RegistryInventory,
             },
             SupportedProtocolVersions = { "1" },
         };

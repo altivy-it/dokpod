@@ -26,4 +26,4 @@
 
 ## D-005 - Alocação no contrato do agente
 
-`AgentMessage.payload` 25; `Capability` 20.
+`AgentMessage.payload` 25; `Capability` 20; `SnapshotScope` 5 (reenvio a pedido do servidor).
