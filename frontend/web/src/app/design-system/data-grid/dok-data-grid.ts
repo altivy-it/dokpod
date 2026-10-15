@@ -187,7 +187,13 @@ export class DokDataGrid<T extends object = Record<string, unknown>> {
       out = [...out].sort((a, b) => {
         const x = column ? this.raw(a, column) : null;
         const y = column ? this.raw(b, column) : null;
-        if (column?.type === 'number') return ((Number(x) || 0) - (Number(y) || 0)) * factor;
+        if (column?.type === 'number') {
+          // Valores ausentes ficam no fim nas duas direções (mesma regra da ordenação no servidor, spec 015).
+          const missingX = x === null || x === undefined || x === '' || Number.isNaN(Number(x));
+          const missingY = y === null || y === undefined || y === '' || Number.isNaN(Number(y));
+          if (missingX || missingY) return missingX === missingY ? 0 : missingX ? 1 : -1;
+          return (Number(x) - Number(y)) * factor;
+        }
         return String(x ?? '').localeCompare(String(y ?? ''), 'pt-BR', { numeric: true }) * factor;
       });
     }

@@ -2,6 +2,11 @@ namespace Dokpod.ControlPlane.Application.Authorization;
 
 public sealed record AuthenticatedActor(string Subject)
 {
+    /// <summary>Nome de usuário do token (`preferred_username`), para exibir autor (spec 016); a auditoria usa o `sub`.</summary>
+    public string? DisplayName { get; init; }
+
+    public string Label => string.IsNullOrWhiteSpace(DisplayName) ? Subject : DisplayName;
+
     public static AuthenticatedActor FromSubject(string subject)
     {
         if (string.IsNullOrWhiteSpace(subject))

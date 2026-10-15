@@ -88,6 +88,30 @@ public sealed class ResourceSamplerTests
     }
 
     [Fact]
+    public async Task StatsCompletingConcurrentlyDoNotCorruptTheSamplerState()
+    {
+        // Regressão (2026-10-14): com vários containers, as respostas de stats completam em paralelo e a gravação
+        // concorrente do estado anterior derrubava a amostragem no primeiro ciclo, sem nenhuma métrica enviada.
+        var clock = new Clock(Start);
+        var engine = new StatsEngine { Asynchronous = true };
+        var targets = Enumerable.Range(0, 64).Select(i => new SampleTarget($"c{i}", null)).ToArray();
+        var sampler = new ResourceSampler(engine, new Probe(), clock, maxConcurrency: 16);
+
+        for (var round = 0; round < 20; round++)
+        {
+            clock.Advance(TimeSpan.FromSeconds(15));
+            foreach (var target in targets)
+            {
+                engine.Stats[target.ContainerId] = new EngineContainerStats((ulong)(1_000 + (round * 3_000)), (ulong)(100_000 + (round * 12_000)), 4, 50 << 20, 512 << 20, 0, 0, 0, 0);
+            }
+
+            var batch = (await sampler.SampleAsync(targets, TestContext.Current.CancellationToken)).Single();
+            Assert.Equal(targets.Length, batch.Containers.Count);
+            if (round > 0) Assert.All(batch.Containers, sample => Assert.True(sample.HasCpuPercentOfHost));
+        }
+    }
+
+    [Fact]
     public void Payload_HasNoTextFieldBesidesTheContainerId()
     {
         // SC-006: nenhum campo pode transportar processo, argumento, variável ou label.
@@ -117,8 +141,14 @@ public sealed class ResourceSamplerTests
     {
         public Dictionary<string, EngineContainerStats> Stats { get; } = new(StringComparer.Ordinal);
 
-        public Task<EngineContainerStats?> GetContainerStatsAsync(string containerId, CancellationToken cancellationToken) =>
-            Task.FromResult(Stats.TryGetValue(containerId, out var stats) ? stats : null);
+        /// <summary>Quando ligado, cada resposta completa no pool de threads, como as chamadas reais ao engine.</summary>
+        public bool Asynchronous { get; init; }
+
+        public async Task<EngineContainerStats?> GetContainerStatsAsync(string containerId, CancellationToken cancellationToken)
+        {
+            if (Asynchronous) await Task.Delay(1, cancellationToken);
+            return Stats.TryGetValue(containerId, out var stats) ? stats : null;
+        }
 
         public Task<EngineDescriptor> InspectAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<IReadOnlyList<EngineContainer>> ListContainersAsync(CancellationToken cancellationToken) => throw new NotSupportedException();

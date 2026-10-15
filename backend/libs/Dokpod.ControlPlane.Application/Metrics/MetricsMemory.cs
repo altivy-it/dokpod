@@ -18,6 +18,14 @@ public sealed class LatestMetricsCache(TimeProvider timeProvider, MetricsOptions
     public ContainerMetricsSample? GetContainer(Guid environmentId, string containerId) =>
         containers.TryGetValue((environmentId, containerId), out var sample) && Fresh(sample.SampledAtUtc) ? sample : null;
 
+    /// <summary>Containers do host com amostra recente e seus ids (spec 016: regras de limite por container).</summary>
+    public IReadOnlyList<(string ContainerId, ContainerMetricsSample Sample)> GetContainersWithIds(Guid environmentId) =>
+        containers.Where(entry => entry.Key.Item1 == environmentId && Fresh(entry.Value.SampledAtUtc)).Select(entry => (entry.Key.Item2, entry.Value)).ToArray();
+
+    /// <summary>Containers do host com amostra recente (spec 015: agregado do estágio pelos containers).</summary>
+    public IReadOnlyList<ContainerMetricsSample> GetContainers(Guid environmentId) =>
+        containers.Where(entry => entry.Key.Item1 == environmentId && Fresh(entry.Value.SampledAtUtc)).Select(entry => entry.Value).ToArray();
+
     /// <summary>Remove containers que saíram do inventário do host (chamado na ingestão).</summary>
     public void RetainContainers(Guid environmentId, IReadOnlySet<string> sampledIds)
     {

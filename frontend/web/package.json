@@ -7,7 +7,7 @@
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
     "generate:api": "openapi-ts",
-    "check:api-contract": "openapi-ts --dry-run",
+    "check:api-contract": "openapi-ts && git -c safe.directory=* diff --exit-code -- src/app/data-access/generated",
     "test": "ng test"
   },
   "private": true,
@@ -17,12 +17,12 @@
     "npm": "12.0.2"
   },
   "dependencies": {
-    "@angular/common": "^22.1.0",
-    "@angular/compiler": "^22.1.0",
-    "@angular/core": "^22.1.0",
-    "@angular/forms": "^22.1.0",
-    "@angular/platform-browser": "^22.1.0",
-    "@angular/router": "^22.1.0",
+    "@angular/common": "^22.2.0",
+    "@angular/compiler": "^22.2.0",
+    "@angular/core": "^22.2.0",
+    "@angular/forms": "^22.2.0",
+    "@angular/platform-browser": "^22.2.0",
+    "@angular/router": "^22.2.0",
     "@microsoft/signalr": "^8.0.7",
     "@xterm/addon-fit": "0.11.0",
     "@xterm/xterm": "6.0.0",
@@ -30,10 +30,10 @@
     "tslib": "^2.3.0"
   },
   "devDependencies": {
-    "@angular/build": "^22.1.7",
-    "@angular/cli": "^22.1.7",
-    "@angular/compiler-cli": "^22.1.0",
-    "@hey-api/openapi-ts": "0.97.0",
+    "@angular/build": "^22.2.2",
+    "@angular/cli": "^22.2.2",
+    "@angular/compiler-cli": "^22.2.0",
+    "@hey-api/openapi-ts": "0.97.3",
     "axe-core": "4.14.0",
     "jsdom": "^28.0.0",
     "prettier": "^3.8.1",

@@ -4,7 +4,7 @@
 
 **Criada em**: 2026-10-12
 
-**Estado**: `implemented` - aprovada em 2026-10-13 (ADR 2026-0005 `accepted`; ver [specs/README.md](../README.md)) e implementada; pendência única: T029 `NOT RUN` (E2E com stack real).
+**Estado**: `implemented` - aprovada em 2026-10-13 (ADR 2026-0005 `accepted`; ver [specs/README.md](../README.md)) e implementada; T029 executada na stack real em 2026-10-14 (Linux, Podman).
 
 **Entrada**: Mockups do canvas "Gestão de Containers" em [docs/design/app](../../docs/design/app/project/canvas.json) (`Main`, `Containers`, `Detalhe`, `NovoContainer`, `Campo`, `Selecao`, `Marcador`) e design system Altivy em [ds/altivy](../../docs/design/app/project/ds/altivy/README.md). Decisão do solicitante em 2026-10-12: implementar componentes Angular próprios, fiéis ao mockup, substituindo a regra atual de uso exclusivo de PO UI.
 

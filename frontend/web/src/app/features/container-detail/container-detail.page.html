@@ -24,6 +24,9 @@
             </div>
             <p class="ct-mono cd-image">{{ d.imageReference }} · ID {{ shortId() }}</p>
             <p class="app-small alt-num cd-facts">{{ facts() }}</p>
+            @if (intentionalNote(); as note) {
+              <p class="app-small cd-intentional" role="note"><dok-icon name="info" [size]="14" /> {{ note }}</p>
+            }
           } @else {
             <div class="alt-skel" style="height: 24px; width: 260px"></div>
             <div class="alt-skel" style="height: 14px; width: 380px; margin-top: 10px"></div>
@@ -56,7 +59,7 @@
           <button dok-button variant="outline" size="sm" startIcon="pause" type="button" (click)="run('pause')">Pausar</button>
         }
         @if (allowed().has('stop')) {
-          <button dok-button variant="outline" size="sm" startIcon="pause" type="button" (click)="run('stop')">Parar</button>
+          <button dok-button variant="outline" size="sm" startIcon="stop" type="button" (click)="run('stop')">Parar</button>
         }
         <button
           dok-button
@@ -192,6 +195,6 @@
     [production]="detail()?.stage === 'production'"
     [busy]="submitting()"
     (cancelled)="pending.set(null)"
-    (confirmed)="confirm()"
+    (confirmed)="confirm($event)"
   />
 }

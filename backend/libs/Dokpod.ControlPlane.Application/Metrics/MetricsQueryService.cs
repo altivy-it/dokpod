@@ -26,10 +26,11 @@ public sealed class MetricsQueryService(
     public async Task<StageMetrics> GetStageAsync(IReadOnlyList<HostView> hosts, MetricsWindow window, CancellationToken cancellationToken)
     {
         var enabled = hosts.Where(h => h.Registration.Enabled).ToArray();
-        var currentSamples = enabled.Select(h => (Host: h, Sample: latest.GetHost(h.Registration.EnvironmentId))).ToArray();
-        var (cpu, memory, sampled) = MetricsPolicy.Aggregate(currentSamples.Select(x =>
-            (x.Sample?.CpuPercent, x.Host.Descriptor?.CpuCount, x.Sample?.MemoryUsedBytes, x.Sample?.MemoryTotalBytes)));
-        var sampledAt = currentSamples.Where(x => x.Sample is not null).Select(x => (DateTimeOffset?)x.Sample!.SampledAtUtc).Max();
+        // Spec 015 D-005: o valor atual soma o consumo dos containers com amostra recente sobre a capacidade do
+        // host (amostra do host ou, na falta, o descritor); a série continua sendo a do host.
+        var currentSamples = enabled.Select(h => (Host: h, Containers: latest.GetContainers(h.Registration.EnvironmentId))).ToArray();
+        var (cpu, memory, sampled) = MetricsPolicy.Aggregate(currentSamples.Select(x => ContainersOnHost(x.Host, x.Containers)));
+        var sampledAt = currentSamples.SelectMany(x => x.Containers).Select(c => (DateTimeOffset?)c.SampledAtUtc).Max();
 
         // Exatamente `janela ÷ passo` baldes, terminando no balde que contém o minuto atual.
         var end = ContainerMetricsBuffer.Align(ContainerMetricsBuffer.Truncate(timeProvider.GetUtcNow()), window.Step);
@@ -65,6 +66,21 @@ public sealed class MetricsQueryService(
             new StageMetricsCurrent(cpu, memory, sampled, enabled.Length, sampledAt),
             new MetricsSeries(x, cpuSeries, memorySeries),
             options.OperationalLimitPercent);
+    }
+
+    private (double? CpuPercent, int? Cpus, long? MemoryUsedBytes, long? MemoryTotalBytes) ContainersOnHost(
+        HostView host,
+        IReadOnlyList<ContainerMetricsSample> containers)
+    {
+        if (containers.Count == 0) return (null, host.Descriptor?.CpuCount, null, null);
+        var cpus = containers.Where(c => c.CpuPercentOfHost is not null).Select(c => c.CpuPercentOfHost!.Value).ToArray();
+        var memory = containers.Where(c => c.MemoryUsedBytes is not null).Select(c => c.MemoryUsedBytes!.Value).ToArray();
+        var total = latest.GetHost(host.Registration.EnvironmentId)?.MemoryTotalBytes ?? host.Descriptor?.MemoryBytes;
+        return (
+            cpus.Length == 0 ? null : Math.Min(100, cpus.Sum()),
+            host.Descriptor?.CpuCount,
+            memory.Length == 0 ? null : memory.Sum(),
+            total);
     }
 
     public IReadOnlyList<HostMetricsView> GetHosts(IReadOnlyList<HostView> hosts) =>

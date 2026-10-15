@@ -71,12 +71,22 @@ public static class ConsoleEndpoints
             hosts,
             new ContainerListFilter(stage, environmentIds, engines, statuses, text.Length == 0 ? null : text, sort, after, limit),
             cancellationToken);
+        var justificationStore = context.RequestServices.GetService<Dokpod.ControlPlane.Application.Alerts.IActionJustificationStore>();
+        var intentional = justificationStore is null
+            ? new Dictionary<(Guid EnvironmentId, string ContainerId), Dokpod.ControlPlane.Application.Alerts.ContainerActionJustification>()
+            : await justificationStore.GetCurrentAsync(
+                result.Items.Where(i => i.Container.DisplayStatus is ContainerDisplayStatus.Stopped or ContainerDisplayStatus.Paused)
+                    .Select(i => (i.Host.Registration.EnvironmentId, i.Container.ContainerId)).ToArray(),
+                cancellationToken);
         return Results.Ok(new
         {
-            containers = result.Items.Select(item => HostResponses.WithResources(
-                HostResponses.ToContainerListItem(item),
+            containers = result.Items.Select(item => HostResponses.WithIntentional(
+                HostResponses.WithResources(
+                    HostResponses.ToContainerListItem(item),
+                    item.Container.DisplayStatus,
+                    metrics.GetContainerResources(item.Host.Registration.EnvironmentId, item.Container.ContainerId)),
                 item.Container.DisplayStatus,
-                metrics.GetContainerResources(item.Host.Registration.EnvironmentId, item.Container.ContainerId))),
+                intentional.GetValueOrDefault((item.Host.Registration.EnvironmentId, item.Container.ContainerId)))),
             summary = new { total = result.Summary.Values.Sum(), byDisplayStatus = result.Summary },
             observedAt = result.ObservedAtUtc,
             nextCursor = EncodeContainerCursor(result.Next),
@@ -93,6 +103,10 @@ public static class ConsoleEndpoints
             "environment" => ContainerSort.Environment,
             "createdAt" => ContainerSort.CreatedAtAsc,
             "-createdAt" => ContainerSort.CreatedAtDesc,
+            "cpu" => ContainerSort.CpuAsc,
+            "-cpu" => ContainerSort.CpuDesc,
+            "memory" => ContainerSort.MemoryAsc,
+            "-memory" => ContainerSort.MemoryDesc,
             _ => (ContainerSort)(-1),
         };
         return Enum.IsDefined(sort);
@@ -338,7 +352,7 @@ public static class ConsoleEndpoints
             return false;
         }
 
-        actor = AuthenticatedActor.FromSubject(subject);
+        actor = AuthenticatedActor.FromSubject(subject) with { DisplayName = context.User.FindFirstValue("preferred_username") };
         error = null;
         return true;
     }

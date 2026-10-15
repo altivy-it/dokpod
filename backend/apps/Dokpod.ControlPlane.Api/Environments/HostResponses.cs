@@ -62,6 +62,23 @@ internal static class HostResponses
 
     public static object ToContainer(ContainerInventory container) => ToContainerFields(container);
 
+    /// <summary>Parada ou pausa justificada vigente (spec 016 FR-018); só em container parado ou pausado.</summary>
+    public static IDictionary<string, object?> WithIntentional(
+        IDictionary<string, object?> item,
+        ContainerDisplayStatus status,
+        Dokpod.ControlPlane.Application.Alerts.ContainerActionJustification? justification)
+    {
+        if (justification is null || status is not (ContainerDisplayStatus.Stopped or ContainerDisplayStatus.Paused)) return item;
+        item["intentional"] = new
+        {
+            action = Dokpod.Domain.Alerts.ActionJustifications.Value(justification.Action),
+            actor = justification.Actor,
+            at = justification.CreatedAtUtc,
+            reason = justification.Reason,
+        };
+        return item;
+    }
+
     /// <summary>Recursos atuais (spec 009 T012); container parado ou sem amostra recente não recebe o campo.</summary>
     public static IDictionary<string, object?> WithResources(
         IDictionary<string, object?> item,

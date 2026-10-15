@@ -20,6 +20,10 @@ public interface IOperationalEventStore
     /// <summary>Grava eventos; duplicatas por `source_key` são ignoradas. Retorna quantos foram gravados.</summary>
     Task<int> AppendAsync(IReadOnlyCollection<OperationalEvent> events, CancellationToken cancellationToken);
 
+    /// <summary>Grava e devolve só os eventos novos (spec 016: reenvio deduplicado não reabre alerta).</summary>
+    async Task<IReadOnlyList<OperationalEvent>> AppendNewAsync(IReadOnlyCollection<OperationalEvent> events, CancellationToken cancellationToken) =>
+        await AppendAsync(events, cancellationToken).ConfigureAwait(false) == events.Count ? events.ToArray() : [];
+
     Task<OperationalEventPage> ListAsync(OperationalEventQuery query, CancellationToken cancellationToken);
 
     Task<int> CountAttentionAsync(IReadOnlyCollection<Guid> environmentIds, DateTimeOffset sinceUtc, CancellationToken cancellationToken);
@@ -31,10 +35,17 @@ public interface IOperationalEventStore
         Task.FromResult(0);
 }
 
+/// <summary>Recebe os eventos efetivamente gravados (spec 016: avaliação de alertas).</summary>
+public interface IOperationalEventObserver
+{
+    Task OnEventsAsync(Guid environmentId, IReadOnlyCollection<OperationalEvent> events, CancellationToken cancellationToken);
+}
+
 public sealed class OperationalEventService(
     IOperationalEventStore store,
     IControlPlaneNotifier notifier,
-    TimeProvider timeProvider)
+    TimeProvider timeProvider,
+    IOperationalEventObserver? observer = null)
 {
     public async Task RecordAsync(
         Guid environmentId,
@@ -58,12 +69,14 @@ public sealed class OperationalEventService(
         CancellationToken cancellationToken)
     {
         if (events.Count == 0) return 0;
-        var written = await store.AppendAsync(events, cancellationToken).ConfigureAwait(false);
-        if (written > 0)
+        var written = await store.AppendNewAsync(events, cancellationToken).ConfigureAwait(false);
+        if (written.Count > 0)
         {
             await notifier.NotifyAsync(environmentId, InvalidationKinds.Events, cancellationToken).ConfigureAwait(false);
+            // Avaliação de alertas depois da gravação e da notificação: uma falha aqui não perde o evento (D-002).
+            if (observer is not null) await observer.OnEventsAsync(environmentId, written, cancellationToken).ConfigureAwait(false);
         }
 
-        return written;
+        return written.Count;
     }
 }

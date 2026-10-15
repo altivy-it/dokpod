@@ -27,11 +27,33 @@
     </dok-empty-state>
   } @else {
     <div class="ov-kpis">
-      <dok-info-kpi [value]="kpis().running" description="Em execução" icon="play" color="success" [loading]="facade.loading()" />
-      <dok-info-kpi [value]="kpis().stopped" description="Parados" icon="pause" color="secondary" [loading]="facade.loading()" />
-      <dok-info-kpi [value]="kpis().failing" description="Com falha ou reiniciando" icon="alert" color="error" [loading]="facade.loading()" />
-      <dok-info-kpi [value]="metrics.stage()?.current?.cpuPercent ?? null" [decimals]="1" unit="%" description="CPU média do cluster" icon="gauge" color="primary" unavailableLabel="indisponível" />
-      <dok-info-kpi [value]="metrics.stage()?.current?.memoryPercent ?? null" [decimals]="1" unit="%" description="Memória alocada" icon="activity" color="info" unavailableLabel="indisponível" />
+      <!-- Spec 015: cards navegáveis para a tela Containers; durante o carregamento não são links (FR-009). -->
+      @if (facade.loading()) {
+        <dok-info-kpi [value]="null" description="Em execução" icon="play" color="success" [loading]="true" />
+        <dok-info-kpi [value]="null" description="Parados" icon="pause" color="secondary" [loading]="true" />
+        <dok-info-kpi [value]="null" description="Com falha ou reiniciando" icon="alert" color="error" [loading]="true" />
+      } @else {
+        <a class="ov-kpi-link" routerLink="/containers" [queryParams]="kpiLinks.running.params" queryParamsHandling="merge">
+          <dok-info-kpi [value]="kpis().running" description="Em execução" icon="play" color="success" />
+          <span class="sr-only">, {{ kpiLinks.running.destination }}</span>
+        </a>
+        <a class="ov-kpi-link" routerLink="/containers" [queryParams]="kpiLinks.stopped.params" queryParamsHandling="merge">
+          <dok-info-kpi [value]="kpis().stopped" description="Parados" icon="pause" color="secondary" />
+          <span class="sr-only">, parados ou pausados. {{ kpiLinks.stopped.destination }}</span>
+        </a>
+        <a class="ov-kpi-link" routerLink="/containers" [queryParams]="kpiLinks.failing.params" queryParamsHandling="merge">
+          <dok-info-kpi [value]="kpis().failing" description="Com falha ou reiniciando" icon="alert" color="error" />
+          <span class="sr-only">, {{ kpiLinks.failing.destination }}</span>
+        </a>
+      }
+      <a class="ov-kpi-link" routerLink="/containers" [queryParams]="kpiLinks.cpu.params" queryParamsHandling="merge">
+        <dok-info-kpi [value]="metrics.stage()?.current?.cpuPercent ?? null" [decimals]="1" unit="%" [description]="'CPU média do cluster' + resourcePartial()" icon="gauge" color="primary" unavailableLabel="indisponível" />
+        <span class="sr-only">, {{ kpiLinks.cpu.destination }}</span>
+      </a>
+      <a class="ov-kpi-link" routerLink="/containers" [queryParams]="kpiLinks.memory.params" queryParamsHandling="merge">
+        <dok-info-kpi [value]="metrics.stage()?.current?.memoryPercent ?? null" [decimals]="1" unit="%" [description]="'Memória alocada' + resourcePartial()" icon="activity" color="info" unavailableLabel="indisponível" />
+        <span class="sr-only">, {{ kpiLinks.memory.destination }}</span>
+      </a>
       <a class="ov-kpi-link" routerLink="/imagens" [queryParams]="{ semUso: 1 }" queryParamsHandling="merge" [attr.aria-label]="imagesKpiLabel()">
         <dok-info-kpi
           [value]="facade.summary()?.images?.unused ?? null"
@@ -48,7 +70,7 @@
       <div class="dok-row__main">
         <dok-line-chart
           title="Uso de recursos do cluster"
-          subtitle="% da capacidade · últimas 12 horas"
+          subtitle="% da capacidade dos hosts · últimas 12 horas"
           [height]="190"
           [x]="resourceChart().x"
           [series]="resourceChart().series"

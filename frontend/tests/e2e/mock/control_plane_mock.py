@@ -10,6 +10,9 @@ Cenários (POST /__mock/scenario {"name": ...}):
 - `readonly`: somente `environment:read`;
 - `expire-next`: a próxima chamada `/api/*` responde 401;
 - `empty`: nenhum host nem container.
+
+Spec 016: alertas, regras, silenciamentos e política de justificativa vivem em `ALERTS` e são recriados
+a cada troca de cenário; comandos de parar, pausar e remover respeitam a política do estágio.
 """
 
 from __future__ import annotations
@@ -26,7 +29,7 @@ NOW = datetime.now(timezone.utc).replace(microsecond=0)
 ALL_SCOPES = [
     "environment:read", "environment:manage", "container:start", "container:stop", "container:restart",
     "container:delete", "container:pause", "container:inspect", "container:logs", "image:pull",
-    "container:create", "container:exec", "audit:read",
+    "container:create", "container:exec", "audit:read", "alert:read", "alert:manage",
 ]
 STATE: dict = {"scenario": "default", "commands": {}, "stages": {}, "registered": {}, "revoked": set()}
 
@@ -77,7 +80,74 @@ ACTIONS_FOR = {
 
 
 def scopes() -> list[str]:
-    return ["environment:read"] if STATE["scenario"] == "readonly" else ALL_SCOPES
+    if STATE["scenario"] == "readonly":
+        return ["environment:read", "alert:read"]
+    return ALL_SCOPES
+
+
+RULE_IDS = {k: f"01600000-0000-4000-8000-00000000000{k}" for k in range(1, 10)}
+
+
+def seed_alerts() -> dict:
+    """Regras padrão da migration 202610140001 e alertas derivados dos eventos e containers do mock."""
+    def rule(k, name, kind, severity, event=None, metric=None, threshold=None, duration=0, occurrences=1):
+        return {"id": RULE_IDS[k], "name": name, "description": None, "conditionKind": kind, "eventType": event, "metric": metric,
+                "thresholdPercent": threshold, "durationSeconds": duration, "minOccurrences": occurrences, "severity": severity,
+                "scope": {"stage": None, "environmentId": None, "containerPattern": None}, "enabled": True, "builtIn": True, "version": 1}
+    rules = [
+        rule(1, "Container encerrado com erro", "event", "high", "container.died"),
+        rule(2, "Container sem memória (OOM)", "event", "critical", "container.oom_killed"),
+        rule(3, "Container sem saúde", "event", "medium", "container.unhealthy"),
+        rule(4, "Reinícios em sequência", "event", "high", "container.auto_restarted", duration=600, occurrences=3),
+        rule(5, "Agente desconectado", "event", "high", "agent.disconnected", duration=120),
+        rule(6, "CPU do host acima do limite", "metric", "medium", metric="host_cpu", threshold=80, duration=300),
+        rule(7, "Memória do host acima do limite", "metric", "medium", metric="host_memory", threshold=80, duration=300),
+        rule(8, "Comando falhou", "event", "medium", "command.failed"),
+        rule(9, "Comando indeterminado", "event", "low", "command.indeterminate"),
+    ]
+
+    def alert(i, k, n, container, condition, state, minutes, occurrences=1, resolved=None, resolution=None, assignee=None):
+        cid = (container.encode().hex() * 4)[:64] if container else None
+        r = next(x for x in rules if x["id"] == RULE_IDS[k])
+        return {"id": f"0a1e0000-0000-4000-8000-{i:012d}", "ruleId": r["id"], "ruleName": r["name"], "environmentId": env_id(n),
+                "containerId": cid, "containerName": container, "severity": r["severity"], "state": state, "condition": condition,
+                "openedAt": iso(minutes + 30), "lastOccurredAt": iso(minutes), "occurrences": occurrences, "assignee": assignee,
+                "silenceId": None, "resolvedAt": iso(resolved) if resolved is not None else None, "resolution": resolution,
+                "timeline": [{"at": iso(minutes + 30), "kind": "opened", "actor": None, "comment": None}]}
+    alerts = [
+        alert(1, 1, 5, "migracao-catalogo", "Container migracao-catalogo encerrado com erro (código 1)", "open", 4),
+        alert(2, 4, 1, "gateway-01", "Container gateway-01 reiniciou 3 ou mais vezes em 10 minutos", "open", 9, occurrences=5),
+        alert(3, 5, 7, None, "Agente desconectado", "acknowledged", 95, assignee="u-carlos"),
+        alert(4, 6, 2, None, "CPU de srv-prod-02 em 91% (limite 80%)", "open", 2),
+        alert(5, 3, 6, "api-pedidos-hml", "Container api-pedidos-hml sem saúde", "open", 12),
+        alert(6, 1, 1, "checkout-web", "Container checkout-web encerrado com erro (código 2)", "resolved", 300, resolved=280, resolution="condition_cleared"),
+        alert(7, 8, 3, "api-pedidos-7f9c", "Comando restart falhou em api-pedidos-7f9c", "resolved", 900, resolved=860, resolution="manual"),
+    ]
+    alerts[2]["timeline"].append({"at": iso(80), "kind": "acknowledged", "actor": "u-carlos", "comment": "Investigando a rede do host de dev"})
+    for a in alerts:
+        if a["state"] == "resolved":
+            a["timeline"].append({"at": a["resolvedAt"], "kind": "resolved", "actor": "u-mariana" if a["resolution"] == "manual" else None, "comment": None})
+    silences = [{"id": "05110000-0000-4000-8000-000000000001", "scope": {"stage": "staging", "environmentId": None, "containerPattern": "batch-*"},
+                 "alertId": None, "startsAt": iso(60), "endsAt": iso(-120), "endedAt": None,
+                 "justification": "Janela de carga noturna dos jobs batch", "createdBy": "u-carlos"}]
+    intentional = {(env_id(5), ("relatorios-bi".encode().hex() * 4)[:64]): {
+        "action": "stop", "actor": "u-carlos", "at": iso(240), "reason": "Relatórios suspensos até o fechamento do mês"}}
+    return {"rules": rules, "alerts": alerts, "silences": silences, "policies": {"production": True, "staging": False, "development": False},
+            "intentional": intentional, "justifications": []}
+
+
+ALERTS: dict = seed_alerts()
+
+
+def alert_view(a: dict) -> dict:
+    return {**{k: v for k, v in a.items() if k != "timeline"}, "canManage": "alert:manage" in scopes()}
+
+
+def alert_summary(stage: str | None) -> dict:
+    rows = [a for a in ALERTS["alerts"] if a["state"] in ("open", "acknowledged") and (not stage or host_stage(a["environmentId"]) == stage)]
+    rows.sort(key=lambda a: a["lastOccurredAt"], reverse=True)
+    by = {s: sum(1 for a in rows if a["severity"] == s) for s in ("critical", "high", "medium", "low")}
+    return {"open": len(rows), "bySeverity": by, "recent": [alert_view(a) for a in rows[:10]]}
 
 
 def host_view(h) -> dict:
@@ -175,6 +245,7 @@ def container_item(c) -> dict:
         "engine": h[3],
         "engineVersion": h[4],
         "hostConnected": connected,
+        **({"intentional": ALERTS["intentional"][(env_id(n), cid)]} if (env_id(n), cid) in ALERTS["intentional"] and status in ("stopped", "paused") else {}),
         "allowedActions": ([a for a in ACTIONS_FOR[status] if f"container:{a if a != 'unpause' else 'pause'}" in scopes()]
                            + (["exec"] if status == "running" and "container:exec" in scopes() and h[5] != "update_required" else [])) if connected else [],
     }
@@ -395,6 +466,9 @@ class Handler(BaseHTTPRequestHandler):
     def do_PUT(self) -> None:
         self.route("PUT")
 
+    def do_DELETE(self) -> None:
+        self.route("DELETE")
+
     def route(self, method: str) -> None:
         url = urlparse(self.path)
         path = url.path
@@ -410,6 +484,8 @@ class Handler(BaseHTTPRequestHandler):
             STATE["submitted"] = []
             STATE["pulled"] = []
             STATE["created"] = []
+            ALERTS.clear()
+            ALERTS.update(seed_alerts())
             return self.send_json(200, {"scenario": STATE["scenario"]})
         if path == "/__mock/submitted":
             return self.send_json(200, STATE.get("submitted", []))
@@ -434,6 +510,9 @@ class Handler(BaseHTTPRequestHandler):
             STATE["scenario"] = "default"
             return self.send_json(401, problem(401, "Sessão expirada"), "application/problem+json")
 
+        handled = self.alert_routes(method, path, q, query)
+        if handled is not None:
+            return handled
         if path == "/api/v1/overview":
             return self.send_json(200, overview(q("stage")))
         if path == "/api/v1/metrics/overview":
@@ -476,7 +555,13 @@ class Handler(BaseHTTPRequestHandler):
             sort = q("sort") or "name"
             reverse = sort.startswith("-")
             key = sort.lstrip("-")
-            rows.sort(key=lambda c: (c["environmentName"] if key == "environment" else c.get(key) or ""), reverse=reverse)
+            if key in ("cpu", "memory"):
+                # Spec 015: consumo atual; sem amostra no fim nas duas direções, por nome.
+                field = "cpuPercent" if key == "cpu" else "memoryUsedBytes"
+                sampled = sorted((c for c in rows if c.get("resources")), key=lambda c: c["resources"][field], reverse=reverse)
+                rows = sampled + sorted((c for c in rows if not c.get("resources")), key=lambda c: c["name"])
+            else:
+                rows.sort(key=lambda c: (c["environmentName"] if key == "environment" else c.get(key) or ""), reverse=reverse)
             return self.send_json(200, {"containers": rows, "summary": {"total": len(rows), "byDisplayStatus": count_map(c["displayStatus"] for c in rows)}, "observedAt": iso(0.5), "nextCursor": None})
 
         if path == "/api/v1/images":
@@ -711,6 +796,12 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_json(200, {"lines": lines, "truncated": False, "omittedLines": 0})
         if sub == "/commands" and method == "POST":
             body = self.read_body()
+            justification = (body.get("justification") or "").strip()
+            if body.get("action") in ("stop", "pause", "delete"):
+                if not justification and ALERTS["policies"].get(host["stage"]):
+                    return self.send_json(422, problem(422, "Informe a justificativa para esta ação (política do estágio).", "justification_required"), "application/problem+json")
+                if justification and not 10 <= len(justification) <= 500:
+                    return self.send_json(400, problem(400, "Justificativa inválida", "justification_invalid"), "application/problem+json")
             command_id = str(uuid.uuid4())
             STATE["commands"][command_id] = {
                 "environmentId": environment_id, "commandId": command_id, "action": body.get("action"), "containerId": container["containerId"],
@@ -718,9 +809,138 @@ class Handler(BaseHTTPRequestHandler):
                 "observedContainerRevision": None, "deadlineUtc": body.get("deadlineUtc"), "createdAtUtc": iso(0), "updatedAtUtc": iso(0), "completedAtUtc": None,
             }
             STATE["commands"][command_id]["containerName"] = container["name"]
-            STATE.setdefault("submitted", []).append((body.get("action"), container["name"]))
+            STATE.setdefault("submitted", []).append((body.get("action"), container["name"]) + ((justification,) if justification else ()))
+            if justification:
+                ALERTS["justifications"].append({"action": body.get("action"), "container": container["name"], "reason": justification})
             return self.send_json(202, STATE["commands"][command_id])
         return self.send_json(404, problem(404, "Rota inexistente"))
+
+
+def _alert_routes(self, method: str, path: str, q, query) -> object | None:
+    """Rotas da spec 016 (contracts/alerts-api.md); devolve None quando a rota não é de alertas."""
+    if not path.startswith(("/api/v1/alert", "/api/v1/action-justification-policies")):
+        return None
+    if "alert:read" not in scopes():
+        return self.send_json(403, problem(403, "Acesso negado", "authorization_denied"), "application/problem+json")
+    manage = "alert:manage" in scopes()
+    denied = lambda: self.send_json(403, problem(403, "Acesso negado", "authorization_denied"), "application/problem+json")  # noqa: E731
+    invalid = lambda code: self.send_json(400, problem(400, "Dados inválidos", code), "application/problem+json")  # noqa: E731
+    if path == "/api/v1/alerts/summary":
+        return self.send_json(200, alert_summary(q("stage")))
+    if path == "/api/v1/alerts":
+        history = q("view") == "history"
+        rows = [a for a in ALERTS["alerts"] if (a["state"] == "resolved") == history]
+        stage, text = q("stage"), (q("q") or "").lower()
+        rows = [a for a in rows if (not stage or host_stage(a["environmentId"]) == stage)
+                and (not query.get("severity") or a["severity"] in query["severity"])
+                and (not query.get("state") or a["state"] in query["state"])
+                and (not query.get("environmentId") or a["environmentId"] in query["environmentId"])
+                and (not q("ruleId") or a["ruleId"] == q("ruleId"))
+                and (not text or text in (a["condition"] + a["ruleName"] + (a["containerName"] or "")).lower())]
+        rows.sort(key=lambda a: a["resolvedAt"] if history else a["lastOccurredAt"], reverse=True)
+        return self.send_json(200, {"alerts": [alert_view(a) for a in rows], "nextCursor": None})
+    m = re.fullmatch(r"/api/v1/alerts/([^/]+)(/[a-z]+)?", path)
+    if m:
+        a = next((x for x in ALERTS["alerts"] if x["id"] == m.group(1)), None)
+        if a is None:
+            return self.send_json(404, problem(404, "Alerta não encontrado", "not_found"), "application/problem+json")
+        action = m.group(2)
+        if not action:
+            r = next((x for x in ALERTS["rules"] if x["id"] == a["ruleId"]), None)
+            return self.send_json(200, {"alert": alert_view(a), "rule": r, "timeline": a["timeline"]})
+        if method != "POST":
+            return self.send_json(405, problem(405, "Método não permitido"))
+        if not manage:
+            return denied()
+        body = self.read_body()
+        text = (body.get("comment") or body.get("justification") or "").strip()
+        if not 10 <= len(text) <= 500:
+            return invalid("comment")
+        if a["state"] == "resolved":
+            return self.send_json(409, problem(409, "Alerta resolvido", "alert_resolved"), "application/problem+json")
+        if action == "/acknowledge":
+            a.update({"state": "acknowledged", "assignee": "u-mariana"})
+            a["timeline"].append({"at": iso(0), "kind": "acknowledged", "actor": "u-mariana", "comment": text})
+        elif action == "/resolve":
+            a.update({"state": "resolved", "resolvedAt": iso(0), "resolution": "manual"})
+            a["timeline"].append({"at": iso(0), "kind": "resolved", "actor": "u-mariana", "comment": text})
+        elif action == "/silence":
+            sid = str(uuid.uuid4())
+            ALERTS["silences"].append({"id": sid, "scope": {"stage": None, "environmentId": None, "containerPattern": None}, "alertId": a["id"],
+                                       "startsAt": iso(0), "endsAt": body.get("until"), "endedAt": None, "justification": text, "createdBy": "u-mariana"})
+            a.update({"state": "silenced", "silenceId": sid})
+            a["timeline"].append({"at": iso(0), "kind": "silenced", "actor": "u-mariana", "comment": text})
+        return self.send_json(200, {"id": a["id"]})
+    if path == "/api/v1/alert-rules" and method == "GET":
+        return self.send_json(200, {"rules": ALERTS["rules"], "canManage": manage})
+    m = re.fullmatch(r"/api/v1/alert-rules(?:/([^/]+))?", path)
+    if m:
+        if not manage:
+            return denied()
+        rid = m.group(1)
+        existing = next((x for x in ALERTS["rules"] if x["id"] == rid), None) if rid else None
+        if rid and existing is None:
+            return self.send_json(404, problem(404, "Regra não encontrada", "not_found"), "application/problem+json")
+        if method == "DELETE":
+            if existing["builtIn"]:
+                return self.send_json(409, problem(409, "Regra padrão", "built_in_rule"), "application/problem+json")
+            ALERTS["rules"].remove(existing)
+            for a in ALERTS["alerts"]:
+                if a["ruleId"] == rid and a["state"] != "resolved":
+                    a.update({"state": "resolved", "resolvedAt": iso(0), "resolution": "rule_removed"})
+            return self.send_json(200, {"id": rid})
+        body = self.read_body()
+        if not (body.get("name") or "").strip():
+            return invalid("name")
+        if existing and body.get("version") != existing["version"]:
+            return self.send_json(409, problem(409, "Versão desatualizada", "version_conflict"), "application/problem+json")
+        rule = {**(existing or {"id": str(uuid.uuid4()), "builtIn": False, "version": 0}),
+                **{k: body.get(k) for k in ("name", "description", "conditionKind", "eventType", "metric", "thresholdPercent", "durationSeconds", "severity", "enabled")},
+                "minOccurrences": body.get("minOccurrences") or 1,
+                "scope": body.get("scope") or {"stage": None, "environmentId": None, "containerPattern": None}}
+        rule["version"] += 1
+        if existing:
+            ALERTS["rules"][ALERTS["rules"].index(existing)] = rule
+        else:
+            ALERTS["rules"].append(rule)
+        STATE.setdefault("submitted", []).append(("rule", rule["name"], rule["enabled"]))
+        return self.send_json(200, {"id": rule["id"]})
+    if path == "/api/v1/alert-silences" and method == "GET":
+        active = q("active") != "false"
+        rows = [x for x in ALERTS["silences"] if not active or x["endedAt"] is None]
+        return self.send_json(200, {"silences": rows, "canManage": manage})
+    if path == "/api/v1/alert-silences" and method == "POST":
+        if not manage:
+            return denied()
+        body = self.read_body()
+        if not 10 <= len((body.get("justification") or "").strip()) <= 500:
+            return invalid("justification")
+        sid = str(uuid.uuid4())
+        ALERTS["silences"].append({"id": sid, "scope": body.get("scope") or {"stage": None, "environmentId": None, "containerPattern": None},
+                                   "alertId": None, "startsAt": body.get("startsAt") or iso(0), "endsAt": body["endsAt"], "endedAt": None,
+                                   "justification": body["justification"].strip(), "createdBy": "u-mariana"})
+        return self.send_json(200, {"id": sid})
+    m = re.fullmatch(r"/api/v1/alert-silences/([^/]+)/end", path)
+    if m and method == "POST":
+        if not manage:
+            return denied()
+        silence = next((x for x in ALERTS["silences"] if x["id"] == m.group(1)), None)
+        if silence is None:
+            return self.send_json(404, problem(404, "Silenciamento não encontrado", "not_found"), "application/problem+json")
+        silence["endedAt"] = iso(0)
+        return self.send_json(200, {"id": silence["id"]})
+    if path == "/api/v1/action-justification-policies":
+        return self.send_json(200, {"policies": [{"stage": k, "required": v, "actions": ["stop", "pause", "delete"]} for k, v in ALERTS["policies"].items()]})
+    m = re.fullmatch(r"/api/v1/action-justification-policies/([a-z]+)", path)
+    if m and method == "PUT":
+        if "environment:manage" not in scopes():
+            return denied()
+        ALERTS["policies"][m.group(1)] = bool(self.read_body().get("required"))
+        return self.send_json(204, None)
+    return self.send_json(404, problem(404, "Rota inexistente"))
+
+
+Handler.alert_routes = _alert_routes
 
 
 def main() -> None:

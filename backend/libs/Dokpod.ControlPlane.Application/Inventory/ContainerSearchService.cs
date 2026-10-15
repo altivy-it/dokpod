@@ -1,4 +1,5 @@
 using Dokpod.ControlPlane.Application.Hosts;
+using Dokpod.ControlPlane.Application.Metrics;
 using Dokpod.Domain.Environments;
 using Dokpod.Domain.Hosts;
 using Dokpod.Domain.Inventory;
@@ -13,6 +14,10 @@ public enum ContainerSort
     Environment,
     CreatedAtAsc,
     CreatedAtDesc,
+    CpuAsc,
+    CpuDesc,
+    MemoryAsc,
+    MemoryDesc,
 }
 
 public sealed record ContainerSearchCursor(string SortKey, Guid EnvironmentId, string ContainerId);
@@ -62,8 +67,13 @@ public sealed record ContainerListResult(
     ContainerSearchCursor? Next);
 
 /// <summary>Lista unificada de containers dos hosts autorizados (spec 010 FR-001/FR-002).</summary>
-public sealed class ContainerSearchService(IContainerSearchStore store)
+public sealed class ContainerSearchService(IContainerSearchStore store, LatestMetricsCache? metrics = null)
 {
+    /// <summary>Teto do conjunto lido para ordenar por consumo (spec 009: até 2.000 containers por estágio).</summary>
+    public const int MaxResourceSortRows = 5_000;
+
+    private const int ResourceSortPageSize = 500;
+
     public async Task<ContainerListResult> SearchAsync(
         IReadOnlyList<HostView> authorizedHosts,
         ContainerListFilter filter,
@@ -83,13 +93,45 @@ public sealed class ContainerSearchService(IContainerSearchStore store)
                 null);
         }
 
-        var result = await store.SearchAsync(
-            new ContainerSearchQuery(hosts.Keys.ToArray(), filter.DisplayStatuses, filter.Text, filter.Sort, filter.After, filter.Limit),
-            cancellationToken).ConfigureAwait(false);
+        var result = ContainerResourceSort.IsResourceSort(filter.Sort)
+            ? await SearchByResourceAsync(hosts.Keys.ToArray(), filter, cancellationToken).ConfigureAwait(false)
+            : await store.SearchAsync(
+                new ContainerSearchQuery(hosts.Keys.ToArray(), filter.DisplayStatuses, filter.Text, filter.Sort, filter.After, filter.Limit),
+                cancellationToken).ConfigureAwait(false);
         var items = result.Rows
             .Select(row => new ContainerListItem(hosts[row.EnvironmentId], row.Container, AllowedActions(hosts[row.EnvironmentId], row.Container)))
             .ToArray();
         return new ContainerListResult(items, result.SummaryByDisplayStatus, result.OldestObservedAtUtc, result.Next);
+    }
+
+    /// <summary>
+    /// Ordenação por consumo (spec 015): lê todo o conjunto filtrado em páginas por nome, anexa a amostra atual e
+    /// ordena na aplicação, porque as amostras de containers vivem só em memória.
+    /// </summary>
+    private async Task<ContainerSearchResult> SearchByResourceAsync(
+        IReadOnlyCollection<Guid> environmentIds,
+        ContainerListFilter filter,
+        CancellationToken cancellationToken)
+    {
+        var rows = new List<ContainerSearchRow>();
+        ContainerSearchCursor? page = null;
+        ContainerSearchResult? first = null;
+        do
+        {
+            var result = await store.SearchAsync(
+                new ContainerSearchQuery(environmentIds, filter.DisplayStatuses, filter.Text, ContainerSort.NameAsc, page, ResourceSortPageSize),
+                cancellationToken).ConfigureAwait(false);
+            first ??= result;
+            rows.AddRange(result.Rows);
+            page = result.Next;
+        }
+        while (page is not null && rows.Count < MaxResourceSortRows);
+
+        var entries = rows
+            .Select(row => (row, ContainerResourceSort.ValueOf(filter.Sort, row.Container.DisplayStatus, metrics?.GetContainer(row.EnvironmentId, row.Container.ContainerId))))
+            .ToArray();
+        var (pageRows, next) = ContainerResourceSort.Paginate(filter.Sort, entries, filter.After, filter.Limit);
+        return new ContainerSearchResult(pageRows, first.SummaryByDisplayStatus, first.OldestObservedAtUtc, next);
     }
 
     /// <summary>Interseção scope × capability do agente × situação do container × conexão.</summary>

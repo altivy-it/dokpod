@@ -66,10 +66,13 @@ services:
       Authentication__Keycloak__ClientId: dokpod-bff
       Authentication__Keycloak__ClientSecret: ${KEYCLOAK_BFF_CLIENT_SECRET:?Defina KEYCLOAK_BFF_CLIENT_SECRET no secret externo}
       Security__AllowedOrigins__0: https://localhost:7443
-      Security__TrustedNetworks__0: 10.200.7.0/24
+      # Sub-rede da identity-global (Docker Desktop: 10.200.7.0/24; no Podman, a sub-rede criada pela plataforma).
+      Security__TrustedNetworks__0: ${DOKPOD_E2E_TRUSTED_NETWORK:-10.200.7.0/24}
       Downstream__Api__BaseUrl: http://api:8080
+    # Docker Desktop alcança o gateway de identidade pelo host; no Podman rootless, a porta publicada só em
+    # 127.0.0.1 não é alcançável por host-gateway e o BFF usa o IP fixo do gateway na identity-global.
     extra_hosts:
-      - "localhost:host-gateway"
+      - "localhost:${DOKPOD_E2E_IDENTITY_GATEWAY_HOST:-host-gateway}"
     volumes:
       - dokpod-bff-keys:/var/lib/dokpod-bff
     depends_on:
@@ -132,9 +135,11 @@ services:
       - label=disable
     tmpfs:
       - /tmp:rw,noexec,nosuid,size=16m
-      - /var/lib/dokpod-agent:rw,noexec,nosuid,size=16m,uid=1654,gid=1654,mode=0700
+      # Podman não aceita uid/gid em tmpfs; o serviço roda como 0:0.
+      - /var/lib/dokpod-agent:rw,noexec,nosuid,size=16m,mode=0700
     volumes:
-      - ${DOKPOD_E2E_PODMAN_SOCKET:?Defina o socket Podman do host (ex.: /run/user/1000/podman/podman.sock)}:/run/podman/podman.sock
+      # Sem ":" na mensagem: o podman-compose não interpola ${VAR:?msg} quando ela contém ":".
+      - ${DOKPOD_E2E_PODMAN_SOCKET:?Defina o socket Podman do host em DOKPOD_E2E_PODMAN_SOCKET}:/run/podman/podman.sock
       - ${DOKPOD_E2E_CERTIFICATE_DIRECTORY:?Defina a pasta externa de certificados do Dokpod}/dokpod-agent-podman.pfx:/certs/pki/dokpod-agent.pfx:ro
       - ${DOKPOD_E2E_CERTIFICATE_DIRECTORY:?Defina a pasta externa de certificados do Dokpod}/dokpod-dev-ca.crt:/certs/pki/dokpod-dev-ca.crt:ro
     environment:

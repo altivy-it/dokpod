@@ -1,5 +1,6 @@
 using Dokpod.ControlPlane.Application.Hosts;
 using Dokpod.ControlPlane.Application.Inventory;
+using Dokpod.ControlPlane.Application.Metrics;
 using Dokpod.ControlPlane.Infrastructure;
 using Dokpod.Domain.Environments;
 using Dokpod.Domain.Hosts;
@@ -114,6 +115,99 @@ public sealed class ContainerSearchIntegrationTests
 
             samples.Sort();
             return samples[(int)Math.Ceiling(samples.Count * 0.95) - 1];
+        }
+    }
+
+    [Fact]
+    public async Task SearchService_SortsByCurrentConsumptionAcrossHostsWithStableCursor()
+    {
+        // Spec 015 T004: ordenação por memória sobre o store real, com amostras em memória e paginação por cursor.
+        await using var context = CreateContextOrSkip();
+        var ct = TestContext.Current.CancellationToken;
+        var first = Guid.NewGuid();
+        var second = Guid.NewGuid();
+        var registrations = new PostgresEnvironmentRegistrationStore(context);
+        var inventory = new PostgresInventoryProjectionStore(context);
+        var now = DateTimeOffset.UtcNow;
+        try
+        {
+            var a = EnvironmentRegistration.Create(first, $"a-{first:N}"[..18], "srv-a", true, [EnvironmentResourceScopes.Read]);
+            var b = EnvironmentRegistration.Create(second, $"b-{second:N}"[..18], "srv-b", true, [EnvironmentResourceScopes.Read]);
+            await registrations.CreateAsync(a, ct);
+            await registrations.CreateAsync(b, ct);
+            await inventory.ReplaceSnapshotAsync(Snapshot(first, now, ("api", "Running", null), ("cache", "Running", null), ("parado", "Exited", 0)), ct);
+            await inventory.ReplaceSnapshotAsync(Snapshot(second, now, ("banco", "Running", null), ("fila", "Running", null)), ct);
+            var cache = new LatestMetricsCache(TimeProvider.System, new MetricsOptions());
+            void Set(Guid environment, string name, long memory) =>
+                cache.SetContainer(environment, $"{environment:N}-{name}", new ContainerMetricsSample(1, null, null, memory, null, null, null, null, null, now));
+            Set(first, "api", 300);
+            Set(first, "cache", 100);
+            Set(second, "banco", 900);
+            var service = new ContainerSearchService(new PostgresContainerSearchStore(context), cache);
+            HostView Host(EnvironmentRegistration registration) => new(registration, null, null, true, HostSituation.UpToDate, null);
+            var hosts = new[] { Host(a), Host(b) };
+
+            var names = new List<string>();
+            ContainerSearchCursor? cursor = null;
+            do
+            {
+                var page = await service.SearchAsync(hosts, new ContainerListFilter(null, [], [], [], null, ContainerSort.MemoryDesc, cursor, 2), ct);
+                names.AddRange(page.Items.Select(i => i.Container.Name));
+                Assert.Equal(5, page.Summary.Values.Sum());
+                cursor = page.Next;
+            }
+            while (cursor is not null);
+
+            // Com amostra em ordem decrescente; sem amostra (fila em execução e o parado) no fim, por nome.
+            Assert.Equal(["banco", "api", "cache", "fila", "parado"], names);
+            var running = await service.SearchAsync(hosts, new ContainerListFilter(null, [], [], ["running"], null, ContainerSort.MemoryAsc, null, 10), ct);
+            Assert.Equal(["cache", "api", "banco", "fila"], running.Items.Select(i => i.Container.Name));
+        }
+        finally
+        {
+            await context.InventoryProjections.Where(item => item.EnvironmentId == first || item.EnvironmentId == second).ExecuteDeleteAsync(ct);
+            await context.EnvironmentRegistrations.Where(item => item.EnvironmentId == first || item.EnvironmentId == second).ExecuteDeleteAsync(ct);
+        }
+    }
+
+    [Fact]
+    public async Task SearchService_SortByConsumptionMeetsLatencyBudgetWith2000Containers()
+    {
+        // Spec 015 SC-004: até 2 s no p95 com 2.000 containers (limite da spec 009).
+        await using var context = CreateContextOrSkip();
+        var ct = TestContext.Current.CancellationToken;
+        var environment = Guid.NewGuid();
+        var now = DateTimeOffset.UtcNow;
+        try
+        {
+            var registration = EnvironmentRegistration.Create(environment, $"p-{environment:N}"[..18], "srv-p", true, [EnvironmentResourceScopes.Read]);
+            await new PostgresEnvironmentRegistrationStore(context).CreateAsync(registration, ct);
+            var containers = Enumerable.Range(0, 2_000).Select(i => ($"svc-{i:D4}", "Running", (int?)null)).ToArray();
+            await new PostgresInventoryProjectionStore(context).ReplaceSnapshotAsync(Snapshot(environment, now, containers), ct);
+            var cache = new LatestMetricsCache(TimeProvider.System, new MetricsOptions());
+            for (var i = 0; i < 2_000; i++)
+            {
+                cache.SetContainer(environment, $"{environment:N}-svc-{i:D4}", new ContainerMetricsSample((i * 37) % 100, null, null, i, null, null, null, null, null, now));
+            }
+
+            var service = new ContainerSearchService(new PostgresContainerSearchStore(context), cache);
+            var hosts = new[] { new HostView(registration, null, null, true, HostSituation.UpToDate, null) };
+            var timings = new List<TimeSpan>();
+            for (var run = 0; run < 20; run++)
+            {
+                var started = System.Diagnostics.Stopwatch.StartNew();
+                var page = await service.SearchAsync(hosts, new ContainerListFilter(null, [], [], [], null, ContainerSort.CpuDesc, null, 50), ct);
+                timings.Add(started.Elapsed);
+                Assert.Equal(50, page.Items.Count);
+            }
+
+            var p95 = timings.Order().ElementAt((int)Math.Ceiling(timings.Count * 0.95) - 1);
+            Assert.True(p95 < TimeSpan.FromSeconds(2), $"p95 = {p95.TotalMilliseconds:F0} ms");
+        }
+        finally
+        {
+            await context.InventoryProjections.Where(item => item.EnvironmentId == environment).ExecuteDeleteAsync(ct);
+            await context.EnvironmentRegistrations.Where(item => item.EnvironmentId == environment).ExecuteDeleteAsync(ct);
         }
     }
 

@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
-import { ICON_PATHS, type IconName } from './icon-paths';
+import { FILLED_ICONS, ICON_PATHS, type IconName } from './icon-paths';
 
 @Component({
   selector: 'dok-icon',
@@ -11,7 +11,7 @@ import { ICON_PATHS, type IconName } from './icon-paths';
       [attr.width]="size()"
       [attr.height]="size()"
       viewBox="0 0 24 24"
-      fill="none"
+      [attr.fill]="filled() ? 'currentColor' : 'none'"
       stroke="currentColor"
       [attr.stroke-width]="strokeWidth()"
       stroke-linecap="round"
@@ -32,6 +32,8 @@ export class DokIcon {
   readonly size = input(18);
   readonly strokeWidth = input(2);
   readonly label = input<string | null>(null);
+
+  protected readonly filled = computed(() => FILLED_ICONS.has(this.name()));
 
   protected readonly segments = computed(() => {
     const d = (ICON_PATHS as Record<string, string>)[this.name()] ?? ICON_PATHS.circle;
