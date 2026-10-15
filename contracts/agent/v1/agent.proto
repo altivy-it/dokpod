@@ -40,6 +40,8 @@ message AgentMessage {
     // Spec 012: inventário de imagens (capability 12 confirmada).
     ImageSnapshotPage image_snapshot_page = 21;
     ImageDelta image_delta = 22;
+    // Spec 018: inventário de volumes (capability 16 confirmada).
+    VolumeSnapshotPage volume_snapshot_page = 23;
   }
 }
 
@@ -136,6 +138,8 @@ message Heartbeat {
   uint64 inventory_revision = 2;
   // Spec 012: revisão do inventário de imagens (0 = agente sem inventário de imagens).
   uint64 image_revision = 3;
+  // Spec 018: revisão do inventário de volumes (0 = agente sem inventário de volumes).
+  uint64 volume_revision = 4;
 }
 
 message InventorySnapshotPage {
@@ -190,6 +194,8 @@ message ContainerQueryRequest {
   string container_id = 3;
   google.protobuf.Timestamp deadline = 4;
   LogQuery logs = 5;
+  // Spec 018: nome do volume em CONTAINER_QUERY_KIND_VOLUME_USAGE.
+  string volume_name = 6;
 }
 
 message LogQuery {
@@ -291,7 +297,13 @@ message AgentCommand {
   oneof parameters {
     PullImageParameters pull_image = 7;
     CreateContainerParameters create_container = 8;
+    // Spec 018: remoção de volume sem uso (nunca forçada).
+    RemoveVolumeParameters remove_volume = 9;
   }
+}
+
+message RemoveVolumeParameters {
+  string name = 1;
 }
 
 // Spec 013: allowlist fechada; valores de variáveis só trafegam dentro do canal mTLS.
@@ -405,6 +417,33 @@ enum SnapshotScope {
   SNAPSHOT_SCOPE_UNSPECIFIED = 0;
   SNAPSHOT_SCOPE_CONTAINERS = 1;
   SNAPSHOT_SCOPE_IMAGES = 2;
+  SNAPSHOT_SCOPE_VOLUMES = 3;
+}
+
+// Spec 018 D-001: página ≤ 256 KiB e ≤ 500 volumes; caminho no host nunca é publicado.
+message VolumeSnapshotPage {
+  string snapshot_id = 1;
+  uint64 volume_revision = 2;
+  uint32 page_number = 3;
+  bool is_last_page = 4;
+  repeated VolumeState volumes = 5;
+}
+
+message VolumeState {
+  string name = 1;
+  string driver = 2;
+  string scope = 3;
+  google.protobuf.Timestamp created_at = 4;
+  map<string, string> labels = 5;
+  repeated VolumeContainerMount mounts = 6;
+  bool truncated = 7;
+}
+
+message VolumeContainerMount {
+  string container_id = 1;
+  string container_name = 2;
+  string destination = 3;
+  bool read_only = 4;
 }
 
 // Spec 012 D-007: página ≤ 256 KiB e ≤ 200 imagens; tags e digests limitados a 64 cada.
@@ -482,6 +521,8 @@ enum Capability {
   CAPABILITY_IMAGE_PULL = 13;
   CAPABILITY_CONTAINER_CREATE = 14;
   CAPABILITY_CONTAINER_EXEC = 15;
+  CAPABILITY_VOLUME_INVENTORY = 16;
+  CAPABILITY_VOLUME_REMOVE = 17;
 }
 
 enum ContainerQueryKind {
@@ -493,6 +534,8 @@ enum ContainerQueryKind {
   CONTAINER_QUERY_KIND_HOST_SECRETS = 4;
   CONTAINER_QUERY_KIND_HOST_NETWORKS = 5;
   CONTAINER_QUERY_KIND_HOST_VOLUMES = 6;
+  // Spec 018: tamanho e referências de um volume (system df); exige CAPABILITY_VOLUME_INVENTORY.
+  CONTAINER_QUERY_KIND_VOLUME_USAGE = 7;
 }
 
 enum QueryResultState {
@@ -573,6 +616,7 @@ enum CommandKind {
   COMMAND_KIND_UNPAUSE_CONTAINER = 6;
   COMMAND_KIND_PULL_IMAGE = 7;
   COMMAND_KIND_CREATE_CONTAINER = 8;
+  COMMAND_KIND_REMOVE_VOLUME = 9;
 }
 
 enum CommandAcceptance {

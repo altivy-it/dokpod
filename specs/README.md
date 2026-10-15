@@ -150,6 +150,7 @@ Evita colisão de tags entre specs desenvolvidas em paralelo. Alterar somente co
 | `CommandKind` | — | — | 5 `PAUSE`, 6 `UNPAUSE` | — | 7 `PULL_IMAGE` | 8 `CREATE_CONTAINER` | — | 9 `REMOVE_VOLUME` |
 | `AgentCommand.parameters` | — | — | — | — | 7 `pull_image` | 8 `create_container` | — | 9 `remove_volume` |
 | `ContainerQueryKind` | — | — | — | 1-3 | — | 4-6 | — | 7 `VOLUME_USAGE` |
+| `ContainerQueryRequest` | — | — | — | — | — | — | — | 6 `volume_name` |
 | RPC | — | — | — | — | — | — | `Exec` | — |
 | `EngineEventType` | 1-10 | — | — | — | — | — | 11 `EXEC_ORPHAN_SUSPECTED` | — |
 | Scope Keycloak | — | — | `container:pause` | `container:inspect`, `container:logs` | `image:pull` | `container:create` | `container:exec` | `volume:delete` |

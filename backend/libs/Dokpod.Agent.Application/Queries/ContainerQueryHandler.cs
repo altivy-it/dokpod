@@ -50,6 +50,12 @@ public sealed class ContainerQueryHandler(
                 return;
             }
 
+            if (request.Kind == ContainerQueryKind.VolumeUsage)
+            {
+                await VolumeUsageAsync(request, send, deadline.Token);
+                return;
+            }
+
             if (!IsValidContainerId(request.ContainerId))
             {
                 await send(Failure(request.QueryId, QueryResultState.Failed, "invalid_container"));
@@ -227,6 +233,28 @@ public sealed class ContainerQueryHandler(
                 State = QueryResultState.Ok,
                 SanitizedJson = ByteString.CopyFrom(json.Length > MaxMessageBytes ? JsonSerializer.SerializeToUtf8Bytes(new { truncated = true }) : json),
                 Truncated = json.Length > MaxMessageBytes,
+                Final = true,
+            },
+        });
+    }
+
+    /// <summary>Spec 018 D-004: tamanho e referências do volume (`system df`), consultados só no detalhe.</summary>
+    private async Task VolumeUsageAsync(ContainerQueryRequest request, Func<AgentMessage, Task> send, CancellationToken cancellationToken)
+    {
+        if (!Dokpod.Domain.Volumes.VolumeNames.IsValid(request.VolumeName))
+        {
+            await send(Failure(request.QueryId, QueryResultState.Failed, "volume_name_invalid"));
+            return;
+        }
+
+        var usage = await engine.GetVolumeUsageAsync(request.VolumeName, cancellationToken);
+        await send(new AgentMessage
+        {
+            ContainerQueryResponse = new ContainerQueryResponse
+            {
+                QueryId = request.QueryId,
+                State = QueryResultState.Ok,
+                SanitizedJson = ByteString.CopyFrom(JsonSerializer.SerializeToUtf8Bytes(new { sizeBytes = usage?.SizeBytes, refCount = usage?.RefCount })),
                 Final = true,
             },
         });

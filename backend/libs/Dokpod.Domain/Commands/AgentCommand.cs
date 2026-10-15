@@ -11,6 +11,7 @@ public enum AgentCommandKind
     UnpauseContainer = 6,
     PullImage = 7,
     CreateContainer = 8,
+    RemoveVolume = 9,
 }
 
 /// <summary>Parâmetros de comandos com alvo de host (spec 012 D-001); a 013 acrescenta criação de container.</summary>
@@ -31,13 +32,27 @@ public sealed record CreateContainerParameters(Dokpod.Domain.Containers.Containe
     public override string Canonical => Spec.Canonical();
 }
 
+/// <summary>Remoção de volume sem uso (spec 018); o agente nunca força.</summary>
+public sealed record RemoveVolumeParameters : AgentCommandParameters
+{
+    public RemoveVolumeParameters(string name)
+    {
+        if (!Dokpod.Domain.Volumes.VolumeNames.IsValid(name)) throw new ArgumentException("Volume name is invalid.", nameof(name));
+        Name = name;
+    }
+
+    public string Name { get; }
+
+    public override string Canonical => $"volume={Name}";
+}
+
 /// <summary>Saída de comandos parametrizados: digest e tamanho do pull (012), container criado (013).</summary>
 public sealed record AgentCommandOutput(string? ResolvedImageDigest = null, long? ImageSizeBytes = null, string? CreatedContainerId = null);
 
 public static class AgentCommandKinds
 {
     /// <summary>Comandos cujo alvo é o host (sem container): `container_id` nulo no armazenamento.</summary>
-    public static bool IsHostTarget(AgentCommandKind kind) => kind is AgentCommandKind.PullImage or AgentCommandKind.CreateContainer;
+    public static bool IsHostTarget(AgentCommandKind kind) => kind is AgentCommandKind.PullImage or AgentCommandKind.CreateContainer or AgentCommandKind.RemoveVolume;
 
     /// <summary>
     /// Hash `v1` (tipos 1-6, sem prazo): `v1\n{kind}\n{container}\n{revisão}`; hash `v2` (tipos parametrizados):
