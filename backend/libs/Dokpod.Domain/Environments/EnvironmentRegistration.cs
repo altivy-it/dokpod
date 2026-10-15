@@ -20,6 +20,7 @@ public static class EnvironmentResourceScopes
     public const string ReadAlerts = "alert:read";
     public const string ManageAlerts = "alert:manage";
     public const string DeleteVolume = "volume:delete";
+    public const string DeleteNetwork = "network:delete";
 
     public static IReadOnlySet<string> Supported { get; } = new HashSet<string>(
     [
@@ -39,6 +40,7 @@ public static class EnvironmentResourceScopes
         ReadAlerts,
         ManageAlerts,
         DeleteVolume,
+        DeleteNetwork,
     ], StringComparer.Ordinal).ToFrozenSet(StringComparer.Ordinal);
 }
 

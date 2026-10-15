@@ -48,7 +48,7 @@ public sealed class OpenApiContractTests
         Assert.Contains("operationId: getTerminalPolicy", contract, StringComparison.Ordinal);
         Assert.Contains("operationId: renewTerminalSession", contract, StringComparison.Ordinal);
         Assert.Contains("ImageListPage:", contract, StringComparison.Ordinal);
-        Assert.Contains("enum: [start, stop, restart, delete, pause, unpause, pull, create, remove_volume]", contract, StringComparison.Ordinal);
+        Assert.Contains("enum: [start, stop, restart, delete, pause, unpause, pull, create, remove_volume, remove_network]", contract, StringComparison.Ordinal);
         Assert.Contains("operationId: listHostMetrics", contract, StringComparison.Ordinal);
         Assert.Contains("operationId: getContainerMetrics", contract, StringComparison.Ordinal);
         Assert.Contains("ContainerResources:", contract, StringComparison.Ordinal);
@@ -86,6 +86,11 @@ public sealed class OpenApiContractTests
         Assert.Contains("operationId: removeVolume", contract, StringComparison.Ordinal);
         Assert.Contains("VolumeItem:", contract, StringComparison.Ordinal);
         Assert.Contains("- volume:delete", contract, StringComparison.Ordinal);
+        Assert.Contains("operationId: listNetworks", contract, StringComparison.Ordinal);
+        Assert.Contains("operationId: getNetwork", contract, StringComparison.Ordinal);
+        Assert.Contains("operationId: removeNetwork", contract, StringComparison.Ordinal);
+        Assert.Contains("NetworkItem:", contract, StringComparison.Ordinal);
+        Assert.Contains("- network:delete", contract, StringComparison.Ordinal);
         Assert.DoesNotContain("operationId: listHosts", contract, StringComparison.Ordinal);
         Assert.DoesNotContain("AuditEventEntity", contract, StringComparison.Ordinal);
         Assert.DoesNotContain("EnvironmentRegistrationEntity", contract, StringComparison.Ordinal);

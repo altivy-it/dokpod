@@ -68,7 +68,7 @@ param(
     [ValidatePattern('^/dokpod/[a-z]+$')]
     [string] $GroupPath,
 
-    [ValidateSet('environment:read', 'environment:manage', 'container:start', 'container:stop', 'container:restart', 'container:delete', 'audit:read', 'container:pause', 'container:inspect', 'container:logs', 'image:pull', 'container:create', 'container:exec', 'alert:read', 'alert:manage', 'volume:delete')]
+    [ValidateSet('environment:read', 'environment:manage', 'container:start', 'container:stop', 'container:restart', 'container:delete', 'audit:read', 'container:pause', 'container:inspect', 'container:logs', 'image:pull', 'container:create', 'container:exec', 'alert:read', 'alert:manage', 'volume:delete', 'network:delete')]
     [string] $Scope = 'environment:read',
 
     [ValidatePattern('^https?://')]

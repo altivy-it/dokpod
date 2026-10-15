@@ -79,6 +79,7 @@ def test_batch_removal_skips_in_use_needs_count_and_resumes_after_reload(page: P
     confirm.get_by_label("Justificativa (obrigatória pela política do estágio)").fill("Limpeza de caches antigos do lote")
     confirm.get_by_label(re.compile(rf"Digite {count} para confirmar")).fill(count)
     confirm.get_by_role("button", name="Remover", exact=True).click()
+    expect(confirm).to_have_count(0, timeout=15_000)  # todos os comandos enviados antes de recarregar
     progress = page.get_by_role("region", name="Andamento da remoção de volumes")
     expect(progress).to_be_visible()
     page.reload(wait_until="networkidle")

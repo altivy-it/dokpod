@@ -36,6 +36,7 @@ export const AUDIT_ACTION: Record<string, string> = {
   'container.justification_policy_changed': 'Política de justificativa alterada',
   'audit.exported': 'Auditoria exportada',
   'volume.remove': 'Remover volume',
+  'network.remove': 'Remover rede',
 };
 
 export const AUDIT_CATEGORIES: { id: AuditCategory; label: string }[] = [
@@ -44,6 +45,7 @@ export const AUDIT_CATEGORIES: { id: AuditCategory; label: string }[] = [
   { id: 'commands', label: 'Comandos' },
   { id: 'images', label: 'Imagens' },
   { id: 'volumes', label: 'Volumes' },
+  { id: 'networks', label: 'Redes' },
   { id: 'inspection', label: 'Logs e inspeção' },
   { id: 'terminal', label: 'Terminal' },
   { id: 'governance', label: 'Alertas e política' },
@@ -73,6 +75,7 @@ export const AUDIT_DETAIL: Record<string, string> = {
   previousStage: 'Estágio anterior',
   image: 'Imagem',
   name: 'Nome',
+  networkId: 'Identificador da rede',
   command: 'Comando equivalente',
   tail: 'Linhas pedidas',
   lines: 'Linhas lidas',

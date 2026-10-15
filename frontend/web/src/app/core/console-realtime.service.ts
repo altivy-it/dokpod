@@ -18,7 +18,7 @@ export interface TerminalOutput {
   status?: { state: 'connecting' | 'connected' | 'closed' | 'error'; reason?: string | null; shell?: string | null; containerUserIsRoot?: boolean; warning?: string | null; sessionId?: string | null };
 }
 
-export type InvalidationKind = 'inventory' | 'host' | 'events' | 'images' | 'alerts' | 'volumes';
+export type InvalidationKind = 'inventory' | 'host' | 'events' | 'images' | 'alerts' | 'volumes' | 'networks';
 
 export interface LiveLogLine {
   timestamp: string | null;

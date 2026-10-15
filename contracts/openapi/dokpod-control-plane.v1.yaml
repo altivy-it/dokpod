@@ -2129,6 +2129,186 @@ paths:
                 $ref: '#/components/schemas/ProblemDetails'
         '503':
           $ref: '#/components/responses/DependencyUnavailable'
+  /api/v1/networks:
+    get:
+      operationId: listNetworks
+      summary: Redes dos hosts autorizados com os containers conectados e resumo (spec 019)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: stage
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/Stage'
+        - name: environmentId
+          in: query
+          required: false
+          schema:
+            type: array
+            items:
+              type: string
+              format: uuid
+        - name: engine
+          in: query
+          required: false
+          schema:
+            type: array
+            items:
+              type: string
+              enum: [docker, podman]
+        - name: driver
+          in: query
+          required: false
+          schema:
+            type: array
+            maxItems: 20
+            items:
+              type: string
+              pattern: '^[a-z0-9][a-z0-9_.:/-]{0,63}$'
+        - name: unused
+          in: query
+          required: false
+          schema:
+            type: boolean
+        - name: system
+          in: query
+          required: false
+          schema:
+            type: boolean
+        - name: q
+          in: query
+          required: false
+          schema:
+            type: string
+            minLength: 2
+            maxLength: 128
+        - name: sort
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [name, -name, createdAt, -createdAt, environment]
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+        - $ref: '#/components/parameters/CorrelationId'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NetworkListPage'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '503':
+          $ref: '#/components/responses/DependencyUnavailable'
+  /api/v1/environments/{environmentId}/networks/{network}:
+    get:
+      operationId: getNetwork
+      summary: Detalhe da rede pelo identificador ou pelo nome
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: environmentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: network
+          in: path
+          required: true
+          description: Identificador (64 hex) ou nome da rede.
+          schema:
+            type: string
+            maxLength: 255
+            pattern: '^[A-Za-z0-9][A-Za-z0-9_.-]*$'
+        - $ref: '#/components/parameters/CorrelationId'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NetworkItem'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '503':
+          $ref: '#/components/responses/DependencyUnavailable'
+  /api/v1/environments/{environmentId}/networks/{networkId}/remove:
+    post:
+      operationId: removeNetwork
+      summary: Remove rede sem uso, local e fora do sistema (network:delete; nunca desconecta containers)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: environmentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: networkId
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^[0-9a-f]{64}$'
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/CorrelationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RemoveNetworkRequest'
+      responses:
+        '202':
+          description: Comando aceito.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContainerCommandAccepted'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '403':
+          $ref: '#/components/responses/AccessDenied'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          description: Justificativa obrigatória pela política do estágio.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '503':
+          $ref: '#/components/responses/DependencyUnavailable'
 components:
   securitySchemes:
     bearerAuth:
@@ -2555,7 +2735,7 @@ components:
           format: uuid
         action:
           type: string
-          enum: [start, stop, restart, delete, pause, unpause, pull, create, remove_volume]
+          enum: [start, stop, restart, delete, pause, unpause, pull, create, remove_volume, remove_network]
         kind:
           type: string
           enum: [container, image]
@@ -3467,7 +3647,7 @@ components:
           type: string
     AuditCategory:
       type: string
-      enum: [environments, containers, commands, images, volumes, inspection, terminal, governance, audit]
+      enum: [environments, containers, commands, images, volumes, networks, inspection, terminal, governance, audit]
     AuditOutcome:
       type: string
       enum: [succeeded, denied, failed, indeterminate]
@@ -3655,6 +3835,126 @@ components:
           type: string
           minLength: 10
           maxLength: 500
+    NetworkConnection:
+      type: object
+      required: [containerId, containerName]
+      properties:
+        containerId:
+          type: string
+        containerName:
+          type: string
+        ipv4:
+          type: [string, 'null']
+        ipv6:
+          type: [string, 'null']
+    NetworkSubnet:
+      type: object
+      required: [subnet]
+      properties:
+        subnet:
+          type: string
+        gateway:
+          type: [string, 'null']
+    NetworkItem:
+      type: object
+      required: [environmentId, environmentName, hostConnected, networkId, name, driver, scope, internal, ipv6, attachable, system, subnets, labels, containers, inUse, truncated, observedAt, canRemove]
+      properties:
+        environmentId:
+          type: string
+          format: uuid
+        environmentName:
+          type: string
+        stage:
+          oneOf:
+            - $ref: '#/components/schemas/Stage'
+            - type: 'null'
+        engine:
+          type: [string, 'null']
+          enum: [docker, podman, null]
+        hostConnected:
+          type: boolean
+        networkId:
+          type: string
+        name:
+          type: string
+        driver:
+          type: string
+        scope:
+          type: string
+        internal:
+          type: boolean
+        ipv6:
+          type: boolean
+        attachable:
+          type: boolean
+        system:
+          type: boolean
+        createdAt:
+          type: [string, 'null']
+          format: date-time
+        subnets:
+          type: array
+          items:
+            $ref: '#/components/schemas/NetworkSubnet'
+        labels:
+          type: object
+          additionalProperties:
+            type: string
+        containers:
+          type: array
+          items:
+            $ref: '#/components/schemas/NetworkConnection'
+        inUse:
+          type: boolean
+        truncated:
+          type: boolean
+        observedAt:
+          type: string
+          format: date-time
+        canRemove:
+          type: boolean
+    NetworkListPage:
+      type: object
+      required: [networks, summary]
+      properties:
+        networks:
+          type: array
+          maxItems: 200
+          items:
+            $ref: '#/components/schemas/NetworkItem'
+        summary:
+          type: object
+          required: [total, unused, unavailableHosts]
+          properties:
+            total:
+              type: integer
+            unused:
+              type: integer
+            unavailableHosts:
+              type: array
+              items:
+                type: object
+                required: [environmentId, environmentName]
+                properties:
+                  environmentId:
+                    type: string
+                    format: uuid
+                  environmentName:
+                    type: string
+        nextCursor:
+          type: [string, 'null']
+    RemoveNetworkRequest:
+      type: object
+      required: [deadlineUtc]
+      additionalProperties: false
+      properties:
+        deadlineUtc:
+          type: string
+          format: date-time
+        justification:
+          type: string
+          minLength: 10
+          maxLength: 500
     ResourceScope:
       type: string
       enum:
@@ -3674,6 +3974,7 @@ components:
         - alert:read
         - alert:manage
         - volume:delete
+        - network:delete
     Stage:
       type: string
       enum: [production, staging, development]

@@ -133,16 +133,21 @@ public sealed class AgentControlWorker(
         var volumesAccepted = established.AcceptedCapabilities.Contains(Capability.VolumeInventory);
         var volumes = new VolumePublisher(this, outbound.Writer, volumesAccepted);
         await volumes.SendAsync(force: true, sessionCancellation.Token);
+        // Spec 019: inventário de redes somente com a capability confirmada; usa as conexões do último inventário.
+        var networksAccepted = established.AcceptedCapabilities.Contains(Capability.NetworkInventory);
+        var networks = new NetworkPublisher(this, outbound.Writer, networksAccepted);
+        await networks.SendAsync(force: true, sessionCancellation.Token);
         var heartbeat = SendHeartbeatsAsync(
             outbound.Writer,
             () => inventory.Revision,
             () => images.Revision,
             () => volumes.Revision,
+            () => networks.Revision,
             TimeSpan.FromSeconds(established.HeartbeatIntervalSeconds),
             sessionCancellation.Token);
         // Agente N só envia payloads novos com capability confirmada pelo servidor (008 D-009).
         var eventsAccepted = established.AcceptedCapabilities.Contains(Capability.EngineEvents);
-        var events = WatchEngineEventsAsync(outbound.Writer, inventory, images, volumes, eventsAccepted, sessionCancellation.Token);
+        var events = WatchEngineEventsAsync(outbound.Writer, inventory, images, volumes, networks, eventsAccepted, sessionCancellation.Token);
         await ReportOrphanExecsAsync(outbound.Writer, eventsAccepted, sessionCancellation.Token);
         var metricsAccepted = established.AcceptedCapabilities.Contains(Capability.ResourceMetrics);
         var metrics = metricsAccepted
@@ -189,11 +194,13 @@ public sealed class AgentControlWorker(
                     await inventory.SendAsync(sessionCancellation.Token);
                     if (message.Command.Kind == CommandKind.PullImage) await images.SendAsync(force: false, sessionCancellation.Token);
                     await volumes.SendAsync(force: false, sessionCancellation.Token);
+                    await networks.SendAsync(force: false, sessionCancellation.Token);
                 }
                 else if (message.PayloadCase == ControlPlaneMessage.PayloadOneofCase.SnapshotRequest)
                 {
                     if (message.SnapshotRequest.Scope == SnapshotScope.Images) await images.SendAsync(force: true, sessionCancellation.Token);
                     else if (message.SnapshotRequest.Scope == SnapshotScope.Volumes) await volumes.SendAsync(force: true, sessionCancellation.Token);
+                    else if (message.SnapshotRequest.Scope == SnapshotScope.Networks) await networks.SendAsync(force: true, sessionCancellation.Token);
                     else await inventory.SendAsync(sessionCancellation.Token);
                 }
                 else if (message.PayloadCase == ControlPlaneMessage.PayloadOneofCase.ContainerQuery)
@@ -306,6 +313,7 @@ public sealed class AgentControlWorker(
         Func<ulong> getInventoryRevision,
         Func<ulong> getImageRevision,
         Func<ulong> getVolumeRevision,
+        Func<ulong> getNetworkRevision,
         TimeSpan interval,
         CancellationToken cancellationToken)
     {
@@ -315,7 +323,7 @@ public sealed class AgentControlWorker(
             await messages.WriteAsync(
                 new AgentMessage
                 {
-                    Heartbeat = new Heartbeat { InventoryRevision = getInventoryRevision(), ImageRevision = getImageRevision(), VolumeRevision = getVolumeRevision() },
+                    Heartbeat = new Heartbeat { InventoryRevision = getInventoryRevision(), ImageRevision = getImageRevision(), VolumeRevision = getVolumeRevision(), NetworkRevision = getNetworkRevision() },
                 },
                 cancellationToken);
         }
@@ -422,6 +430,7 @@ public sealed class AgentControlWorker(
         InventoryPublisher inventory,
         ImagePublisher images,
         VolumePublisher volumes,
+        NetworkPublisher networks,
         bool sendEvents,
         CancellationToken cancellationToken)
     {
@@ -429,6 +438,7 @@ public sealed class AgentControlWorker(
         long dirtySince = 0;
         long imagesDirtySince = 0;
         long volumesDirtySince = 0;
+        long networksDirtySince = 0;
         var pump = Task.Run(async () =>
         {
             using var timer = new PeriodicTimer(TimeSpan.FromSeconds(1));
@@ -447,6 +457,14 @@ public sealed class AgentControlWorker(
                     await inventory.SendAsync(cancellationToken);
                     // Montagens mudam com containers criados ou removidos: o snapshot de volumes só sai se o conjunto mudou.
                     await volumes.SendAsync(force: false, cancellationToken);
+                    await networks.SendAsync(force: false, cancellationToken);
+                }
+
+                var networksSince = Interlocked.Read(ref networksDirtySince);
+                if (networksSince != 0 && Environment.TickCount64 - networksSince >= 2000 &&
+                    Interlocked.CompareExchange(ref networksDirtySince, 0, networksSince) == networksSince)
+                {
+                    await networks.SendAsync(force: false, cancellationToken);
                 }
 
                 var volumesSince = Interlocked.Read(ref volumesDirtySince);
@@ -484,6 +502,13 @@ public sealed class AgentControlWorker(
                     if (record.Type == "volume")
                     {
                         Interlocked.Exchange(ref volumesDirtySince, Environment.TickCount64);
+                    }
+
+                    if (record.Type == "network")
+                    {
+                        // Conectar/desconectar muda as conexões dos containers: o inventário é relido antes do snapshot de redes.
+                        Interlocked.Exchange(ref dirtySince, Environment.TickCount64);
+                        Interlocked.Exchange(ref networksDirtySince, Environment.TickCount64);
                     }
                 }
             }
@@ -613,6 +638,47 @@ public sealed class AgentControlWorker(
         }
     }
 
+    private Task<IReadOnlyList<EngineNetwork>> ListNetworksAsync(CancellationToken cancellationToken) => engine.ListNetworksAsync(cancellationToken);
+
+    private void LogNetworkInventoryUnavailable(Exception exception) => logger.LogWarning(exception, "Engine network inventory unavailable");
+
+    /// <summary>Snapshot do inventário de redes quando o conjunto ou as conexões mudam (spec 019); revisão vai no heartbeat.</summary>
+    private sealed class NetworkPublisher(AgentControlWorker worker, ChannelWriter<AgentMessage> messages, bool enabled)
+    {
+        private readonly SemaphoreSlim gate = new(1, 1);
+        private readonly Dokpod.Agent.Application.Networks.NetworkInventoryBuilder builder = new(TimeProvider.System);
+
+        public ulong Revision => enabled ? builder.Revision : 0;
+
+        public async Task SendAsync(bool force, CancellationToken cancellationToken)
+        {
+            if (!enabled) return;
+            await gate.WaitAsync(cancellationToken);
+            try
+            {
+                IReadOnlyList<EngineNetwork> list;
+                try
+                {
+                    list = await worker.ListNetworksAsync(cancellationToken);
+                }
+                catch (Exception exception) when (exception is HttpRequestException or IOException or InvalidDataException or System.Text.Json.JsonException)
+                {
+                    worker.LogNetworkInventoryUnavailable(exception);
+                    return;
+                }
+
+                foreach (var page in builder.Build(list, Volatile.Read(ref worker.latestContainers), force))
+                {
+                    await messages.WriteAsync(new AgentMessage { NetworkSnapshotPage = page }, cancellationToken);
+                }
+            }
+            finally
+            {
+                gate.Release();
+            }
+        }
+    }
+
     private sealed class InventoryPublisher(AgentControlWorker worker, ChannelWriter<AgentMessage> messages)
     {
         private readonly SemaphoreSlim gate = new(1, 1);
@@ -681,6 +747,8 @@ public sealed class AgentControlWorker(
                 Capability.ImagePull,
                 Capability.VolumeInventory,
                 Capability.VolumeRemove,
+                Capability.NetworkInventory,
+                Capability.NetworkRemove,
             },
             SupportedProtocolVersions = { "1" },
         };
