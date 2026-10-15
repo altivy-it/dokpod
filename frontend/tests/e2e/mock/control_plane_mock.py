@@ -29,7 +29,7 @@ NOW = datetime.now(timezone.utc).replace(microsecond=0)
 ALL_SCOPES = [
     "environment:read", "environment:manage", "container:start", "container:stop", "container:restart",
     "container:delete", "container:pause", "container:inspect", "container:logs", "image:pull",
-    "container:create", "container:exec", "audit:read", "alert:read", "alert:manage",
+    "container:create", "container:exec", "audit:read", "alert:read", "alert:manage", "volume:delete",
 ]
 STATE: dict = {"scenario": "default", "commands": {}, "stages": {}, "registered": {}, "revoked": set()}
 
@@ -165,7 +165,7 @@ AUDIT: list = seed_audit()
 AUDIT_CATEGORY = {
     "environments": ["environment.register", "environment.approve", "environment.suspend", "environment.revoke", "environment.stage_changed"],
     "containers": ["container.start", "container.stop", "container.restart", "container.delete", "container.pause", "container.unpause", "container.create.requested"],
-    "commands": ["container.command.result"], "images": ["image.pull"],
+    "commands": ["container.command.result"], "images": ["image.pull"], "volumes": ["volume.remove"],
     "inspection": ["container.inspected", "container.logs.read", "container.logs.stream_started", "container.logs.stream_ended"],
     "terminal": ["container.exec.requested", "container.exec.started", "container.exec.ended", "container.exec.denied"],
     "governance": ["alert.rule_created", "alert.rule_updated", "alert.rule_deleted", "alert.acknowledged", "alert.resolved", "alert.silenced",
@@ -243,7 +243,7 @@ def host_view(h) -> dict:
             "cpuCount": cpus,
             "memoryBytes": mem * 1024**3,
             "capabilities": ["CONTAINER_LIFECYCLE", "ENGINE_EVENTS", "RESOURCE_METRICS", "CONTAINER_PAUSE", "CONTAINER_UNPAUSE", "CONTAINER_INSPECT", "CONTAINER_LOGS"]
-            + ([] if situation == "update_required" else ["ImageInventory", "ImagePull", "ContainerCreate", "ContainerExec"]),
+            + ([] if situation == "update_required" else ["ImageInventory", "ImagePull", "ContainerCreate", "ContainerExec", "VolumeInventory", "VolumeRemove"]),
         },
     }
 
@@ -489,6 +489,37 @@ def images_summary(rows: list[dict], host_ids: set[str]) -> dict:
     return {"total": len(rows), "unused": sum(1 for r in rows if not r["inUse"]), "totalSizeBytes": sum(r["sizeBytes"] for r in rows), "partial": partial}
 
 
+def volumes() -> list[dict]:
+    """Inventário de volumes (spec 018): todo container monta vol-pedidos-uploads; host 4 (agente 0.8.2) não tem inventário."""
+    removed = STATE.get("removed_volumes", set())
+    by_host: dict[str, list] = {}
+    for c in containers():
+        by_host.setdefault(c["environmentId"], []).append(c)
+    result = []
+    for h in all_hosts():
+        n, name, stage, engine, situation = h[0], h[1], h[2], h[3], h[5]
+        if situation == "update_required":
+            continue
+        mounted = [{"containerId": c["containerId"], "containerName": c["name"], "destination": "/srv/app/uploads", "readOnly": False}
+                   for c in by_host.get(env_id(n), [])]
+        seeds = [("vol-pedidos-uploads", False, mounted, {"com.docker.compose.project": "pedidos"}),
+                 (f"dados-{name}", False, [], {"com.empresa.backup": "semanal"}),
+                 ("cache-antigo", False, [], {}),
+                 (uuid.uuid5(uuid.NAMESPACE_URL, f"anon-{n}").hex * 2, True, [], {})]
+        for vname, anonymous, mounts, labels in seeds:
+            if (n, vname) in removed or (vname == "vol-pedidos-uploads" and not mounts):
+                continue
+            connected = situation != "disconnected"
+            result.append({
+                "environmentId": env_id(n), "environmentName": name, "stage": STATE["stages"].get(env_id(n), stage), "engine": engine,
+                "hostConnected": connected, "name": vname, "anonymous": anonymous, "driver": "local", "scope": "local",
+                "createdAt": iso(60 * 24 * (2 + stable(vname, 30))), "labels": labels, "mounts": mounts, "inUse": bool(mounts),
+                "truncated": False, "observedAt": iso(0.5),
+                "canRemove": not mounts and connected and "volume:delete" in scopes(),
+            })
+    return result
+
+
 def host_stage(environment_id: str) -> str | None:
     return next((h["stage"] for h in hosts() if h["environmentId"] == environment_id), None)
 
@@ -549,6 +580,7 @@ class Handler(BaseHTTPRequestHandler):
             STATE["submitted"] = []
             STATE["pulled"] = []
             STATE["created"] = []
+            STATE["removed_volumes"] = set()
             ALERTS.clear()
             ALERTS.update(seed_alerts())
             AUDIT[:] = seed_audit()
@@ -650,6 +682,27 @@ class Handler(BaseHTTPRequestHandler):
             rows.sort(key=key, reverse=sort.startswith("-"))
             return self.send_json(200, {"images": rows, "summary": summary, "nextCursor": None})
 
+        if path == "/api/v1/volumes":
+            rows = [v for v in volumes() if not q("stage") or v["stage"] == q("stage")]
+            visible = [h for h in hosts() if (not q("stage") or h["stage"] == q("stage")) and (not query.get("environmentId") or h["environmentId"] in query["environmentId"])]
+            for key in ("environmentId", "engine"):
+                if query.get(key):
+                    rows = [v for v in rows if v[key] in query[key]]
+            if q("anonymous") in ("true", "false"):
+                rows = [v for v in rows if v["anonymous"] == (q("anonymous") == "true")]
+            if q("q"):
+                needle = q("q").lower()
+                rows = [v for v in rows if needle in json.dumps([v["name"], v["labels"], v["mounts"]]).lower()]
+            summary = {"total": len(rows), "unused": sum(1 for v in rows if not v["inUse"]),
+                       "unavailableHosts": [{"environmentId": h["environmentId"], "environmentName": h["name"]} for h in visible
+                                            if "VolumeInventory" not in ((h.get("agent") or {}).get("capabilities") or [])]}
+            if q("unused") == "true":
+                rows = [v for v in rows if not v["inUse"]]
+            sort = q("sort") or "name"
+            key = {"name": lambda v: v["name"], "createdAt": lambda v: v["createdAt"], "environment": lambda v: v["environmentName"]}[sort.lstrip("-")]
+            rows.sort(key=key, reverse=sort.startswith("-"))
+            return self.send_json(200, {"volumes": rows, "summary": summary, "nextCursor": None})
+
         m = re.fullmatch(r"/api/v1/environments/([^/]+)(/.*)?", path)
         if not m:
             return self.send_json(404, problem(404, "Rota inexistente"))
@@ -747,6 +800,45 @@ class Handler(BaseHTTPRequestHandler):
             }
             STATE.setdefault("submitted", []).append(("pull", host["name"], canonical))
             return self.send_json(202, {"commandId": command_id, "reference": canonical})
+        vm = re.fullmatch(r"/volumes/([^/]+)(/usage|/remove)?", rest)
+        if vm:
+            name, sub = vm.group(1), vm.group(2) or ""
+            volume = next((v for v in volumes() if v["environmentId"] == environment_id and v["name"] == name), None)
+            if volume is None:
+                return self.send_json(404, problem(404, "Volume não encontrado", "volume_not_found"), "application/problem+json")
+            if sub == "":
+                return self.send_json(200, volume)
+            if sub == "/usage":
+                if not host["agent"]["connected"]:
+                    return self.send_json(409, problem(409, "Agente desconectado", "agent_disconnected"), "application/problem+json")
+                return self.send_json(200, {"sizeBytes": (1 + stable(name, 900)) * 1024**2, "refCount": len(volume["mounts"])})
+            if method != "POST":
+                return self.send_json(405, problem(405, "Método não permitido"))
+            body = self.read_body()
+            justification = (body.get("justification") or "").strip()
+            if "volume:delete" not in scopes():
+                return self.send_json(403, problem(403, "Acesso negado", "authorization_denied"), "application/problem+json")
+            if volume["inUse"]:
+                return self.send_json(409, problem(409, "O volume está em uso por um container.", "volume_in_use"), "application/problem+json")
+            if not host["agent"]["connected"]:
+                return self.send_json(409, problem(409, "Agente desconectado", "agent_disconnected"), "application/problem+json")
+            if not justification and ALERTS["policies"].get(host["stage"]):
+                return self.send_json(422, problem(422, "Informe a justificativa para remover o volume (política do estágio).", "justification_required"), "application/problem+json")
+            if justification and not 10 <= len(justification) <= 500:
+                return self.send_json(400, problem(400, "Justificativa inválida", "justification_invalid"), "application/problem+json")
+            key = self.headers.get("Idempotency-Key")
+            existing = next((c for c in STATE["commands"].values() if c.get("idempotencyKey") == key), None)
+            if existing:
+                return self.send_json(202, {"commandId": existing["commandId"]})
+            command_id = str(uuid.uuid4())
+            STATE["commands"][command_id] = {
+                "environmentId": environment_id, "commandId": command_id, "action": "remove_volume", "kind": "volume", "containerId": None,
+                "expectedContainerRevision": None, "volumeName": name, "state": "pending", "failureCode": None, "result": None,
+                "observedContainerRevision": None, "deadlineUtc": body.get("deadlineUtc"), "createdAtUtc": iso(0), "updatedAtUtc": iso(0),
+                "completedAtUtc": None, "idempotencyKey": key, "polls": 0, "failure": "volume_remove_failed" if name.startswith("falha") else None,
+            }
+            STATE.setdefault("submitted", []).append(("remove_volume", host["name"], name) + ((justification,) if justification else ()))
+            return self.send_json(202, {"commandId": command_id})
         cm = re.fullmatch(r"/commands/([^/]+)", rest)
         if cm:
             command = STATE["commands"].get(cm.group(1))
@@ -771,6 +863,17 @@ class Handler(BaseHTTPRequestHandler):
                     command.update({"state": "failed" if failure else "succeeded", "failureCode": failure, "completedAtUtc": iso(0),
                                     "result": {"createdContainerId": cid} if cid else None})
                 return self.send_json(200, {k: v for k, v in command.items() if k not in ("idempotencyKey", "polls", "failure", "body")})
+            if command["action"] == "remove_volume":
+                command["polls"] += 1
+                if command["polls"] == 1:
+                    command["state"] = "accepted"
+                elif command["state"] not in ("succeeded", "failed"):
+                    failure = command["failure"]
+                    command.update({"state": "failed" if failure else "succeeded", "failureCode": failure, "completedAtUtc": iso(0)})
+                    if not failure:
+                        n = next(h[0] for h in all_hosts() if env_id(h[0]) == environment_id)
+                        STATE.setdefault("removed_volumes", set()).add((n, command["volumeName"]))
+                return self.send_json(200, {k: v for k, v in command.items() if k not in ("idempotencyKey", "polls", "failure", "volumeName")})
             if command["action"] == "pull":
                 command["polls"] += 1
                 if command["polls"] == 1:

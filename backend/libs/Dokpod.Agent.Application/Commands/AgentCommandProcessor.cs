@@ -68,6 +68,7 @@ public sealed class AgentCommandProcessor(
         {
             PullImageParameters pull => "image:" + pull.Reference.Name,
             CreateContainerParameters create => "create:" + create.Spec.Name,
+            RemoveVolumeParameters volume => "volume:" + volume.Name,
             _ => command.ContainerId,
         };
         var mutationLock = mutationLocks.GetOrAdd(
@@ -111,6 +112,43 @@ public sealed class AgentCommandProcessor(
                 catch (Exception exception) when (exception is HttpRequestException or IOException)
                 {
                     return await SaveAsync(CreateResult(command, CommandExecutionState.Failed, "engine_unavailable", null));
+                }
+            }
+
+            if (command.Kind == AgentCommandKind.RemoveVolume)
+            {
+                if (command.Parameters is not RemoveVolumeParameters volume)
+                {
+                    return await SaveAsync(CreateResult(command, CommandExecutionState.Failed, "volume_name_invalid", null));
+                }
+
+                using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                deadline.CancelAfter(command.DeadlineUtc - timeProvider.GetUtcNow());
+                try
+                {
+                    // Spec 018 D-005: confere o uso imediatamente antes (inclusive containers parados) e nunca força.
+                    var containers = await engine.ListContainersAsync(deadline.Token);
+                    if (containers.Any(container => container.Mounts.Any(mount =>
+                            string.Equals(mount.Type, "volume", StringComparison.OrdinalIgnoreCase) &&
+                            string.Equals(mount.Name, volume.Name, StringComparison.Ordinal))))
+                    {
+                        return await SaveAsync(CreateResult(command, CommandExecutionState.Failed, Dokpod.Domain.Volumes.VolumeRemovalCodes.InUse, null));
+                    }
+
+                    var failure = await engine.RemoveVolumeAsync(volume.Name, deadline.Token);
+                    return await SaveAsync(CreateResult(
+                        command,
+                        failure is null ? CommandExecutionState.Succeeded : CommandExecutionState.Failed,
+                        failure,
+                        null));
+                }
+                catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+                {
+                    return await SaveAsync(CreateResult(command, CommandExecutionState.Indeterminate, "deadline_exceeded", null));
+                }
+                catch (Exception exception) when (exception is HttpRequestException or IOException or System.Text.Json.JsonException or InvalidDataException)
+                {
+                    return await SaveAsync(CreateResult(command, CommandExecutionState.Indeterminate, "engine_unavailable", null));
                 }
             }
 

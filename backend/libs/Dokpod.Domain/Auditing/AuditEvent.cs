@@ -56,6 +56,8 @@ public sealed record AuditEvent
         "container.justification_policy_changed",
         // Spec 017: exportação da trilha.
         "audit.exported",
+        // Spec 018: remoção de volume.
+        "volume.remove",
     ];
 
     /// <summary>Ações aceitas pela trilha (spec 017: filtros e categorias da consulta).</summary>
@@ -74,6 +76,7 @@ public sealed record AuditEvent
         "container.command.result",
         "image.pull",
         "container.create.requested",
+        "volume.remove",
     ];
 
     private AuditEvent(

@@ -119,6 +119,7 @@ public sealed class AgentQueryDispatcher(TimeProvider timeProvider)
         {
             ContainerQueryKind.Logs => Capability.ContainerLogs,
             ContainerQueryKind.HostSecrets or ContainerQueryKind.HostNetworks or ContainerQueryKind.HostVolumes => Capability.ContainerCreate,
+            ContainerQueryKind.VolumeUsage => Capability.VolumeInventory,
             _ => Capability.ContainerInspect,
         };
         if (!channel.Capabilities.Contains(capability)) return Outcome(QueryOutcomeKind.NotSupported, "not_supported");
@@ -133,7 +134,9 @@ public sealed class AgentQueryDispatcher(TimeProvider timeProvider)
             {
                 QueryId = queryId,
                 Kind = kind,
-                ContainerId = containerId,
+                // Spec 018: em VOLUME_USAGE o alvo é o nome do volume, enviado em `volume_name`.
+                ContainerId = kind == ContainerQueryKind.VolumeUsage ? string.Empty : containerId,
+                VolumeName = kind == ContainerQueryKind.VolumeUsage ? containerId : string.Empty,
                 Deadline = Timestamp.FromDateTimeOffset(timeProvider.GetUtcNow() + limit),
             };
             if (logs is not null) request.Logs = logs;
