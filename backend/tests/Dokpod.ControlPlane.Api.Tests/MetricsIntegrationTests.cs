@@ -6,6 +6,7 @@ using Xunit;
 namespace Dokpod.ControlPlane.Api.Tests;
 
 /// <summary>Spec 009 em PostgreSQL real: série de host, retenção e ausência de persistência de containers.</summary>
+[Collection(PostgresPerformanceCollection.Name)]
 public sealed class MetricsIntegrationTests
 {
     [Fact]

@@ -16,7 +16,7 @@ namespace Dokpod.ControlPlane.Api.Tests;
 [Collection(AlertGovernancePostgresCollection.Name)]
 public sealed class AuditConsoleIntegrationTests
 {
-    private static readonly DateTimeOffset Now = DateTimeOffset.UtcNow;
+    internal static readonly DateTimeOffset Now = DateTimeOffset.UtcNow;
 
     [Fact]
     public async Task Writer_StoresTheActorNameOfTheRequestUserOnly()
@@ -145,47 +145,7 @@ public sealed class AuditConsoleIntegrationTests
         Assert.Empty((await new PostgresAuditEventReader(context).ListAsync(Query([host]) with { Actions = ["audit.exported"] }, ct)).Events);
     }
 
-    [Fact]
-    public async Task FirstPage_WithOneMillionEventsAcross56Hosts_RespondsWithinTwoSecondsAtP95()
-    {
-        // SC-003: 1 milhão de eventos em 56 hosts nos últimos 30 dias; combinações de filtros na primeira página.
-        await using var context = CreateContextOrSkip();
-        var ct = TestContext.Current.CancellationToken;
-        await using var transaction = await context.Database.BeginTransactionAsync(ct);
-        var hosts = Enumerable.Range(0, 56).Select(_ => Guid.NewGuid()).ToArray();
-        context.Database.SetCommandTimeout(TimeSpan.FromMinutes(10)); // só a carga; as consultas medidas ficam bem abaixo
-        await BulkInsertAsync(context, hosts, 1_000_000, TimeSpan.FromDays(30), ct);
-        await context.Database.ExecuteSqlRawAsync("ANALYZE dokpod.audit_events", ct);
-        var reader = new PostgresAuditEventReader(context);
-        var queries = new[]
-        {
-            Query(hosts),
-            Query(hosts) with { SinceUtc = Now.AddDays(-30), UntilUtc = Now },
-            Query(hosts) with { SinceUtc = Now.AddDays(-30), UntilUtc = Now, Outcomes = [AuditOutcome.Denied] },
-            Query(hosts) with { SinceUtc = Now.AddDays(-30), UntilUtc = Now, Actions = AuditCategories.Actions["terminal"] },
-            Query(hosts) with { SinceUtc = Now.AddDays(-30), UntilUtc = Now, Actor = "user-7" },
-            Query(hosts) with { SinceUtc = Now.AddDays(-30), UntilUtc = Now, Text = "subject-42" },
-            Query(hosts.Take(3).ToArray()) with { SinceUtc = Now.AddDays(-7), UntilUtc = Now },
-        };
-
-        var timings = new List<double>();
-        for (var round = 0; round < 5; round++)
-        {
-            foreach (var query in queries)
-            {
-                var watch = System.Diagnostics.Stopwatch.StartNew();
-                await reader.ListAsync(query, ct);
-                timings.Add(watch.Elapsed.TotalMilliseconds);
-            }
-        }
-
-        timings.Sort();
-        var p95 = timings[(int)Math.Ceiling(timings.Count * 0.95) - 1];
-        TestContext.Current.SendDiagnosticMessage($"SC-003 primeira página p95={p95:0} ms (máx {timings[^1]:0} ms) com 1.000.000 eventos");
-        Assert.True(p95 < 2000, $"p95 {p95:0} ms");
-    }
-
-    private static async Task BulkInsertAsync(ControlPlaneDbContext context, Guid[] hosts, int count, TimeSpan spread, CancellationToken ct) =>
+    internal static async Task BulkInsertAsync(ControlPlaneDbContext context, Guid[] hosts, int count, TimeSpan spread, CancellationToken ct) =>
         await context.Database.ExecuteSqlRawAsync(
             """
             INSERT INTO dokpod.audit_events (event_id, occurred_at_utc, correlation_id, actor_kind, actor_id, action, environment_id, outcome,
@@ -203,10 +163,10 @@ public sealed class AuditConsoleIntegrationTests
     private static AuditEvent Event(Guid environment, string actor, string action, DateTimeOffset at, AuditOutcome outcome = AuditOutcome.Succeeded, string? failure = null, Guid? correlation = null) =>
         AuditEvent.Create(Guid.NewGuid(), at, correlation ?? Guid.NewGuid(), AuditActorKind.User, actor, action, environment, outcome, failure);
 
-    private static AuditQuery Query(Guid[] environments) =>
+    internal static AuditQuery Query(Guid[] environments) =>
         new(environments, Now.AddHours(-24), Now.AddMinutes(1), null, [], [], null, null, 50);
 
-    private static ControlPlaneDbContext CreateContextOrSkip()
+    internal static ControlPlaneDbContext CreateContextOrSkip()
     {
         var connectionString = Environment.GetEnvironmentVariable("DOKPOD_TEST_POSTGRES_CONNECTION");
         if (string.IsNullOrWhiteSpace(connectionString)) Assert.Skip("DOKPOD_TEST_POSTGRES_CONNECTION is not configured.");
