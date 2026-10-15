@@ -29,32 +29,13 @@ import {
   submitContainerCommand,
   getAuditSummary,
   type AuditSummary,
-  acknowledgeAlert,
-  createAlertRule,
-  createAlertSilence,
-  deleteAlertRule,
-  endAlertSilence,
-  getAlert,
   getAlertSummary,
   listActionJustificationPolicies,
-  listAlertRules,
-  listAlerts,
-  listAlertSilences,
   listContainerJustifications,
-  resolveAlert,
   setActionJustificationPolicy,
-  silenceAlert,
-  updateAlertRule,
-  type AlertDetail,
-  type AlertPage,
-  type AlertRulePage,
-  type AlertRuleRequest,
-  type AlertSilencePage,
   type AlertSummary,
   type ContainerJustifications,
-  type CreateAlertSilenceRequest,
   type JustificationPolicyPage,
-  type ListAlertsData,
   type ContainerConfigSummary,
   type ContainerMetrics,
   type HostMetricsPage,
@@ -294,65 +275,6 @@ export class ControlPlaneApiService {
   async getAlertSummary(stage: Stage | null): Promise<AlertSummary> {
     const result = await getAlertSummary({ query: stage ? { stage } : {}, throwOnError: true });
     return result.data;
-  }
-
-  async listAlerts(query: NonNullable<ListAlertsData['query']>): Promise<AlertPage> {
-    const result = await listAlerts({ query, throwOnError: true });
-    return result.data;
-  }
-
-  async getAlert(alertId: string): Promise<AlertDetail> {
-    const result = await getAlert({ path: { alertId }, throwOnError: true });
-    return result.data;
-  }
-
-  async acknowledgeAlert(alertId: string, comment: string): Promise<void> {
-    const headers = { 'X-Dokpod-Antiforgery': await this.antiforgery() };
-    await acknowledgeAlert({ path: { alertId }, headers, body: { comment }, throwOnError: true });
-  }
-
-  async resolveAlert(alertId: string, comment: string): Promise<void> {
-    const headers = { 'X-Dokpod-Antiforgery': await this.antiforgery() };
-    await resolveAlert({ path: { alertId }, headers, body: { comment }, throwOnError: true });
-  }
-
-  async silenceAlert(alertId: string, until: string, justification: string): Promise<void> {
-    const headers = { 'X-Dokpod-Antiforgery': await this.antiforgery() };
-    await silenceAlert({ path: { alertId }, headers, body: { until, justification }, throwOnError: true });
-  }
-
-  async listAlertRules(): Promise<AlertRulePage> {
-    const result = await listAlertRules({ throwOnError: true });
-    return result.data;
-  }
-
-  async saveAlertRule(ruleId: string | null, request: AlertRuleRequest): Promise<string> {
-    const headers = { 'X-Dokpod-Antiforgery': await this.antiforgery() };
-    const result = ruleId
-      ? await updateAlertRule({ path: { ruleId }, headers, body: request, throwOnError: true })
-      : await createAlertRule({ headers, body: request, throwOnError: true });
-    return result.data.id;
-  }
-
-  async deleteAlertRule(ruleId: string): Promise<void> {
-    const headers = { 'X-Dokpod-Antiforgery': await this.antiforgery() };
-    await deleteAlertRule({ path: { ruleId }, headers, throwOnError: true });
-  }
-
-  async listAlertSilences(active: boolean): Promise<AlertSilencePage> {
-    const result = await listAlertSilences({ query: { active }, throwOnError: true });
-    return result.data;
-  }
-
-  async createAlertSilence(request: CreateAlertSilenceRequest): Promise<string> {
-    const headers = { 'X-Dokpod-Antiforgery': await this.antiforgery() };
-    const result = await createAlertSilence({ headers, body: request, throwOnError: true });
-    return result.data.id;
-  }
-
-  async endAlertSilence(silenceId: string): Promise<void> {
-    const headers = { 'X-Dokpod-Antiforgery': await this.antiforgery() };
-    await endAlertSilence({ path: { silenceId }, headers, throwOnError: true });
   }
 
   async listJustificationPolicies(): Promise<JustificationPolicyPage> {

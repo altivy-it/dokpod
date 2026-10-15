@@ -2309,6 +2309,191 @@ paths:
                 $ref: '#/components/schemas/ProblemDetails'
         '503':
           $ref: '#/components/responses/DependencyUnavailable'
+  /api/v1/registries:
+    get:
+      operationId: listRegistries
+      summary: Registros dos hosts autorizados (imagens, configuração do engine e credencial) com resumo (spec 020)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: stage
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/Stage'
+        - name: environmentId
+          in: query
+          required: false
+          schema:
+            type: array
+            items:
+              type: string
+              format: uuid
+        - name: origin
+          in: query
+          required: false
+          schema:
+            type: array
+            items:
+              $ref: '#/components/schemas/RegistryOrigin'
+        - name: insecure
+          in: query
+          required: false
+          schema:
+            type: boolean
+        - name: outsidePolicy
+          in: query
+          required: false
+          schema:
+            type: boolean
+        - name: q
+          in: query
+          required: false
+          schema:
+            type: string
+            minLength: 2
+            maxLength: 128
+        - name: sort
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [registry, -registry, images, -images, hosts, -hosts]
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+        - $ref: '#/components/parameters/CorrelationId'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegistryListPage'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '503':
+          $ref: '#/components/responses/DependencyUnavailable'
+  /api/v1/registries/{registry}:
+    get:
+      operationId: getRegistry
+      summary: Configuração do registro por host
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: registry
+          in: path
+          required: true
+          schema:
+            type: string
+            maxLength: 255
+            pattern: '^[a-z0-9][a-z0-9.-]*(:[0-9]{1,5})?$'
+        - $ref: '#/components/parameters/CorrelationId'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegistryDetail'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/v1/registry-policies:
+    get:
+      operationId: listRegistryPolicies
+      summary: Registros permitidos por estágio (vazia = qualquer)
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CorrelationId'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegistryPolicyList'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+  /api/v1/registry-policies/{stage}/impact:
+    get:
+      operationId: getRegistryPolicyImpact
+      summary: Imagens e hosts do estágio fora da lista proposta
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: stage
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [production, staging, development, none]
+        - name: registries
+          in: query
+          required: false
+          schema:
+            type: array
+            maxItems: 100
+            items:
+              type: string
+        - $ref: '#/components/parameters/CorrelationId'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegistryPolicyImpact'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+  /api/v1/registry-policies/{stage}:
+    put:
+      operationId: setRegistryPolicy
+      summary: Define os registros permitidos do estágio (environment:manage em todos os hosts do estágio)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: stage
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [production, staging, development, none]
+        - $ref: '#/components/parameters/CorrelationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegistryPolicyRequest'
+      responses:
+        '204':
+          description: Política gravada.
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '403':
+          $ref: '#/components/responses/AccessDenied'
+        '503':
+          $ref: '#/components/responses/DependencyUnavailable'
 components:
   securitySchemes:
     bearerAuth:
@@ -3955,6 +4140,168 @@ components:
           type: string
           minLength: 10
           maxLength: 500
+    RegistryOrigin:
+      type: string
+      enum: [images, mirror, insecure, search, blocked, credential]
+    RegistryItem:
+      type: object
+      required: [registry, hosts, origins, images, sizeBytes, insecureHosts, credentialHosts, blockedHosts, outsidePolicyHosts]
+      properties:
+        registry:
+          type: string
+        hosts:
+          type: integer
+        origins:
+          type: array
+          items:
+            $ref: '#/components/schemas/RegistryOrigin'
+        images:
+          type: integer
+        sizeBytes:
+          type: integer
+          format: int64
+        insecureHosts:
+          type: integer
+        credentialHosts:
+          type: integer
+        blockedHosts:
+          type: integer
+        outsidePolicyHosts:
+          type: integer
+        mirrorOf:
+          type: [string, 'null']
+    RegistryListPage:
+      type: object
+      required: [registries, summary]
+      properties:
+        registries:
+          type: array
+          maxItems: 200
+          items:
+            $ref: '#/components/schemas/RegistryItem'
+        summary:
+          type: object
+          required: [total, insecure, outsidePolicy, unavailableHosts]
+          properties:
+            total:
+              type: integer
+            insecure:
+              type: integer
+            outsidePolicy:
+              type: integer
+            unavailableHosts:
+              type: array
+              items:
+                type: object
+                required: [environmentId, environmentName]
+                properties:
+                  environmentId:
+                    type: string
+                    format: uuid
+                  environmentName:
+                    type: string
+        nextCursor:
+          type: [string, 'null']
+    RegistryHost:
+      type: object
+      required: [environmentId, environmentName, hostConnected, configAvailable, origins, credential, insecure, blocked, search, mirrors, images, sizeBytes, allowed]
+      properties:
+        environmentId:
+          type: string
+          format: uuid
+        environmentName:
+          type: string
+        stage:
+          oneOf:
+            - $ref: '#/components/schemas/Stage'
+            - type: 'null'
+        hostConnected:
+          type: boolean
+        configAvailable:
+          type: boolean
+        origins:
+          type: array
+          items:
+            $ref: '#/components/schemas/RegistryOrigin'
+        credential:
+          type: boolean
+        insecure:
+          type: boolean
+        blocked:
+          type: boolean
+        search:
+          type: boolean
+        mirrors:
+          type: array
+          items:
+            type: string
+        mirrorOf:
+          type: [string, 'null']
+        images:
+          type: integer
+        sizeBytes:
+          type: integer
+          format: int64
+        allowed:
+          type: boolean
+    RegistryDetail:
+      type: object
+      required: [registry, hosts]
+      properties:
+        registry:
+          type: string
+        hosts:
+          type: array
+          items:
+            $ref: '#/components/schemas/RegistryHost'
+    RegistryPolicy:
+      type: object
+      required: [stage, registries, source, canEdit]
+      properties:
+        stage:
+          type: string
+          enum: [production, staging, development, none]
+        registries:
+          type: array
+          items:
+            type: string
+        source:
+          type: string
+          enum: [configuration, console]
+        updatedBy:
+          type: [string, 'null']
+        updatedAt:
+          type: [string, 'null']
+          format: date-time
+        canEdit:
+          type: boolean
+    RegistryPolicyList:
+      type: object
+      required: [policies]
+      properties:
+        policies:
+          type: array
+          items:
+            $ref: '#/components/schemas/RegistryPolicy'
+    RegistryPolicyImpact:
+      type: object
+      required: [images, hosts]
+      properties:
+        images:
+          type: integer
+        hosts:
+          type: integer
+    RegistryPolicyRequest:
+      type: object
+      required: [registries]
+      additionalProperties: false
+      properties:
+        registries:
+          type: array
+          maxItems: 100
+          items:
+            type: string
+            maxLength: 255
     ResourceScope:
       type: string
       enum:

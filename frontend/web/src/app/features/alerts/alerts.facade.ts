@@ -1,6 +1,6 @@
 import { effect, inject, Injectable, signal, untracked } from '@angular/core';
 import { ConsoleRealtimeService } from '../../core/console-realtime.service';
-import { ControlPlaneApiService } from '../../data-access/control-plane-api.service';
+import { AlertsApiService } from './alerts-api.service';
 import type { Alert, AlertRule, AlertSeverity, AlertSilence, AlertState, Stage } from '../../data-access/generated/control-plane';
 
 export type AlertView = 'abertos' | 'historico' | 'regras' | 'silenciamentos';
@@ -48,7 +48,7 @@ export function actionError(error: unknown): string {
  */
 @Injectable()
 export class AlertsFacade {
-  private readonly api = inject(ControlPlaneApiService);
+  private readonly api = inject(AlertsApiService);
   private readonly realtime = inject(ConsoleRealtimeService);
 
   readonly filters = signal<AlertFilters | null>(null);

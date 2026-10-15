@@ -6,7 +6,7 @@ import { ConsoleRealtimeService } from '../../core/console-realtime.service';
 import { EnvironmentDirectoryService } from '../../core/environment-directory.service';
 import { JustificationPolicyService } from '../../core/justification-policy.service';
 import { ALERT_RESOLUTION, ALERT_SEVERITIES, ALERT_SEVERITY, ALERT_STATE, describeRule, describeScope } from '../../data-access/alert-labels';
-import { ControlPlaneApiService } from '../../data-access/control-plane-api.service';
+import { AlertsApiService } from './alerts-api.service';
 import type { Alert, AlertRule, AlertSeverity, AlertSilence, AlertState, Stage } from '../../data-access/generated/control-plane';
 import {
   DokButton,
@@ -121,7 +121,7 @@ export class AlertsPage {
   protected readonly policy = inject(JustificationPolicyService);
   private readonly directory = inject(EnvironmentDirectoryService);
   private readonly realtime = inject(ConsoleRealtimeService);
-  private readonly api = inject(ControlPlaneApiService);
+  private readonly api = inject(AlertsApiService);
   private readonly router = inject(Router);
   private readonly toast = inject(ToastService);
 

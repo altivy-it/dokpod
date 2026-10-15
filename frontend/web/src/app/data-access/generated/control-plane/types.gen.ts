@@ -742,6 +742,80 @@ export type RemoveNetworkRequest = {
     justification?: string;
 };
 
+export type RegistryOrigin = 'images' | 'mirror' | 'insecure' | 'search' | 'blocked' | 'credential';
+
+export type RegistryItem = {
+    registry: string;
+    hosts: number;
+    origins: Array<RegistryOrigin>;
+    images: number;
+    sizeBytes: number;
+    insecureHosts: number;
+    credentialHosts: number;
+    blockedHosts: number;
+    outsidePolicyHosts: number;
+    mirrorOf?: string | null;
+};
+
+export type RegistryListPage = {
+    registries: Array<RegistryItem>;
+    summary: {
+        total: number;
+        insecure: number;
+        outsidePolicy: number;
+        unavailableHosts: Array<{
+            environmentId: string;
+            environmentName: string;
+        }>;
+    };
+    nextCursor?: string | null;
+};
+
+export type RegistryHost = {
+    environmentId: string;
+    environmentName: string;
+    stage?: Stage | null;
+    hostConnected: boolean;
+    configAvailable: boolean;
+    origins: Array<RegistryOrigin>;
+    credential: boolean;
+    insecure: boolean;
+    blocked: boolean;
+    search: boolean;
+    mirrors: Array<string>;
+    mirrorOf?: string | null;
+    images: number;
+    sizeBytes: number;
+    allowed: boolean;
+};
+
+export type RegistryDetail = {
+    registry: string;
+    hosts: Array<RegistryHost>;
+};
+
+export type RegistryPolicy = {
+    stage: 'production' | 'staging' | 'development' | 'none';
+    registries: Array<string>;
+    source: 'configuration' | 'console';
+    updatedBy?: string | null;
+    updatedAt?: string | null;
+    canEdit: boolean;
+};
+
+export type RegistryPolicyList = {
+    policies: Array<RegistryPolicy>;
+};
+
+export type RegistryPolicyImpact = {
+    images: number;
+    hosts: number;
+};
+
+export type RegistryPolicyRequest = {
+    registries: Array<string>;
+};
+
 export type ResourceScope = 'environment:read' | 'environment:manage' | 'container:start' | 'container:stop' | 'container:restart' | 'container:delete' | 'audit:read' | 'container:pause' | 'container:inspect' | 'container:logs' | 'image:pull' | 'container:create' | 'container:exec' | 'alert:read' | 'alert:manage' | 'volume:delete' | 'network:delete';
 
 export type Stage = 'production' | 'staging' | 'development';
@@ -3467,3 +3541,208 @@ export type RemoveNetworkResponses = {
 };
 
 export type RemoveNetworkResponse = RemoveNetworkResponses[keyof RemoveNetworkResponses];
+
+export type ListRegistriesData = {
+    body?: never;
+    headers?: {
+        /**
+         * Identificador técnico opcional para correlação server-side.
+         */
+        'X-Correlation-Id'?: string;
+    };
+    path?: never;
+    query?: {
+        stage?: Stage;
+        environmentId?: Array<string>;
+        origin?: Array<RegistryOrigin>;
+        insecure?: boolean;
+        outsidePolicy?: boolean;
+        q?: string;
+        sort?: 'registry' | '-registry' | 'images' | '-images' | 'hosts' | '-hosts';
+        cursor?: string;
+        limit?: number;
+    };
+    url: '/api/v1/registries';
+};
+
+export type ListRegistriesErrors = {
+    /**
+     * Requisição inválida.
+     */
+    400: ProblemDetails;
+    /**
+     * Autenticação ausente ou inválida.
+     */
+    401: ProblemDetails;
+    /**
+     * Autorização ou persistência indisponível.
+     */
+    503: ProblemDetails;
+};
+
+export type ListRegistriesError = ListRegistriesErrors[keyof ListRegistriesErrors];
+
+export type ListRegistriesResponses = {
+    /**
+     * OK.
+     */
+    200: RegistryListPage;
+};
+
+export type ListRegistriesResponse = ListRegistriesResponses[keyof ListRegistriesResponses];
+
+export type GetRegistryData = {
+    body?: never;
+    headers?: {
+        /**
+         * Identificador técnico opcional para correlação server-side.
+         */
+        'X-Correlation-Id'?: string;
+    };
+    path: {
+        registry: string;
+    };
+    query?: never;
+    url: '/api/v1/registries/{registry}';
+};
+
+export type GetRegistryErrors = {
+    /**
+     * Requisição inválida.
+     */
+    400: ProblemDetails;
+    /**
+     * Autenticação ausente ou inválida.
+     */
+    401: ProblemDetails;
+    /**
+     * O ambiente não foi encontrado após autorização.
+     */
+    404: ProblemDetails;
+};
+
+export type GetRegistryError = GetRegistryErrors[keyof GetRegistryErrors];
+
+export type GetRegistryResponses = {
+    /**
+     * OK.
+     */
+    200: RegistryDetail;
+};
+
+export type GetRegistryResponse = GetRegistryResponses[keyof GetRegistryResponses];
+
+export type ListRegistryPoliciesData = {
+    body?: never;
+    headers?: {
+        /**
+         * Identificador técnico opcional para correlação server-side.
+         */
+        'X-Correlation-Id'?: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/registry-policies';
+};
+
+export type ListRegistryPoliciesErrors = {
+    /**
+     * Autenticação ausente ou inválida.
+     */
+    401: ProblemDetails;
+};
+
+export type ListRegistryPoliciesError = ListRegistryPoliciesErrors[keyof ListRegistryPoliciesErrors];
+
+export type ListRegistryPoliciesResponses = {
+    /**
+     * OK.
+     */
+    200: RegistryPolicyList;
+};
+
+export type ListRegistryPoliciesResponse = ListRegistryPoliciesResponses[keyof ListRegistryPoliciesResponses];
+
+export type GetRegistryPolicyImpactData = {
+    body?: never;
+    headers?: {
+        /**
+         * Identificador técnico opcional para correlação server-side.
+         */
+        'X-Correlation-Id'?: string;
+    };
+    path: {
+        stage: 'production' | 'staging' | 'development' | 'none';
+    };
+    query?: {
+        registries?: Array<string>;
+    };
+    url: '/api/v1/registry-policies/{stage}/impact';
+};
+
+export type GetRegistryPolicyImpactErrors = {
+    /**
+     * Requisição inválida.
+     */
+    400: ProblemDetails;
+    /**
+     * Autenticação ausente ou inválida.
+     */
+    401: ProblemDetails;
+};
+
+export type GetRegistryPolicyImpactError = GetRegistryPolicyImpactErrors[keyof GetRegistryPolicyImpactErrors];
+
+export type GetRegistryPolicyImpactResponses = {
+    /**
+     * OK.
+     */
+    200: RegistryPolicyImpact;
+};
+
+export type GetRegistryPolicyImpactResponse = GetRegistryPolicyImpactResponses[keyof GetRegistryPolicyImpactResponses];
+
+export type SetRegistryPolicyData = {
+    body: RegistryPolicyRequest;
+    headers?: {
+        /**
+         * Identificador técnico opcional para correlação server-side.
+         */
+        'X-Correlation-Id'?: string;
+    };
+    path: {
+        stage: 'production' | 'staging' | 'development' | 'none';
+    };
+    query?: never;
+    url: '/api/v1/registry-policies/{stage}';
+};
+
+export type SetRegistryPolicyErrors = {
+    /**
+     * Requisição inválida.
+     */
+    400: ProblemDetails;
+    /**
+     * Autenticação ausente ou inválida.
+     */
+    401: ProblemDetails;
+    /**
+     * Decisão do Keycloak negou o cadastro.
+     */
+    403: ProblemDetails;
+    /**
+     * Autorização ou persistência indisponível.
+     */
+    503: ProblemDetails;
+};
+
+export type SetRegistryPolicyError = SetRegistryPolicyErrors[keyof SetRegistryPolicyErrors];
+
+export type SetRegistryPolicyResponses = {
+    /**
+     * Política gravada.
+     */
+    204: void;
+};
+
+export type SetRegistryPolicyResponse = SetRegistryPolicyResponses[keyof SetRegistryPolicyResponses];

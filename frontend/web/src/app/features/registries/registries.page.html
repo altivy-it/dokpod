@@ -1,0 +1,123 @@
+<div class="dok-stack">
+  <div class="dok-page-head">
+    <div class="dok-page-head__text">
+      <span class="eyebrow">Infraestrutura · {{ stageName() }}</span>
+      <h1 class="app-title">Registros de imagens</h1>
+      <p class="app-small">Registros de onde vêm as imagens e os configurados nos hosts. Credenciais aparecem só como "sim" ou "não".</p>
+    </div>
+    <div class="dok-actions">
+      <button dok-button variant="outline" size="sm" startIcon="refresh" type="button" [loading]="facade.loading()" (click)="facade.reload()">Atualizar</button>
+    </div>
+  </div>
+
+  <dok-tabs [tabs]="tabs()" [value]="view()" (valueChange)="selectView($event)" ariaLabel="Vistas de registros" controls="rg-panel" />
+
+  <div id="rg-panel" role="tabpanel" class="dok-stack" [attr.aria-label]="view() === 'politica' ? 'Política por estágio' : 'Registros'">
+    @if (view() === 'registros') {
+      <div class="rg-filters">
+        @for (chip of filterChips(); track chip.key) {
+          <dok-status-chip variant="filter" [field]="chip.field" [label]="chip.label" [removable]="true" (removed)="removeFilter(chip.key)" />
+        }
+        @if (facade.summary(); as summary) {
+          <span class="app-small rg-muted">Resumo:</span>
+          <dok-status-chip variant="outlined" color="info" size="sm" [label]="summary.total + (summary.total === 1 ? ' registro' : ' registros')" />
+          <button type="button" class="rg-chip-btn" [attr.aria-pressed]="facade.filters().insecure" title="Filtrar registros inseguros" (click)="toggle('inseguros')">
+            <dok-status-chip variant="outlined" color="warning" size="sm" [label]="summary.insecure + ' inseguros'" /><span class="sr-only">, filtrar a lista</span>
+          </button>
+          <button type="button" class="rg-chip-btn" [attr.aria-pressed]="facade.filters().outsidePolicy" title="Filtrar registros fora da política" (click)="toggle('foraDaPolitica')">
+            <dok-status-chip variant="outlined" color="warning" size="sm" [label]="summary.outsidePolicy + ' fora da política'" /><span class="sr-only">, filtrar a lista</span>
+          </button>
+          @if (unavailableHosts()) {
+            <span class="app-small rg-partial"><dok-icon name="info" [size]="14" />Configuração do engine indisponível em: {{ unavailableHosts() }}.</span>
+          }
+        }
+      </div>
+
+      @if (detailError(); as message) {
+        <div class="rg-note" role="alert"><dok-icon name="alert" [size]="16" />{{ message }}</div>
+      }
+
+      @if (facade.error(); as e) {
+        <dok-empty-state [kind]="e.status === 403 ? 'forbidden' : 'error'" [code]="e.status ? 'Erro ' + e.status : null" [title]="e.title" [detail]="e.detail">
+          <button dok-button variant="outline" size="sm" startIcon="refresh" type="button" (click)="facade.reload()">Tentar novamente</button>
+        </dok-empty-state>
+      } @else {
+        <dok-data-grid
+          title="Registros"
+          [entityLabel]="['registro', 'registros']"
+          [rows]="rows()"
+          [columns]="columns"
+          [statusTones]="tones"
+          [rowActionsFor]="rowActionsFor"
+          [rowLabel]="rowLabel"
+          [selectable]="false"
+          [(search)]="search"
+          [(sort)]="gridSort"
+          [clientSide]="false"
+          [filters]="gridFilters()"
+          (filtersChange)="onGridFilters($event)"
+          [facetOptions]="facets()"
+          [showFilterChips]="false"
+          storageKey="registries"
+          [loading]="facade.loading()"
+          [hasMore]="!!facade.nextCursor()"
+          [loadingMore]="facade.loadingMore()"
+          [totalCount]="facade.summary()?.total ?? null"
+          [updatedAt]="updatedAt()"
+          searchPlaceholder="Endereço do registro"
+          [exportName]="exportName()"
+          height="600px"
+          emptyTitle="Nenhum registro encontrado com os filtros aplicados."
+          (rowAction)="showDetail($event.row.item)"
+          (rowOpen)="showDetail($event.item)"
+          (loadMore)="facade.loadMore()"
+        >
+        </dok-data-grid>
+      }
+    } @else {
+      <p class="app-small rg-muted">
+        Registros permitidos para baixar imagens e criar containers em cada estágio. Lista vazia aceita qualquer registro. Alterar exige
+        administração de todos os hosts do estágio e fica na auditoria.
+      </p>
+      @if (policyError(); as e) {
+        <dok-empty-state [kind]="e.status === 403 ? 'forbidden' : 'error'" [code]="e.status ? 'Erro ' + e.status : null" [title]="e.title" [detail]="e.detail" />
+      } @else if (policies(); as list) {
+        <div class="rg-policies">
+          @for (policy of list; track policy.stage) {
+            <section class="rg-policy alt-glass" [attr.aria-labelledby]="'rg-policy-' + policy.stage">
+              <div class="rg-policy__head">
+                <h2 class="rg-policy__title" [id]="'rg-policy-' + policy.stage">{{ stageLabels[policy.stage] }}</h2>
+                @if (policy.canEdit) {
+                  <button dok-button variant="outline" size="xs" startIcon="settings" type="button" [attr.aria-label]="'Editar a política de ' + stageLabels[policy.stage]" (click)="editing.set(policy)">Editar</button>
+                }
+              </div>
+              @if (policy.registries.length) {
+                <ul class="rg-policy__list" [attr.aria-label]="'Registros permitidos em ' + stageLabels[policy.stage]">
+                  @for (registry of policy.registries; track registry) {
+                    <li><dok-status-chip size="sm" variant="outlined" color="info" [label]="registry" /></li>
+                  }
+                </ul>
+              } @else {
+                <p class="app-small">Qualquer registro</p>
+              }
+              <p class="app-caption rg-muted">
+                {{ policy.source === 'console' ? 'Definida no console por ' + policy.updatedBy + ' em ' + formatDateTime(policy.updatedAt) : 'Valor inicial da configuração da API' }}
+                @if (!policy.canEdit) {
+                  · somente leitura
+                }
+              </p>
+            </section>
+          }
+        </div>
+      }
+    }
+  </div>
+</div>
+
+@if (detail(); as d) {
+  <app-registry-detail-drawer [open]="true" [detail]="d" (closed)="closeDetail()" />
+}
+
+@if (editing(); as p) {
+  <app-registry-policy-drawer [open]="true" [stage]="p.stage" [current]="p.registries" [busy]="saving()" (closed)="editing.set(null)" (saved)="savePolicy(p.stage, $event)" />
+}

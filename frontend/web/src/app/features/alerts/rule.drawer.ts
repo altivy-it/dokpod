@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, effect, inject, input, ou
 import { FormsModule } from '@angular/forms';
 import { EnvironmentDirectoryService } from '../../core/environment-directory.service';
 import { ALERT_SEVERITIES, ALERT_SEVERITY, RULE_EVENT_TYPES, RULE_METRICS } from '../../data-access/alert-labels';
-import { ControlPlaneApiService } from '../../data-access/control-plane-api.service';
+import { AlertsApiService } from './alerts-api.service';
 import type { AlertRule, AlertRuleRequest, AlertSeverity, Stage } from '../../data-access/generated/control-plane';
 import { DokCheckbox, DokDrawer, DokField } from '../../design-system';
 import { STAGES } from '../../shell/stage-filter.service';
@@ -208,7 +208,7 @@ export class RuleDrawer {
   readonly closed = output<void>();
   readonly saved = output<void>();
 
-  private readonly api = inject(ControlPlaneApiService);
+  private readonly api = inject(AlertsApiService);
   private readonly directory = inject(EnvironmentDirectoryService);
   protected readonly form = signal<RuleForm>(emptyRuleForm());
   protected readonly busy = signal(false);

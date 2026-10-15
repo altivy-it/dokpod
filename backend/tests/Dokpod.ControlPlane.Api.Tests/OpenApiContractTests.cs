@@ -91,6 +91,11 @@ public sealed class OpenApiContractTests
         Assert.Contains("operationId: removeNetwork", contract, StringComparison.Ordinal);
         Assert.Contains("NetworkItem:", contract, StringComparison.Ordinal);
         Assert.Contains("- network:delete", contract, StringComparison.Ordinal);
+        Assert.Contains("operationId: listRegistries", contract, StringComparison.Ordinal);
+        Assert.Contains("operationId: getRegistry", contract, StringComparison.Ordinal);
+        Assert.Contains("operationId: listRegistryPolicies", contract, StringComparison.Ordinal);
+        Assert.Contains("operationId: setRegistryPolicy", contract, StringComparison.Ordinal);
+        Assert.Contains("RegistryItem:", contract, StringComparison.Ordinal);
         Assert.DoesNotContain("operationId: listHosts", contract, StringComparison.Ordinal);
         Assert.DoesNotContain("AuditEventEntity", contract, StringComparison.Ordinal);
         Assert.DoesNotContain("EnvironmentRegistrationEntity", contract, StringComparison.Ordinal);
