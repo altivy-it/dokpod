@@ -1,0 +1,112 @@
+<div class="dok-stack">
+  <div class="dok-page-head">
+    <div class="dok-page-head__text">
+      <span class="eyebrow">Operação · {{ stageName() }}</span>
+      <h1 class="app-title">Volumes nos hosts</h1>
+      <p class="app-small">Volumes de cada engine e os containers que os montam, inclusive parados. Só volumes sem uso podem ser removidos.</p>
+    </div>
+    <div class="dok-actions">
+      <button dok-button variant="outline" size="sm" startIcon="refresh" type="button" [loading]="facade.loading()" (click)="facade.reload()">Atualizar</button>
+      <button dok-button variant="danger" size="sm" startIcon="trash" type="button" (click)="prepareSelected()">
+        Remover{{ selection().length ? ' (' + selection().length + ')' : '' }}
+      </button>
+    </div>
+  </div>
+
+  <div class="vl-filters">
+    @for (chip of filterChips(); track chip.key) {
+      <dok-status-chip variant="filter" [field]="chip.field" [label]="chip.label" [removable]="true" (removed)="removeFilter(chip.key)" />
+    }
+    @if (facade.summary(); as summary) {
+      <span class="app-small vl-muted">Resumo:</span>
+      <dok-status-chip variant="outlined" color="info" size="sm" [label]="summary.total + (summary.total === 1 ? ' volume' : ' volumes')" />
+      <button type="button" class="vl-chip-btn" [attr.aria-pressed]="facade.filters().unused" title="Filtrar volumes sem uso" (click)="toggleUnused()">
+        <dok-status-chip variant="outlined" color="warning" size="sm" [label]="summary.unused + ' sem uso'" /><span class="sr-only">, filtrar a lista</span>
+      </button>
+      @if (unavailableHosts()) {
+        <span class="app-small vl-partial"><dok-icon name="info" [size]="14" />Inventário indisponível em: {{ unavailableHosts() }}.</span>
+      }
+    }
+  </div>
+
+  @if (removal.batch(); as batch) {
+    <section class="vl-batch alt-glass" aria-live="polite" aria-label="Andamento da remoção de volumes">
+      <div class="vl-batch__head">
+        <strong>Remover · {{ batch.items.length }} {{ batch.items.length === 1 ? 'volume' : 'volumes' }}</strong>
+        <span class="app-small vl-muted">
+          {{ batchSummary().succeeded }} removidos · {{ batchSummary().failed }} com falha · {{ batchSummary().indeterminate }} indeterminados · {{ batchSummary().pending }} em andamento
+        </span>
+        <span style="flex: 1"></span>
+        @if (batchSummary().unsubmitted && !removal.running()) {
+          <button dok-button variant="text" size="xs" type="button" (click)="removal.retryUnsubmitted()">Reenviar não enviados ({{ batchSummary().unsubmitted }})</button>
+        }
+        @if (!removal.running()) {
+          <button dok-button variant="ghost" size="xs" icon="x" type="button" aria-label="Fechar andamento da remoção" (click)="removal.dismiss()"></button>
+        }
+      </div>
+      <ul class="vl-batch__list">
+        @for (item of batch.items; track item.environmentId + '/' + item.name) {
+          <li>
+            <span class="vl-batch__name" [title]="item.name">{{ item.name }}</span>
+            <span class="vl-muted">{{ item.environmentName }}</span>
+            <dok-status-chip
+              size="sm"
+              [color]="item.state === 'succeeded' ? 'success' : item.state === 'failed' ? 'error' : item.state === 'indeterminate' ? 'warning' : 'info'"
+              [label]="item.state === 'succeeded' ? 'Removido' : item.state === 'failed' ? 'Falhou: ' + failureText(item.failureCode) : item.state === 'indeterminate' ? 'Indeterminado' : item.state === 'queued' ? 'Na fila' : 'Em andamento'"
+            />
+          </li>
+        }
+      </ul>
+    </section>
+  }
+
+  @if (detailError(); as message) {
+    <div class="vl-note" role="alert"><dok-icon name="alert" [size]="16" />{{ message }}</div>
+  }
+
+  @if (facade.error(); as e) {
+    <dok-empty-state [kind]="e.status === 403 ? 'forbidden' : 'error'" [code]="e.status ? 'Erro ' + e.status : null" [title]="e.title" [detail]="e.detail">
+      <button dok-button variant="outline" size="sm" startIcon="refresh" type="button" (click)="facade.reload()">Tentar novamente</button>
+    </dok-empty-state>
+  } @else {
+    <dok-data-grid
+      title="Volumes"
+      [entityLabel]="['volume', 'volumes']"
+      [rows]="rows()"
+      [columns]="columns"
+      [statusTones]="tones"
+      [rowActionsFor]="rowActionsFor"
+      [rowLabel]="rowLabel"
+      [(selection)]="selection"
+      [(search)]="search"
+      [(sort)]="gridSort"
+      [clientSide]="false"
+      [filters]="gridFilters()"
+      (filtersChange)="onGridFilters($event)"
+      [facetOptions]="facets()"
+      [showFilterChips]="false"
+      storageKey="volumes"
+      [loading]="facade.loading()"
+      [hasMore]="!!facade.nextCursor()"
+      [loadingMore]="facade.loadingMore()"
+      [totalCount]="facade.summary()?.total ?? null"
+      [updatedAt]="updatedAt()"
+      searchPlaceholder="Nome, label ou container"
+      [exportName]="exportName()"
+      height="600px"
+      emptyTitle="Nenhum volume encontrado com os filtros aplicados."
+      (rowAction)="onRowAction($event)"
+      (rowOpen)="showDetail($event.item)"
+      (loadMore)="facade.loadMore()"
+    >
+    </dok-data-grid>
+  }
+</div>
+
+@if (detail(); as d) {
+  <app-volume-detail-drawer [open]="!pending()" [item]="d" (closed)="closeDetail()" (remove)="prepareRemoval([$event])" />
+}
+
+@if (pending(); as p) {
+  <app-remove-volumes-drawer [open]="true" [eligibility]="p" [busy]="submitting()" (cancelled)="pending.set(null)" (confirmed)="confirm($event)" />
+}

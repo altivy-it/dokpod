@@ -58,6 +58,14 @@ Features integram por rotas, contratos públicos e fachadas pequenas; não impor
 - "Exportar CSV" baixa todo o filtro (até 10.000 eventos) e a exportação fica registrada na própria trilha;
 - a consulta fica em `features/audit/audit-api.service.ts`, fora do bundle inicial.
 
+### Volumes (spec 018)
+
+- Operação → Volumes (`/volumes`) lista os volumes dos hosts autorizados com os containers que os montam (inclusive parados); sem uso, tipo (`anonimo=1`/`0`), engine, host, busca e ordenação ficam na URL (`semUso`, `anonimo`, `engine`, `environmentId`, `q`, `sort`), e `volumeHost` + `volume` abrem o detalhe (link usado pelo detalhe do container);
+- o resumo mostra total, sem uso e os hosts com inventário indisponível; a invalidação `volumes` do hub recarrega a lista;
+- o detalhe mostra labels, montagens com link para o container e o tamanho consultado ao agente só quando o operador pede;
+- remover (linha, detalhe ou seleção, até 50) abre a confirmação reforçada: aviso de apagamento definitivo, afetados e ignorados, digitar a quantidade (lote) ou o nome (um volume em Produção) e justificativa conforme `JustificationPolicyService`; o lote é acompanhado por comando e retomado após recarregar (`sessionStorage`) sem reenvio automático;
+- as chamadas ficam em `features/volumes/volumes-api.service.ts`, fora do bundle inicial.
+
 ## Experiência operacional
 
 - densidade informacional adequada a tarefas repetidas;

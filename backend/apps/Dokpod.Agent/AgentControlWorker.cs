@@ -25,6 +25,8 @@ public sealed class AgentControlWorker(
 {
     // Containers em execução do último snapshot (alvo da amostragem de recursos, spec 009).
     private IReadOnlyList<Dokpod.Agent.Application.Metrics.SampleTarget> runningTargets = [];
+    /// <summary>Último inventário de containers (spec 018): montagens para o snapshot de volumes.</summary>
+    private IReadOnlyList<EngineContainer> latestContainers = [];
     private static readonly TimeSpan ReconnectDelay = TimeSpan.FromSeconds(5);
     private const int SnapshotPageSize = 100;
 
@@ -127,15 +129,20 @@ public sealed class AgentControlWorker(
         var imagesAccepted = established.AcceptedCapabilities.Contains(Capability.ImageInventory);
         var images = new ImagePublisher(this, outbound.Writer, imagesAccepted);
         await images.SendAsync(force: true, sessionCancellation.Token);
+        // Spec 018: inventário de volumes somente com a capability confirmada; usa as montagens do último inventário.
+        var volumesAccepted = established.AcceptedCapabilities.Contains(Capability.VolumeInventory);
+        var volumes = new VolumePublisher(this, outbound.Writer, volumesAccepted);
+        await volumes.SendAsync(force: true, sessionCancellation.Token);
         var heartbeat = SendHeartbeatsAsync(
             outbound.Writer,
             () => inventory.Revision,
             () => images.Revision,
+            () => volumes.Revision,
             TimeSpan.FromSeconds(established.HeartbeatIntervalSeconds),
             sessionCancellation.Token);
         // Agente N só envia payloads novos com capability confirmada pelo servidor (008 D-009).
         var eventsAccepted = established.AcceptedCapabilities.Contains(Capability.EngineEvents);
-        var events = WatchEngineEventsAsync(outbound.Writer, inventory, images, eventsAccepted, sessionCancellation.Token);
+        var events = WatchEngineEventsAsync(outbound.Writer, inventory, images, volumes, eventsAccepted, sessionCancellation.Token);
         await ReportOrphanExecsAsync(outbound.Writer, eventsAccepted, sessionCancellation.Token);
         var metricsAccepted = established.AcceptedCapabilities.Contains(Capability.ResourceMetrics);
         var metrics = metricsAccepted
@@ -181,10 +188,12 @@ public sealed class AgentControlWorker(
                         sessionCancellation.Token);
                     await inventory.SendAsync(sessionCancellation.Token);
                     if (message.Command.Kind == CommandKind.PullImage) await images.SendAsync(force: false, sessionCancellation.Token);
+                    await volumes.SendAsync(force: false, sessionCancellation.Token);
                 }
                 else if (message.PayloadCase == ControlPlaneMessage.PayloadOneofCase.SnapshotRequest)
                 {
                     if (message.SnapshotRequest.Scope == SnapshotScope.Images) await images.SendAsync(force: true, sessionCancellation.Token);
+                    else if (message.SnapshotRequest.Scope == SnapshotScope.Volumes) await volumes.SendAsync(force: true, sessionCancellation.Token);
                     else await inventory.SendAsync(sessionCancellation.Token);
                 }
                 else if (message.PayloadCase == ControlPlaneMessage.PayloadOneofCase.ContainerQuery)
@@ -296,6 +305,7 @@ public sealed class AgentControlWorker(
         ChannelWriter<AgentMessage> messages,
         Func<ulong> getInventoryRevision,
         Func<ulong> getImageRevision,
+        Func<ulong> getVolumeRevision,
         TimeSpan interval,
         CancellationToken cancellationToken)
     {
@@ -305,7 +315,7 @@ public sealed class AgentControlWorker(
             await messages.WriteAsync(
                 new AgentMessage
                 {
-                    Heartbeat = new Heartbeat { InventoryRevision = getInventoryRevision(), ImageRevision = getImageRevision() },
+                    Heartbeat = new Heartbeat { InventoryRevision = getInventoryRevision(), ImageRevision = getImageRevision(), VolumeRevision = getVolumeRevision() },
                 },
                 cancellationToken);
         }
@@ -317,6 +327,7 @@ public sealed class AgentControlWorker(
         CancellationToken cancellationToken)
     {
         var containers = await engine.ListContainersAsync(cancellationToken);
+        Volatile.Write(ref latestContainers, containers);
         Volatile.Write(ref runningTargets, containers
             .Where(container => string.Equals(container.State, "running", StringComparison.OrdinalIgnoreCase))
             .Select(container => new Dokpod.Agent.Application.Metrics.SampleTarget(container.ContainerId, container.CpuLimitCores))
@@ -410,12 +421,14 @@ public sealed class AgentControlWorker(
         ChannelWriter<AgentMessage> messages,
         InventoryPublisher inventory,
         ImagePublisher images,
+        VolumePublisher volumes,
         bool sendEvents,
         CancellationToken cancellationToken)
     {
         var publisher = new EngineEventPublisher(TimeProvider.System);
         long dirtySince = 0;
         long imagesDirtySince = 0;
+        long volumesDirtySince = 0;
         var pump = Task.Run(async () =>
         {
             using var timer = new PeriodicTimer(TimeSpan.FromSeconds(1));
@@ -432,6 +445,15 @@ public sealed class AgentControlWorker(
                     Interlocked.CompareExchange(ref dirtySince, 0, since) == since)
                 {
                     await inventory.SendAsync(cancellationToken);
+                    // Montagens mudam com containers criados ou removidos: o snapshot de volumes só sai se o conjunto mudou.
+                    await volumes.SendAsync(force: false, cancellationToken);
+                }
+
+                var volumesSince = Interlocked.Read(ref volumesDirtySince);
+                if (volumesSince != 0 && Environment.TickCount64 - volumesSince >= 2000 &&
+                    Interlocked.CompareExchange(ref volumesDirtySince, 0, volumesSince) == volumesSince)
+                {
+                    await volumes.SendAsync(force: false, cancellationToken);
                 }
 
                 var imagesSince = Interlocked.Read(ref imagesDirtySince);
@@ -457,6 +479,11 @@ public sealed class AgentControlWorker(
                     if (record.Type == "image")
                     {
                         Interlocked.Exchange(ref imagesDirtySince, Environment.TickCount64);
+                    }
+
+                    if (record.Type == "volume")
+                    {
+                        Interlocked.Exchange(ref volumesDirtySince, Environment.TickCount64);
                     }
                 }
             }
@@ -545,6 +572,47 @@ public sealed class AgentControlWorker(
         }
     }
 
+    private Task<IReadOnlyList<EngineVolume>> ListVolumesAsync(CancellationToken cancellationToken) => engine.ListVolumesAsync(cancellationToken);
+
+    private void LogVolumeInventoryUnavailable(Exception exception) => logger.LogWarning(exception, "Engine volume inventory unavailable");
+
+    /// <summary>Snapshot do inventário de volumes quando o conjunto ou as montagens mudam (spec 018); revisão vai no heartbeat.</summary>
+    private sealed class VolumePublisher(AgentControlWorker worker, ChannelWriter<AgentMessage> messages, bool enabled)
+    {
+        private readonly SemaphoreSlim gate = new(1, 1);
+        private readonly Dokpod.Agent.Application.Volumes.VolumeInventoryBuilder builder = new(TimeProvider.System);
+
+        public ulong Revision => enabled ? builder.Revision : 0;
+
+        public async Task SendAsync(bool force, CancellationToken cancellationToken)
+        {
+            if (!enabled) return;
+            await gate.WaitAsync(cancellationToken);
+            try
+            {
+                IReadOnlyList<EngineVolume> list;
+                try
+                {
+                    list = await worker.ListVolumesAsync(cancellationToken);
+                }
+                catch (Exception exception) when (exception is HttpRequestException or IOException or InvalidDataException or System.Text.Json.JsonException)
+                {
+                    worker.LogVolumeInventoryUnavailable(exception);
+                    return;
+                }
+
+                foreach (var page in builder.Build(list, Volatile.Read(ref worker.latestContainers), force))
+                {
+                    await messages.WriteAsync(new AgentMessage { VolumeSnapshotPage = page }, cancellationToken);
+                }
+            }
+            finally
+            {
+                gate.Release();
+            }
+        }
+    }
+
     private sealed class InventoryPublisher(AgentControlWorker worker, ChannelWriter<AgentMessage> messages)
     {
         private readonly SemaphoreSlim gate = new(1, 1);
@@ -611,6 +679,8 @@ public sealed class AgentControlWorker(
                 Capability.ContainerLogs,
                 Capability.ImageInventory,
                 Capability.ImagePull,
+                Capability.VolumeInventory,
+                Capability.VolumeRemove,
             },
             SupportedProtocolVersions = { "1" },
         };

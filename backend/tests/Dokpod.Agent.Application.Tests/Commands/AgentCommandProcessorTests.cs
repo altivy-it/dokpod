@@ -356,7 +356,7 @@ public sealed class AgentCommandProcessorTests
         public void ReleaseExecution() => ExecutionRelease!.TrySetResult();
     }
 
-    private sealed class MemoryCommandJournal : ICommandJournal
+    internal sealed class MemoryCommandJournal : ICommandJournal
     {
         private readonly Dictionary<(Guid, Guid), JournaledCommand> commands = [];
         private readonly Dictionary<(Guid, Guid), JournaledCommandResult> results = [];

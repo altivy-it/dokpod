@@ -19,6 +19,7 @@ public static class EnvironmentResourceScopes
     public const string ExecContainer = "container:exec";
     public const string ReadAlerts = "alert:read";
     public const string ManageAlerts = "alert:manage";
+    public const string DeleteVolume = "volume:delete";
 
     public static IReadOnlySet<string> Supported { get; } = new HashSet<string>(
     [
@@ -37,6 +38,7 @@ public static class EnvironmentResourceScopes
         ExecContainer,
         ReadAlerts,
         ManageAlerts,
+        DeleteVolume,
     ], StringComparer.Ordinal).ToFrozenSet(StringComparer.Ordinal);
 }
 

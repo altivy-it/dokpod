@@ -259,6 +259,7 @@ public static class ContainerCommandEndpoints
         AgentCommandKind.UnpauseContainer => "unpause",
         AgentCommandKind.PullImage => "pull",
         AgentCommandKind.CreateContainer => "create",
+        AgentCommandKind.RemoveVolume => "remove_volume",
         _ => throw new ArgumentOutOfRangeException(nameof(kind)),
     };
 

@@ -30,6 +30,10 @@ export const routes: Routes = [
     loadComponent: () => import('./features/images/images.page').then(m => m.ImagesPage),
   },
   {
+    path: 'volumes',
+    loadComponent: () => import('./features/volumes/volumes.page').then(m => m.VolumesPage),
+  },
+  {
     path: 'alertas',
     loadComponent: () => import('./features/alerts/alerts.page').then(m => m.AlertsPage),
   },
@@ -37,6 +41,7 @@ export const routes: Routes = [
     path: 'auditoria',
     loadComponent: () => import('./features/audit/audit.page').then(m => m.AuditPage),
   },
+  { path: 'em-breve/volumes', redirectTo: 'volumes' },
   {
     path: 'em-breve/:item',
     loadComponent: () => import('./shell/pages/coming-soon.page').then(m => m.ComingSoonPage),

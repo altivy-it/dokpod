@@ -582,6 +582,7 @@ public sealed class PostgresAgentCommandStore(
     {
         PullImageParameters => "pull_image",
         CreateContainerParameters => "create_container",
+        RemoveVolumeParameters => "remove_volume",
         _ => throw new ArgumentOutOfRangeException(nameof(parameters)),
     };
 
@@ -591,6 +592,7 @@ public sealed class PostgresAgentCommandStore(
         CreateContainerParameters create => System.Text.Json.JsonSerializer.Serialize(
             Dokpod.ControlPlane.Application.Containers.ContainerCreationRequest.FromSpec(create.Spec.WithoutValues()),
             ParametersJson),
+        RemoveVolumeParameters volume => System.Text.Json.JsonSerializer.Serialize(new { name = volume.Name }),
         _ => throw new ArgumentOutOfRangeException(nameof(parameters)),
     };
 
@@ -603,6 +605,8 @@ public sealed class PostgresAgentCommandStore(
                 Dokpod.Domain.Images.ImageReference.TryParse(reference.GetString(), out var parsed) => new PullImageParameters(parsed),
             "create_container" when System.Text.Json.JsonSerializer.Deserialize<Dokpod.ControlPlane.Application.Containers.ContainerCreationRequest>(json, ParametersJson)?.ToSpec().Spec is { } spec =>
                 new CreateContainerParameters(spec.WithoutValues()),
+            "remove_volume" when document.RootElement.TryGetProperty("name", out var volume) &&
+                Dokpod.Domain.Volumes.VolumeNames.IsValid(volume.GetString()) => new RemoveVolumeParameters(volume.GetString()!),
             _ => null,
         };
     }
@@ -638,6 +642,7 @@ public sealed class PostgresAgentCommandStore(
             AgentCommandKind.UnpauseContainer => "container.unpause",
             AgentCommandKind.PullImage => "image.pull",
             AgentCommandKind.CreateContainer => "container.create.requested",
+            AgentCommandKind.RemoveVolume => "volume.remove",
             _ => throw new ArgumentOutOfRangeException(nameof(kind)),
         };
 }

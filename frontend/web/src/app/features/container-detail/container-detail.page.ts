@@ -180,6 +180,13 @@ export class ContainerDetailPage {
     }
     return items;
   });
+  /** Volumes nomeados montados, com link para o detalhe em Operação → Volumes (spec 018 FR-009). */
+  protected readonly volumeLinks = computed(() => {
+    const environmentId = this.environmentId();
+    return (this.summary().value?.volumes ?? [])
+      .filter(v => v.type === 'volume' && !!v.name)
+      .map(v => ({ name: v.name!, destination: v.destination, queryParams: { environmentId, volumeHost: environmentId, volume: v.name } }));
+  });
   protected readonly limits = computed(() => {
     const s = this.summary().value;
     return {

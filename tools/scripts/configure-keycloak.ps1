@@ -488,7 +488,9 @@ function Ensure-AuthorizationScopes {
         'container:create',
         'container:exec',
         'alert:read',
-        'alert:manage')) {
+        'alert:manage',
+        # Spec 018: remoção de volumes sem uso.
+        'volume:delete')) {
         $encodedScope = [Uri]::EscapeDataString($scopeName)
         $scope = @(Invoke-KeycloakApi GET "$authzBase/scope?name=$encodedScope&exact=true") |
             Where-Object name -eq $scopeName | Select-Object -First 1

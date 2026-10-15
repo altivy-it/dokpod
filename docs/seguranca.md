@@ -181,6 +181,24 @@ A telemetria usa allowlist de campos, limites e normalização de caracteres de 
 
 **Nome do ator**: eventos novos guardam o `preferred_username` do token (o `sub` continua como identificador). Para eventos gravados fora da requisição do usuário (por exemplo, fim do terminal), a API usa o último nome visto para o `sub`, mantido só em memória e limitado. **Risco residual**: a consulta em si não é auditada (decisão da spec), só a exportação.
 
+## Threat model: volumes (spec 018)
+
+**Fronteira nova**: agente → inventário de volumes (snapshot paginado) → projeção `dokpod.inventory_volumes`; navegador → BFF → API → fila de comandos → stream mTLS do agente → `DELETE /volumes/{nome}` do engine. Remover um volume apaga dados de forma definitiva.
+
+**Atores**: operador com `volume:delete`, usuário sem o scope, usuário de outro ambiente, agente comprometido, container criado entre a listagem e a remoção.
+
+| Ameaça | Mitigação | Teste negativo |
+| --- | --- | --- |
+| Apagar volume em uso (perda de dados) | A API recusa volume com montagens na projeção (409 `volume_in_use`); o agente relista os containers (inclusive parados) imediatamente antes e recusa; a chamada ao engine nunca usa `force` (409 do engine → `volume_in_use`) | `VolumeAgentTests`, `VolumeRemovalServiceTests`; na stack real, container criado logo antes do comando → `volume_in_use` com o volume intacto (SC-003) |
+| Injeção no nome repassado ao engine | Nome validado (`^[A-Za-z0-9][A-Za-z0-9_.-]*$`, até 255) na API **e** no agente; codificado no caminho | `../etc` e nomes fora da gramática → 400 `volume_name_invalid` |
+| Exposição de caminho do host | O agente ignora `Mountpoint`; o inventário só leva nome, driver, escopo, criação, labels e montagens (container e destino) | `VolumeAgentTests` (snapshot sem caminho do host) |
+| Scope ausente / ambiente não autorizado | Decisão Keycloak `volume:delete` por host; registro do ambiente precisa conter o scope (a migration o acrescenta onde já havia `container:delete`); falha do Keycloak = negado | 403 sem o scope; nenhum comando persistido |
+| Remoção sem rastreio | Comando durável com `Idempotency-Key`, prazo e auditoria `volume.remove` (ator, host, volume e justificativa mascarada); justificativa obrigatória onde a política do estágio exige (spec 016) | 422 `justification_required`; canário de segredo mascarado na auditoria |
+| Agente sem suporte | Capabilities `VolumeInventory`/`VolumeRemove` (16/17); servidor sem projeção não as confirma; host sem inventário aparece como "inventário indisponível" | agente sem `VolumeRemove` → `not_supported` |
+| Agente comprometido falsificando inventário | Páginas validadas (ordem, identidade, ≤ 500 volumes e 256 KiB, ≤ 64 labels e 100 montagens por volume); dados exibidos só como texto | página fora de ordem encerra a sessão (`volume_snapshot_invalid`) |
+
+**Risco residual**: entre a conferência do agente e o `DELETE` do engine há uma janela de milissegundos; o engine recusa remover volume em uso sem `force`, o que fecha essa janela no próprio engine.
+
 ## Desenvolvimento e release
 
 - threat model atualizado para cada nova fronteira;
