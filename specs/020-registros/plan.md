@@ -31,7 +31,7 @@ O agente publica, com capability nova, a configuração de registros do engine (
 | I. Documentação em pt-BR | OK. |
 | II. Engine local como fonte | OK: configuração vem do engine e do arquivo do host pelo agente; o console não altera o host. |
 | III. Identidade externa e menor privilégio | OK: leitura com `environment:read`; política com `environment:manage` em todos os hosts do estágio (regra da spec 016). |
-| IV. Operações duráveis | OK: não há comando novo; a política é gravada com auditoria na mesma transação. |
+| IV. Operações duráveis | OK: não há comando novo; a política é gravada e auditada em seguida, por host do estágio (mesmo modelo da política de justificativa da spec 016). |
 | V. Modularidade e compatibilidade | OK: mensagem e capability novas; agente N-1 fica "configuração indisponível"; sem política no banco, vale a configuração da API. |
 | VI. Qualidade verificável | OK: testes por camada, canário de credencial, E2E simulada e stack real Podman. Docker real `NOT RUN` nesta máquina. |
 

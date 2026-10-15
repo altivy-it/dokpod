@@ -110,7 +110,7 @@ O stream operacional com o plano de controle é habilitado quando estas variáve
 
 - O pull é executado pelo agente no engine local (`POST /images/create`), com prazo do comando (padrão de 10 min na interface, máximo de 30 min).
 - Credenciais de registro ficam **somente no host**: o agente lê `DOKPOD_AGENT_REGISTRY_AUTH_FILE` a cada pull e envia o cabeçalho `X-Registry-Auth` ao engine local. Nada é enviado ao plano de controle, gravado no PostgreSQL ou registrado em log. Proteja o arquivo com permissão `0600` para o usuário do agente; sem o arquivo, o engine usa a própria configuração (por exemplo `~/.docker/config.json` ou `auth.json` do Podman).
-- Lista opcional de registros permitidos por estágio na API: `Images__AllowedRegistriesByStage__production__0=registry.empresa.com` (chaves `production`, `staging`, `development`, `none`); sem lista, qualquer registro é aceito.
+- Lista opcional de registros permitidos por estágio na API: `Images__AllowedRegistriesByStage__production__0=registry.empresa.com` (chaves `production`, `staging`, `development`, `none`); sem lista, qualquer registro é aceito. Desde a spec 020 essa configuração é o **valor inicial**: depois que a política de um estágio é salva em Infraestrutura → Registros (com auditoria), vale a lista do console para aquele estágio.
 - Retenção de comandos: `Commands__Retention` (padrão `90.00:00:00`).
 - Evidência: pull real de `quay.io/podman/hello` e falha `image_not_found` em Podman 5.7.0 rootless (`Dokpod.Agent.Podman.IntegrationTests`, `DOKPOD_TEST_REGISTRY_NETWORK=1`). Registro privado de laboratório (`registry:2`, D-004) e Docker real: `NOT RUN`.
 

@@ -73,6 +73,13 @@ Features integram por rotas, contratos públicos e fachadas pequenas; não impor
 - remover (linha, detalhe ou seleção, até 50) lista afetadas e ignoradas (sistema, cluster, em uso, sem permissão, host desconectado), pede a quantidade só em lote com rede de Produção e justificativa conforme `JustificationPolicyService`; o lote é acompanhado e retomado como o de volumes;
 - as chamadas ficam em `features/networks/networks-api.service.ts`, fora do bundle inicial (419,51 kB, aviso em 420 kB).
 
+### Registros (spec 020)
+
+- Infraestrutura → Registros (`/registros`) tem as vistas Registros e Política por estágio (`vista=politica`); origem, inseguros, fora da política, host e busca ficam na URL (`origem`, `inseguros`, `foraDaPolitica`, `environmentId`, `q`, `sort`) e `registro` abre o detalhe por host, com link para Imagens filtrada;
+- credenciais aparecem só como "sim/não"; a situação mostra o caso mais grave (bloqueado, inseguro, fora da política);
+- a política mostra a lista efetiva de cada estágio e se veio da configuração ou do console; a edição valida host[:porta], mostra quantas imagens ficam fora e só aparece com administração de todos os hosts do estágio;
+- as chamadas ficam em `features/registries/registries-api.service.ts`; as de gestão de alertas passaram para `features/alerts/alerts-api.service.ts`, o que manteve o bundle inicial em 418,91 kB.
+
 ## Experiência operacional
 
 - densidade informacional adequada a tarefas repetidas;
