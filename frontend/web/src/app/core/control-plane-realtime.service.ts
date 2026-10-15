@@ -3,7 +3,9 @@ import { inject, Injectable, signal } from '@angular/core';
 import { HubConnection, HubConnectionBuilder, HubConnectionState } from '@microsoft/signalr';
 import { firstValueFrom } from 'rxjs';
 
-export type ControlPlaneRealtimeStatus = 'disconnected' | 'connecting' | 'connected' | 'error';
+import { controlPlaneHubUrl, type ControlPlaneRealtimeStatus } from './realtime-hub';
+
+export { controlPlaneHubUrl, type ControlPlaneRealtimeStatus };
 export interface InventoryChangedNotification {
   environmentId: string;
   revision: number;
@@ -11,10 +13,6 @@ export interface InventoryChangedNotification {
 
 interface AntiforgeryResponse {
   requestToken: string;
-}
-
-export function controlPlaneHubUrl(baseUri: string): string {
-  return `${baseUri.replace(/\/$/, '')}/hubs/control-plane`;
 }
 
 @Injectable({ providedIn: 'root' })

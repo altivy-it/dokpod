@@ -5,7 +5,7 @@ import { newUuid } from '../uuid';
 
 export const ACTION_LABEL: Record<ContainerAction, { verb: string; done: string; icon: string }> = {
   start: { verb: 'Iniciar', done: 'iniciado', icon: 'play' },
-  stop: { verb: 'Parar', done: 'parado', icon: 'pause' },
+  stop: { verb: 'Parar', done: 'parado', icon: 'stop' },
   restart: { verb: 'Reiniciar', done: 'reiniciado', icon: 'refresh' },
   pause: { verb: 'Pausar', done: 'pausado', icon: 'pause' },
   unpause: { verb: 'Retomar', done: 'retomado', icon: 'play' },
@@ -34,6 +34,8 @@ export interface BatchItem {
 export interface Batch {
   id: string;
   action: ContainerAction;
+  /** Justificativa da ação (spec 016), reenviada com a mesma chave na retomada. */
+  justification?: string | null;
   startedAt: string;
   items: BatchItem[];
 }
@@ -92,12 +94,13 @@ export class ContainerActionsService {
     if (this.batch() && this.running()) void this.track();
   }
 
-  async run(action: ContainerAction, items: ContainerListItem[]): Promise<Batch> {
+  async run(action: ContainerAction, items: ContainerListItem[], justification: string | null = null): Promise<Batch> {
     if (items.length === 0) throw new Error('Nenhum container elegível.');
     if (items.length > BATCH_LIMIT) throw new Error(`O lote aceita no máximo ${BATCH_LIMIT} containers.`);
     const batch: Batch = {
       id: newUuid(),
       action,
+      justification,
       startedAt: new Date().toISOString(),
       items: items.map(item => ({
         environmentId: item.environmentId,
@@ -143,6 +146,7 @@ export class ContainerActionsService {
             item.revision,
             this.batch()!.action,
             item.idempotencyKey,
+            this.batch()!.justification ?? null,
           );
           this.patch(item.containerId, item.environmentId, { commandId, state: 'pending' });
         } catch (error: unknown) {

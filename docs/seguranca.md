@@ -148,6 +148,24 @@ A telemetria usa allowlist de campos, limites e normalização de caracteres de 
 
 **Janela de revogação**: até 60 s mais a vida útil restante do access token (realm com access token ≤ 5 min, `docs/configuracao-keycloak.md`). **Risco residual**: processos em segundo plano criados pelo usuário e ações executadas antes da revogação. Aprovação: decisão do solicitante registrada em `specs/README.md` (2026-10-13); ADR 2026-0006 `accepted` em 2026-10-14; revisão humana de segurança pendente antes de release.
 
+## Threat model: governança de alertas e ações justificadas (spec 016)
+
+**Fronteira nova**: eventos gravados (`OperationalEventService`) → `AlertEvaluator` → `dokpod.alerts`; varredura (`AlertSweeper`, 30 s) sobre inventário, conexão e amostras em memória; API de alertas, regras, silenciamentos, política e justificativas; `justification` opcional em `POST .../commands`, gravada em `dokpod.container_action_justifications` fora do payload assinado do agente (D-005).
+
+**Atores**: operador com `alert:read`/`alert:manage`, administrador com `environment:manage`, usuário sem acesso a um host, cliente da API que ignora a UI.
+
+| Ameaça | Mitigação | Teste negativo |
+| --- | --- | --- |
+| Ver alertas, regras ou silenciamentos de host sem leitura | Filtro por `alert:read` em cada consulta; detalhe de alerta sem leitura responde 404 (indistinguível); regras e silenciamentos com host restrito não aparecem (FR-023) | usuário somente leitura não recebe ações; alerta de outro host → 404 |
+| Silenciar ou desativar regras para esconder incidentes | `alert:manage` em **todos** os hosts abrangidos; janela máxima de 7 dias; justificativa de 10 a 500 caracteres; alertas silenciados ficam registrados (estado `silenced`); toda criação, alteração, encerramento e resolução manual é auditada por host | silenciamento > 7 dias → 400; sem `alert:manage` → 403 |
+| Parada "intencional" usada para encobrir falha | Justificativa obrigatória onde a política do estágio manda, recusada pela API (`422 justification_required`) mesmo para clientes que não conhecem a política (FR-017); autor (nome do token) e horário gravados; a marcação termina quando o container volta a executar | comando sem justificativa em estágio com política → 422 (stack real) |
+| Mudar a política de justificativa | `environment:manage` em todos os hosts do estágio (D-007), auditado em cada host | sem o scope → 403 |
+| Segredo digitado em justificativa ou comentário | Mascaramento (`JustificationMasker`) antes de persistir e auditar (FR-020) | canário de senha no formato chave=valor não aparece no registro (teste de aplicação) |
+| Alerta forjado por evento repetido ou reenvio | Avaliação só dos eventos efetivamente gravados (deduplicação por `source_key`); um alerta ativo por regra e alvo (índice único parcial); 100 repetições = 1 alerta (SC-002) | teste em PostgreSQL real |
+| Inundação de alertas | Deduplicação por regra e alvo, regras com mínimo de ocorrências e janela, silenciamentos por padrão de nome | — |
+
+**Risco residual**: o estado das condições de duração (limites de CPU e memória, agente desconectado) vive em memória da réplica única, como as amostras da spec 009; reiniciar a API recomeça a contagem. A autoria exibida usa `preferred_username`; a auditoria continua com o `sub` do token.
+
 ## Desenvolvimento e release
 
 - threat model atualizado para cada nova fronteira;

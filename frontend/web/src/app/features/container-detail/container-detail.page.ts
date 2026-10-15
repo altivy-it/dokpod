@@ -3,6 +3,8 @@ import { Router, RouterLink } from '@angular/router';
 import { ConfirmActionDrawer } from '../../core/container-actions/confirm-action.drawer';
 import { ACTION_LABEL, ContainerActionsService, evaluateEligibility, type Eligibility } from '../../core/container-actions/container-actions.service';
 import { ConsoleRealtimeService } from '../../core/console-realtime.service';
+import { intentionalLabel } from '../../data-access/alert-labels';
+import { formatDateTime } from '../../design-system/format/format';
 import { CONTAINER_STATUS } from '../../data-access/console-labels';
 import { ControlPlaneApiService, type ContainerAction } from '../../data-access/control-plane-api.service';
 import type { ContainerConfigSummary, ContainerDetail, ContainerInspection } from '../../data-access/generated/control-plane';
@@ -95,7 +97,17 @@ export class ContainerDetailPage {
     return value === 'resumo' || value === 'inspecionar' || value === 'estatisticas' || value === 'terminal' ? value : 'logs';
   });
 
-  protected readonly status = computed(() => CONTAINER_STATUS[this.detail()?.displayStatus ?? 'stopped']);
+  protected readonly status = computed(() => {
+    const intentional = this.detail()?.intentional;
+    if (intentional) return { label: intentionalLabel(intentional), tone: intentional.action === 'pause' ? ('info' as const) : ('neutral' as const) };
+    return CONTAINER_STATUS[this.detail()?.displayStatus ?? 'stopped'];
+  });
+  /** Autor, horário e motivo da parada ou pausa justificada (spec 016 FR-018). */
+  protected readonly intentionalNote = computed(() => {
+    const intentional = this.detail()?.intentional;
+    if (!intentional) return null;
+    return `${intentionalLabel(intentional)} por ${intentional.actor} em ${formatDateTime(intentional.at)}: ${intentional.reason}`;
+  });
   protected readonly shortId = computed(() => this.containerId().slice(0, 12));
   protected readonly facts = computed(() => {
     const d = this.detail();
@@ -219,12 +231,12 @@ export class ContainerDetailPage {
     this.pending.set({ action, eligibility: evaluateEligibility([d], action) });
   }
 
-  protected async confirm(): Promise<void> {
+  protected async confirm(justification: string | null = null): Promise<void> {
     const pending = this.pending();
     if (!pending) return;
     this.submitting.set(true);
     try {
-      await this.actions.run(pending.action, pending.eligibility.eligible);
+      await this.actions.run(pending.action, pending.eligibility.eligible, justification);
       this.pending.set(null);
       this.toast.notify('info', { message: `${ACTION_LABEL[pending.action].verb}: comando enviado. O resultado aparece em instantes.` });
     } catch (error: unknown) {

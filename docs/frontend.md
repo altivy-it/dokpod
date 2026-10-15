@@ -42,6 +42,14 @@ Features integram por rotas, contratos públicos e fachadas pequenas; não impor
 - a confirmação lista afetados e ignorados com motivo, informa que volumes não são removidos e, para remover mais de um container em Produção, exige digitar a quantidade;
 - toda mutação usa `X-Dokpod-Antiforgery`, chave de idempotência UUID v4 (com fallback a `crypto.getRandomValues` fora de contexto seguro) e a revisão observada do container.
 
+### Alertas e ações justificadas (spec 016)
+
+- Governança → Alertas (`/alertas`) tem as vistas Abertos, Histórico (90 dias), Regras e Silenciamentos; vista, severidade, situação, host, regra, período e busca ficam na URL (`vista`, `severidade`, `estado`, `environmentId`, `regra`, `desde`, `ate`, `q`), e `alerta=<id>` abre o detalhe com a linha do tempo;
+- reconhecer e resolver pedem comentário; silenciar pede janela e justificativa (10 a 500 caracteres); ações só aparecem com `canManage` devolvido pela API, nunca deduzido da lista de scopes do registro do ambiente;
+- o contador do menu "Alertas" e o sino vêm de `AlertSummaryService` (`GET /api/v1/alerts/summary` do estágio selecionado), recarregado pela invalidação `alerts` do hub e, sem tempo real, a cada minuto;
+- a política de justificativa por estágio fica na vista Regras; o diálogo de parar, pausar e remover (lista, detalhe e lote) mostra o campo obrigatório ou opcional conforme `JustificationPolicyService`, e a API continua sendo a autoridade (422 `justification_required`);
+- containers parados ou pausados com justificativa vigente aparecem como "Parado intencionalmente"/"Pausado intencionalmente", com autor, horário e motivo no detalhe.
+
 ## Experiência operacional
 
 - densidade informacional adequada a tarefas repetidas;
@@ -58,6 +66,10 @@ Features integram por rotas, contratos públicos e fachadas pequenas; não impor
 O console segue o design system próprio derivado do Altivy (ADR 2026-0005), com os mockups de `docs/design/app` como fonte da verdade: tema escuro, vidro translúcido apenas em moldura, cards e overlays, conteúdo denso em painel opaco, tipografia Outfit (JetBrains Mono para dados técnicos) e `teal-light` como único acento. Tokens, fontes e utilitários globais ficam em `frontend/web/src/styles/` (`tokens.css`, `fonts.css`, `app-text.css`, `altivy-kit.css`) e componentes `dok-*` em `frontend/web/src/app/design-system/`; `frontend/libs/design-system/assets/` guarda apenas ativos de marca e ícones de navegador.
 
 Ícones vêm de `dok-icon` (geometria do kit Altivy) e sempre possuem nome acessível ou tooltip quando o significado não é óbvio. Todo status leva palavra ou ícone além da cor.
+
+### Cards de KPI navegáveis
+
+Cards de indicador que representam um recorte de lista são links para essa lista, já filtrada ou ordenada, preservando o estágio da URL (`queryParamsHandling="merge"`); na Visão geral, os seis cards levam à tela Containers (situação ou ordenação por consumo) ou à tela Imagens (spec 015). O nome acessível é o texto visível do card seguido do destino em `.sr-only` (WCAG 2.5.3, "label in name"), nunca um `aria-label` que substitua o texto visível. Durante o carregamento o card não é link; com valor "indisponível" continua navegável.
 
 ## Acessibilidade e desempenho
 

@@ -6,6 +6,7 @@ public static class InvalidationKinds
     public const string Host = "host";
     public const string Events = "events";
     public const string Images = "images";
+    public const string Alerts = "alerts";
 }
 
 /// <summary>Invalidação em tempo real por ambiente e tipo; o cliente busca o estado pela API.</summary>

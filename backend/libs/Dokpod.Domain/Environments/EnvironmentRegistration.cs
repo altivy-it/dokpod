@@ -17,6 +17,8 @@ public static class EnvironmentResourceScopes
     public const string PullImage = "image:pull";
     public const string CreateContainer = "container:create";
     public const string ExecContainer = "container:exec";
+    public const string ReadAlerts = "alert:read";
+    public const string ManageAlerts = "alert:manage";
 
     public static IReadOnlySet<string> Supported { get; } = new HashSet<string>(
     [
@@ -33,6 +35,8 @@ public static class EnvironmentResourceScopes
         PullImage,
         CreateContainer,
         ExecContainer,
+        ReadAlerts,
+        ManageAlerts,
     ], StringComparer.Ordinal).ToFrozenSet(StringComparer.Ordinal);
 }
 

@@ -118,8 +118,12 @@ public sealed class MetricsServiceTests
     public async Task Stage_WeightsCurrentCpuByCoresAndBuildsSeriesFromStore()
     {
         var f = new Fixture();
-        await f.Ingestion.IngestAsync(Env1, Batch(T0, 40, 32UL << 30, 64UL << 30), TestContext.Current.CancellationToken);
-        await f.Ingestion.IngestAsync(Env2, Batch(T0, 80, 12UL << 30, 16UL << 30), TestContext.Current.CancellationToken);
+        // Spec 015: o valor atual vem da soma dos containers (40% e 32 GiB no host 1; 80% e 12 GiB no host 2).
+        await f.Ingestion.IngestAsync(Env1, Batch(T0, 40, 32UL << 30, 64UL << 30,
+            new ContainerResourceSample { ContainerId = "c1", CpuPercentOfHost = 25, MemoryUsedBytes = 20UL << 30 },
+            new ContainerResourceSample { ContainerId = "c2", CpuPercentOfHost = 15, MemoryUsedBytes = 12UL << 30 }), TestContext.Current.CancellationToken);
+        await f.Ingestion.IngestAsync(Env2, Batch(T0, 80, 12UL << 30, 16UL << 30,
+            new ContainerResourceSample { ContainerId = "c3", CpuPercentOfHost = 80, MemoryUsedBytes = 12UL << 30 }), TestContext.Current.CancellationToken);
         var minute = new DateTimeOffset(2026, 10, 13, 11, 0, 0, TimeSpan.Zero);
         f.Store.Rows.AddRange([
             new HostMinuteSample(Env1, minute, 40, 32L << 30, 64L << 30, 4),
@@ -137,6 +141,42 @@ public sealed class MetricsServiceTests
         Assert.Equal(48, result.Series.Cpu[index]);
         Assert.Null(result.Series.Cpu[0]);
         Assert.Equal(80, result.OperationalLimitPercent);
+    }
+
+    [Fact]
+    public async Task Stage_CurrentFollowsContainersNotTheWholeHost()
+    {
+        var f = new Fixture();
+        var ct = TestContext.Current.CancellationToken;
+        // Host 1 a 90% de CPU e 60 de 64 GiB, mas os containers somam só 10% e 8 GiB: o card segue os containers.
+        await f.Ingestion.IngestAsync(Env1, Batch(T0, 90, 60UL << 30, 64UL << 30,
+            new ContainerResourceSample { ContainerId = "c1", CpuPercentOfHost = 10, MemoryUsedBytes = 8UL << 30 }), ct);
+        // Host 2 sem containers em execução: fica fora do cálculo (parcial).
+        await f.Ingestion.IngestAsync(Env2, Batch(T0, 50, 8UL << 30, 16UL << 30), ct);
+        var window = new MetricsWindow(TimeSpan.FromHours(12), TimeSpan.FromHours(1));
+
+        var result = await f.Query.GetStageAsync([Host(Env1, 8), Host(Env2, 8)], window, ct);
+
+        Assert.Equal(10, result.Current.CpuPercent);
+        Assert.Equal(12.5, result.Current.MemoryPercent);
+        Assert.Equal(1, result.Current.HostsSampled);
+        Assert.Equal(2, result.Current.HostsTotal);
+
+        // Sem amostra recente do host, a capacidade vem do descritor (16 GiB): 8 GiB = 50%.
+        var withoutHostSample = new Fixture();
+        await withoutHostSample.Ingestion.IngestAsync(Env1, new ResourceSampleBatch
+        {
+            SampledAt = Timestamp.FromDateTimeOffset(T0),
+            Containers = { new ContainerResourceSample { ContainerId = "c1", CpuPercentOfHost = 10, MemoryUsedBytes = 8UL << 30 } },
+        }, ct);
+        Assert.Equal(50, (await withoutHostSample.Query.GetStageAsync([Host(Env1, 8)], window, ct)).Current.MemoryPercent);
+
+        // Nenhum container com amostra recente: indisponível, nunca zero.
+        f.Clock.Advance(f.Options.LatestExpiry + TimeSpan.FromSeconds(1));
+        var expired = await f.Query.GetStageAsync([Host(Env1, 8), Host(Env2, 8)], window, ct);
+        Assert.Null(expired.Current.CpuPercent);
+        Assert.Null(expired.Current.MemoryPercent);
+        Assert.Equal(0, expired.Current.HostsSampled);
     }
 
     private static HostView Host(Guid id, int cpus) => new(

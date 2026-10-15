@@ -8,6 +8,7 @@ import {
   evaluateEligibility,
   type Eligibility,
 } from '../../core/container-actions/container-actions.service';
+import { intentionalLabel } from '../../data-access/alert-labels';
 import { CONTAINER_STATUS, CONTAINER_STATUS_TONES, ENGINE_LABEL } from '../../data-access/console-labels';
 import type { ContainerAction } from '../../data-access/control-plane-api.service';
 import type { ContainerDisplayStatus, ContainerListItem } from '../../data-access/generated/control-plane';
@@ -49,7 +50,20 @@ const SERVER_SORT: Record<string, [ServerSort, ServerSort]> = {
   status: ['displayStatus', 'displayStatus'],
   host: ['environment', 'environment'],
   created: ['createdAt', '-createdAt'],
+  // Spec 015: ordenação por consumo atual, feita no servidor sobre todo o conjunto filtrado.
+  cpu: ['cpu', '-cpu'],
+  mem: ['memory', '-memory'],
 };
+
+/** Ordenação da URL refletida no cabeçalho do grid (inverso de SERVER_SORT, só para direções distintas). */
+export function gridSortFromServer(sort: string | undefined): GridSort | null {
+  for (const [field, [asc, desc]] of Object.entries(SERVER_SORT)) {
+    if (asc === desc) continue;
+    if (sort === asc && field !== 'name') return { field, dir: 'asc' };
+    if (sort === desc) return { field, dir: 'desc' };
+  }
+  return null;
+}
 
 function asArray(value: string | string[] | undefined): string[] {
   return value === undefined ? [] : Array.isArray(value) ? value : [value];
@@ -97,7 +111,12 @@ export class ContainersPage {
   /** Drawer "Novo container" (spec 013), também aberto por `?novo=1` vindo da Visão geral. */
   protected readonly creating = signal(false);
   protected readonly statusLabels = CONTAINER_STATUS;
-  protected readonly tones = CONTAINER_STATUS_TONES;
+  protected readonly tones: Record<string, string> = {
+    ...CONTAINER_STATUS_TONES,
+    // Spec 016 FR-018: parada e pausa justificadas não se confundem com falha.
+    'Parado intencionalmente': 'neutral',
+    'Pausado intencionalmente': 'info',
+  };
   protected readonly actionLabels = ACTION_LABEL;
   protected readonly statusOrder: ContainerDisplayStatus[] = ['running', 'starting', 'restarting', 'failed', 'paused', 'stopped'];
 
@@ -107,8 +126,8 @@ export class ContainersPage {
     { field: 'engine', header: 'Engine', width: 100, sortable: false, filterable: true, groupable: true },
     { field: 'host', header: 'Host', width: 140, filterable: true, groupable: true },
     { field: 'image', header: 'Imagem', width: 320, mono: true, sortable: false },
-    { field: 'cpu', header: 'CPU', unit: '%', type: 'number', decimals: 1, width: 84, sortable: false },
-    { field: 'mem', header: 'Memória', unit: 'MiB', type: 'number', width: 110, sortable: false },
+    { field: 'cpu', header: 'CPU', unit: '%', type: 'number', decimals: 1, width: 84, sortable: true },
+    { field: 'mem', header: 'Memória', unit: 'MiB', type: 'number', width: 110, sortable: true },
     { field: 'ports', header: 'Portas', width: 170, mono: true, sortable: false },
     { field: 'created', header: 'Criado', width: 150, type: 'datetime' },
   ];
@@ -117,7 +136,7 @@ export class ContainersPage {
     this.facade.items().map(item => ({
       id: rowKey(item),
       name: item.name,
-      status: CONTAINER_STATUS[item.displayStatus ?? 'stopped'].label,
+      status: item.intentional ? intentionalLabel(item.intentional) : CONTAINER_STATUS[item.displayStatus ?? 'stopped'].label,
       engine: item.engine ? (ENGINE_LABEL[item.engine] ?? item.engine) : '—',
       host: item.environmentName,
       image: item.imageReference,
@@ -162,6 +181,13 @@ export class ContainersPage {
   protected readonly gridFilters = computed<Record<string, string[]>>(() => {
     const f = this.facade.filters();
     return { status: f.statuses, engine: f.engines, host: f.environmentIds };
+  });
+
+  /** Estado vazio: só o filtro de situação (cards da Visão geral, spec 015) tem mensagem própria. */
+  protected readonly emptyTitle = computed(() => {
+    const f = this.facade.filters();
+    const onlyStatus = f.statuses.length > 0 && !f.q && f.engines.length === 0 && f.environmentIds.length === 0;
+    return onlyStatus ? 'Nenhum container nesta situação.' : 'Nenhum container encontrado com os filtros aplicados.';
   });
 
   /** Chips de filtros ativos acima do grid (board: "Engine: Docker, Podman", "Ambiente: Produção"). */
@@ -218,6 +244,15 @@ export class ContainersPage {
       const search = this.search();
       untracked(() => {
         if (search !== (this.q() ?? '') && (search.length === 0 || search.trim().length >= 2)) this.navigate({ q: search || null });
+      });
+    });
+    // A URL manda na ordenação inicial: sem isso, o efeito abaixo trocaria `sort` da URL por `name` ao abrir
+    // a página (por exemplo, os cards de CPU e memória da Visão geral, spec 015).
+    effect(() => {
+      const fromUrl = gridSortFromServer(this.sort());
+      untracked(() => {
+        const current = this.gridSort();
+        if (fromUrl && (current?.field !== fromUrl.field || current?.dir !== fromUrl.dir)) this.gridSort.set(fromUrl);
       });
     });
     effect(() => {
@@ -287,16 +322,23 @@ export class ContainersPage {
     this.pending.set({ action, eligibility: evaluateEligibility(items, action) });
   }
 
+  /** Falhas de envio com texto do operador; demais códigos aparecem como vieram. */
+  protected failureText(code: string): string {
+    if (code === 'justification_required') return 'justificativa obrigatória neste estágio';
+    if (code === 'justification_invalid') return 'justificativa inválida';
+    return code;
+  }
+
   protected readonly pendingProduction = computed(() =>
     this.pending()?.eligibility.eligible.some(item => item.stage === 'production') ?? false,
   );
 
-  protected async confirm(): Promise<void> {
+  protected async confirm(justification: string | null = null): Promise<void> {
     const pending = this.pending();
     if (!pending) return;
     this.submitting.set(true);
     try {
-      await this.actions.run(pending.action, pending.eligibility.eligible);
+      await this.actions.run(pending.action, pending.eligibility.eligible, justification);
       this.pending.set(null);
       this.selection.set([]);
     } catch (error: unknown) {

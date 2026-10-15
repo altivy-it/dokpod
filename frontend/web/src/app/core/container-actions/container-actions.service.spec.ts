@@ -58,6 +58,17 @@ describe('ContainerActionsService', () => {
     expect(service.running()).toBe(false);
   });
 
+  it('sends the same justification with every command of the batch (spec 016)', async () => {
+    api.submitContainerAction.mockImplementation(async (_env: string, containerId: string) => `cmd-${containerId}`);
+    api.getCommand.mockImplementation(async () => ({ state: 'succeeded', failureCode: null }));
+    const service = TestBed.inject(ContainerActionsService);
+
+    await service.run('stop', [item('a', 'Running', ['stop']), item('b', 'Running', ['stop'])], 'Janela de manutenção do banco');
+
+    expect(api.submitContainerAction.mock.calls.map(call => call[5])).toEqual(['Janela de manutenção do banco', 'Janela de manutenção do banco']);
+    expect(JSON.parse(sessionStorage.getItem('dokpod.batch.v1')!).justification).toBe('Janela de manutenção do banco');
+  });
+
   it('restores an interrupted batch without resubmitting automatically', () => {
     sessionStorage.setItem(
       'dokpod.batch.v1',

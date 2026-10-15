@@ -141,6 +141,12 @@ public sealed class AgentControlWorker(
         var metrics = metricsAccepted
             ? SendResourceSamplesAsync(background.Writer, sessionCancellation.Token)
             : Task.CompletedTask;
+        // A tarefa só é aguardada no fim da sessão: uma falha precisa aparecer no log quando acontece.
+        _ = metrics.ContinueWith(
+            task => logger.LogError(task.Exception, "Resource sampling stopped unexpectedly"),
+            CancellationToken.None,
+            TaskContinuationOptions.OnlyOnFaulted,
+            TaskScheduler.Default);
         var queries = new Dokpod.Agent.Application.Queries.ContainerQueryHandler(engine, TimeProvider.System, secretFiles, creationPolicy);
         var logStreams = new Dokpod.Agent.Application.Queries.LogStreamManager(engine, TimeProvider.System);
         Task SendBackground(AgentMessage outgoing) => background.Writer.WriteAsync(outgoing, sessionCancellation.Token).AsTask();

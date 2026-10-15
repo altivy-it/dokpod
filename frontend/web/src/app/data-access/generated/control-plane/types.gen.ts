@@ -8,6 +8,10 @@ export type SubmitContainerCommandRequest = {
     action: 'start' | 'stop' | 'restart' | 'delete' | 'pause' | 'unpause';
     expectedContainerRevision: string;
     deadlineUtc: string;
+    /**
+     * Obrigatória para stop, pause e delete quando a política do estágio exige (spec 016); senão 422 justification_required.
+     */
+    justification?: string;
 };
 
 export type ImageListPage = {
@@ -334,6 +338,7 @@ export type ContainerListItem = ContainerInventory & {
     engineVersion?: string | null;
     hostConnected: boolean;
     allowedActions: Array<'start' | 'stop' | 'restart' | 'delete' | 'pause' | 'unpause' | 'exec'>;
+    intentional?: IntentionalAction;
 };
 
 export type ContainerListPage = {
@@ -412,7 +417,186 @@ export type ContainerLogPage = {
     omittedLines: number;
 };
 
-export type ResourceScope = 'environment:read' | 'environment:manage' | 'container:start' | 'container:stop' | 'container:restart' | 'container:delete' | 'audit:read' | 'container:pause' | 'container:inspect' | 'container:logs' | 'image:pull' | 'container:create' | 'container:exec';
+export type AlertSeverity = 'critical' | 'high' | 'medium' | 'low';
+
+export type AlertState = 'open' | 'acknowledged' | 'silenced' | 'resolved';
+
+export type AlertScope = {
+    stage?: Stage | null;
+    environmentId?: string | null;
+    containerPattern?: string | null;
+};
+
+export type Alert = {
+    id: string;
+    ruleId: string;
+    ruleName: string;
+    environmentId: string;
+    containerId?: string | null;
+    containerName?: string | null;
+    severity: AlertSeverity;
+    state: AlertState;
+    condition: string;
+    openedAt: string;
+    lastOccurredAt: string;
+    occurrences: number;
+    assignee?: string | null;
+    silenceId?: string | null;
+    resolvedAt?: string | null;
+    resolution?: 'condition_cleared' | 'manual' | 'container_removed' | 'rule_removed' | null;
+    canManage: boolean;
+};
+
+export type AlertSummary = {
+    open: number;
+    bySeverity: CountMap;
+    recent: Array<Alert>;
+};
+
+export type AlertPage = {
+    alerts: Array<Alert>;
+    nextCursor?: string | null;
+};
+
+export type AlertTimelineEntry = {
+    at: string;
+    kind: 'opened' | 'occurred' | 'acknowledged' | 'silenced' | 'unsilenced' | 'resolved';
+    actor?: string | null;
+    comment?: string | null;
+};
+
+export type AlertDetail = {
+    alert: Alert;
+    rule?: AlertRule | null;
+    timeline: Array<AlertTimelineEntry>;
+};
+
+export type AlertRule = {
+    id: string;
+    name: string;
+    description?: string | null;
+    conditionKind: 'event' | 'metric';
+    eventType?: string | null;
+    metric?: 'host_cpu' | 'host_memory' | 'container_cpu' | 'container_memory' | null;
+    thresholdPercent?: number | null;
+    durationSeconds: number;
+    minOccurrences: number;
+    severity: AlertSeverity;
+    scope: AlertScope;
+    enabled: boolean;
+    builtIn: boolean;
+    version: number;
+};
+
+export type AlertRulePage = {
+    rules: Array<AlertRule>;
+    canManage: boolean;
+};
+
+export type AlertRuleRequest = {
+    name: string;
+    description?: string | null;
+    conditionKind: 'event' | 'metric';
+    eventType?: string | null;
+    metric?: 'host_cpu' | 'host_memory' | 'container_cpu' | 'container_memory' | null;
+    thresholdPercent?: number | null;
+    durationSeconds: number;
+    minOccurrences?: number | null;
+    severity: AlertSeverity;
+    scope?: AlertScope;
+    enabled: boolean;
+    /**
+     * Obrigatório na alteração (controle de concorrência).
+     */
+    version?: number | null;
+};
+
+export type AlertCommentRequest = {
+    comment: string;
+};
+
+export type AlertSilenceRequest = {
+    until: string;
+    justification: string;
+};
+
+export type AlertSilence = {
+    id: string;
+    scope: AlertScope;
+    alertId?: string | null;
+    startsAt: string;
+    endsAt: string;
+    endedAt?: string | null;
+    justification: string;
+    createdBy: string;
+};
+
+export type AlertSilencePage = {
+    silences: Array<AlertSilence>;
+    /**
+     * alert:manage em todos os hosts com alert:read (pode criar e encerrar silenciamentos).
+     */
+    canManage: boolean;
+};
+
+export type CreateAlertSilenceRequest = {
+    scope?: AlertScope;
+    startsAt?: string | null;
+    endsAt: string;
+    justification: string;
+};
+
+export type IdResponse = {
+    id: string;
+};
+
+export type JustifiedAction = 'stop' | 'pause' | 'delete';
+
+export type JustificationPolicy = {
+    stage: Stage;
+    required: boolean;
+    actions: Array<JustifiedAction>;
+};
+
+export type JustificationPolicyPage = {
+    policies: Array<JustificationPolicy>;
+};
+
+export type JustificationPolicyRequest = {
+    required: boolean;
+};
+
+export type ContainerJustification = {
+    id: string;
+    commandId: string;
+    environmentId: string;
+    containerId: string;
+    containerName?: string | null;
+    action: JustifiedAction;
+    actor: string;
+    reason: string;
+    at: string;
+    endedAt?: string | null;
+};
+
+export type ContainerJustifications = {
+    current?: ContainerJustification | null;
+    history: Array<ContainerJustification>;
+};
+
+export type JustificationPage = {
+    justifications: Array<ContainerJustification>;
+    nextCursor?: string | null;
+};
+
+export type IntentionalAction = {
+    action: 'stop' | 'pause';
+    actor: string;
+    at: string;
+    reason: string;
+};
+
+export type ResourceScope = 'environment:read' | 'environment:manage' | 'container:start' | 'container:stop' | 'container:restart' | 'container:delete' | 'audit:read' | 'container:pause' | 'container:inspect' | 'container:logs' | 'image:pull' | 'container:create' | 'container:exec' | 'alert:read' | 'alert:manage';
 
 export type Stage = 'production' | 'staging' | 'development';
 
@@ -623,6 +807,10 @@ export type SubmitContainerCommandErrors = {
      * O ambiente já existe.
      */
     409: ProblemDetails;
+    /**
+     * Justificativa obrigatória pela política do estágio (justification_required).
+     */
+    422: ProblemDetails;
     /**
      * Autorização ou persistência indisponível.
      */
@@ -1235,7 +1423,10 @@ export type ListContainersData = {
         engine?: Array<EngineKind>;
         displayStatus?: Array<ContainerDisplayStatus>;
         q?: string;
-        sort?: 'name' | '-name' | 'displayStatus' | 'environment' | 'createdAt' | '-createdAt';
+        /**
+         * Ordenação. `cpu`/`-cpu` e `memory`/`-memory` (spec 015) ordenam pelo consumo atual sobre todo o conjunto filtrado; containers sem amostra recente ficam no fim nas duas direções.
+         */
+        sort?: 'name' | '-name' | 'displayStatus' | 'environment' | 'createdAt' | '-createdAt' | 'cpu' | '-cpu' | 'memory' | '-memory';
         cursor?: string;
         limit?: number;
     };
@@ -1803,3 +1994,787 @@ export type GetContainerMetricsResponses = {
 };
 
 export type GetContainerMetricsResponse = GetContainerMetricsResponses[keyof GetContainerMetricsResponses];
+
+export type GetAlertSummaryData = {
+    body?: never;
+    headers?: {
+        /**
+         * Identificador técnico opcional para correlação server-side.
+         */
+        'X-Correlation-Id'?: string;
+    };
+    path?: never;
+    query?: {
+        stage?: Stage;
+    };
+    url: '/api/v1/alerts/summary';
+};
+
+export type GetAlertSummaryErrors = {
+    /**
+     * Requisição inválida.
+     */
+    400: ProblemDetails;
+    /**
+     * Autenticação ausente ou inválida.
+     */
+    401: ProblemDetails;
+    /**
+     * Autorização ou persistência indisponível.
+     */
+    503: ProblemDetails;
+};
+
+export type GetAlertSummaryError = GetAlertSummaryErrors[keyof GetAlertSummaryErrors];
+
+export type GetAlertSummaryResponses = {
+    /**
+     * OK.
+     */
+    200: AlertSummary;
+};
+
+export type GetAlertSummaryResponse = GetAlertSummaryResponses[keyof GetAlertSummaryResponses];
+
+export type ListAlertsData = {
+    body?: never;
+    headers?: {
+        /**
+         * Identificador técnico opcional para correlação server-side.
+         */
+        'X-Correlation-Id'?: string;
+    };
+    path?: never;
+    query?: {
+        stage?: Stage;
+        view?: 'open' | 'history';
+        severity?: Array<AlertSeverity>;
+        state?: Array<AlertState>;
+        environmentId?: Array<string>;
+        ruleId?: string;
+        q?: string;
+        since?: string;
+        until?: string;
+        cursor?: string;
+        limit?: number;
+    };
+    url: '/api/v1/alerts';
+};
+
+export type ListAlertsErrors = {
+    /**
+     * Requisição inválida.
+     */
+    400: ProblemDetails;
+    /**
+     * Autenticação ausente ou inválida.
+     */
+    401: ProblemDetails;
+    /**
+     * Autorização ou persistência indisponível.
+     */
+    503: ProblemDetails;
+};
+
+export type ListAlertsError = ListAlertsErrors[keyof ListAlertsErrors];
+
+export type ListAlertsResponses = {
+    /**
+     * OK.
+     */
+    200: AlertPage;
+};
+
+export type ListAlertsResponse = ListAlertsResponses[keyof ListAlertsResponses];
+
+export type GetAlertData = {
+    body?: never;
+    headers?: {
+        /**
+         * Identificador técnico opcional para correlação server-side.
+         */
+        'X-Correlation-Id'?: string;
+    };
+    path: {
+        alertId: string;
+    };
+    query?: never;
+    url: '/api/v1/alerts/{alertId}';
+};
+
+export type GetAlertErrors = {
+    /**
+     * Autenticação ausente ou inválida.
+     */
+    401: ProblemDetails;
+    /**
+     * O ambiente não foi encontrado após autorização.
+     */
+    404: ProblemDetails;
+    /**
+     * Autorização ou persistência indisponível.
+     */
+    503: ProblemDetails;
+};
+
+export type GetAlertError = GetAlertErrors[keyof GetAlertErrors];
+
+export type GetAlertResponses = {
+    /**
+     * OK.
+     */
+    200: AlertDetail;
+};
+
+export type GetAlertResponse = GetAlertResponses[keyof GetAlertResponses];
+
+export type AcknowledgeAlertData = {
+    body: AlertCommentRequest;
+    headers?: {
+        /**
+         * Identificador técnico opcional para correlação server-side.
+         */
+        'X-Correlation-Id'?: string;
+    };
+    path: {
+        alertId: string;
+    };
+    query?: never;
+    url: '/api/v1/alerts/{alertId}/acknowledge';
+};
+
+export type AcknowledgeAlertErrors = {
+    /**
+     * Requisição inválida.
+     */
+    400: ProblemDetails;
+    /**
+     * Autenticação ausente ou inválida.
+     */
+    401: ProblemDetails;
+    /**
+     * Decisão do Keycloak negou o cadastro.
+     */
+    403: ProblemDetails;
+    /**
+     * O ambiente não foi encontrado após autorização.
+     */
+    404: ProblemDetails;
+    /**
+     * O ambiente já existe.
+     */
+    409: ProblemDetails;
+    /**
+     * Autorização ou persistência indisponível.
+     */
+    503: ProblemDetails;
+};
+
+export type AcknowledgeAlertError = AcknowledgeAlertErrors[keyof AcknowledgeAlertErrors];
+
+export type AcknowledgeAlertResponses = {
+    /**
+     * OK.
+     */
+    200: IdResponse;
+};
+
+export type AcknowledgeAlertResponse = AcknowledgeAlertResponses[keyof AcknowledgeAlertResponses];
+
+export type ResolveAlertData = {
+    body: AlertCommentRequest;
+    headers?: {
+        /**
+         * Identificador técnico opcional para correlação server-side.
+         */
+        'X-Correlation-Id'?: string;
+    };
+    path: {
+        alertId: string;
+    };
+    query?: never;
+    url: '/api/v1/alerts/{alertId}/resolve';
+};
+
+export type ResolveAlertErrors = {
+    /**
+     * Requisição inválida.
+     */
+    400: ProblemDetails;
+    /**
+     * Autenticação ausente ou inválida.
+     */
+    401: ProblemDetails;
+    /**
+     * Decisão do Keycloak negou o cadastro.
+     */
+    403: ProblemDetails;
+    /**
+     * O ambiente não foi encontrado após autorização.
+     */
+    404: ProblemDetails;
+    /**
+     * O ambiente já existe.
+     */
+    409: ProblemDetails;
+    /**
+     * Autorização ou persistência indisponível.
+     */
+    503: ProblemDetails;
+};
+
+export type ResolveAlertError = ResolveAlertErrors[keyof ResolveAlertErrors];
+
+export type ResolveAlertResponses = {
+    /**
+     * OK.
+     */
+    200: IdResponse;
+};
+
+export type ResolveAlertResponse = ResolveAlertResponses[keyof ResolveAlertResponses];
+
+export type SilenceAlertData = {
+    body: AlertSilenceRequest;
+    headers?: {
+        /**
+         * Identificador técnico opcional para correlação server-side.
+         */
+        'X-Correlation-Id'?: string;
+    };
+    path: {
+        alertId: string;
+    };
+    query?: never;
+    url: '/api/v1/alerts/{alertId}/silence';
+};
+
+export type SilenceAlertErrors = {
+    /**
+     * Requisição inválida.
+     */
+    400: ProblemDetails;
+    /**
+     * Autenticação ausente ou inválida.
+     */
+    401: ProblemDetails;
+    /**
+     * Decisão do Keycloak negou o cadastro.
+     */
+    403: ProblemDetails;
+    /**
+     * O ambiente não foi encontrado após autorização.
+     */
+    404: ProblemDetails;
+    /**
+     * O ambiente já existe.
+     */
+    409: ProblemDetails;
+    /**
+     * Autorização ou persistência indisponível.
+     */
+    503: ProblemDetails;
+};
+
+export type SilenceAlertError = SilenceAlertErrors[keyof SilenceAlertErrors];
+
+export type SilenceAlertResponses = {
+    /**
+     * OK.
+     */
+    200: IdResponse;
+};
+
+export type SilenceAlertResponse = SilenceAlertResponses[keyof SilenceAlertResponses];
+
+export type ListAlertRulesData = {
+    body?: never;
+    headers?: {
+        /**
+         * Identificador técnico opcional para correlação server-side.
+         */
+        'X-Correlation-Id'?: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/alert-rules';
+};
+
+export type ListAlertRulesErrors = {
+    /**
+     * Requisição inválida.
+     */
+    400: ProblemDetails;
+    /**
+     * Autenticação ausente ou inválida.
+     */
+    401: ProblemDetails;
+    /**
+     * Autorização ou persistência indisponível.
+     */
+    503: ProblemDetails;
+};
+
+export type ListAlertRulesError = ListAlertRulesErrors[keyof ListAlertRulesErrors];
+
+export type ListAlertRulesResponses = {
+    /**
+     * OK.
+     */
+    200: AlertRulePage;
+};
+
+export type ListAlertRulesResponse = ListAlertRulesResponses[keyof ListAlertRulesResponses];
+
+export type CreateAlertRuleData = {
+    body: AlertRuleRequest;
+    headers?: {
+        /**
+         * Identificador técnico opcional para correlação server-side.
+         */
+        'X-Correlation-Id'?: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/alert-rules';
+};
+
+export type CreateAlertRuleErrors = {
+    /**
+     * Requisição inválida.
+     */
+    400: ProblemDetails;
+    /**
+     * Autenticação ausente ou inválida.
+     */
+    401: ProblemDetails;
+    /**
+     * Decisão do Keycloak negou o cadastro.
+     */
+    403: ProblemDetails;
+    /**
+     * O ambiente já existe.
+     */
+    409: ProblemDetails;
+    /**
+     * Autorização ou persistência indisponível.
+     */
+    503: ProblemDetails;
+};
+
+export type CreateAlertRuleError = CreateAlertRuleErrors[keyof CreateAlertRuleErrors];
+
+export type CreateAlertRuleResponses = {
+    /**
+     * OK.
+     */
+    200: IdResponse;
+};
+
+export type CreateAlertRuleResponse = CreateAlertRuleResponses[keyof CreateAlertRuleResponses];
+
+export type DeleteAlertRuleData = {
+    body?: never;
+    headers?: {
+        /**
+         * Identificador técnico opcional para correlação server-side.
+         */
+        'X-Correlation-Id'?: string;
+    };
+    path: {
+        ruleId: string;
+    };
+    query?: never;
+    url: '/api/v1/alert-rules/{ruleId}';
+};
+
+export type DeleteAlertRuleErrors = {
+    /**
+     * Autenticação ausente ou inválida.
+     */
+    401: ProblemDetails;
+    /**
+     * Decisão do Keycloak negou o cadastro.
+     */
+    403: ProblemDetails;
+    /**
+     * O ambiente não foi encontrado após autorização.
+     */
+    404: ProblemDetails;
+    /**
+     * O ambiente já existe.
+     */
+    409: ProblemDetails;
+    /**
+     * Autorização ou persistência indisponível.
+     */
+    503: ProblemDetails;
+};
+
+export type DeleteAlertRuleError = DeleteAlertRuleErrors[keyof DeleteAlertRuleErrors];
+
+export type DeleteAlertRuleResponses = {
+    /**
+     * OK.
+     */
+    200: IdResponse;
+};
+
+export type DeleteAlertRuleResponse = DeleteAlertRuleResponses[keyof DeleteAlertRuleResponses];
+
+export type UpdateAlertRuleData = {
+    body: AlertRuleRequest;
+    headers?: {
+        /**
+         * Identificador técnico opcional para correlação server-side.
+         */
+        'X-Correlation-Id'?: string;
+    };
+    path: {
+        ruleId: string;
+    };
+    query?: never;
+    url: '/api/v1/alert-rules/{ruleId}';
+};
+
+export type UpdateAlertRuleErrors = {
+    /**
+     * Requisição inválida.
+     */
+    400: ProblemDetails;
+    /**
+     * Autenticação ausente ou inválida.
+     */
+    401: ProblemDetails;
+    /**
+     * Decisão do Keycloak negou o cadastro.
+     */
+    403: ProblemDetails;
+    /**
+     * O ambiente não foi encontrado após autorização.
+     */
+    404: ProblemDetails;
+    /**
+     * O ambiente já existe.
+     */
+    409: ProblemDetails;
+    /**
+     * Autorização ou persistência indisponível.
+     */
+    503: ProblemDetails;
+};
+
+export type UpdateAlertRuleError = UpdateAlertRuleErrors[keyof UpdateAlertRuleErrors];
+
+export type UpdateAlertRuleResponses = {
+    /**
+     * OK.
+     */
+    200: IdResponse;
+};
+
+export type UpdateAlertRuleResponse = UpdateAlertRuleResponses[keyof UpdateAlertRuleResponses];
+
+export type ListAlertSilencesData = {
+    body?: never;
+    headers?: {
+        /**
+         * Identificador técnico opcional para correlação server-side.
+         */
+        'X-Correlation-Id'?: string;
+    };
+    path?: never;
+    query?: {
+        active?: boolean;
+    };
+    url: '/api/v1/alert-silences';
+};
+
+export type ListAlertSilencesErrors = {
+    /**
+     * Requisição inválida.
+     */
+    400: ProblemDetails;
+    /**
+     * Autenticação ausente ou inválida.
+     */
+    401: ProblemDetails;
+    /**
+     * Autorização ou persistência indisponível.
+     */
+    503: ProblemDetails;
+};
+
+export type ListAlertSilencesError = ListAlertSilencesErrors[keyof ListAlertSilencesErrors];
+
+export type ListAlertSilencesResponses = {
+    /**
+     * OK.
+     */
+    200: AlertSilencePage;
+};
+
+export type ListAlertSilencesResponse = ListAlertSilencesResponses[keyof ListAlertSilencesResponses];
+
+export type CreateAlertSilenceData = {
+    body: CreateAlertSilenceRequest;
+    headers?: {
+        /**
+         * Identificador técnico opcional para correlação server-side.
+         */
+        'X-Correlation-Id'?: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/alert-silences';
+};
+
+export type CreateAlertSilenceErrors = {
+    /**
+     * Requisição inválida.
+     */
+    400: ProblemDetails;
+    /**
+     * Autenticação ausente ou inválida.
+     */
+    401: ProblemDetails;
+    /**
+     * Decisão do Keycloak negou o cadastro.
+     */
+    403: ProblemDetails;
+    /**
+     * Autorização ou persistência indisponível.
+     */
+    503: ProblemDetails;
+};
+
+export type CreateAlertSilenceError = CreateAlertSilenceErrors[keyof CreateAlertSilenceErrors];
+
+export type CreateAlertSilenceResponses = {
+    /**
+     * OK.
+     */
+    200: IdResponse;
+};
+
+export type CreateAlertSilenceResponse = CreateAlertSilenceResponses[keyof CreateAlertSilenceResponses];
+
+export type EndAlertSilenceData = {
+    body?: never;
+    headers?: {
+        /**
+         * Identificador técnico opcional para correlação server-side.
+         */
+        'X-Correlation-Id'?: string;
+    };
+    path: {
+        silenceId: string;
+    };
+    query?: never;
+    url: '/api/v1/alert-silences/{silenceId}/end';
+};
+
+export type EndAlertSilenceErrors = {
+    /**
+     * Autenticação ausente ou inválida.
+     */
+    401: ProblemDetails;
+    /**
+     * Decisão do Keycloak negou o cadastro.
+     */
+    403: ProblemDetails;
+    /**
+     * O ambiente não foi encontrado após autorização.
+     */
+    404: ProblemDetails;
+    /**
+     * O ambiente já existe.
+     */
+    409: ProblemDetails;
+    /**
+     * Autorização ou persistência indisponível.
+     */
+    503: ProblemDetails;
+};
+
+export type EndAlertSilenceError = EndAlertSilenceErrors[keyof EndAlertSilenceErrors];
+
+export type EndAlertSilenceResponses = {
+    /**
+     * OK.
+     */
+    200: IdResponse;
+};
+
+export type EndAlertSilenceResponse = EndAlertSilenceResponses[keyof EndAlertSilenceResponses];
+
+export type ListActionJustificationPoliciesData = {
+    body?: never;
+    headers?: {
+        /**
+         * Identificador técnico opcional para correlação server-side.
+         */
+        'X-Correlation-Id'?: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/action-justification-policies';
+};
+
+export type ListActionJustificationPoliciesErrors = {
+    /**
+     * Autenticação ausente ou inválida.
+     */
+    401: ProblemDetails;
+    /**
+     * Autorização ou persistência indisponível.
+     */
+    503: ProblemDetails;
+};
+
+export type ListActionJustificationPoliciesError = ListActionJustificationPoliciesErrors[keyof ListActionJustificationPoliciesErrors];
+
+export type ListActionJustificationPoliciesResponses = {
+    /**
+     * OK.
+     */
+    200: JustificationPolicyPage;
+};
+
+export type ListActionJustificationPoliciesResponse = ListActionJustificationPoliciesResponses[keyof ListActionJustificationPoliciesResponses];
+
+export type SetActionJustificationPolicyData = {
+    body: JustificationPolicyRequest;
+    headers?: {
+        /**
+         * Identificador técnico opcional para correlação server-side.
+         */
+        'X-Correlation-Id'?: string;
+    };
+    path: {
+        stage: Stage;
+    };
+    query?: never;
+    url: '/api/v1/action-justification-policies/{stage}';
+};
+
+export type SetActionJustificationPolicyErrors = {
+    /**
+     * Requisição inválida.
+     */
+    400: ProblemDetails;
+    /**
+     * Autenticação ausente ou inválida.
+     */
+    401: ProblemDetails;
+    /**
+     * Decisão do Keycloak negou o cadastro.
+     */
+    403: ProblemDetails;
+    /**
+     * Autorização ou persistência indisponível.
+     */
+    503: ProblemDetails;
+};
+
+export type SetActionJustificationPolicyError = SetActionJustificationPolicyErrors[keyof SetActionJustificationPolicyErrors];
+
+export type SetActionJustificationPolicyResponses = {
+    /**
+     * Feito.
+     */
+    204: void;
+};
+
+export type SetActionJustificationPolicyResponse = SetActionJustificationPolicyResponses[keyof SetActionJustificationPolicyResponses];
+
+export type ListContainerJustificationsData = {
+    body?: never;
+    headers?: {
+        /**
+         * Identificador técnico opcional para correlação server-side.
+         */
+        'X-Correlation-Id'?: string;
+    };
+    path: {
+        environmentId: string;
+        containerId: string;
+    };
+    query?: never;
+    url: '/api/v1/environments/{environmentId}/containers/{containerId}/justifications';
+};
+
+export type ListContainerJustificationsErrors = {
+    /**
+     * Autenticação ausente ou inválida.
+     */
+    401: ProblemDetails;
+    /**
+     * O ambiente não foi encontrado após autorização.
+     */
+    404: ProblemDetails;
+    /**
+     * Autorização ou persistência indisponível.
+     */
+    503: ProblemDetails;
+};
+
+export type ListContainerJustificationsError = ListContainerJustificationsErrors[keyof ListContainerJustificationsErrors];
+
+export type ListContainerJustificationsResponses = {
+    /**
+     * OK.
+     */
+    200: ContainerJustifications;
+};
+
+export type ListContainerJustificationsResponse = ListContainerJustificationsResponses[keyof ListContainerJustificationsResponses];
+
+export type ListEnvironmentJustificationsData = {
+    body?: never;
+    headers?: {
+        /**
+         * Identificador técnico opcional para correlação server-side.
+         */
+        'X-Correlation-Id'?: string;
+    };
+    path: {
+        environmentId: string;
+    };
+    query?: {
+        since?: string;
+        until?: string;
+        cursor?: string;
+    };
+    url: '/api/v1/environments/{environmentId}/justifications';
+};
+
+export type ListEnvironmentJustificationsErrors = {
+    /**
+     * Requisição inválida.
+     */
+    400: ProblemDetails;
+    /**
+     * Autenticação ausente ou inválida.
+     */
+    401: ProblemDetails;
+    /**
+     * O ambiente não foi encontrado após autorização.
+     */
+    404: ProblemDetails;
+    /**
+     * Autorização ou persistência indisponível.
+     */
+    503: ProblemDetails;
+};
+
+export type ListEnvironmentJustificationsError = ListEnvironmentJustificationsErrors[keyof ListEnvironmentJustificationsErrors];
+
+export type ListEnvironmentJustificationsResponses = {
+    /**
+     * OK.
+     */
+    200: JustificationPage;
+};
+
+export type ListEnvironmentJustificationsResponse = ListEnvironmentJustificationsResponses[keyof ListEnvironmentJustificationsResponses];

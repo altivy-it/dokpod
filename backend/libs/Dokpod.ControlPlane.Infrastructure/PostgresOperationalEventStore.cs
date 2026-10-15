@@ -9,13 +9,16 @@ namespace Dokpod.ControlPlane.Infrastructure;
 
 public sealed class PostgresOperationalEventStore(ControlPlaneDbContext dbContext) : IOperationalEventStore
 {
-    public async Task<int> AppendAsync(IReadOnlyCollection<OperationalEvent> events, CancellationToken cancellationToken)
+    public async Task<int> AppendAsync(IReadOnlyCollection<OperationalEvent> events, CancellationToken cancellationToken) =>
+        (await AppendNewAsync(events, cancellationToken).ConfigureAwait(false)).Count;
+
+    public async Task<IReadOnlyList<OperationalEvent>> AppendNewAsync(IReadOnlyCollection<OperationalEvent> events, CancellationToken cancellationToken)
     {
-        var written = 0;
+        var written = new List<OperationalEvent>(events.Count);
         foreach (var item in events)
         {
             // ON CONFLICT ignora reenvio do mesmo evento do engine (dedup por source_key).
-            written += await dbContext.Database.ExecuteSqlRawAsync(
+            var inserted = await dbContext.Database.ExecuteSqlRawAsync(
                 """
                 INSERT INTO dokpod.environment_events
                     (event_id, environment_id, type, severity, occurred_at, received_at, subject_kind, subject_id, subject_name, parameters, aggregated_count, source_key)
@@ -37,6 +40,7 @@ public sealed class PostgresOperationalEventStore(ControlPlaneDbContext dbContex
                     new NpgsqlParameter("sourceKey", (object?)item.SourceKey ?? DBNull.Value),
                 ],
                 cancellationToken).ConfigureAwait(false);
+            if (inserted == 1) written.Add(item);
         }
 
         return written;

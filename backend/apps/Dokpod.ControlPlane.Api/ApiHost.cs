@@ -200,6 +200,12 @@ public static class ApiHost
         builder.Services.AddScoped<HostQueryService>();
         builder.Services.AddScoped<EnvironmentStageService>();
         builder.Services.AddScoped<OperationalEventService>();
+        // Spec 016: governança de alertas. Sem banco, o avaliador não é registrado e a gravação de eventos segue igual.
+        builder.Services.AddSingleton<Dokpod.ControlPlane.Application.Alerts.AlertConditionState>();
+        builder.Services.AddScoped<Dokpod.ControlPlane.Application.Alerts.AlertEvaluator>();
+        builder.Services.AddScoped<Dokpod.ControlPlane.Application.Alerts.AlertSweepService>();
+        builder.Services.AddScoped<Dokpod.ControlPlane.Application.Alerts.AlertGovernanceService>();
+        builder.Services.AddHostedService<Dokpod.ControlPlane.Api.Alerts.AlertSweeper>();
         builder.Services.AddScoped<OverviewQueryService>();
         builder.Services.AddScoped<IContainerSearchStore, UnavailableContainerSearchStore>();
         builder.Services.AddScoped<ContainerSearchService>();
@@ -223,6 +229,8 @@ public static class ApiHost
         if (!string.IsNullOrWhiteSpace(databaseConnectionString))
         {
             builder.Services.AddControlPlaneInfrastructure(databaseConnectionString);
+            builder.Services.AddScoped<Dokpod.ControlPlane.Application.Events.IOperationalEventObserver>(provider =>
+                provider.GetRequiredService<Dokpod.ControlPlane.Application.Alerts.AlertEvaluator>());
             healthChecks.AddCheck<PostgresReadinessHealthCheck>("postgresql", tags: ["ready", "database"]);
         }
         else
@@ -272,6 +280,7 @@ public static class ApiHost
         ContainerDetailEndpoints.Map(app);
         MetricsEndpoints.Map(app);
         ContainerCommandEndpoints.Map(app);
+        AlertEndpoints.Map(app);
         app.MapHub<ControlPlaneHub>("/hubs/control-plane").RequireAuthorization();
     }
 

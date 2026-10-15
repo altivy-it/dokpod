@@ -183,7 +183,8 @@
     </div>
   }
 
-  <div class="alt-scroll alt-enhanced-data-grid__wrap" [style.max-height]="height()">
+  <!-- Focável para rolar pelo teclado mesmo sem seleção nem ações por linha (WCAG 2.1.1). -->
+  <div class="alt-scroll alt-enhanced-data-grid__wrap" [style.max-height]="height()" tabindex="0" role="region" [attr.aria-label]="title()">
     <table class="alt-enhanced-data-grid__table">
       <caption class="sr-only">{{ title() }}</caption>
       <colgroup>

@@ -29,6 +29,15 @@ const STAGE_EYEBROW: Record<string, string> = {
 };
 
 /** Visão geral (board `01 · Visão geral`, spec 008 US1). */
+/** Cards navegáveis da Visão geral (spec 015 FR-001 a FR-004). */
+export const KPI_LINKS = {
+  running: { params: { status: ['running'], sort: null }, destination: 'Abrir a lista filtrada' },
+  stopped: { params: { status: ['stopped', 'paused'], sort: null }, destination: 'Abrir a lista filtrada' },
+  failing: { params: { status: ['failed', 'restarting'], sort: null }, destination: 'Abrir a lista filtrada' },
+  cpu: { params: { status: ['running'], sort: '-cpu' }, destination: 'Abrir os containers ordenados por CPU' },
+  memory: { params: { status: ['running'], sort: '-memory' }, destination: 'Abrir os containers ordenados por memória' },
+} as const;
+
 @Component({
   selector: 'app-overview-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -113,9 +122,21 @@ export class OverviewPage {
     const value = (key: string) => (this.facade.summary() ? byStatus[key] ?? 0 : null);
     return {
       running: value('running'),
-      stopped: value('stopped'),
+      // Spec 015 D-001: "Parados" (ícone de pausa) conta parados e pausados.
+      stopped: this.facade.summary() ? (byStatus['stopped'] ?? 0) + (byStatus['paused'] ?? 0) : null,
       failing: this.facade.summary() ? (byStatus['failed'] ?? 0) + (byStatus['restarting'] ?? 0) : null,
     };
+  });
+
+  /** Destinos dos cards (spec 015): a tela Containers filtrada ou ordenada por consumo; o estágio vem da URL. */
+  protected readonly kpiLinks = KPI_LINKS;
+
+
+  /** "parcial: N de M hosts" quando parte dos hosts não publica amostras (FR-012). */
+  protected readonly resourcePartial = computed(() => {
+    const current = this.metrics.stage()?.current;
+    if (!current || current.cpuPercent == null || current.hostsSampled >= current.hostsTotal) return '';
+    return ` · parcial: ${current.hostsSampled} de ${current.hostsTotal} hosts`;
   });
 
   protected readonly engines = computed(() =>
@@ -159,8 +180,6 @@ export class OverviewPage {
   constructor() {
     effect(() => {
       this.context.set('Visão geral', ['Operação', 'Visão geral']);
-      this.context.notifications.set(this.attention() || null);
-      this.context.alertCount.set(this.attention() || null);
     });
   }
 
