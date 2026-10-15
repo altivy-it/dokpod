@@ -193,6 +193,13 @@
             <p class="app-caption cd-muted">Rede, volumes e variáveis exigem permissão de inspeção.</p>
           } @else {
             <dok-key-value [items]="networkItems()" [labelWidth]="96" />
+            @if (volumeLinks().length) {
+              <ul class="cd-volume-links" aria-label="Volumes montados">
+                @for (link of volumeLinks(); track link.name + link.destination) {
+                  <li><a routerLink="/volumes" [queryParams]="link.queryParams">{{ link.name }}</a><span class="cd-muted">{{ link.destination }}</span></li>
+                }
+              </ul>
+            }
           }
         </dok-card>
       </div>
