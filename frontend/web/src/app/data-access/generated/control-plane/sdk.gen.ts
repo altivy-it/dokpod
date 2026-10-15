@@ -2,7 +2,7 @@
 
 import type { Client, Options as Options2, TDataShape } from './client';
 import { client } from './client.gen';
-import type { AcknowledgeAlertData, AcknowledgeAlertErrors, AcknowledgeAlertResponses, CreateAlertRuleData, CreateAlertRuleErrors, CreateAlertRuleResponses, CreateAlertSilenceData, CreateAlertSilenceErrors, CreateAlertSilenceResponses, CreateContainerData, CreateContainerErrors, CreateContainerResponses, DeleteAlertRuleData, DeleteAlertRuleErrors, DeleteAlertRuleResponses, EndAlertSilenceData, EndAlertSilenceErrors, EndAlertSilenceResponses, GetAlertData, GetAlertErrors, GetAlertResponses, GetAlertSummaryData, GetAlertSummaryErrors, GetAlertSummaryResponses, GetContainerCommandData, GetContainerCommandErrors, GetContainerCommandResponses, GetContainerCreateOptionsData, GetContainerCreateOptionsErrors, GetContainerCreateOptionsResponses, GetContainerData, GetContainerErrors, GetContainerLogsData, GetContainerLogsErrors, GetContainerLogsResponses, GetContainerMetricsData, GetContainerMetricsErrors, GetContainerMetricsResponses, GetContainerResponses, GetContainerSummaryData, GetContainerSummaryErrors, GetContainerSummaryResponses, GetEnvironmentData, GetEnvironmentErrors, GetEnvironmentResponses, GetOverviewData, GetOverviewErrors, GetOverviewResponses, GetStageMetricsData, GetStageMetricsErrors, GetStageMetricsResponses, GetTerminalPolicyData, GetTerminalPolicyErrors, GetTerminalPolicyResponses, InspectContainerData, InspectContainerErrors, InspectContainerResponses, ListActionJustificationPoliciesData, ListActionJustificationPoliciesErrors, ListActionJustificationPoliciesResponses, ListAlertRulesData, ListAlertRulesErrors, ListAlertRulesResponses, ListAlertsData, ListAlertsErrors, ListAlertSilencesData, ListAlertSilencesErrors, ListAlertSilencesResponses, ListAlertsResponses, ListContainerJustificationsData, ListContainerJustificationsErrors, ListContainerJustificationsResponses, ListContainersData, ListContainersErrors, ListContainersResponses, ListEnvironmentContainersData, ListEnvironmentContainersErrors, ListEnvironmentContainersResponses, ListEnvironmentJustificationsData, ListEnvironmentJustificationsErrors, ListEnvironmentJustificationsResponses, ListEnvironmentsData, ListEnvironmentsErrors, ListEnvironmentsResponses, ListEventsData, ListEventsErrors, ListEventsResponses, ListHostMetricsData, ListHostMetricsErrors, ListHostMetricsResponses, ListImagesData, ListImagesErrors, ListImagesResponses, LookupImageData, LookupImageErrors, LookupImageResponses, PullImageData, PullImageErrors, PullImageResponses, RegisterEnvironmentData, RegisterEnvironmentErrors, RegisterEnvironmentResponses, RenewTerminalSessionData, RenewTerminalSessionErrors, RenewTerminalSessionResponses, ResolveAlertData, ResolveAlertErrors, ResolveAlertResponses, RevokeAgentIdentityData, RevokeAgentIdentityErrors, RevokeAgentIdentityResponses, SetActionJustificationPolicyData, SetActionJustificationPolicyErrors, SetActionJustificationPolicyResponses, SetEnvironmentStageData, SetEnvironmentStageErrors, SetEnvironmentStageResponses, SilenceAlertData, SilenceAlertErrors, SilenceAlertResponses, SubmitContainerCommandData, SubmitContainerCommandErrors, SubmitContainerCommandResponses, UpdateAlertRuleData, UpdateAlertRuleErrors, UpdateAlertRuleResponses } from './types.gen';
+import type { AcknowledgeAlertData, AcknowledgeAlertErrors, AcknowledgeAlertResponses, CreateAlertRuleData, CreateAlertRuleErrors, CreateAlertRuleResponses, CreateAlertSilenceData, CreateAlertSilenceErrors, CreateAlertSilenceResponses, CreateContainerData, CreateContainerErrors, CreateContainerResponses, DeleteAlertRuleData, DeleteAlertRuleErrors, DeleteAlertRuleResponses, EndAlertSilenceData, EndAlertSilenceErrors, EndAlertSilenceResponses, ExportAuditEventsData, ExportAuditEventsErrors, ExportAuditEventsResponses, GetAlertData, GetAlertErrors, GetAlertResponses, GetAlertSummaryData, GetAlertSummaryErrors, GetAlertSummaryResponses, GetAuditEventData, GetAuditEventErrors, GetAuditEventResponses, GetAuditSummaryData, GetAuditSummaryErrors, GetAuditSummaryResponses, GetContainerCommandData, GetContainerCommandErrors, GetContainerCommandResponses, GetContainerCreateOptionsData, GetContainerCreateOptionsErrors, GetContainerCreateOptionsResponses, GetContainerData, GetContainerErrors, GetContainerLogsData, GetContainerLogsErrors, GetContainerLogsResponses, GetContainerMetricsData, GetContainerMetricsErrors, GetContainerMetricsResponses, GetContainerResponses, GetContainerSummaryData, GetContainerSummaryErrors, GetContainerSummaryResponses, GetEnvironmentData, GetEnvironmentErrors, GetEnvironmentResponses, GetOverviewData, GetOverviewErrors, GetOverviewResponses, GetStageMetricsData, GetStageMetricsErrors, GetStageMetricsResponses, GetTerminalPolicyData, GetTerminalPolicyErrors, GetTerminalPolicyResponses, InspectContainerData, InspectContainerErrors, InspectContainerResponses, ListActionJustificationPoliciesData, ListActionJustificationPoliciesErrors, ListActionJustificationPoliciesResponses, ListAlertRulesData, ListAlertRulesErrors, ListAlertRulesResponses, ListAlertsData, ListAlertsErrors, ListAlertSilencesData, ListAlertSilencesErrors, ListAlertSilencesResponses, ListAlertsResponses, ListAuditEventsData, ListAuditEventsErrors, ListAuditEventsResponses, ListContainerJustificationsData, ListContainerJustificationsErrors, ListContainerJustificationsResponses, ListContainersData, ListContainersErrors, ListContainersResponses, ListEnvironmentContainersData, ListEnvironmentContainersErrors, ListEnvironmentContainersResponses, ListEnvironmentJustificationsData, ListEnvironmentJustificationsErrors, ListEnvironmentJustificationsResponses, ListEnvironmentsData, ListEnvironmentsErrors, ListEnvironmentsResponses, ListEventsData, ListEventsErrors, ListEventsResponses, ListHostMetricsData, ListHostMetricsErrors, ListHostMetricsResponses, ListImagesData, ListImagesErrors, ListImagesResponses, LookupImageData, LookupImageErrors, LookupImageResponses, PullImageData, PullImageErrors, PullImageResponses, RegisterEnvironmentData, RegisterEnvironmentErrors, RegisterEnvironmentResponses, RenewTerminalSessionData, RenewTerminalSessionErrors, RenewTerminalSessionResponses, ResolveAlertData, ResolveAlertErrors, ResolveAlertResponses, RevokeAgentIdentityData, RevokeAgentIdentityErrors, RevokeAgentIdentityResponses, SetActionJustificationPolicyData, SetActionJustificationPolicyErrors, SetActionJustificationPolicyResponses, SetEnvironmentStageData, SetEnvironmentStageErrors, SetEnvironmentStageResponses, SilenceAlertData, SilenceAlertErrors, SilenceAlertResponses, SubmitContainerCommandData, SubmitContainerCommandErrors, SubmitContainerCommandResponses, UpdateAlertRuleData, UpdateAlertRuleErrors, UpdateAlertRuleResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -443,5 +443,41 @@ export const listContainerJustifications = <ThrowOnError extends boolean = false
 export const listEnvironmentJustifications = <ThrowOnError extends boolean = false>(options: Options<ListEnvironmentJustificationsData, ThrowOnError>) => (options.client ?? client).get<ListEnvironmentJustificationsResponses, ListEnvironmentJustificationsErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
     url: '/api/v1/environments/{environmentId}/justifications',
+    ...options
+});
+
+/**
+ * Hosts com audit:read e evento mais antigo disponível (menu Auditoria)
+ */
+export const getAuditSummary = <ThrowOnError extends boolean = false>(options?: Options<GetAuditSummaryData, ThrowOnError>) => (options?.client ?? client).get<GetAuditSummaryResponses, GetAuditSummaryErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/audit/summary',
+    ...options
+});
+
+/**
+ * Trilha de auditoria por período (máximo 90 dias) dos hosts com audit:read
+ */
+export const listAuditEvents = <ThrowOnError extends boolean = false>(options?: Options<ListAuditEventsData, ThrowOnError>) => (options?.client ?? client).get<ListAuditEventsResponses, ListAuditEventsErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/audit/events',
+    ...options
+});
+
+/**
+ * Evento de auditoria com os relacionados pela correlação ou comando
+ */
+export const getAuditEvent = <ThrowOnError extends boolean = false>(options: Options<GetAuditEventData, ThrowOnError>) => (options.client ?? client).get<GetAuditEventResponses, GetAuditEventErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/audit/events/{eventId}',
+    ...options
+});
+
+/**
+ * Exporta em CSV o resultado do filtro (até 10.000 eventos) e registra audit.exported
+ */
+export const exportAuditEvents = <ThrowOnError extends boolean = false>(options?: Options<ExportAuditEventsData, ThrowOnError>) => (options?.client ?? client).get<ExportAuditEventsResponses, ExportAuditEventsErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/audit/export',
     ...options
 });

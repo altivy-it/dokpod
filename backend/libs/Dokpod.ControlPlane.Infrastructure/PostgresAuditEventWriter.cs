@@ -10,7 +10,8 @@ namespace Dokpod.ControlPlane.Infrastructure;
 
 public sealed class PostgresAuditEventWriter(
     ControlPlaneDbContext dbContext,
-    AuditEventMetrics metrics) : IAuditEventWriter
+    AuditEventMetrics metrics,
+    IAuditActorNameProvider? actorNames = null) : IAuditEventWriter
 {
     public PostgresAuditEventWriter(ControlPlaneDbContext dbContext)
         : this(dbContext, new AuditEventMetrics())
@@ -20,6 +21,11 @@ public sealed class PostgresAuditEventWriter(
     public async Task AppendAsync(AuditEvent auditEvent, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(auditEvent);
+        if (auditEvent.ActorName is null && actorNames?.NameFor(auditEvent.ActorId) is { } actorName)
+        {
+            auditEvent = auditEvent.WithActorName(actorName);
+        }
+
         metrics.RecordAttempt();
         var stopwatch = Stopwatch.StartNew();
 
@@ -57,6 +63,7 @@ public sealed class PostgresAuditEventWriter(
                 FailureCode = auditEvent.FailureCode,
                 SubjectId = auditEvent.SubjectId,
                 Details = auditEvent.Details is null ? null : System.Text.Json.JsonSerializer.Serialize(auditEvent.Details),
+                ActorName = auditEvent.ActorName,
             });
             dbContext.AuditEventKeys.Add(new AuditEventKeyEntity
             {
@@ -109,7 +116,25 @@ public sealed class PostgresAuditEventWriter(
     private Task ExecuteAppendAsync(
         AuditEvent auditEvent,
         byte[] payloadHash,
-        CancellationToken cancellationToken) => auditEvent.SubjectId is not null
+        CancellationToken cancellationToken) => auditEvent.ActorName is not null
+        ? dbContext.Database.ExecuteSqlInterpolatedAsync($"""
+            SELECT dokpod.dokpod_append_audit_event(
+                {auditEvent.EventId},
+                {auditEvent.OccurredAtUtc},
+                {auditEvent.CorrelationId},
+                {(short)auditEvent.ActorKind},
+                {auditEvent.ActorId},
+                {auditEvent.Action},
+                {auditEvent.EnvironmentId},
+                {auditEvent.CommandId},
+                {(short)auditEvent.Outcome},
+                {auditEvent.FailureCode},
+                {payloadHash},
+                {auditEvent.SubjectId},
+                {(auditEvent.Details is null ? null : System.Text.Json.JsonSerializer.Serialize(auditEvent.Details))}::jsonb,
+                {auditEvent.ActorName})
+            """, cancellationToken)
+        : auditEvent.SubjectId is not null
         ? dbContext.Database.ExecuteSqlInterpolatedAsync($"""
             SELECT dokpod.dokpod_append_audit_event(
                 {auditEvent.EventId},
@@ -179,6 +204,12 @@ public sealed class PostgresAuditEventWriter(
                 .OrderBy(pair => pair.Key, StringComparer.Ordinal)
                 .Select(pair => $"{pair.Key}={pair.Value}")));
         }
+        // Spec 017: o nome entra no hash só quando presente, preservando o hash dos eventos anteriores.
+        if (auditEvent.ActorName is not null)
+        {
+            fields.Add("actorName=" + auditEvent.ActorName);
+        }
+
         var payload = string.Join("\u001f", fields);
 
         return SHA256.HashData(Encoding.UTF8.GetBytes(payload));

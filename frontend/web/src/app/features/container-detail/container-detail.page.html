@@ -34,6 +34,19 @@
         </div>
       </div>
       <div class="dok-actions">
+        @if (auditAccess.canRead() && detail(); as d) {
+          <a
+            dok-button
+            variant="text"
+            size="sm"
+            startIcon="shield"
+            routerLink="/auditoria"
+            [queryParams]="{ environmentId: d.environmentId, q: d.containerId, periodo: '30d' }"
+            queryParamsHandling="merge"
+          >
+            Ver auditoria
+          </a>
+        }
         <button
           dok-button
           variant="secondary"

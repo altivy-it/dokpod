@@ -14,6 +14,7 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterLink } from '@angular/router';
 import { filter, map } from 'rxjs';
 import { AlertSummaryService } from '../core/alert-summary.service';
+import { AuditAccessService } from '../core/audit-access.service';
 import { DokIcon } from '../design-system/icon/dok-icon';
 import { activeNavId, groupNavigation, NAV_ITEMS } from './navigation';
 import { DokNotificationsPanel } from './notifications-panel';
@@ -65,7 +66,13 @@ export class DokAppShell {
     { initialValue: this.router.url },
   );
 
-  protected readonly groups = computed(() => groupNavigation(NAV_ITEMS, this.scopes()));
+  private readonly auditAccess = inject(AuditAccessService);
+  /** `audit:read` vem da decisão do Keycloak (spec 017 D-006), não da lista de scopes do registro. */
+  protected readonly groups = computed(() => {
+    const scopes = new Set([...this.scopes()].filter(scope => scope !== 'audit:read'));
+    if (this.auditAccess.canRead()) scopes.add('audit:read');
+    return groupNavigation(NAV_ITEMS, scopes);
+  });
   protected readonly active = computed(() => activeNavId(this.url()));
   protected readonly notifications = computed(() => this.context.notifications());
 

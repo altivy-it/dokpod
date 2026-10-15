@@ -54,6 +54,17 @@ public sealed class JustifiedCommandTests
     }
 
     [Fact]
+    public async Task CommandAudit_AlwaysTargetsTheContainer()
+    {
+        var (service, store, _) = Create(EnvironmentStage.Development, AgentCommandEnqueueResult.Created);
+
+        await Submit(service, AgentCommandKind.RestartContainer, null);
+
+        Assert.Equal(ContainerId, store.AuditEvent!.SubjectId);
+        Assert.Null(store.AuditEvent.Details);
+    }
+
+    [Fact]
     public async Task ShortJustification_IsInvalidEvenWhenOptional()
     {
         var (service, store, _) = Create(EnvironmentStage.Development, AgentCommandEnqueueResult.Created);

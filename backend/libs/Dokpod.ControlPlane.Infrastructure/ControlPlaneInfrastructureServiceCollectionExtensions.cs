@@ -31,6 +31,7 @@ public static class ControlPlaneInfrastructureServiceCollectionExtensions
         services.AddScoped<IAgentIdentityRegistry, PostgresAgentIdentityRegistry>();
         services.AddScoped<IAgentCommandStore, PostgresAgentCommandStore>();
         services.AddScoped<IAuditEventWriter, PostgresAuditEventWriter>();
+        services.AddScoped<IAuditEventReader, PostgresAuditEventReader>();
         services.AddScoped<IEnvironmentRegistrationStore, PostgresEnvironmentRegistrationStore>();
         services.AddScoped<IInventoryProjectionStore, PostgresInventoryProjectionStore>();
         services.AddScoped<PostgresAgentHostStore>();

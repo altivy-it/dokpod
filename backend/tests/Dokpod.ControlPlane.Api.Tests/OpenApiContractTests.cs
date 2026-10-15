@@ -74,6 +74,12 @@ public sealed class OpenApiContractTests
         Assert.Contains("'422':", contract, StringComparison.Ordinal);
         Assert.Contains("- alert:read", contract, StringComparison.Ordinal);
         Assert.Contains("- alert:manage", contract, StringComparison.Ordinal);
+        Assert.Contains("operationId: getAuditSummary", contract, StringComparison.Ordinal);
+        Assert.Contains("operationId: listAuditEvents", contract, StringComparison.Ordinal);
+        Assert.Contains("operationId: getAuditEvent", contract, StringComparison.Ordinal);
+        Assert.Contains("operationId: exportAuditEvents", contract, StringComparison.Ordinal);
+        Assert.Contains("AuditEventView:", contract, StringComparison.Ordinal);
+        Assert.Contains("text/csv:", contract, StringComparison.Ordinal);
         Assert.DoesNotContain("operationId: listHosts", contract, StringComparison.Ordinal);
         Assert.DoesNotContain("AuditEventEntity", contract, StringComparison.Ordinal);
         Assert.DoesNotContain("EnvironmentRegistrationEntity", contract, StringComparison.Ordinal);
