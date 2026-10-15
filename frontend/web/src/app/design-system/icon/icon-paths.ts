@@ -81,6 +81,7 @@ export const ICON_PATHS = {
   'spreadsheet': 'M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9zM14 3v6h6M8 13l4 5M12 13l-4 5',
   'play': 'M6 4l14 8-14 8z',
   'pause': 'M6 4h4v16H6zM14 4h4v16h-4z',
+  'stop': 'M8 5h8a3 3 0 0 1 3 3v8a3 3 0 0 1-3 3H8a3 3 0 0 1-3-3V8a3 3 0 0 1 3-3z',
   'sliders': 'M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6',
   'target': 'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM12 18a6 6 0 1 0 0-12 6 6 0 0 0 0 12zM12 14a2 2 0 1 0 0-4 2 2 0 0 0 0 4z',
   'trend-up': 'M22 7l-8.5 8.5-5-5L2 17M16 7h6v6',
@@ -95,3 +96,6 @@ export const ICON_PATHS = {
 } as const satisfies Record<string, string>;
 
 export type IconName = keyof typeof ICON_PATHS;
+
+/** Ícones desenhados preenchidos (o restante do kit é só traço). */
+export const FILLED_ICONS: ReadonlySet<string> = new Set(['stop']);

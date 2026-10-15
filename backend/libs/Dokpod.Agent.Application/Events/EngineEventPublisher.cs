@@ -18,7 +18,7 @@ public sealed class EngineEventPublisher(TimeProvider timeProvider)
 
     private static readonly HashSet<string> InventoryActions = new(StringComparer.Ordinal)
     {
-        "create", "start", "stop", "die", "kill", "pause", "unpause", "restart", "destroy", "rename", "oom", "update",
+        "create", "start", "stop", "die", "kill", "pause", "unpause", "restart", "destroy", "remove", "rename", "oom", "update",
     };
 
     private readonly Lock gate = new();
@@ -127,7 +127,8 @@ public sealed class EngineEventPublisher(TimeProvider timeProvider)
                     "oom" => EngineEventType.ContainerOomKilled,
                     "restart" => EngineEventType.ContainerAutoRestarted,
                     "create" => EngineEventType.ContainerCreated,
-                    "destroy" => EngineEventType.ContainerRemoved,
+                    // Docker emite "destroy"; o Podman emite "remove".
+                    "destroy" or "remove" => EngineEventType.ContainerRemoved,
                     _ => null,
                 };
             case "image":

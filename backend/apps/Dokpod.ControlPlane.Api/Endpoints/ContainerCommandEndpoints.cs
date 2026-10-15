@@ -9,7 +9,8 @@ namespace Dokpod.ControlPlane.Api.Endpoints;
 public sealed record SubmitContainerCommandRequest(
     string Action,
     string ExpectedContainerRevision,
-    DateTimeOffset DeadlineUtc);
+    DateTimeOffset DeadlineUtc,
+    string? Justification = null);
 
 public static class ContainerCommandEndpoints
 {
@@ -163,10 +164,11 @@ public static class ContainerCommandEndpoints
                 containerId,
                 request.ExpectedContainerRevision,
                 request.DeadlineUtc,
-                AuthenticatedActor.FromSubject(subject),
+                AuthenticatedActor.FromSubject(subject) with { DisplayName = context.User.FindFirstValue("preferred_username") },
                 accessToken,
                 GetCorrelationId(context),
-                cancellationToken).ConfigureAwait(false);
+                cancellationToken,
+                request.Justification).ConfigureAwait(false);
         }
         catch (ArgumentException)
         {
@@ -218,6 +220,16 @@ public static class ContainerCommandEndpoints
                 StatusCodes.Status409Conflict,
                 result.FailureCode ?? "command_id_conflict",
                 "A chave idempotente já identifica outro comando."),
+            ContainerCommandSubmissionOutcome.JustificationRequired => Problem(
+                context,
+                StatusCodes.Status422UnprocessableEntity,
+                "justification_required",
+                "Informe a justificativa para esta ação (política do estágio)."),
+            ContainerCommandSubmissionOutcome.JustificationInvalid => Problem(
+                context,
+                StatusCodes.Status400BadRequest,
+                "justification_invalid",
+                "A justificativa deve ter entre 10 e 500 caracteres."),
             _ => throw new ArgumentOutOfRangeException(nameof(result)),
         };
     }

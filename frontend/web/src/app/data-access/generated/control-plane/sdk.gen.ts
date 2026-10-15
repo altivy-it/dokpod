@@ -2,7 +2,7 @@
 
 import type { Client, Options as Options2, TDataShape } from './client';
 import { client } from './client.gen';
-import type { CreateContainerData, CreateContainerErrors, CreateContainerResponses, GetContainerCommandData, GetContainerCommandErrors, GetContainerCommandResponses, GetContainerCreateOptionsData, GetContainerCreateOptionsErrors, GetContainerCreateOptionsResponses, GetContainerData, GetContainerErrors, GetContainerLogsData, GetContainerLogsErrors, GetContainerLogsResponses, GetContainerMetricsData, GetContainerMetricsErrors, GetContainerMetricsResponses, GetContainerResponses, GetContainerSummaryData, GetContainerSummaryErrors, GetContainerSummaryResponses, GetEnvironmentData, GetEnvironmentErrors, GetEnvironmentResponses, GetOverviewData, GetOverviewErrors, GetOverviewResponses, GetStageMetricsData, GetStageMetricsErrors, GetStageMetricsResponses, GetTerminalPolicyData, GetTerminalPolicyErrors, GetTerminalPolicyResponses, InspectContainerData, InspectContainerErrors, InspectContainerResponses, ListContainersData, ListContainersErrors, ListContainersResponses, ListEnvironmentContainersData, ListEnvironmentContainersErrors, ListEnvironmentContainersResponses, ListEnvironmentsData, ListEnvironmentsErrors, ListEnvironmentsResponses, ListEventsData, ListEventsErrors, ListEventsResponses, ListHostMetricsData, ListHostMetricsErrors, ListHostMetricsResponses, ListImagesData, ListImagesErrors, ListImagesResponses, LookupImageData, LookupImageErrors, LookupImageResponses, PullImageData, PullImageErrors, PullImageResponses, RegisterEnvironmentData, RegisterEnvironmentErrors, RegisterEnvironmentResponses, RenewTerminalSessionData, RenewTerminalSessionErrors, RenewTerminalSessionResponses, RevokeAgentIdentityData, RevokeAgentIdentityErrors, RevokeAgentIdentityResponses, SetEnvironmentStageData, SetEnvironmentStageErrors, SetEnvironmentStageResponses, SubmitContainerCommandData, SubmitContainerCommandErrors, SubmitContainerCommandResponses } from './types.gen';
+import type { AcknowledgeAlertData, AcknowledgeAlertErrors, AcknowledgeAlertResponses, CreateAlertRuleData, CreateAlertRuleErrors, CreateAlertRuleResponses, CreateAlertSilenceData, CreateAlertSilenceErrors, CreateAlertSilenceResponses, CreateContainerData, CreateContainerErrors, CreateContainerResponses, DeleteAlertRuleData, DeleteAlertRuleErrors, DeleteAlertRuleResponses, EndAlertSilenceData, EndAlertSilenceErrors, EndAlertSilenceResponses, GetAlertData, GetAlertErrors, GetAlertResponses, GetAlertSummaryData, GetAlertSummaryErrors, GetAlertSummaryResponses, GetContainerCommandData, GetContainerCommandErrors, GetContainerCommandResponses, GetContainerCreateOptionsData, GetContainerCreateOptionsErrors, GetContainerCreateOptionsResponses, GetContainerData, GetContainerErrors, GetContainerLogsData, GetContainerLogsErrors, GetContainerLogsResponses, GetContainerMetricsData, GetContainerMetricsErrors, GetContainerMetricsResponses, GetContainerResponses, GetContainerSummaryData, GetContainerSummaryErrors, GetContainerSummaryResponses, GetEnvironmentData, GetEnvironmentErrors, GetEnvironmentResponses, GetOverviewData, GetOverviewErrors, GetOverviewResponses, GetStageMetricsData, GetStageMetricsErrors, GetStageMetricsResponses, GetTerminalPolicyData, GetTerminalPolicyErrors, GetTerminalPolicyResponses, InspectContainerData, InspectContainerErrors, InspectContainerResponses, ListActionJustificationPoliciesData, ListActionJustificationPoliciesErrors, ListActionJustificationPoliciesResponses, ListAlertRulesData, ListAlertRulesErrors, ListAlertRulesResponses, ListAlertsData, ListAlertsErrors, ListAlertSilencesData, ListAlertSilencesErrors, ListAlertSilencesResponses, ListAlertsResponses, ListContainerJustificationsData, ListContainerJustificationsErrors, ListContainerJustificationsResponses, ListContainersData, ListContainersErrors, ListContainersResponses, ListEnvironmentContainersData, ListEnvironmentContainersErrors, ListEnvironmentContainersResponses, ListEnvironmentJustificationsData, ListEnvironmentJustificationsErrors, ListEnvironmentJustificationsResponses, ListEnvironmentsData, ListEnvironmentsErrors, ListEnvironmentsResponses, ListEventsData, ListEventsErrors, ListEventsResponses, ListHostMetricsData, ListHostMetricsErrors, ListHostMetricsResponses, ListImagesData, ListImagesErrors, ListImagesResponses, LookupImageData, LookupImageErrors, LookupImageResponses, PullImageData, PullImageErrors, PullImageResponses, RegisterEnvironmentData, RegisterEnvironmentErrors, RegisterEnvironmentResponses, RenewTerminalSessionData, RenewTerminalSessionErrors, RenewTerminalSessionResponses, ResolveAlertData, ResolveAlertErrors, ResolveAlertResponses, RevokeAgentIdentityData, RevokeAgentIdentityErrors, RevokeAgentIdentityResponses, SetActionJustificationPolicyData, SetActionJustificationPolicyErrors, SetActionJustificationPolicyResponses, SetEnvironmentStageData, SetEnvironmentStageErrors, SetEnvironmentStageResponses, SilenceAlertData, SilenceAlertErrors, SilenceAlertResponses, SubmitContainerCommandData, SubmitContainerCommandErrors, SubmitContainerCommandResponses, UpdateAlertRuleData, UpdateAlertRuleErrors, UpdateAlertRuleResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -238,6 +238,8 @@ export const getContainerLogs = <ThrowOnError extends boolean = false>(options: 
 
 /**
  * Agregado de CPU e memória dos hosts autorizados do estágio, atual e série (spec 009)
+ *
+ * `current` soma o consumo dos containers com amostra recente sobre a capacidade dos hosts (spec 015); `series` é a série persistida do host.
  */
 export const getStageMetrics = <ThrowOnError extends boolean = false>(options?: Options<GetStageMetricsData, ThrowOnError>) => (options?.client ?? client).get<GetStageMetricsResponses, GetStageMetricsErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
@@ -260,5 +262,186 @@ export const listHostMetrics = <ThrowOnError extends boolean = false>(options?: 
 export const getContainerMetrics = <ThrowOnError extends boolean = false>(options: Options<GetContainerMetricsData, ThrowOnError>) => (options.client ?? client).get<GetContainerMetricsResponses, GetContainerMetricsErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
     url: '/api/v1/environments/{environmentId}/containers/{containerId}/metrics',
+    ...options
+});
+
+/**
+ * Contagem de alertas abertos por severidade e os mais recentes (menu e sino)
+ */
+export const getAlertSummary = <ThrowOnError extends boolean = false>(options?: Options<GetAlertSummaryData, ThrowOnError>) => (options?.client ?? client).get<GetAlertSummaryResponses, GetAlertSummaryErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/alerts/summary',
+    ...options
+});
+
+/**
+ * Alertas ativos ou histórico (90 dias) dos hosts com alert:read
+ */
+export const listAlerts = <ThrowOnError extends boolean = false>(options?: Options<ListAlertsData, ThrowOnError>) => (options?.client ?? client).get<ListAlertsResponses, ListAlertsErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/alerts',
+    ...options
+});
+
+/**
+ * Detalhe do alerta com regra e linha do tempo
+ */
+export const getAlert = <ThrowOnError extends boolean = false>(options: Options<GetAlertData, ThrowOnError>) => (options.client ?? client).get<GetAlertResponses, GetAlertErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/alerts/{alertId}',
+    ...options
+});
+
+/**
+ * Reconhece o alerta (alert:manage)
+ */
+export const acknowledgeAlert = <ThrowOnError extends boolean = false>(options: Options<AcknowledgeAlertData, ThrowOnError>) => (options.client ?? client).post<AcknowledgeAlertResponses, AcknowledgeAlertErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/alerts/{alertId}/acknowledge',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Resolve o alerta manualmente (alert:manage)
+ */
+export const resolveAlert = <ThrowOnError extends boolean = false>(options: Options<ResolveAlertData, ThrowOnError>) => (options.client ?? client).post<ResolveAlertResponses, ResolveAlertErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/alerts/{alertId}/resolve',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Silencia o alerta até o horário informado (alert:manage)
+ */
+export const silenceAlert = <ThrowOnError extends boolean = false>(options: Options<SilenceAlertData, ThrowOnError>) => (options.client ?? client).post<SilenceAlertResponses, SilenceAlertErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/alerts/{alertId}/silence',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Regras de alerta visíveis ao usuário
+ */
+export const listAlertRules = <ThrowOnError extends boolean = false>(options?: Options<ListAlertRulesData, ThrowOnError>) => (options?.client ?? client).get<ListAlertRulesResponses, ListAlertRulesErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/alert-rules',
+    ...options
+});
+
+/**
+ * Cria regra de alerta (alert:manage nos hosts abrangidos)
+ */
+export const createAlertRule = <ThrowOnError extends boolean = false>(options: Options<CreateAlertRuleData, ThrowOnError>) => (options.client ?? client).post<CreateAlertRuleResponses, CreateAlertRuleErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/alert-rules',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Remove regra criada pelo administrador e resolve seus alertas
+ */
+export const deleteAlertRule = <ThrowOnError extends boolean = false>(options: Options<DeleteAlertRuleData, ThrowOnError>) => (options.client ?? client).delete<DeleteAlertRuleResponses, DeleteAlertRuleErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/alert-rules/{ruleId}',
+    ...options
+});
+
+/**
+ * Altera regra de alerta com controle de versão
+ */
+export const updateAlertRule = <ThrowOnError extends boolean = false>(options: Options<UpdateAlertRuleData, ThrowOnError>) => (options.client ?? client).put<UpdateAlertRuleResponses, UpdateAlertRuleErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/alert-rules/{ruleId}',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Silenciamentos vigentes (active=false inclui encerrados)
+ */
+export const listAlertSilences = <ThrowOnError extends boolean = false>(options?: Options<ListAlertSilencesData, ThrowOnError>) => (options?.client ?? client).get<ListAlertSilencesResponses, ListAlertSilencesErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/alert-silences',
+    ...options
+});
+
+/**
+ * Cria silenciamento de até 7 dias com justificativa
+ */
+export const createAlertSilence = <ThrowOnError extends boolean = false>(options: Options<CreateAlertSilenceData, ThrowOnError>) => (options.client ?? client).post<CreateAlertSilenceResponses, CreateAlertSilenceErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/alert-silences',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Encerra o silenciamento antes do fim
+ */
+export const endAlertSilence = <ThrowOnError extends boolean = false>(options: Options<EndAlertSilenceData, ThrowOnError>) => (options.client ?? client).post<EndAlertSilenceResponses, EndAlertSilenceErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/alert-silences/{silenceId}/end',
+    ...options
+});
+
+/**
+ * Política de justificativa de parar, pausar e remover por estágio
+ */
+export const listActionJustificationPolicies = <ThrowOnError extends boolean = false>(options?: Options<ListActionJustificationPoliciesData, ThrowOnError>) => (options?.client ?? client).get<ListActionJustificationPoliciesResponses, ListActionJustificationPoliciesErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/action-justification-policies',
+    ...options
+});
+
+/**
+ * Liga ou desliga a justificativa obrigatória no estágio (environment:manage em todos os hosts do estágio)
+ */
+export const setActionJustificationPolicy = <ThrowOnError extends boolean = false>(options: Options<SetActionJustificationPolicyData, ThrowOnError>) => (options.client ?? client).put<SetActionJustificationPolicyResponses, SetActionJustificationPolicyErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/action-justification-policies/{stage}',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Justificativa vigente e histórico de ações justificadas do container
+ */
+export const listContainerJustifications = <ThrowOnError extends boolean = false>(options: Options<ListContainerJustificationsData, ThrowOnError>) => (options.client ?? client).get<ListContainerJustificationsResponses, ListContainerJustificationsErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/environments/{environmentId}/containers/{containerId}/justifications',
+    ...options
+});
+
+/**
+ * Ações justificadas do host por período
+ */
+export const listEnvironmentJustifications = <ThrowOnError extends boolean = false>(options: Options<ListEnvironmentJustificationsData, ThrowOnError>) => (options.client ?? client).get<ListEnvironmentJustificationsResponses, ListEnvironmentJustificationsErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/environments/{environmentId}/justifications',
     ...options
 });

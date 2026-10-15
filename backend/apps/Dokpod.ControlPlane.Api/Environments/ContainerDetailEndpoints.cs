@@ -49,6 +49,12 @@ public static class ContainerDetailEndpoints
         item["hostName"] = host.Descriptor?.HostName ?? registration.Host;
         item["capabilities"] = host.Descriptor?.Capabilities ?? [];
         HostResponses.WithResources(item, access.Container!.DisplayStatus, metrics.GetContainerResources(environmentId, containerId));
+        if (context.RequestServices.GetService<Dokpod.ControlPlane.Application.Alerts.IActionJustificationStore>() is { } justifications)
+        {
+            var current = await justifications.GetCurrentAsync([(environmentId, containerId)], cancellationToken);
+            HostResponses.WithIntentional(item, access.Container.DisplayStatus, current.GetValueOrDefault((environmentId, containerId)));
+        }
+
         return Results.Ok(item);
     }
 

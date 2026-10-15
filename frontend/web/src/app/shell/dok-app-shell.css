@@ -51,3 +51,12 @@ a.alt-app-header__btn {
     grid-template-columns: 52px minmax(0, 1fr);
   }
 }
+
+/*
+ * O vidro (backdrop-filter) do cabeçalho e dos cards cria contextos de empilhamento próprios: sem z-index no
+ * cabeçalho, o painel do sino e o menu do usuário ficavam por baixo dos cards da página. Acima do conteúdo e dos
+ * popovers do conteúdo (40), abaixo de toasts (60) e drawers (1200).
+ */
+.alt-app-header {
+  z-index: 50;
+}

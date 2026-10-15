@@ -44,6 +44,16 @@ public sealed record AuditEvent
         "container.exec.started",
         "container.exec.ended",
         "container.exec.denied",
+        // Spec 016: governança de alertas e política de justificativa.
+        "alert.rule_created",
+        "alert.rule_updated",
+        "alert.rule_deleted",
+        "alert.acknowledged",
+        "alert.resolved",
+        "alert.silenced",
+        "alert.silence_created",
+        "alert.silence_ended",
+        "container.justification_policy_changed",
     ];
 
     private static readonly HashSet<string> CommandActions =
@@ -107,6 +117,7 @@ public sealed record AuditEvent
         "kind", "tail", "since", "until", "filtered", "lines", "bytes", "truncated", "sessionId", "reason", "durationSeconds", "previousStage", "stage",
         "command", "image", "name", "engine",
         "justification", "shell", "root", "bytesIn", "bytesOut", "orphanSuspected", "stage",
+        "ruleId", "alertId", "silenceId", "severity", "enabled", "required", "version", "thresholdPercent", "until", "action",
     ];
 
     /// <summary>Justificativa do terminal (spec 014 D-009): única exceção de texto livre além do comando equivalente.</summary>

@@ -49,7 +49,9 @@ public sealed class ResourceSampler(
         var selected = Rotate(running, capacity);
         var dropped = running.Count - selected.Count;
 
-        var samples = new ContainerResourceSample?[selected.Count];
+        // As leituras do engine são paralelas; o cálculo usa o estado anterior (dicionário não concorrente) e roda
+        // em sequência depois, para que respostas simultâneas não corrompam esse estado.
+        var readings = new EngineContainerStats?[selected.Count];
         using (var gate = new SemaphoreSlim(maxConcurrency))
         {
             await Task.WhenAll(selected.Select(async (target, index) =>
@@ -57,18 +59,23 @@ public sealed class ResourceSampler(
                 await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
                 try
                 {
-                    var stats = await engine.GetContainerStatsAsync(target.ContainerId, cancellationToken).ConfigureAwait(false);
-                    samples[index] = stats is null ? null : BuildContainerSample(target, stats, now);
+                    readings[index] = await engine.GetContainerStatsAsync(target.ContainerId, cancellationToken).ConfigureAwait(false);
                 }
                 catch (Exception exception) when (exception is HttpRequestException or IOException or System.Text.Json.JsonException or InvalidDataException)
                 {
-                    samples[index] = null;
+                    readings[index] = null;
                 }
                 finally
                 {
                     gate.Release();
                 }
             })).ConfigureAwait(false);
+        }
+
+        var samples = new ContainerResourceSample?[selected.Count];
+        for (var index = 0; index < selected.Count; index++)
+        {
+            if (readings[index] is { } stats) samples[index] = BuildContainerSample(selected[index], stats, now);
         }
 
         var runningIds = running.Select(t => t.ContainerId).ToHashSet(StringComparer.Ordinal);

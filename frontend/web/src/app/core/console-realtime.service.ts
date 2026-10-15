@@ -1,7 +1,12 @@
 import { inject, Injectable, signal } from '@angular/core';
-import { HubConnection, HubConnectionBuilder, HubConnectionState, Subject } from '@microsoft/signalr';
+// Somente tipos: o SignalR é carregado sob demanda ao conectar, fora do bundle inicial (o shell injeta este serviço).
+import type { HubConnection, HubConnectionState } from '@microsoft/signalr';
+
+type SignalR = typeof import('@microsoft/signalr');
+const CONNECTED = 'Connected' as HubConnectionState;
+const DISCONNECTED = 'Disconnected' as HubConnectionState;
 import { SessionService } from './session.service';
-import { controlPlaneHubUrl, type ControlPlaneRealtimeStatus } from './control-plane-realtime.service';
+import { controlPlaneHubUrl, type ControlPlaneRealtimeStatus } from './realtime-hub';
 
 export interface TerminalInput {
   data?: string;
@@ -13,7 +18,7 @@ export interface TerminalOutput {
   status?: { state: 'connecting' | 'connected' | 'closed' | 'error'; reason?: string | null; shell?: string | null; containerUserIsRoot?: boolean; warning?: string | null; sessionId?: string | null };
 }
 
-export type InvalidationKind = 'inventory' | 'host' | 'events' | 'images';
+export type InvalidationKind = 'inventory' | 'host' | 'events' | 'images' | 'alerts';
 
 export interface LiveLogLine {
   timestamp: string | null;
@@ -47,6 +52,7 @@ export class ConsoleRealtimeService {
   readonly lastInvalidation = signal<Invalidation | null>(null);
 
   private connection: HubConnection | null = null;
+  private signalr: SignalR | null = null;
   private starting: Promise<HubConnection | null> | null = null;
   private readonly joined = new Set<string>();
   private sequence = 0;
@@ -89,7 +95,7 @@ export class ConsoleRealtimeService {
   ): Promise<{ send: (input: TerminalInput) => void; dispose: () => void } | null> {
     const connection = await this.ensureConnected();
     if (!connection) return null;
-    const input = new Subject<TerminalInput>();
+    const input = new this.signalr!.Subject<TerminalInput>();
     const subscription = connection.stream<TerminalOutput>('OpenTerminal', request, input).subscribe(handlers);
     let open = true;
     return {
@@ -116,12 +122,12 @@ export class ConsoleRealtimeService {
     const connection = this.connection;
     this.connection = null;
     this.joined.clear();
-    if (connection && connection.state !== HubConnectionState.Disconnected) await connection.stop();
+    if (connection && connection.state !== DISCONNECTED) await connection.stop();
     this.status.set('disconnected');
   }
 
   private ensureConnected(): Promise<HubConnection | null> {
-    if (this.connection?.state === HubConnectionState.Connected) return Promise.resolve(this.connection);
+    if (this.connection?.state === CONNECTED) return Promise.resolve(this.connection);
     this.starting ??= this.start().finally(() => (this.starting = null));
     return this.starting;
   }
@@ -129,7 +135,8 @@ export class ConsoleRealtimeService {
   private async start(): Promise<HubConnection | null> {
     try {
       const requestToken = await this.session.antiforgeryToken();
-      const connection = new HubConnectionBuilder()
+      this.signalr ??= await import('@microsoft/signalr');
+      const connection = new this.signalr.HubConnectionBuilder()
         .withUrl(controlPlaneHubUrl(document.baseURI), {
           headers: { 'X-Dokpod-Antiforgery': requestToken },
           withCredentials: true,
