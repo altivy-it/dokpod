@@ -69,6 +69,7 @@ public sealed class AgentCommandProcessor(
             PullImageParameters pull => "image:" + pull.Reference.Name,
             CreateContainerParameters create => "create:" + create.Spec.Name,
             RemoveVolumeParameters volume => "volume:" + volume.Name,
+            RemoveNetworkParameters network => "network:" + network.NetworkId,
             _ => command.ContainerId,
         };
         var mutationLock = mutationLocks.GetOrAdd(
@@ -136,6 +137,53 @@ public sealed class AgentCommandProcessor(
                     }
 
                     var failure = await engine.RemoveVolumeAsync(volume.Name, deadline.Token);
+                    return await SaveAsync(CreateResult(
+                        command,
+                        failure is null ? CommandExecutionState.Succeeded : CommandExecutionState.Failed,
+                        failure,
+                        null));
+                }
+                catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+                {
+                    return await SaveAsync(CreateResult(command, CommandExecutionState.Indeterminate, "deadline_exceeded", null));
+                }
+                catch (Exception exception) when (exception is HttpRequestException or IOException or System.Text.Json.JsonException or InvalidDataException)
+                {
+                    return await SaveAsync(CreateResult(command, CommandExecutionState.Indeterminate, "engine_unavailable", null));
+                }
+            }
+
+            if (command.Kind == AgentCommandKind.RemoveNetwork)
+            {
+                if (command.Parameters is not RemoveNetworkParameters network)
+                {
+                    return await SaveAsync(CreateResult(command, CommandExecutionState.Failed, "network_invalid", null));
+                }
+
+                using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                deadline.CancelAfter(command.DeadlineUtc - timeProvider.GetUtcNow());
+                try
+                {
+                    // Spec 019 D-004: confere sistema, escopo e uso (inclusive containers parados) imediatamente antes; nunca desconecta.
+                    var current = (await engine.ListNetworksAsync(deadline.Token)).FirstOrDefault(n => n.NetworkId == network.NetworkId);
+                    var refusal = current switch
+                    {
+                        null => Dokpod.Domain.Networks.NetworkRemovalCodes.NotFound,
+                        _ when Dokpod.Domain.Networks.NetworkNames.IsSystem(current.Name, current.Ingress) => Dokpod.Domain.Networks.NetworkRemovalCodes.System,
+                        _ when !string.Equals(current.Scope, "local", StringComparison.OrdinalIgnoreCase) => Dokpod.Domain.Networks.NetworkRemovalCodes.NotLocal,
+                        _ => null,
+                    };
+                    if (refusal is null)
+                    {
+                        var containers = await engine.ListContainersAsync(deadline.Token);
+                        if (Dokpod.Agent.Application.Networks.NetworkInventoryBuilder.ConnectedTo(current!, containers).Any())
+                        {
+                            refusal = Dokpod.Domain.Networks.NetworkRemovalCodes.InUse;
+                        }
+                    }
+
+                    if (refusal is not null) return await SaveAsync(CreateResult(command, CommandExecutionState.Failed, refusal, null));
+                    var failure = await engine.RemoveNetworkAsync(network.NetworkId, deadline.Token);
                     return await SaveAsync(CreateResult(
                         command,
                         failure is null ? CommandExecutionState.Succeeded : CommandExecutionState.Failed,

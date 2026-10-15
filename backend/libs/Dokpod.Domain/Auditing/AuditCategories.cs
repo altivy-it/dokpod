@@ -10,6 +10,7 @@ public static class AuditCategories
         ["commands"] = ["container.command.result"],
         ["images"] = ["image.pull"],
         ["volumes"] = ["volume.remove"],
+        ["networks"] = ["network.remove"],
         ["inspection"] = ["container.inspected", "container.logs.read", "container.logs.stream_started", "container.logs.stream_ended"],
         ["terminal"] = ["container.exec.requested", "container.exec.started", "container.exec.ended", "container.exec.denied"],
         ["governance"] =

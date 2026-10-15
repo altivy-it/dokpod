@@ -199,6 +199,22 @@ A telemetria usa allowlist de campos, limites e normalização de caracteres de 
 
 **Risco residual**: entre a conferência do agente e o `DELETE` do engine há uma janela de milissegundos; o engine recusa remover volume em uso sem `force`, o que fecha essa janela no próprio engine.
 
+## Threat model: redes (spec 019)
+
+**Fronteira nova**: agente → inventário de redes (snapshot paginado) → projeção `dokpod.inventory_networks`; navegador → BFF → API → fila de comandos → stream mTLS do agente → `DELETE /networks/{id}` do engine. Remover rede não apaga dados, mas derrubaria a conectividade de quem estivesse conectado.
+
+| Ameaça | Mitigação | Teste negativo |
+| --- | --- | --- |
+| Derrubar a conectividade de containers | A API recusa rede com conexões na projeção (inclusive de containers parados); o agente relista os containers imediatamente antes e recusa; nada é desconectado; o engine recusa rede com endpoints ativos (403/409 → `network_in_use`) | `NetworkAgentTests`, `NetworkRemovalServiceTests`; na stack real, container conectado logo antes do comando → `network_in_use` com a rede intacta (SC-003) |
+| Remover rede do sistema ou de cluster | Redes `bridge`, `host`, `none`, `docker_gwbridge`, `podman` e `Ingress` são do sistema (marcadas pelo agente **e** pelo servidor); escopo diferente de `local` é recusado (`network_system`, `network_not_local`) na API e no agente | `NetworkDomainTests`, `NetworkAgentTests`; API real → 409 `network_system` |
+| Injeção no alvo repassado ao engine | O comando leva o identificador (64 hex), validado na API, no domínio e no agente; o nome só aparece na auditoria | identificador inválido → 400 `network_invalid` |
+| Exposição da configuração do host | `Options` do driver (interface física, MTU...) não são lidas nem publicadas; só driver, escopo, sub-redes, gateways e conexões | `NetworkAgentTests` (opção `parent` ausente do snapshot) |
+| Scope ausente / ambiente não autorizado | Decisão Keycloak `network:delete` por host; registro do ambiente precisa conter o scope (a migration o acrescenta onde já havia `container:delete`); falha do Keycloak = negado | 403 sem o scope; nenhum comando persistido |
+| Remoção sem rastreio | Comando durável com `Idempotency-Key`, prazo e auditoria `network.remove` (ator, host, nome, identificador e justificativa mascarada) | 422 `justification_required`; canário de segredo mascarado na auditoria |
+| Agente comprometido falsificando inventário | Páginas validadas (ordem, identidade, ≤ 500 redes e 256 KiB, ≤ 16 sub-redes, 64 labels e 200 conexões por rede); dados exibidos só como texto | página fora de ordem encerra a sessão (`network_snapshot_invalid`) |
+
+**Risco residual**: entre a conferência do agente e o `DELETE` há uma janela de milissegundos; um container criado (parado) nessa janela pode ficar com referência a uma rede removida, e o engine o informa ao iniciá-lo. Containers em execução são protegidos pelo próprio engine.
+
 ## Desenvolvimento e release
 
 - threat model atualizado para cada nova fronteira;
