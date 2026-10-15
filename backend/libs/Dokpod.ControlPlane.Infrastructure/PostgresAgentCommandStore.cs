@@ -583,6 +583,7 @@ public sealed class PostgresAgentCommandStore(
         PullImageParameters => "pull_image",
         CreateContainerParameters => "create_container",
         RemoveVolumeParameters => "remove_volume",
+        RemoveNetworkParameters => "remove_network",
         _ => throw new ArgumentOutOfRangeException(nameof(parameters)),
     };
 
@@ -593,6 +594,7 @@ public sealed class PostgresAgentCommandStore(
             Dokpod.ControlPlane.Application.Containers.ContainerCreationRequest.FromSpec(create.Spec.WithoutValues()),
             ParametersJson),
         RemoveVolumeParameters volume => System.Text.Json.JsonSerializer.Serialize(new { name = volume.Name }),
+        RemoveNetworkParameters network => System.Text.Json.JsonSerializer.Serialize(new { networkId = network.NetworkId, name = network.Name }),
         _ => throw new ArgumentOutOfRangeException(nameof(parameters)),
     };
 
@@ -607,6 +609,10 @@ public sealed class PostgresAgentCommandStore(
                 new CreateContainerParameters(spec.WithoutValues()),
             "remove_volume" when document.RootElement.TryGetProperty("name", out var volume) &&
                 Dokpod.Domain.Volumes.VolumeNames.IsValid(volume.GetString()) => new RemoveVolumeParameters(volume.GetString()!),
+            "remove_network" when document.RootElement.TryGetProperty("networkId", out var networkId) &&
+                document.RootElement.TryGetProperty("name", out var networkName) &&
+                Dokpod.Domain.Networks.NetworkNames.IsValidId(networkId.GetString()) &&
+                Dokpod.Domain.Networks.NetworkNames.IsValidName(networkName.GetString()) => new RemoveNetworkParameters(networkId.GetString()!, networkName.GetString()!),
             _ => null,
         };
     }
@@ -643,6 +649,7 @@ public sealed class PostgresAgentCommandStore(
             AgentCommandKind.PullImage => "image.pull",
             AgentCommandKind.CreateContainer => "container.create.requested",
             AgentCommandKind.RemoveVolume => "volume.remove",
+            AgentCommandKind.RemoveNetwork => "network.remove",
             _ => throw new ArgumentOutOfRangeException(nameof(kind)),
         };
 }

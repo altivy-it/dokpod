@@ -8,6 +8,7 @@ public static class InvalidationKinds
     public const string Images = "images";
     public const string Alerts = "alerts";
     public const string Volumes = "volumes";
+    public const string Networks = "networks";
 }
 
 /// <summary>Invalidação em tempo real por ambiente e tipo; o cliente busca o estado pela API.</summary>

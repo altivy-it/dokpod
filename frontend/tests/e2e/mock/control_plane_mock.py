@@ -165,7 +165,7 @@ AUDIT: list = seed_audit()
 AUDIT_CATEGORY = {
     "environments": ["environment.register", "environment.approve", "environment.suspend", "environment.revoke", "environment.stage_changed"],
     "containers": ["container.start", "container.stop", "container.restart", "container.delete", "container.pause", "container.unpause", "container.create.requested"],
-    "commands": ["container.command.result"], "images": ["image.pull"], "volumes": ["volume.remove"],
+    "commands": ["container.command.result"], "images": ["image.pull"], "volumes": ["volume.remove"], "networks": ["network.remove"],
     "inspection": ["container.inspected", "container.logs.read", "container.logs.stream_started", "container.logs.stream_ended"],
     "terminal": ["container.exec.requested", "container.exec.started", "container.exec.ended", "container.exec.denied"],
     "governance": ["alert.rule_created", "alert.rule_updated", "alert.rule_deleted", "alert.acknowledged", "alert.resolved", "alert.silenced",
