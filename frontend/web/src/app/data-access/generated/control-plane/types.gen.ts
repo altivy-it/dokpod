@@ -169,7 +169,7 @@ export type ContainerCommandAccepted = {
 export type ContainerCommandStatus = {
     environmentId: string;
     commandId: string;
-    action: 'start' | 'stop' | 'restart' | 'delete' | 'pause' | 'unpause' | 'pull' | 'create';
+    action: 'start' | 'stop' | 'restart' | 'delete' | 'pause' | 'unpause' | 'pull' | 'create' | 'remove_volume';
     /**
      * Alvo do comando (spec 012); `image` para pull com alvo de host.
      */
@@ -596,7 +596,7 @@ export type IntentionalAction = {
     reason: string;
 };
 
-export type AuditCategory = 'environments' | 'containers' | 'commands' | 'images' | 'inspection' | 'terminal' | 'governance' | 'audit';
+export type AuditCategory = 'environments' | 'containers' | 'commands' | 'images' | 'volumes' | 'inspection' | 'terminal' | 'governance' | 'audit';
 
 export type AuditOutcome = 'succeeded' | 'denied' | 'failed' | 'indeterminate';
 
@@ -635,7 +635,58 @@ export type AuditSummary = {
     oldestEventAt?: string | null;
 };
 
-export type ResourceScope = 'environment:read' | 'environment:manage' | 'container:start' | 'container:stop' | 'container:restart' | 'container:delete' | 'audit:read' | 'container:pause' | 'container:inspect' | 'container:logs' | 'image:pull' | 'container:create' | 'container:exec' | 'alert:read' | 'alert:manage';
+export type VolumeMount = {
+    containerId: string;
+    containerName: string;
+    destination: string;
+    readOnly: boolean;
+};
+
+export type VolumeItem = {
+    environmentId: string;
+    environmentName: string;
+    stage?: Stage | null;
+    engine?: 'docker' | 'podman' | null;
+    hostConnected: boolean;
+    name: string;
+    anonymous: boolean;
+    driver: string;
+    scope: string;
+    createdAt?: string | null;
+    labels: {
+        [key: string]: string;
+    };
+    mounts: Array<VolumeMount>;
+    inUse: boolean;
+    truncated: boolean;
+    observedAt: string;
+    canRemove: boolean;
+};
+
+export type VolumeListPage = {
+    volumes: Array<VolumeItem>;
+    summary: {
+        total: number;
+        unused: number;
+        unavailableHosts: Array<{
+            environmentId: string;
+            environmentName: string;
+        }>;
+    };
+    nextCursor?: string | null;
+};
+
+export type VolumeUsage = {
+    sizeBytes?: number | null;
+    refCount?: number | null;
+};
+
+export type RemoveVolumeRequest = {
+    deadlineUtc: string;
+    justification?: string;
+};
+
+export type ResourceScope = 'environment:read' | 'environment:manage' | 'container:start' | 'container:stop' | 'container:restart' | 'container:delete' | 'audit:read' | 'container:pause' | 'container:inspect' | 'container:logs' | 'image:pull' | 'container:create' | 'container:exec' | 'alert:read' | 'alert:manage' | 'volume:delete';
 
 export type Stage = 'production' | 'staging' | 'development';
 
@@ -3002,3 +3053,203 @@ export type ExportAuditEventsResponses = {
 };
 
 export type ExportAuditEventsResponse = ExportAuditEventsResponses[keyof ExportAuditEventsResponses];
+
+export type ListVolumesData = {
+    body?: never;
+    headers?: {
+        /**
+         * Identificador técnico opcional para correlação server-side.
+         */
+        'X-Correlation-Id'?: string;
+    };
+    path?: never;
+    query?: {
+        stage?: Stage;
+        environmentId?: Array<string>;
+        engine?: Array<'docker' | 'podman'>;
+        unused?: boolean;
+        anonymous?: boolean;
+        q?: string;
+        sort?: 'name' | '-name' | 'createdAt' | '-createdAt' | 'environment';
+        cursor?: string;
+        limit?: number;
+    };
+    url: '/api/v1/volumes';
+};
+
+export type ListVolumesErrors = {
+    /**
+     * Requisição inválida.
+     */
+    400: ProblemDetails;
+    /**
+     * Autenticação ausente ou inválida.
+     */
+    401: ProblemDetails;
+    /**
+     * Autorização ou persistência indisponível.
+     */
+    503: ProblemDetails;
+};
+
+export type ListVolumesError = ListVolumesErrors[keyof ListVolumesErrors];
+
+export type ListVolumesResponses = {
+    /**
+     * OK.
+     */
+    200: VolumeListPage;
+};
+
+export type ListVolumesResponse = ListVolumesResponses[keyof ListVolumesResponses];
+
+export type GetVolumeData = {
+    body?: never;
+    headers?: {
+        /**
+         * Identificador técnico opcional para correlação server-side.
+         */
+        'X-Correlation-Id'?: string;
+    };
+    path: {
+        environmentId: string;
+        name: string;
+    };
+    query?: never;
+    url: '/api/v1/environments/{environmentId}/volumes/{name}';
+};
+
+export type GetVolumeErrors = {
+    /**
+     * Requisição inválida.
+     */
+    400: ProblemDetails;
+    /**
+     * Autenticação ausente ou inválida.
+     */
+    401: ProblemDetails;
+    /**
+     * O ambiente não foi encontrado após autorização.
+     */
+    404: ProblemDetails;
+    /**
+     * Autorização ou persistência indisponível.
+     */
+    503: ProblemDetails;
+};
+
+export type GetVolumeError = GetVolumeErrors[keyof GetVolumeErrors];
+
+export type GetVolumeResponses = {
+    /**
+     * OK.
+     */
+    200: VolumeItem;
+};
+
+export type GetVolumeResponse = GetVolumeResponses[keyof GetVolumeResponses];
+
+export type GetVolumeUsageData = {
+    body?: never;
+    headers?: {
+        /**
+         * Identificador técnico opcional para correlação server-side.
+         */
+        'X-Correlation-Id'?: string;
+    };
+    path: {
+        environmentId: string;
+        name: string;
+    };
+    query?: never;
+    url: '/api/v1/environments/{environmentId}/volumes/{name}/usage';
+};
+
+export type GetVolumeUsageErrors = {
+    /**
+     * Requisição inválida.
+     */
+    400: ProblemDetails;
+    /**
+     * Autenticação ausente ou inválida.
+     */
+    401: ProblemDetails;
+    /**
+     * O ambiente não foi encontrado após autorização.
+     */
+    404: ProblemDetails;
+    /**
+     * O ambiente já existe.
+     */
+    409: ProblemDetails;
+};
+
+export type GetVolumeUsageError = GetVolumeUsageErrors[keyof GetVolumeUsageErrors];
+
+export type GetVolumeUsageResponses = {
+    /**
+     * OK.
+     */
+    200: VolumeUsage;
+};
+
+export type GetVolumeUsageResponse = GetVolumeUsageResponses[keyof GetVolumeUsageResponses];
+
+export type RemoveVolumeData = {
+    body: RemoveVolumeRequest;
+    headers: {
+        'Idempotency-Key': string;
+        /**
+         * Identificador técnico opcional para correlação server-side.
+         */
+        'X-Correlation-Id'?: string;
+    };
+    path: {
+        environmentId: string;
+        name: string;
+    };
+    query?: never;
+    url: '/api/v1/environments/{environmentId}/volumes/{name}/remove';
+};
+
+export type RemoveVolumeErrors = {
+    /**
+     * Requisição inválida.
+     */
+    400: ProblemDetails;
+    /**
+     * Autenticação ausente ou inválida.
+     */
+    401: ProblemDetails;
+    /**
+     * Decisão do Keycloak negou o cadastro.
+     */
+    403: ProblemDetails;
+    /**
+     * O ambiente não foi encontrado após autorização.
+     */
+    404: ProblemDetails;
+    /**
+     * O ambiente já existe.
+     */
+    409: ProblemDetails;
+    /**
+     * Justificativa obrigatória pela política do estágio.
+     */
+    422: ProblemDetails;
+    /**
+     * Autorização ou persistência indisponível.
+     */
+    503: ProblemDetails;
+};
+
+export type RemoveVolumeError = RemoveVolumeErrors[keyof RemoveVolumeErrors];
+
+export type RemoveVolumeResponses = {
+    /**
+     * Comando aceito.
+     */
+    202: ContainerCommandAccepted;
+};
+
+export type RemoveVolumeResponse = RemoveVolumeResponses[keyof RemoveVolumeResponses];
