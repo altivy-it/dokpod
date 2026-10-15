@@ -32,6 +32,8 @@ public sealed class AuditLoadTests
             AuditConsoleIntegrationTests.Query(hosts) with { SinceUtc = Now.AddDays(-30), UntilUtc = Now, Actions = AuditCategories.Actions["terminal"] },
             AuditConsoleIntegrationTests.Query(hosts) with { SinceUtc = Now.AddDays(-30), UntilUtc = Now, Actor = "user-7" },
             AuditConsoleIntegrationTests.Query(hosts) with { SinceUtc = Now.AddDays(-30), UntilUtc = Now, Text = "subject-42" },
+            AuditConsoleIntegrationTests.Query(hosts) with { SinceUtc = Now.AddDays(-30), UntilUtc = Now, Text = "manutencao planejada" },
+            AuditConsoleIntegrationTests.Query(hosts) with { SinceUtc = Now.AddDays(-30), UntilUtc = Now, Text = "\"lote 42\" -kernel" },
             AuditConsoleIntegrationTests.Query(hosts.Take(3).ToArray()) with { SinceUtc = Now.AddDays(-7), UntilUtc = Now },
         };
 

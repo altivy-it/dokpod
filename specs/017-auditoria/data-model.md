@@ -19,3 +19,15 @@ Down: remove a sobrecarga e o índice e mantém a coluna `actor_name` (remover a
 ## Visão de leitura (API)
 
 `AuditEventView`: `id`, `occurredAt`, `correlationId`, `actorKind` (`user`, `agent`, `system`), `actorId`, `actorName`, `action`, `category`, `environmentId`, `outcome` (`succeeded`, `denied`, `failed`), `failureCode`, `subjectId`, `commandId`, `details`.
+
+## Busca textual (migration `202610150002_AuditFullTextSearch`)
+
+| Objeto | Definição |
+| --- | --- |
+| `dokpod_fold_text(text)` | minúsculas sem acentos (`translate`), `IMMUTABLE` |
+| `dokpod_audit_search_document(action, actor_id, actor_name, subject_id, failure_code, details)` | `tsvector` em português do texto normalizado; custo declarado 10000 |
+| `dokpod_audit_search_query(text)` | `websearch_to_tsquery('portuguese', ...)` do texto normalizado |
+| `ix_audit_events_search` | GIN sobre o documento, no pai e em cada partição |
+| `ix_audit_events_subject_pattern` | `subject_id varchar_pattern_ops`, prefixo do alvo |
+
+Down: remove os dois índices e as três funções (nenhum dado da trilha é alterado).

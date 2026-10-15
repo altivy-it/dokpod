@@ -1778,6 +1778,7 @@ paths:
         - name: q
           in: query
           required: false
+          description: UUID exato (correlação, comando ou evento), prefixo do alvo ou busca full-text em português sem acentos (aspas, or, -exclusão).
           schema:
             type: string
             maxLength: 255

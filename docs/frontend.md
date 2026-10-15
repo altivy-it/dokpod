@@ -52,7 +52,7 @@ Features integram por rotas, contratos públicos e fachadas pequenas; não impor
 
 ### Auditoria (spec 017)
 
-- Governança → Auditoria (`/auditoria`) lista a trilha dos hosts com `audit:read`, sempre por período (`periodo` = 24h, 7d, 30d, 90d ou `personalizado` com `desde`/`ate`); categoria, resultado, ator, host e alvo ficam na URL (`categoria`, `resultado`, `ator`, `environmentId`, `q`), e `evento`/`em` abrem o detalhe;
+- Governança → Auditoria (`/auditoria`) lista a trilha dos hosts com `audit:read`, sempre por período (`periodo` = 24h, 7d, 30d, 90d ou `personalizado` com `desde`/`ate`); categoria, resultado, ator, host e alvo ficam na URL (`categoria`, `resultado`, `ator`, `environmentId`, `q`), e `evento`/`em` abrem o detalhe; a busca (`q`) é full-text em português, sem diferenciar acentos, e aceita aspas, `or` e `-palavra`;
 - o detalhe mostra os campos como gravados, o alvo navegável (container ou alerta) e os eventos relacionados pela correlação ou comando;
 - o item de menu depende de `GET /api/v1/audit/summary` (decisão do Keycloak), não da lista de scopes do registro do ambiente; o detalhe do container oferece "Ver auditoria";
 - "Exportar CSV" baixa todo o filtro (até 10.000 eventos) e a exportação fica registrada na própria trilha;

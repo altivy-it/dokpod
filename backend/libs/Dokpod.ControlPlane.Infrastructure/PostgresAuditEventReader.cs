@@ -144,8 +144,14 @@ public sealed class PostgresAuditEventReader(ControlPlaneDbContext dbContext) : 
             }
             else
             {
-                where.Append(" AND subject_id ILIKE @textPrefix ESCAPE '\\'");
-                parameters.Add(P("textPrefix", Like(text) + "%"));
+                // D-008: prefixo do alvo (ids de container) ou busca textual no índice GIN (ator, ação, alvo, falha e detalhes).
+                where.Append(
+                    " AND (subject_id LIKE @textPrefix ESCAPE '\\'" +
+                    " OR dokpod.dokpod_audit_search_document(action, actor_id, actor_name, subject_id, failure_code, details)" +
+                    " @@ dokpod.dokpod_audit_search_query(@text))");
+                // LIKE (e não ILIKE) usa o índice varchar_pattern_ops; os ids gravados como alvo são minúsculos.
+                parameters.Add(P("textPrefix", Like(text.ToLowerInvariant()) + "%"));
+                parameters.Add(P("text", text));
             }
         }
 

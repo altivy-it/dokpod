@@ -46,6 +46,15 @@ def test_filters_are_combinable_and_kept_in_the_url(page: Page) -> None:
     assert axe_violations(page) == []
 
 
+def test_text_search_finds_justification_without_accents(page: Page) -> None:
+    goto(page, "auditoria")
+    page.get_by_role("searchbox", name="Busca rápida").fill("manutencao checkout")
+    expect(page).to_have_url(re.compile(r"q=manutencao"))
+    expect(rows(page)).to_have_count(1)
+    expect(page.get_by_text("Parar container")).to_be_visible()
+    expect(page.get_by_text("Busca:")).to_be_visible()
+
+
 def test_event_detail_shows_masked_details_and_related_events(page: Page) -> None:
     goto(page, "auditoria")
     page.get_by_text("Parar container").click()

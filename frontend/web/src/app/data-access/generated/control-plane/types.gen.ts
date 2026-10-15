@@ -2871,6 +2871,9 @@ export type ListAuditEventsData = {
         category?: Array<AuditCategory>;
         action?: Array<string>;
         outcome?: Array<AuditOutcome>;
+        /**
+         * UUID exato (correlação, comando ou evento), prefixo do alvo ou busca full-text em português sem acentos (aspas, or, -exclusão).
+         */
         q?: string;
         cursor?: string;
         limit?: number;

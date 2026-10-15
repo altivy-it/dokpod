@@ -34,3 +34,10 @@
 ## D-007 - Rótulos e categorias
 
 - **Decisão**: rótulos em português e categorias das ações no console (ambientes, containers, comandos, imagens, logs e inspeção, terminal, alertas e política, auditoria); a API aceita `category` e a converte na lista de ações suportadas.
+
+## D-008 - Busca full-text na trilha particionada
+
+- **Decisão**: migration `202610150002_AuditFullTextSearch` com funções `IMMUTABLE` (`dokpod_fold_text`, `dokpod_audit_search_document`, `dokpod_audit_search_query`) e índice GIN por expressão no pai particionado, que o PostgreSQL cria em cada partição. O documento reúne ação (código e palavras), ator (identificador e nome), alvo, código de falha e valores dos detalhes; dicionário `portuguese` (radicais) e acentos removidos por `translate`, sem depender da extensão `unaccent`. A consulta usa `websearch_to_tsquery` (aspas, `or`, `-exclusão`). Um índice `varchar_pattern_ops` no alvo mantém a busca por prefixo de ids e permite `BitmapOr` com o GIN; a função do documento declara custo alto para o planejador preferir os índices.
+- **Justificativa**: índice por expressão não adiciona coluna nem reescreve a trilha append-only. Sem o índice de prefixo e o custo, termos raros em 1 milhão de eventos levavam ~6 s (o planejador avaliava o documento linha a linha); com eles, p95 de 121 ms.
+- **Alternativas**: coluna `tsvector` gerada (reescreve todas as partições e duplica dados); extensão `unaccent` (exige privilégio de criação de extensão e não é `IMMUTABLE` sem envoltório); busca por `ILIKE` nos detalhes (sem índice).
+- **Particionamento**: confirmado na stack e nos testes: `RANGE (occurred_at_utc)` mensal de 2026-01 a 2036-12, mais `DEFAULT` (vazia); a consulta da tela faz *pruning* (24 h lê 1 partição, 132 descartadas). Teste novo garante as partições dos próximos 12 meses e o índice de busca em todas.

@@ -126,7 +126,7 @@ export class AuditPage {
     if (f.outcomes.length) chips.push({ key: 'resultado', field: 'Resultado', label: f.outcomes.map(o => AUDIT_OUTCOME[o].label).join(', ') });
     if (f.actor) chips.push({ key: 'ator', field: 'Ator', label: f.actor });
     if (f.environmentIds.length) chips.push({ key: 'host', field: 'Host', label: f.environmentIds.map(id => this.directory.byId(id)?.name ?? id.slice(0, 8)).join(', ') });
-    if (f.text) chips.push({ key: 'q', field: 'Alvo ou correlação', label: f.text.length > 24 ? f.text.slice(0, 12) + '…' : f.text });
+    if (f.text) chips.push({ key: 'q', field: 'Busca', label: f.text.length > 24 ? f.text.slice(0, 12) + '…' : f.text });
     return chips;
   });
 

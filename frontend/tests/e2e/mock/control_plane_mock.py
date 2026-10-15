@@ -179,6 +179,11 @@ def audit_view(e: dict) -> dict:
     return {**e, "category": category, "environmentName": host_by_n(int(e["environmentId"][-12:]))[1]}
 
 
+def fold(text: str) -> str:
+    """Aproxima a busca textual do PostgreSQL (D-008): minúsculas e sem acentos."""
+    return text.lower().translate(str.maketrans("áàâãäéèêëíìîïóòôõöúùûüçñ", "aaaaaeeeeiiiiooooouuuucn"))
+
+
 def audit_filter(query: dict) -> list[dict] | None:
     q = lambda key: (query.get(key) or [None])[0]  # noqa: E731
     since, until = q("since"), q("until")
@@ -193,7 +198,9 @@ def audit_filter(query: dict) -> list[dict] | None:
             and (not query.get("environmentId") or e["environmentId"] in query["environmentId"])
             and (not q("stage") or host_stage(e["environmentId"]) == q("stage"))
             and (not q("actor") or e["actorId"] == q("actor") or (e["actorName"] or "").lower().startswith(q("actor").lower()))
-            and (not q("q") or q("q") in (e["correlationId"], e["commandId"], e["id"]) or (e["subjectId"] or "").startswith(q("q")))]
+            and (not q("q") or q("q") in (e["correlationId"], e["commandId"], e["id"]) or (e["subjectId"] or "").startswith(q("q").lower())
+                 or all(word in fold(" ".join([e["action"].replace(".", " "), e["actorId"], e["actorName"] or "", e["subjectId"] or "", e["failureCode"] or "",
+                                                 *(e["details"] or {}).values()])) for word in fold(q("q")).split()))]
     return [audit_view(e) for e in rows]
 
 

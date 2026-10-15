@@ -21,6 +21,7 @@
 - P: Ler a auditoria também é auditado? → R: Consultas na tela não geram evento (evita ruído e crescimento da própria trilha); exportações geram.
 - P: Exportação? → R: CSV do resultado filtrado, até 10.000 eventos por arquivo, com fórmulas neutralizadas.
 - P: Retenção? → R: Mantém a regra da 001: sem apagamento automático; a tela informa o evento mais antigo disponível.
+- P: Busca textual? (pedido do solicitante em 2026-10-15: "certifique que a tabela [...] esteja com particionamento configurado e full-text search") → R: Sim: busca full-text em português, sem diferenciar acentos, com índice próprio em todas as partições.
 
 ## Cenários do Usuário e Testes (obrigatório)
 
@@ -107,7 +108,7 @@ Para uma auditoria externa ou incidente, o usuário exporta o resultado filtrado
 
 - **FR-001**: O sistema DEVE oferecer a tela Governança → Auditoria com a trilha dos hosts em que o usuário tem `audit:read`, do evento mais recente ao mais antigo, paginada, sem total global exato quando custoso.
 - **FR-002**: A consulta DEVE ser sempre limitada a um período (padrão: últimas 24 horas; máximo: 90 dias por consulta).
-- **FR-003**: Os filtros DEVEM incluir período, estágio, host, ator, categoria de ação (ambientes, containers, comandos, imagens, logs e inspeção, terminal, alertas e política), ação, resultado (sucesso, negado, falha) e texto (container, alvo ou correlação), combináveis e mantidos na URL.
+- **FR-003**: Os filtros DEVEM incluir período, estágio, host, ator, categoria de ação (ambientes, containers, comandos, imagens, logs e inspeção, terminal, alertas e política), ação, resultado (sucesso, negado, falha) e busca textual (palavras da justificativa e de outros detalhes, ator, ação, alvo e código de falha, sem diferenciar acentos; correlação, comando ou evento exatos; prefixo do alvo), combináveis e mantidos na URL.
 - **FR-004**: Cada linha DEVE mostrar horário, ator, ação em linguagem do operador, host, alvo e resultado; o detalhe DEVE mostrar todos os campos registrados e os eventos relacionados pela mesma correlação ou comando.
 - **FR-005**: Os detalhes registrados DEVEM ser exibidos como foram gravados (já mascarados na origem); a tela NÃO DEVE reconstruir ou revelar dado mascarado.
 - **FR-006**: O detalhe do container DEVE oferecer "Ver auditoria", abrindo a Auditoria filtrada pelo container e host.
@@ -126,6 +127,7 @@ Para uma auditoria externa ou incidente, o usuário exporta o resultado filtrado
 - **FR-010**: A consulta e a exportação DEVEM exigir `audit:read` por host; nenhum dado DEVE revelar hosts sem o scope, nem a existência de eventos deles.
 - **FR-011**: A trilha DEVE permanecer append-only; a interface e a API NÃO DEVEM permitir alterar ou excluir eventos.
 - **FR-012**: O item de menu "Auditoria" DEVE aparecer só quando o usuário tem `audit:read` em algum host.
+- **FR-013**: A trilha DEVE continuar particionada por mês (spec 001 FR-006) e a busca textual DEVE usar índice próprio presente em todas as partições, sem reescrever eventos gravados.
 
 ## Entidades Principais
 

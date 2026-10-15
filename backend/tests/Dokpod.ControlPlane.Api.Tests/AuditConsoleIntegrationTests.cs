@@ -91,6 +91,70 @@ public sealed class AuditConsoleIntegrationTests
     }
 
     [Fact]
+    public async Task FullTextSearch_FindsJustificationActorActionAndFailureIgnoringAccents()
+    {
+        await using var context = CreateContextOrSkip();
+        var ct = TestContext.Current.CancellationToken;
+        await using var transaction = await context.Database.BeginTransactionAsync(ct);
+        var writer = new PostgresAuditEventWriter(context, new AuditEventMetrics(), new Names("sub-mariana", "Mariana Costa"));
+        var host = Guid.NewGuid();
+        var maintenance = AuditEvent.Create(Guid.NewGuid(), Now.AddMinutes(-5), Guid.NewGuid(), AuditActorKind.User, "sub-mariana", "container.stop", host, AuditOutcome.Succeeded, null, Guid.NewGuid())
+            .WithSubject("aa11bb22cc33", new Dictionary<string, string> { ["justification"] = "Manutenção planejada do banco de pedidos" });
+        var kernel = AuditEvent.Create(Guid.NewGuid(), Now.AddMinutes(-4), Guid.NewGuid(), AuditActorKind.User, "sub-joao", "container.pause", host, AuditOutcome.Succeeded, null, Guid.NewGuid())
+            .WithSubject("dd44ee55ff66", new Dictionary<string, string> { ["justification"] = "Atualização do kernel" });
+        var pull = AuditEvent.Create(Guid.NewGuid(), Now.AddMinutes(-3), Guid.NewGuid(), AuditActorKind.User, "sub-joao", "image.pull", host, AuditOutcome.Failed, "registry_unauthorized", Guid.NewGuid());
+        foreach (var e in new[] { maintenance, kernel, pull }) await writer.AppendAsync(e, ct);
+        var reader = new PostgresAuditEventReader(context);
+
+        async Task<Guid[]> Search(string text) =>
+            (await reader.ListAsync(Query([host]) with { Text = text }, ct)).Events.Select(e => e.EventId).ToArray();
+
+        Assert.Equal([maintenance.EventId], await Search("manutencao"));            // sem acento encontra com acento
+        Assert.Equal([maintenance.EventId], await Search("planejadas pedidos"));    // radical e "e" implícito
+        Assert.Empty(await Search("manutenção -pedidos"));                          // exclusão
+        Assert.Equal([kernel.EventId, maintenance.EventId], await Search("kernel or banco"));
+        Assert.Equal([pull.EventId], await Search("registry unauthorized"));       // código de falha
+        Assert.Equal([maintenance.EventId], await Search("mariana"));               // nome do ator
+        Assert.Equal([kernel.EventId], await Search("pause"));                      // palavra da ação
+        Assert.Equal([kernel.EventId], await Search("dd44ee"));                     // prefixo do alvo continua valendo
+
+        // O plano usa o índice GIN da partição (sem varredura sequencial disponível).
+        await context.Database.ExecuteSqlRawAsync("SET LOCAL enable_seqscan = off", ct);
+        var plan = string.Join("\n", await context.Database.SqlQueryRaw<string>(
+            """
+            EXPLAIN SELECT event_id FROM dokpod.audit_events
+            WHERE occurred_at_utc >= now() - interval '1 hour'
+              AND dokpod.dokpod_audit_search_document(action, actor_id, actor_name, subject_id, failure_code, details) @@ dokpod.dokpod_audit_search_query('manutencao')
+            """).ToListAsync(ct));
+        Assert.Contains("search", plan, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Bitmap Index Scan", plan, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Partitions_CoverTheNextTwelveMonthsAndAllHaveTheSearchIndex()
+    {
+        await using var context = CreateContextOrSkip();
+        var ct = TestContext.Current.CancellationToken;
+        var partitions = await context.Database.SqlQueryRaw<string>(
+            """
+            SELECT child.relname AS "Value" FROM pg_inherits i JOIN pg_class child ON child.oid = i.inhrelid
+            WHERE i.inhparent = 'dokpod.audit_events'::regclass
+            """).ToListAsync(ct);
+        var month = new DateTime(Now.Year, Now.Month, 1, 0, 0, 0, DateTimeKind.Utc);
+        for (var i = 0; i <= 12; i++) Assert.Contains($"audit_events_{month.AddMonths(i):yyyy_MM}", partitions);
+        Assert.Contains("audit_events_default", partitions);
+
+        var withoutSearchIndex = await context.Database.SqlQueryRaw<string>(
+            """
+            SELECT child.relname AS "Value" FROM pg_inherits i JOIN pg_class child ON child.oid = i.inhrelid
+            WHERE i.inhparent = 'dokpod.audit_events'::regclass
+              AND NOT EXISTS (SELECT 1 FROM pg_indexes x WHERE x.schemaname = 'dokpod' AND x.tablename = child.relname
+                              AND x.indexdef LIKE '%dokpod_audit_search_document%' AND x.indexdef LIKE '%USING gin%')
+            """).ToListAsync(ct);
+        Assert.Empty(withoutSearchIndex);
+    }
+
+    [Fact]
     public async Task Service_RestrictsToAuditReadHostsAndAuditsExports()
     {
         await using var context = CreateContextOrSkip();
@@ -149,12 +213,13 @@ public sealed class AuditConsoleIntegrationTests
         await context.Database.ExecuteSqlRawAsync(
             """
             INSERT INTO dokpod.audit_events (event_id, occurred_at_utc, correlation_id, actor_kind, actor_id, action, environment_id, outcome,
-                failure_code, subject_id, actor_name)
+                failure_code, subject_id, actor_name, details)
             SELECT gen_random_uuid(), now() - (random() * @spread * interval '1 second'), gen_random_uuid(), 0, 'user-' || (i % 40),
                 (ARRAY['container.inspected','container.logs.read','environment.stage_changed','container.exec.started','alert.acknowledged'])[1 + i % 5],
                 (@hosts::uuid[])[1 + i % array_length(@hosts::uuid[], 1)],
                 CASE WHEN i % 50 = 0 THEN 2 ELSE 0 END, CASE WHEN i % 50 = 0 THEN 'scope' ELSE NULL END,
-                'subject-' || (i % 5000), 'user-' || (i % 40)
+                'subject-' || (i % 5000), 'user-' || (i % 40),
+                CASE WHEN i % 100 = 0 THEN jsonb_build_object('justification', 'Manutenção planejada do lote ' || (i % 977)) END
             FROM generate_series(1, @count) AS i
             """,
             [new NpgsqlParameter("spread", spread.TotalSeconds), new NpgsqlParameter("hosts", hosts), new NpgsqlParameter("count", count)],

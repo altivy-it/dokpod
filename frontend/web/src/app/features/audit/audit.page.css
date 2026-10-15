@@ -6,3 +6,4 @@
 .au-chip-btn { padding: 0; border: 0; background: none; cursor: pointer; border-radius: 999px; }
 .au-chip-btn:focus-visible { outline: 2px solid var(--teal-light); outline-offset: 2px; }
 .au-chip-btn[aria-pressed='true'] dok-status-chip { box-shadow: 0 0 0 1px currentColor; border-radius: 999px; }
+.au-note { display: flex; align-items: center; gap: 6px; margin: 0; }

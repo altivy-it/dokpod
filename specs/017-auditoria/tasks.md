@@ -29,6 +29,11 @@
 - [x] T012 Stack real: quickstart completo; SC-001, SC-002 e SC-004. Evidência: SC-001: parar, iniciar, resultado do comando e terminal (hub) com ator, host, alvo e resultado; SC-004: do detalhe do container ao evento com a justificativa em 2 interações; exportação registrada em cada host. SC-002 na stack real **NOT RUN** (não há usuário de acesso parcial no laboratório): coberto em PostgreSQL real e na E2E.
 - [x] T013 Documentação (`docs/seguranca.md`, `docs/frontend.md`, runbook de auditoria) e evidências nesta lista. Evidência: `docs/seguranca.md` (threat model), `docs/frontend.md`, `docs/runbooks/operacao-auditoria-postgresql.md`.
 
+## Fase 5: Particionamento e busca textual (pedido de 2026-10-15)
+
+- [x] T014 Confirmar o particionamento da trilha. Evidência: `RANGE (occurred_at_utc)` mensal 2026-01..2036-12 + `DEFAULT` vazia na stack e no banco de testes; *pruning* no plano da consulta (132 partições descartadas para 24 h); teste `Partitions_CoverTheNextTwelveMonthsAndAllHaveTheSearchIndex`.
+- [x] T015 Busca full-text (D-008): migration `202610150002_AuditFullTextSearch` (Up/Down/Up no banco descartável), leitor, tela, contrato, mock e E2E. Evidência: `FullTextSearch_FindsJustificationActorActionAndFailureIgnoringAccents` (acentos, radicais, exclusão, `or`, ator, ação, falha, prefixo e plano com GIN); SC-003 com buscas textuais: p95 121 ms em 1 milhão de eventos.
+
 ## Achados da validação na stack real
 
 - O encerramento do terminal é gravado fora da requisição do usuário e saía sem nome: a API passou a usar o último nome visto para o `sub` (cache em memória, limitado).
