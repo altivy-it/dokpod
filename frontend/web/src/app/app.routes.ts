@@ -34,6 +34,10 @@ export const routes: Routes = [
     loadComponent: () => import('./features/alerts/alerts.page').then(m => m.AlertsPage),
   },
   {
+    path: 'auditoria',
+    loadComponent: () => import('./features/audit/audit.page').then(m => m.AuditPage),
+  },
+  {
     path: 'em-breve/:item',
     loadComponent: () => import('./shell/pages/coming-soon.page').then(m => m.ComingSoonPage),
   },

@@ -1,0 +1,8 @@
+.au-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.au-field { display: inline-flex; align-items: center; gap: 6px; margin: 0; }
+.au-muted { color: var(--muted); }
+.au-input { padding: 5px 8px; border-radius: var(--radius-sm); border: 1px solid var(--glass-border-strong); background: var(--input-fill); color: var(--foreground); font: inherit; font-size: 13px; }
+.au-input:focus-visible { outline: 2px solid var(--teal-light); outline-offset: 1px; }
+.au-chip-btn { padding: 0; border: 0; background: none; cursor: pointer; border-radius: 999px; }
+.au-chip-btn:focus-visible { outline: 2px solid var(--teal-light); outline-offset: 2px; }
+.au-chip-btn[aria-pressed='true'] dok-status-chip { box-shadow: 0 0 0 1px currentColor; border-radius: 999px; }
