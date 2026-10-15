@@ -4,7 +4,7 @@ import { RouterLink } from '@angular/router';
 import { EnvironmentDirectoryService } from '../../core/environment-directory.service';
 import { JUSTIFICATION_MAX, JUSTIFICATION_MIN } from '../../core/justification-policy.service';
 import { ALERT_RESOLUTION, ALERT_SEVERITY, ALERT_STATE, describeRule, describeScope, TIMELINE_LABEL } from '../../data-access/alert-labels';
-import { ControlPlaneApiService } from '../../data-access/control-plane-api.service';
+import { AlertsApiService } from './alerts-api.service';
 import type { AlertDetail } from '../../data-access/generated/control-plane';
 import { DokButton, DokDrawer, DokIcon, formatDateTime } from '../../design-system';
 import { actionError } from './alerts.facade';
@@ -174,7 +174,7 @@ export class AlertDetailDrawer {
   readonly closed = output<void>();
   readonly changed = output<void>();
 
-  private readonly api = inject(ControlPlaneApiService);
+  private readonly api = inject(AlertsApiService);
   private readonly directory = inject(EnvironmentDirectoryService);
   protected readonly detail = signal<AlertDetail | null>(null);
   protected readonly loadFailed = signal(false);

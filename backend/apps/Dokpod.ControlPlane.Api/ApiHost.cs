@@ -213,6 +213,9 @@ public static class ApiHost
         // Spec 018: remoção de volume (o store só existe com banco).
         builder.Services.AddScoped<Dokpod.ControlPlane.Application.Volumes.VolumeRemovalService>();
         builder.Services.AddScoped<Dokpod.ControlPlane.Application.Networks.NetworkRemovalService>();
+        // Spec 020: catálogo de registros e política editável (os stores só existem com banco).
+        builder.Services.AddScoped<Dokpod.ControlPlane.Application.Registries.RegistryCatalog>();
+        builder.Services.AddScoped<Dokpod.ControlPlane.Application.Registries.RegistryPolicyService>();
         builder.Services.AddHostedService<Dokpod.ControlPlane.Api.Alerts.AlertSweeper>();
         builder.Services.AddScoped<OverviewQueryService>();
         builder.Services.AddScoped<IContainerSearchStore, UnavailableContainerSearchStore>();
@@ -237,6 +240,7 @@ public static class ApiHost
         if (!string.IsNullOrWhiteSpace(databaseConnectionString))
         {
             builder.Services.AddControlPlaneInfrastructure(databaseConnectionString);
+            builder.Services.AddHostedService<RegistryPolicyRefresher>();
             builder.Services.AddScoped<Dokpod.ControlPlane.Application.Events.IOperationalEventObserver>(provider =>
                 provider.GetRequiredService<Dokpod.ControlPlane.Application.Alerts.AlertEvaluator>());
             healthChecks.AddCheck<PostgresReadinessHealthCheck>("postgresql", tags: ["ready", "database"]);
@@ -298,6 +302,7 @@ public static class ApiHost
         AuditEndpoints.Map(app);
         VolumeEndpoints.Map(app);
         NetworkEndpoints.Map(app);
+        RegistryEndpoints.Map(app);
         app.MapHub<ControlPlaneHub>("/hubs/control-plane").RequireAuthorization();
     }
 

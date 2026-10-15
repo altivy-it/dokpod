@@ -30,6 +30,7 @@ public sealed class AgentControlService(
     ILogger<AgentControlService> logger,
     Dokpod.ControlPlane.Application.Volumes.IVolumeInventoryStore? volumeStore = null,
     Dokpod.ControlPlane.Application.Networks.INetworkInventoryStore? networkStore = null,
+    Dokpod.ControlPlane.Application.Registries.IRegistryInventoryStore? registryStore = null,
     Dokpod.ControlPlane.Application.Terminal.TerminalSessionRegistry? terminals = null,
     IAgentIdentityRegistry? identities = null) : AgentControl.AgentControlBase
 {
@@ -106,7 +107,8 @@ public sealed class AgentControlService(
                     {
                         AgentHostActivity.Accept(hello).Where(capability =>
                             (volumeStore is not null || capability is not (Capability.VolumeInventory or Capability.VolumeRemove)) &&
-                            (networkStore is not null || capability is not (Capability.NetworkInventory or Capability.NetworkRemove))),
+                            (networkStore is not null || capability is not (Capability.NetworkInventory or Capability.NetworkRemove)) &&
+                            (registryStore is not null || capability is not Capability.RegistryInventory)),
                     },
                 },
             });
@@ -136,6 +138,8 @@ public sealed class AgentControlService(
             var networksAccepted = networkStore is not null && hello.Capabilities.Contains(Capability.NetworkInventory);
             ulong appliedNetworkRevision = 0;
             var lastNetworkSnapshotRequest = DateTimeOffset.MinValue;
+            // Spec 020: configuração de registros do host em uma mensagem (sem credenciais).
+            var registriesAccepted = registryStore is not null && hello.Capabilities.Contains(Capability.RegistryInventory);
             var recoveredCommands = new Queue<PersistedAgentCommand>(
                 await commandStore.ClaimDispatchableAsync(
                     session.EnvironmentId,
@@ -305,6 +309,14 @@ public sealed class AgentControlService(
                                 Metadata = CreateServerMetadata(session, ++serverSequence),
                                 SnapshotRequest = new SnapshotRequest { ReasonCode = "network_revision_mismatch", Scope = SnapshotScope.Networks },
                             });
+                        }
+
+                        break;
+
+                    case AgentMessage.PayloadOneofCase.RegistryInventory when registriesAccepted:
+                        if (await registryStore!.ReplaceAsync(MapRegistryInventory(session.EnvironmentId, requestStream.Current.RegistryInventory), context.CancellationToken))
+                        {
+                            await notifier.NotifyAsync(session.EnvironmentId, InvalidationKinds.Registries, context.CancellationToken);
                         }
 
                         break;
@@ -689,6 +701,26 @@ public sealed class AgentControlService(
                         container.Ipv6Address.Length == 0 ? null : Clip(container.Ipv6Address)))
                     .ToArray(),
                 network.Truncated || network.Subnets.Count > 16 || network.Labels.Count > 64 || network.Containers.Count > 200)).ToArray());
+
+    /// <summary>Configuração de registros (spec 020): nomes fora da gramática são descartados; até 500 registros e 16 espelhos.</summary>
+    private static Dokpod.ControlPlane.Application.Registries.RegistryInventorySnapshot MapRegistryInventory(Guid environmentId, RegistryInventory inventory)
+    {
+        if (inventory.Revision == 0) throw new RpcException(new Status(StatusCode.InvalidArgument, "registry_inventory_invalid"));
+        static string? Valid(string value) => Dokpod.Domain.Images.RegistryNames.IsValid(value) ? value : null;
+        var registries = inventory.Registries.Take(500)
+            .Where(r => Valid(r.Registry) is not null)
+            .DistinctBy(r => r.Registry, StringComparer.Ordinal)
+            .Select(r => new Dokpod.ControlPlane.Application.Registries.RegistryHostConfig(
+                r.Registry,
+                r.Mirrors.Select(Valid).OfType<string>().Distinct(StringComparer.Ordinal).Take(16).ToArray(),
+                Valid(r.MirrorOf),
+                r.Insecure,
+                r.Blocked,
+                r.Search,
+                r.Credential))
+            .ToArray();
+        return new Dokpod.ControlPlane.Application.Registries.RegistryInventorySnapshot(environmentId, inventory.Revision, inventory.ConfigAvailable, DateTimeOffset.UtcNow, registries);
+    }
 
     private static string Clip(string value) => value.Length <= 255 ? value : value[..255];
 

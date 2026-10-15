@@ -47,6 +47,12 @@ public sealed record EngineNetwork(
 
 public sealed record EngineNetworkSubnet(string Subnet, string? Gateway);
 
+/// <summary>Registro na configuração do engine (spec 020); `MirrorOf` quando é espelho de outro registro.</summary>
+public sealed record EngineRegistry(string Registry, IReadOnlyList<string> Mirrors, bool Insecure, bool Blocked, bool Search);
+
+/// <summary>Configuração de registros do host: do engine (quando informada) e nomes com credencial no agente (nunca valores).</summary>
+public sealed record EngineRegistryConfig(bool ConfigAvailable, IReadOnlyList<EngineRegistry> Registries, IReadOnlyList<string> CredentialRegistries);
+
 /// <summary>Montagem de um container: `volume` (com nome), `bind`, `tmpfs` etc.</summary>
 public sealed record EngineMount(string Type, string? Name, string Destination, bool ReadOnly);
 
@@ -192,6 +198,10 @@ public interface IContainerEngine
     /// <summary>Tamanho e referências do volume por `system df`; nulo quando o engine não informa.</summary>
     Task<EngineVolumeUsage?> GetVolumeUsageAsync(string name, CancellationToken cancellationToken) =>
         Task.FromResult<EngineVolumeUsage?>(null);
+
+    /// <summary>Configuração de registros (`/libpod/info` no Podman, `/info` no Docker) e registros com credencial (spec 020).</summary>
+    Task<EngineRegistryConfig> GetRegistryConfigAsync(CancellationToken cancellationToken) =>
+        Task.FromResult(new EngineRegistryConfig(false, [], []));
 
     /// <summary>Redes do host (`/networks`, spec 019).</summary>
     Task<IReadOnlyList<EngineNetwork>> ListNetworksAsync(CancellationToken cancellationToken) =>

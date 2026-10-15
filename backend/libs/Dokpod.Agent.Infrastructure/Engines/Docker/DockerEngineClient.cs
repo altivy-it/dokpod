@@ -429,6 +429,99 @@ public sealed class DockerEngineClient(HttpClient httpClient, RegistryCredential
         return result;
     }
 
+    public async Task<EngineRegistryConfig> GetRegistryConfigAsync(CancellationToken cancellationToken)
+    {
+        var credentials = registryCredentials?.ListRegistries() ?? [];
+        await EnsureNegotiatedAsync(cancellationToken);
+        // Spec 020 D-001: o Podman só informa `registries.conf` pela API libpod; a compatível devolve `RegistryConfig` vazio.
+        using (var libpod = await httpClient.GetAsync("libpod/info", HttpCompletionOption.ResponseHeadersRead, cancellationToken))
+        {
+            if (libpod.IsSuccessStatusCode)
+            {
+                await using var content = await ReadLimitedAsync(libpod, cancellationToken);
+                using var document = await JsonDocument.ParseAsync(content, cancellationToken: cancellationToken);
+                if (document.RootElement.ValueKind == JsonValueKind.Object && document.RootElement.TryGetProperty("registries", out var registries))
+                {
+                    return new EngineRegistryConfig(true, ParsePodmanRegistries(registries), credentials);
+                }
+            }
+        }
+
+        using var response = await httpClient.GetAsync($"v{apiVersion}/info", HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+        if (!response.IsSuccessStatusCode) return new EngineRegistryConfig(false, [], credentials);
+        await using var body = await ReadLimitedAsync(response, cancellationToken);
+        using var info = await JsonDocument.ParseAsync(body, cancellationToken: cancellationToken);
+        return info.RootElement.TryGetProperty("RegistryConfig", out var config) && config.ValueKind == JsonValueKind.Object
+            ? new EngineRegistryConfig(true, ParseDockerRegistries(config), credentials)
+            : new EngineRegistryConfig(false, [], credentials);
+    }
+
+    private static IReadOnlyList<string> RegistryList(JsonElement element, string property)
+    {
+        if (!element.TryGetProperty(property, out var list) || list.ValueKind != JsonValueKind.Array) return [];
+        return list.EnumerateArray()
+            .Select(item => item.ValueKind switch
+            {
+                JsonValueKind.String => item.GetString(),
+                JsonValueKind.Object when item.TryGetProperty("Location", out var location) && location.ValueKind == JsonValueKind.String => location.GetString(),
+                _ => null,
+            })
+            .Select(Dokpod.Domain.Images.RegistryNames.Normalize)
+            .OfType<string>()
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+    }
+
+    /// <summary>`RegistryConfig` do Docker: `IndexConfigs` (inseguro = `Secure` falso) e `Mirrors` de `docker.io`; faixas CIDR ficam fora.</summary>
+    private static IReadOnlyList<EngineRegistry> ParseDockerRegistries(JsonElement config)
+    {
+        var result = new Dictionary<string, EngineRegistry>(StringComparer.Ordinal);
+        if (config.TryGetProperty("IndexConfigs", out var indexes) && indexes.ValueKind == JsonValueKind.Object)
+        {
+            foreach (var index in indexes.EnumerateObject())
+            {
+                if (Dokpod.Domain.Images.RegistryNames.Normalize(index.Name) is not { } name || index.Value.ValueKind != JsonValueKind.Object) continue;
+                var secure = !index.Value.TryGetProperty("Secure", out var secureElement) || secureElement.ValueKind != JsonValueKind.False;
+                result[name] = new EngineRegistry(name, RegistryList(index.Value, "Mirrors"), !secure, false, false);
+            }
+        }
+
+        var hubMirrors = RegistryList(config, "Mirrors");
+        if (hubMirrors.Count > 0)
+        {
+            var hub = Dokpod.Domain.Images.ImageReference.DefaultRegistry;
+            var current = result.GetValueOrDefault(hub) ?? new EngineRegistry(hub, [], false, false, false);
+            result[hub] = current with { Mirrors = current.Mirrors.Concat(hubMirrors).Distinct(StringComparer.Ordinal).ToArray() };
+        }
+
+        return result.Values.OrderBy(r => r.Registry, StringComparer.Ordinal).ToArray();
+    }
+
+    /// <summary>`registries` do libpod: `search` e, por prefixo, `Location`, `Insecure`, `Blocked` e `Mirrors`.</summary>
+    private static IReadOnlyList<EngineRegistry> ParsePodmanRegistries(JsonElement registries)
+    {
+        if (registries.ValueKind != JsonValueKind.Object) return [];
+        var search = RegistryList(registries, "search").ToHashSet(StringComparer.Ordinal);
+        var result = new Dictionary<string, EngineRegistry>(StringComparer.Ordinal);
+        foreach (var entry in registries.EnumerateObject())
+        {
+            if (entry.Name == "search" || entry.Value.ValueKind != JsonValueKind.Object) continue;
+            var location = entry.Value.TryGetProperty("Location", out var locationElement) && locationElement.ValueKind == JsonValueKind.String
+                ? locationElement.GetString()
+                : entry.Name;
+            if (Dokpod.Domain.Images.RegistryNames.Normalize(location) is not { } name) continue;
+            bool Flag(string property) => entry.Value.TryGetProperty(property, out var value) && value.ValueKind == JsonValueKind.True;
+            result[name] = new EngineRegistry(name, RegistryList(entry.Value, "Mirrors"), Flag("Insecure"), Flag("Blocked"), search.Contains(name));
+        }
+
+        foreach (var name in search.Where(name => !result.ContainsKey(name)))
+        {
+            result[name] = new EngineRegistry(name, [], false, false, true);
+        }
+
+        return result.Values.OrderBy(r => r.Registry, StringComparer.Ordinal).ToArray();
+    }
+
     public async Task<IReadOnlyList<EngineNetwork>> ListNetworksAsync(CancellationToken cancellationToken)
     {
         await EnsureNegotiatedAsync(cancellationToken);

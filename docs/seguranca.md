@@ -215,6 +215,21 @@ A telemetria usa allowlist de campos, limites e normalização de caracteres de 
 
 **Risco residual**: entre a conferência do agente e o `DELETE` há uma janela de milissegundos; um container criado (parado) nessa janela pode ficar com referência a uma rede removida, e o engine o informa ao iniciá-lo. Containers em execução são protegidos pelo próprio engine.
 
+## Threat model: registros e política de registros (spec 020)
+
+**Fronteira nova**: agente → configuração de registros do engine (`/libpod/info` ou `/info`) e nomes do arquivo de credenciais → `dokpod.inventory_registries`; navegador → BFF → `PUT /api/v1/registry-policies/{estágio}` → `dokpod.registry_policies` → `ImagePullPolicy` (download e criação de containers).
+
+| Ameaça | Mitigação | Teste negativo |
+| --- | --- | --- |
+| Vazar credencial de registro | O agente lê só as chaves de `auths` do arquivo (nunca os valores) e publica "credencial: sim/não"; o banco guarda só o booleano | `RegistryAgentTests` (canário fora da mensagem); stack real: canário ausente de 38 respostas da API, do banco e dos logs da API, BFF, agente e web (SC-002) |
+| Afrouxar a política sem rastro | Edição exige `environment:manage` em todos os hosts habilitados e legíveis do estágio (decisão do Keycloak); auditoria `registry.policy_changed` com as listas anterior e nova em cada host do estágio | `RegistryCatalogTests` (negado sem permissão); stack real: evento com `previousRegistries`/`registries` |
+| Registro mal formado ou com credencial na política | Só host[:porta]; esquema, caminho e `@` são recusados (não removidos); até 100 por estágio | `RegistryCatalogTests` e Vitest (`https://`, `user:pass@`) → `registry_invalid` |
+| Política desatualizada em outra instância da API | Recarga do banco a cada 3 s e aplicação imediata na instância que salvou | stack real: download de registro removido recusado em 0,1 s (SC-003) |
+| Uso do host como proxy para registros arbitrários | Fora do escopo por decisão: o console não testa acesso a registros nem altera `daemon.json`/`registries.conf` | — |
+| Agente comprometido falsificando configuração | Nomes fora da gramática são descartados; até 500 registros e 16 espelhos; dados exibidos só como texto | revisão zero → sessão encerrada (`registry_inventory_invalid`) |
+
+**Risco residual**: mudar a política não remove imagens nem containers existentes (decisão da spec); a tela mostra quantas imagens ficam fora da lista.
+
 ## Desenvolvimento e release
 
 - threat model atualizado para cada nova fronteira;

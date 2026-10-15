@@ -1,0 +1,13 @@
+.rg-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.rg-muted { color: var(--muted); }
+.rg-partial { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); }
+.rg-chip-btn { padding: 0; border: 0; background: none; cursor: pointer; border-radius: 999px; }
+.rg-chip-btn:focus-visible { outline: 2px solid var(--teal-light); outline-offset: 2px; }
+.rg-chip-btn[aria-pressed='true'] dok-status-chip { box-shadow: 0 0 0 1px var(--warning-strong, currentColor); border-radius: 999px; }
+.rg-note { display: flex; gap: 10px; align-items: center; padding: 10px 14px; border-radius: var(--radius-md); background: var(--warning-tint); font-size: 13px; }
+.rg-policies { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+.rg-policy { display: flex; flex-direction: column; gap: 10px; padding: 14px 16px; border-radius: var(--radius-lg); }
+.rg-policy__head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.rg-policy__title { margin: 0; font-size: 15px; color: var(--text-strong); }
+.rg-policy__list { margin: 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 6px; }
+.rg-policy p { margin: 0; }
