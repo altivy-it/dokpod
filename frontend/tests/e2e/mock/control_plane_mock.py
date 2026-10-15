@@ -243,7 +243,7 @@ def host_view(h) -> dict:
             "cpuCount": cpus,
             "memoryBytes": mem * 1024**3,
             "capabilities": ["CONTAINER_LIFECYCLE", "ENGINE_EVENTS", "RESOURCE_METRICS", "CONTAINER_PAUSE", "CONTAINER_UNPAUSE", "CONTAINER_INSPECT", "CONTAINER_LOGS"]
-            + ([] if situation == "update_required" else ["ImageInventory", "ImagePull", "ContainerCreate", "ContainerExec", "VolumeInventory", "VolumeRemove", "NetworkInventory", "NetworkRemove"]),
+            + ([] if situation == "update_required" else ["ImageInventory", "ImagePull", "ContainerCreate", "ContainerExec", "VolumeInventory", "VolumeRemove", "NetworkInventory", "NetworkRemove", "RegistryInventory"]),
         },
     }
 
@@ -558,6 +558,66 @@ def networks() -> list[dict]:
     return result
 
 
+REGISTRY_CONFIG = {
+    # host n: [(registro, espelhos, espelho de, inseguro, bloqueado, busca, credencial)]
+    1: [("docker.io", ["mirror.empresa.com"], None, False, False, True, False), ("mirror.empresa.com", [], "docker.io", False, False, False, False),
+        ("registry.empresa.com", [], None, False, False, False, True)],
+    2: [("registry.empresa.com", [], None, False, False, False, True)],
+    3: [("registry.empresa.com", [], None, False, False, False, True), ("quay.io", [], None, False, False, True, False)],
+    6: [("registry.local:5000", [], None, True, False, False, False)],
+}
+REGISTRY_POLICY_CONFIG = {"production": ["docker.io", "registry.empresa.com"]}
+
+
+def registry_policy(stage_key: str) -> dict:
+    saved = STATE.get("registry_policies", {}).get(stage_key)
+    if saved:
+        return {"stage": stage_key, "registries": saved["registries"], "source": "console", "updatedBy": saved["by"], "updatedAt": saved["at"]}
+    return {"stage": stage_key, "registries": REGISTRY_POLICY_CONFIG.get(stage_key, []), "source": "configuration", "updatedBy": None, "updatedAt": None}
+
+
+def registry_entries() -> list[dict]:
+    """Spec 020: por host e registro — imagens (pela primeira tag), configuração do engine e credencial; host 4 sem configuração."""
+    entries: dict[tuple, dict] = {}
+    hosts_by_env = {h["environmentId"]: h for h in hosts()}
+    def entry(env: str, registry: str) -> dict:
+        key = (env, registry)
+        if key not in entries:
+            h = hosts_by_env[env]
+            entries[key] = {"environmentId": env, "environmentName": h["name"], "stage": h["stage"], "hostConnected": h["agent"]["connected"] if h.get("agent") else False,
+                            "configAvailable": "RegistryInventory" in ((h.get("agent") or {}).get("capabilities") or []), "origins": [], "credential": False,
+                            "insecure": False, "blocked": False, "search": False, "mirrors": [], "mirrorOf": None, "images": 0, "sizeBytes": 0}
+        return entries[key]
+    for image in images():
+        if not image["repoTags"]:
+            continue
+        e = entry(image["environmentId"], image["repoTags"][0].split("/")[0])
+        e["images"] += 1
+        e["sizeBytes"] += image["sizeBytes"]
+    for n, configs in REGISTRY_CONFIG.items():
+        env = env_id(n)
+        if env not in hosts_by_env:
+            continue
+        for registry, mirrors, mirror_of, insecure, blocked, search, credential in configs:
+            e = entry(env, registry)
+            e.update({"mirrors": mirrors, "mirrorOf": mirror_of, "insecure": insecure, "blocked": blocked, "search": search, "credential": credential})
+    for e in entries.values():
+        e["origins"] = [o for o, on in (("credential", e["credential"]), ("images", e["images"] > 0), ("insecure", e["insecure"]), ("mirror", e["mirrorOf"] is not None),
+                                         ("search", e["search"]), ("blocked", e["blocked"])) if on]
+        e["registry"] = e_registry(e, entries)
+        allowed = registry_policy(e["stage"] or "none")["registries"]
+        e["allowed"] = not allowed or e["registry"] in allowed
+    return list(entries.values())
+
+
+def e_registry(e: dict, entries: dict) -> str:
+    return next(k[1] for k, v in entries.items() if v is e)
+
+
+def e_name(e: dict) -> str:
+    return e["registry"]
+
+
 def host_stage(environment_id: str) -> str | None:
     return next((h["stage"] for h in hosts() if h["environmentId"] == environment_id), None)
 
@@ -620,6 +680,7 @@ class Handler(BaseHTTPRequestHandler):
             STATE["created"] = []
             STATE["removed_volumes"] = set()
             STATE["removed_networks"] = set()
+            STATE["registry_policies"] = {}
             ALERTS.clear()
             ALERTS.update(seed_alerts())
             AUDIT[:] = seed_audit()
@@ -762,6 +823,56 @@ class Handler(BaseHTTPRequestHandler):
             key = {"name": lambda v: v["name"], "createdAt": lambda v: v["createdAt"] or "", "environment": lambda v: v["environmentName"]}[sort.lstrip("-")]
             rows.sort(key=key, reverse=sort.startswith("-"))
             return self.send_json(200, {"networks": rows, "summary": summary, "nextCursor": None})
+
+        if path == "/api/v1/registries":
+            entries = [e for e in registry_entries() if (not q("stage") or e["stage"] == q("stage")) and (not query.get("environmentId") or e["environmentId"] in query["environmentId"])]
+            by_registry: dict[str, list] = {}
+            for e in entries:
+                by_registry.setdefault(e_name(e), []).append(e)
+            rows = [{"registry": r, "hosts": len(es), "origins": sorted({o for e in es for o in e["origins"]}), "images": sum(e["images"] for e in es),
+                     "sizeBytes": sum(e["sizeBytes"] for e in es), "insecureHosts": sum(e["insecure"] for e in es), "credentialHosts": sum(e["credential"] for e in es),
+                     "blockedHosts": sum(e["blocked"] for e in es), "outsidePolicyHosts": sum(not e["allowed"] for e in es),
+                     "mirrorOf": next((e["mirrorOf"] for e in es if e["mirrorOf"]), None)} for r, es in by_registry.items()]
+            if query.get("origin"):
+                rows = [r for r in rows if set(r["origins"]) & set(query["origin"])]
+            if q("q"):
+                rows = [r for r in rows if q("q").lower() in r["registry"]]
+            visible = [h for h in hosts() if (not q("stage") or h["stage"] == q("stage"))]
+            summary = {"total": len(rows), "insecure": sum(r["insecureHosts"] > 0 for r in rows), "outsidePolicy": sum(r["outsidePolicyHosts"] > 0 for r in rows),
+                       "unavailableHosts": [{"environmentId": h["environmentId"], "environmentName": h["name"]} for h in visible
+                                            if "RegistryInventory" not in ((h.get("agent") or {}).get("capabilities") or [])]}
+            if q("insecure") == "true":
+                rows = [r for r in rows if r["insecureHosts"] > 0]
+            if q("outsidePolicy") == "true":
+                rows = [r for r in rows if r["outsidePolicyHosts"] > 0]
+            sort = q("sort") or "registry"
+            rows.sort(key={"registry": lambda r: r["registry"], "images": lambda r: r["images"], "hosts": lambda r: r["hosts"]}[sort.lstrip("-")], reverse=sort.startswith("-"))
+            return self.send_json(200, {"registries": rows, "summary": summary, "nextCursor": None})
+        rm = re.fullmatch(r"/api/v1/registries/([^/]+)", path)
+        if rm:
+            es = [dict(e) for e in registry_entries() if e_name(e) == rm.group(1)]
+            if not es:
+                return self.send_json(404, problem(404, "Registro não encontrado", "not_found"), "application/problem+json")
+            return self.send_json(200, {"registry": rm.group(1), "hosts": sorted(es, key=lambda e: e["environmentName"])})
+        if path == "/api/v1/registry-policies" and method == "GET":
+            can_edit = "environment:manage" in scopes()
+            return self.send_json(200, {"policies": [dict(registry_policy(k), canEdit=can_edit) for k in ("production", "staging", "development", "none")]})
+        pm = re.fullmatch(r"/api/v1/registry-policies/([a-z]+)(/impact)?", path)
+        if pm:
+            stage_key = pm.group(1)
+            if pm.group(2):
+                proposed = query.get("registries") or []
+                outside = [e for e in registry_entries() if (e["stage"] or "none") == stage_key and e["images"] > 0 and proposed and e_name(e) not in proposed]
+                return self.send_json(200, {"images": sum(e["images"] for e in outside), "hosts": len({e["environmentId"] for e in outside})})
+            if method == "PUT":
+                if "environment:manage" not in scopes():
+                    return self.send_json(403, problem(403, "Acesso negado", "authorization_denied"), "application/problem+json")
+                registries = sorted({r.strip().lower() for r in self.read_body().get("registries") or []})
+                if any(("/" in r) or ("@" in r) or not r for r in registries):
+                    return self.send_json(400, problem(400, "Registro inválido", "registry_invalid"), "application/problem+json")
+                STATE.setdefault("registry_policies", {})[stage_key] = {"registries": registries, "by": "Mariana Costa", "at": iso(0)}
+                STATE.setdefault("submitted", []).append(("registry_policy", stage_key, ",".join(registries) or "*"))
+                return self.send_json(204, None)
 
         m = re.fullmatch(r"/api/v1/environments/([^/]+)(/.*)?", path)
         if not m:
