@@ -35,6 +35,7 @@ export const AUDIT_ACTION: Record<string, string> = {
   'alert.silence_ended': 'Silenciamento encerrado',
   'container.justification_policy_changed': 'Política de justificativa alterada',
   'audit.exported': 'Auditoria exportada',
+  'volume.remove': 'Remover volume',
 };
 
 export const AUDIT_CATEGORIES: { id: AuditCategory; label: string }[] = [
@@ -42,6 +43,7 @@ export const AUDIT_CATEGORIES: { id: AuditCategory; label: string }[] = [
   { id: 'containers', label: 'Containers' },
   { id: 'commands', label: 'Comandos' },
   { id: 'images', label: 'Imagens' },
+  { id: 'volumes', label: 'Volumes' },
   { id: 'inspection', label: 'Logs e inspeção' },
   { id: 'terminal', label: 'Terminal' },
   { id: 'governance', label: 'Alertas e política' },

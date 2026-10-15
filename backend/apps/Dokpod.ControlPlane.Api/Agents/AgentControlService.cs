@@ -28,6 +28,7 @@ public sealed class AgentControlService(
     Dokpod.ControlPlane.Application.Metrics.MetricsIngestionService metricsIngestion,
     Dokpod.ControlPlane.Application.Images.IImageInventoryStore imageStore,
     ILogger<AgentControlService> logger,
+    Dokpod.ControlPlane.Application.Volumes.IVolumeInventoryStore? volumeStore = null,
     Dokpod.ControlPlane.Application.Terminal.TerminalSessionRegistry? terminals = null,
     IAgentIdentityRegistry? identities = null) : AgentControl.AgentControlBase
 {
@@ -99,7 +100,12 @@ public sealed class AgentControlService(
                     FencingToken = session.FencingToken,
                     HeartbeatIntervalSeconds = 15,
                     MaximumMessageBytes = MaximumMessageBytes,
-                    AcceptedCapabilities = { AgentHostActivity.Accept(hello) },
+                    // Spec 018: sem projeção de volumes (sem banco), o servidor não confirma as capabilities de volume.
+                    AcceptedCapabilities =
+                    {
+                        AgentHostActivity.Accept(hello).Where(capability =>
+                            volumeStore is not null || capability is not (Capability.VolumeInventory or Capability.VolumeRemove)),
+                    },
                 },
             });
             await hostActivity.OnSessionStartedAsync(session, hello, context.CancellationToken);
@@ -118,6 +124,11 @@ public sealed class AgentControlService(
             var imagesAccepted = hello.Capabilities.Contains(Capability.ImageInventory);
             ulong appliedImageRevision = 0;
             var lastImageSnapshotRequest = DateTimeOffset.MinValue;
+            // Spec 018: inventário de volumes por snapshot, como as imagens.
+            var volumeAccumulator = new Dokpod.ControlPlane.Application.Volumes.VolumeSnapshotAccumulator(session.EnvironmentId, TimeProvider.System);
+            var volumesAccepted = volumeStore is not null && hello.Capabilities.Contains(Capability.VolumeInventory);
+            ulong appliedVolumeRevision = 0;
+            var lastVolumeSnapshotRequest = DateTimeOffset.MinValue;
             var recoveredCommands = new Queue<PersistedAgentCommand>(
                 await commandStore.ClaimDispatchableAsync(
                     session.EnvironmentId,
@@ -265,6 +276,34 @@ public sealed class AgentControlService(
                             });
                         }
 
+                        var volumeRevision = requestStream.Current.Heartbeat.VolumeRevision;
+                        if (volumesAccepted && volumeRevision != 0 && volumeRevision != appliedVolumeRevision &&
+                            DateTimeOffset.UtcNow - lastVolumeSnapshotRequest >= TimeSpan.FromMinutes(1))
+                        {
+                            lastVolumeSnapshotRequest = DateTimeOffset.UtcNow;
+                            await responseStream.WriteAsync(new ControlPlaneMessage
+                            {
+                                Metadata = CreateServerMetadata(session, ++serverSequence),
+                                SnapshotRequest = new SnapshotRequest { ReasonCode = "volume_revision_mismatch", Scope = SnapshotScope.Volumes },
+                            });
+                        }
+
+                        break;
+
+                    case AgentMessage.PayloadOneofCase.VolumeSnapshotPage when volumesAccepted:
+                        var volumeSnapshot = volumeAccumulator.AddPage(MapVolumePage(requestStream.Current.VolumeSnapshotPage), out var volumeFailure);
+                        if (volumeFailure is not null)
+                        {
+                            throw new RpcException(new Status(StatusCode.InvalidArgument, volumeFailure));
+                        }
+
+                        if (volumeSnapshot is not null &&
+                            await volumeStore!.ReplaceSnapshotAsync(volumeSnapshot, context.CancellationToken) == Dokpod.ControlPlane.Application.Volumes.VolumeSnapshotOutcome.Accepted)
+                        {
+                            appliedVolumeRevision = volumeSnapshot.Revision;
+                            await notifier.NotifyAsync(session.EnvironmentId, InvalidationKinds.Volumes, context.CancellationToken);
+                        }
+
                         break;
 
                     case AgentMessage.PayloadOneofCase.ImageSnapshotPage when imagesAccepted:
@@ -293,7 +332,8 @@ public sealed class AgentControlService(
                         break;
 
                     case AgentMessage.PayloadOneofCase.ContainerQueryResponse
-                        when hello.Capabilities.Contains(Capability.ContainerInspect) || hello.Capabilities.Contains(Capability.ContainerLogs):
+                        when hello.Capabilities.Contains(Capability.ContainerInspect) || hello.Capabilities.Contains(Capability.ContainerLogs) ||
+                            hello.Capabilities.Contains(Capability.VolumeInventory):
                         queryDispatcher.OnResponse(session.EnvironmentId, requestStream.Current.ContainerQueryResponse);
                         break;
 
@@ -489,6 +529,7 @@ public sealed class AgentControlService(
         Dokpod.Domain.Commands.AgentCommandKind.UnpauseContainer => hello.Capabilities.Contains(Capability.ContainerUnpause),
         Dokpod.Domain.Commands.AgentCommandKind.PullImage => hello.Capabilities.Contains(Capability.ImagePull),
         Dokpod.Domain.Commands.AgentCommandKind.CreateContainer => hello.Capabilities.Contains(Capability.ContainerCreate),
+        Dokpod.Domain.Commands.AgentCommandKind.RemoveVolume => hello.Capabilities.Contains(Capability.VolumeRemove),
         _ => true,
     };
 
@@ -565,6 +606,26 @@ public sealed class AgentControlService(
                 image.Os,
                 image.Truncated || image.RepoTags.Count > 64 || image.RepoDigests.Count > 64)).ToArray());
 
+    private static Dokpod.ControlPlane.Application.Volumes.VolumeSnapshotPage MapVolumePage(VolumeSnapshotPage page) =>
+        new(
+            page.SnapshotId,
+            page.VolumeRevision,
+            page.PageNumber,
+            page.IsLastPage,
+            page.Volumes.Select(volume => new Dokpod.ControlPlane.Application.Volumes.VolumeInventoryItem(
+                volume.Name,
+                Clip(volume.Driver),
+                Clip(volume.Scope),
+                IsValidTimestamp(volume.CreatedAt) && volume.CreatedAt.Seconds > 0 ? volume.CreatedAt.ToDateTimeOffset() : null,
+                volume.Labels.Take(64).ToDictionary(label => Clip(label.Key), label => Clip(label.Value), StringComparer.Ordinal),
+                volume.Mounts.Take(100)
+                    .Where(mount => IsContainerId(mount.ContainerId))
+                    .Select(mount => new Dokpod.ControlPlane.Application.Volumes.VolumeMount(mount.ContainerId, Clip(mount.ContainerName), Clip(mount.Destination), mount.ReadOnly))
+                    .ToArray(),
+                volume.Truncated || volume.Labels.Count > 64 || volume.Mounts.Count > 100)).ToArray());
+
+    private static string Clip(string value) => value.Length <= 255 ? value : value[..255];
+
     private static Dokpod.Agent.Contracts.V1.AgentCommand MapCommand(
         Dokpod.Domain.Commands.AgentCommand command)
     {
@@ -576,6 +637,10 @@ public sealed class AgentControlService(
         else if (command.Parameters is Dokpod.Domain.Commands.CreateContainerParameters create)
         {
             message.CreateContainer = ContainerCreationProtocol.ToMessage(create.Spec);
+        }
+        else if (command.Parameters is Dokpod.Domain.Commands.RemoveVolumeParameters volume)
+        {
+            message.RemoveVolume = new Dokpod.Agent.Contracts.V1.RemoveVolumeParameters { Name = volume.Name };
         }
 
         return message;
@@ -595,6 +660,7 @@ public sealed class AgentControlService(
                 Dokpod.Domain.Commands.AgentCommandKind.UnpauseContainer => CommandKind.UnpauseContainer,
                 Dokpod.Domain.Commands.AgentCommandKind.PullImage => CommandKind.PullImage,
                 Dokpod.Domain.Commands.AgentCommandKind.CreateContainer => CommandKind.CreateContainer,
+                Dokpod.Domain.Commands.AgentCommandKind.RemoveVolume => CommandKind.RemoveVolume,
                 _ => CommandKind.Unspecified,
             },
             ContainerId = command.ContainerId,

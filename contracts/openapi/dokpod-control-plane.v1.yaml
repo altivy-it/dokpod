@@ -1922,6 +1922,213 @@ paths:
           $ref: '#/components/responses/AuthenticationRequired'
         '503':
           $ref: '#/components/responses/DependencyUnavailable'
+  /api/v1/volumes:
+    get:
+      operationId: listVolumes
+      summary: Volumes dos hosts autorizados com quem os monta e resumo (spec 018)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: stage
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/Stage'
+        - name: environmentId
+          in: query
+          required: false
+          schema:
+            type: array
+            items:
+              type: string
+              format: uuid
+        - name: engine
+          in: query
+          required: false
+          schema:
+            type: array
+            items:
+              type: string
+              enum: [docker, podman]
+        - name: unused
+          in: query
+          required: false
+          schema:
+            type: boolean
+        - name: anonymous
+          in: query
+          required: false
+          schema:
+            type: boolean
+        - name: q
+          in: query
+          required: false
+          schema:
+            type: string
+            minLength: 2
+            maxLength: 128
+        - name: sort
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [name, -name, createdAt, -createdAt, environment]
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+        - $ref: '#/components/parameters/CorrelationId'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VolumeListPage'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '503':
+          $ref: '#/components/responses/DependencyUnavailable'
+  /api/v1/environments/{environmentId}/volumes/{name}:
+    get:
+      operationId: getVolume
+      summary: Detalhe do volume com as montagens
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: environmentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+            maxLength: 255
+            pattern: '^[A-Za-z0-9][A-Za-z0-9_.-]*$'
+        - $ref: '#/components/parameters/CorrelationId'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VolumeItem'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '503':
+          $ref: '#/components/responses/DependencyUnavailable'
+  /api/v1/environments/{environmentId}/volumes/{name}/usage:
+    get:
+      operationId: getVolumeUsage
+      summary: Tamanho e referências do volume segundo o engine (consulta sob demanda ao agente)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: environmentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+            maxLength: 255
+            pattern: '^[A-Za-z0-9][A-Za-z0-9_.-]*$'
+        - $ref: '#/components/parameters/CorrelationId'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VolumeUsage'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /api/v1/environments/{environmentId}/volumes/{name}/remove:
+    post:
+      operationId: removeVolume
+      summary: Remove volume sem uso (volume:delete; nunca forçado)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: environmentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+            maxLength: 255
+            pattern: '^[A-Za-z0-9][A-Za-z0-9_.-]*$'
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/CorrelationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RemoveVolumeRequest'
+      responses:
+        '202':
+          description: Comando aceito.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContainerCommandAccepted'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '403':
+          $ref: '#/components/responses/AccessDenied'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          description: Justificativa obrigatória pela política do estágio.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '503':
+          $ref: '#/components/responses/DependencyUnavailable'
 components:
   securitySchemes:
     bearerAuth:
@@ -2348,7 +2555,7 @@ components:
           format: uuid
         action:
           type: string
-          enum: [start, stop, restart, delete, pause, unpause, pull, create]
+          enum: [start, stop, restart, delete, pause, unpause, pull, create, remove_volume]
         kind:
           type: string
           enum: [container, image]
@@ -3260,7 +3467,7 @@ components:
           type: string
     AuditCategory:
       type: string
-      enum: [environments, containers, commands, images, inspection, terminal, governance, audit]
+      enum: [environments, containers, commands, images, volumes, inspection, terminal, governance, audit]
     AuditOutcome:
       type: string
       enum: [succeeded, denied, failed, indeterminate]
@@ -3339,6 +3546,115 @@ components:
         oldestEventAt:
           type: [string, 'null']
           format: date-time
+    VolumeMount:
+      type: object
+      required: [containerId, containerName, destination, readOnly]
+      properties:
+        containerId:
+          type: string
+        containerName:
+          type: string
+        destination:
+          type: string
+        readOnly:
+          type: boolean
+    VolumeItem:
+      type: object
+      required: [environmentId, environmentName, hostConnected, name, anonymous, driver, scope, labels, mounts, inUse, truncated, observedAt, canRemove]
+      properties:
+        environmentId:
+          type: string
+          format: uuid
+        environmentName:
+          type: string
+        stage:
+          oneOf:
+            - $ref: '#/components/schemas/Stage'
+            - type: 'null'
+        engine:
+          type: [string, 'null']
+          enum: [docker, podman, null]
+        hostConnected:
+          type: boolean
+        name:
+          type: string
+        anonymous:
+          type: boolean
+        driver:
+          type: string
+        scope:
+          type: string
+        createdAt:
+          type: [string, 'null']
+          format: date-time
+        labels:
+          type: object
+          additionalProperties:
+            type: string
+        mounts:
+          type: array
+          items:
+            $ref: '#/components/schemas/VolumeMount'
+        inUse:
+          type: boolean
+        truncated:
+          type: boolean
+        observedAt:
+          type: string
+          format: date-time
+        canRemove:
+          type: boolean
+    VolumeListPage:
+      type: object
+      required: [volumes, summary]
+      properties:
+        volumes:
+          type: array
+          maxItems: 200
+          items:
+            $ref: '#/components/schemas/VolumeItem'
+        summary:
+          type: object
+          required: [total, unused, unavailableHosts]
+          properties:
+            total:
+              type: integer
+            unused:
+              type: integer
+            unavailableHosts:
+              type: array
+              items:
+                type: object
+                required: [environmentId, environmentName]
+                properties:
+                  environmentId:
+                    type: string
+                    format: uuid
+                  environmentName:
+                    type: string
+        nextCursor:
+          type: [string, 'null']
+    VolumeUsage:
+      type: object
+      properties:
+        sizeBytes:
+          type: [integer, 'null']
+          format: int64
+        refCount:
+          type: [integer, 'null']
+          format: int64
+    RemoveVolumeRequest:
+      type: object
+      required: [deadlineUtc]
+      additionalProperties: false
+      properties:
+        deadlineUtc:
+          type: string
+          format: date-time
+        justification:
+          type: string
+          minLength: 10
+          maxLength: 500
     ResourceScope:
       type: string
       enum:
@@ -3357,6 +3673,7 @@ components:
         - container:exec
         - alert:read
         - alert:manage
+        - volume:delete
     Stage:
       type: string
       enum: [production, staging, development]

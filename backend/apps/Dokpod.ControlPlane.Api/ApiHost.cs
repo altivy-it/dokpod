@@ -210,6 +210,8 @@ public static class ApiHost
         builder.Services.AddSingleton<Dokpod.ControlPlane.Api.Auditing.AuditActorNameCache>();
         builder.Services.AddScoped<Dokpod.ControlPlane.Application.Auditing.IAuditActorNameProvider, Dokpod.ControlPlane.Api.Auditing.HttpAuditActorNameProvider>();
         builder.Services.AddScoped<Dokpod.ControlPlane.Application.Auditing.AuditQueryService>();
+        // Spec 018: remoção de volume (o store só existe com banco).
+        builder.Services.AddScoped<Dokpod.ControlPlane.Application.Volumes.VolumeRemovalService>();
         builder.Services.AddHostedService<Dokpod.ControlPlane.Api.Alerts.AlertSweeper>();
         builder.Services.AddScoped<OverviewQueryService>();
         builder.Services.AddScoped<IContainerSearchStore, UnavailableContainerSearchStore>();
@@ -293,6 +295,7 @@ public static class ApiHost
         ContainerCommandEndpoints.Map(app);
         AlertEndpoints.Map(app);
         AuditEndpoints.Map(app);
+        VolumeEndpoints.Map(app);
         app.MapHub<ControlPlaneHub>("/hubs/control-plane").RequireAuthorization();
     }
 

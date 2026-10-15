@@ -110,3 +110,8 @@
 }
 
 .cd-intentional { display: flex; align-items: center; gap: 6px; margin: 6px 0 0; color: var(--muted); }
+
+.cd-volume-links { margin: 8px 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+.cd-volume-links li { display: flex; gap: 8px; min-width: 0; }
+.cd-volume-links a { color: var(--teal-light); font-family: var(--font-mono, monospace); text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cd-volume-links a:hover, .cd-volume-links a:focus-visible { text-decoration: underline; }

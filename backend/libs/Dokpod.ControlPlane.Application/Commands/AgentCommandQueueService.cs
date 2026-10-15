@@ -22,7 +22,7 @@ public sealed class AgentCommandQueueService(
             throw new ArgumentException("Command and environment IDs are required.", nameof(command));
         }
 
-        if (command.Kind is < AgentCommandKind.StartContainer or > AgentCommandKind.CreateContainer)
+        if (command.Kind is < AgentCommandKind.StartContainer or > AgentCommandKind.RemoveVolume)
         {
             throw new ArgumentException("Command kind is not supported.", nameof(command));
         }

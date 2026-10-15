@@ -119,6 +119,7 @@ public sealed class DockerEngineClient(HttpClient httpClient, RegistryCredential
                 Health = ParseHealthFromStatus(item.TryGetProperty("Status", out var status) ? status.GetString() : null),
                 Ports = ParseListPorts(item),
                 ImageId = item.TryGetProperty("ImageID", out var imageId) ? imageId.GetString() : null,
+                Mounts = ParseListMounts(item),
             });
         }
 
@@ -386,6 +387,106 @@ public sealed class DockerEngineClient(HttpClient httpClient, RegistryCredential
         ValidateContainerId(containerId);
         await EnsureNegotiatedAsync(cancellationToken);
         using var response = await httpClient.DeleteAsync($"v{apiVersion}/containers/{containerId}?v=0&force=1", cancellationToken);
+    }
+
+    /// <summary>Montagens da listagem de containers (`Mounts`); só tipo, nome, destino e modo, nunca a origem no host.</summary>
+    private static IReadOnlyList<EngineMount> ParseListMounts(JsonElement item)
+    {
+        if (!item.TryGetProperty("Mounts", out var mounts) || mounts.ValueKind != JsonValueKind.Array) return [];
+        var result = new List<EngineMount>();
+        foreach (var mount in mounts.EnumerateArray())
+        {
+            if (mount.ValueKind != JsonValueKind.Object) continue;
+            var type = mount.TryGetProperty("Type", out var typeElement) ? typeElement.GetString() ?? string.Empty : string.Empty;
+            var name = mount.TryGetProperty("Name", out var nameElement) ? nameElement.GetString() : null;
+            var destination = mount.TryGetProperty("Destination", out var destinationElement) ? destinationElement.GetString() ?? string.Empty : string.Empty;
+            var readOnly = mount.TryGetProperty("RW", out var rw) && rw.ValueKind == JsonValueKind.False;
+            result.Add(new EngineMount(type, string.IsNullOrEmpty(name) ? null : name, destination, readOnly));
+        }
+
+        return result;
+    }
+
+    public async Task<IReadOnlyList<EngineVolume>> ListVolumesAsync(CancellationToken cancellationToken)
+    {
+        await EnsureNegotiatedAsync(cancellationToken);
+        using var response = await httpClient.GetAsync($"v{apiVersion}/volumes", HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+        response.EnsureSuccessStatusCode();
+        await using var content = await ReadLimitedAsync(response, cancellationToken);
+        using var document = await JsonDocument.ParseAsync(content, cancellationToken: cancellationToken);
+        var root = document.RootElement;
+        var items = root.ValueKind == JsonValueKind.Object && root.TryGetProperty("Volumes", out var volumes) && volumes.ValueKind == JsonValueKind.Array
+            ? volumes.EnumerateArray()
+            : root.ValueKind == JsonValueKind.Array ? root.EnumerateArray() : default;
+        var result = new List<EngineVolume>();
+        foreach (var item in items)
+        {
+            var name = item.TryGetProperty("Name", out var nameElement) ? nameElement.GetString() : null;
+            if (!Dokpod.Domain.Volumes.VolumeNames.IsValid(name)) continue;
+            var labels = new Dictionary<string, string>(StringComparer.Ordinal);
+            if (item.TryGetProperty("Labels", out var labelsElement) && labelsElement.ValueKind == JsonValueKind.Object)
+            {
+                foreach (var label in labelsElement.EnumerateObject())
+                {
+                    if (label.Value.ValueKind == JsonValueKind.String) labels[label.Name] = label.Value.GetString() ?? string.Empty;
+                }
+            }
+
+            DateTimeOffset? created = item.TryGetProperty("CreatedAt", out var createdElement) && createdElement.ValueKind == JsonValueKind.String &&
+                DateTimeOffset.TryParse(createdElement.GetString(), System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.AssumeUniversal, out var parsed)
+                ? parsed.ToUniversalTime()
+                : null;
+            result.Add(new EngineVolume(
+                name!,
+                item.TryGetProperty("Driver", out var driver) ? driver.GetString() ?? "local" : "local",
+                item.TryGetProperty("Scope", out var scope) ? scope.GetString() ?? "local" : "local",
+                created,
+                labels));
+        }
+
+        return result;
+    }
+
+    public async Task<string?> RemoveVolumeAsync(string name, CancellationToken cancellationToken)
+    {
+        if (!Dokpod.Domain.Volumes.VolumeNames.IsValid(name)) throw new ArgumentException("Volume name is invalid.", nameof(name));
+        await EnsureNegotiatedAsync(cancellationToken);
+        // Spec 018 D-005: nunca `force`; o engine recusa volume em uso com 409.
+        using var response = await httpClient.DeleteAsync($"v{apiVersion}/volumes/{Uri.EscapeDataString(name)}?force=0", cancellationToken);
+        return response.StatusCode switch
+        {
+            HttpStatusCode.NoContent or HttpStatusCode.OK => null,
+            HttpStatusCode.NotFound => Dokpod.Domain.Volumes.VolumeRemovalCodes.NotFound,
+            HttpStatusCode.Conflict => Dokpod.Domain.Volumes.VolumeRemovalCodes.InUse,
+            _ => Dokpod.Domain.Volumes.VolumeRemovalCodes.Failed,
+        };
+    }
+
+    public async Task<EngineVolumeUsage?> GetVolumeUsageAsync(string name, CancellationToken cancellationToken)
+    {
+        if (!Dokpod.Domain.Volumes.VolumeNames.IsValid(name)) throw new ArgumentException("Volume name is invalid.", nameof(name));
+        await EnsureNegotiatedAsync(cancellationToken);
+        using var response = await httpClient.GetAsync($"v{apiVersion}/system/df?type=volume", HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+        if (!response.IsSuccessStatusCode) return null;
+        await using var content = await ReadLimitedAsync(response, cancellationToken);
+        using var document = await JsonDocument.ParseAsync(content, cancellationToken: cancellationToken);
+        if (!document.RootElement.TryGetProperty("Volumes", out var volumes) || volumes.ValueKind != JsonValueKind.Array) return null;
+        foreach (var volume in volumes.EnumerateArray())
+        {
+            var volumeName = volume.TryGetProperty("Name", out var nameElement) ? nameElement.GetString()
+                : volume.TryGetProperty("VolumeName", out var podmanName) ? podmanName.GetString() : null;
+            if (!string.Equals(volumeName, name, StringComparison.Ordinal)) continue;
+            if (volume.TryGetProperty("UsageData", out var usage) && usage.ValueKind == JsonValueKind.Object)
+            {
+                long? Number(string property) => usage.TryGetProperty(property, out var value) && value.ValueKind == JsonValueKind.Number && value.GetInt64() >= 0 ? value.GetInt64() : null;
+                return new EngineVolumeUsage(Number("Size"), Number("RefCount"));
+            }
+
+            long? Flat(string property) => volume.TryGetProperty(property, out var value) && value.ValueKind == JsonValueKind.Number && value.GetInt64() >= 0 ? value.GetInt64() : null;
+            return new EngineVolumeUsage(Flat("Size"), Flat("Links"));
+        }
+
+        return null;
     }
 
     public async Task<IReadOnlyList<EngineHostObject>> ListHostObjectsAsync(EngineHostObjectKind kind, CancellationToken cancellationToken)

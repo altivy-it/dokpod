@@ -22,7 +22,18 @@ public sealed record EngineContainer(
     public double? CpuLimitCores { get; init; }
     /// <summary>`ImageID` do engine (spec 012), base de "imagem em uso".</summary>
     public string? ImageId { get; init; }
+    /// <summary>Montagens da listagem (spec 018): base de "volume em uso".</summary>
+    public IReadOnlyList<EngineMount> Mounts { get; init; } = [];
 }
+
+/// <summary>Montagem de um container: `volume` (com nome), `bind`, `tmpfs` etc.</summary>
+public sealed record EngineMount(string Type, string? Name, string Destination, bool ReadOnly);
+
+/// <summary>Volume do engine (spec 018); o caminho no host (`Mountpoint`) nunca é lido para fora do agente.</summary>
+public sealed record EngineVolume(string Name, string Driver, string Scope, DateTimeOffset? CreatedAtUtc, IReadOnlyDictionary<string, string> Labels);
+
+/// <summary>Tamanho e referências de um volume segundo o engine (`system df`); nulos quando não informados.</summary>
+public sealed record EngineVolumeUsage(long? SizeBytes, long? RefCount);
 
 /// <summary>Imagem local do engine (spec 012); somente metadados, nunca camadas ou conteúdo.</summary>
 public sealed record EngineImage(
@@ -148,6 +159,18 @@ public interface IContainerEngine
 
     /// <summary>Remove o container recém-criado (rollback de conflito de porta); nunca remove volumes.</summary>
     Task RemoveCreatedContainerAsync(string containerId, CancellationToken cancellationToken) => Task.CompletedTask;
+
+    /// <summary>Volumes do host (`/volumes`, spec 018).</summary>
+    Task<IReadOnlyList<EngineVolume>> ListVolumesAsync(CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<EngineVolume>>([]);
+
+    /// <summary>`DELETE /volumes/{name}` sem `force`; devolve código de falha da spec 018 ou nulo quando removido.</summary>
+    Task<string?> RemoveVolumeAsync(string name, CancellationToken cancellationToken) =>
+        Task.FromResult<string?>("not_supported");
+
+    /// <summary>Tamanho e referências do volume por `system df`; nulo quando o engine não informa.</summary>
+    Task<EngineVolumeUsage?> GetVolumeUsageAsync(string name, CancellationToken cancellationToken) =>
+        Task.FromResult<EngineVolumeUsage?>(null);
 
     /// <summary>Nomes de segredos do Podman, redes ou volumes do host (sem valores).</summary>
     Task<IReadOnlyList<EngineHostObject>> ListHostObjectsAsync(EngineHostObjectKind kind, CancellationToken cancellationToken) =>
