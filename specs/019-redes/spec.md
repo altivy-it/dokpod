@@ -4,7 +4,7 @@
 
 **Criada em**: 2026-10-15
 
-**Estado**: `draft` - aguardando aprovação do solicitante.
+**Estado**: `approved` - aprovada pelo solicitante em 2026-10-15 ("Siga com sua decisão e jornadas").
 
 **Entrada**: Pedido do solicitante em 2026-10-15: "siga para próxima etapa de desenvolvimento", após a spec 018. Próximo item "Em breve" da seção Operação do menu: "Redes" ("Redes bridge, overlay e macvlan por host").
 
