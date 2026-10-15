@@ -7,7 +7,7 @@
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
     "generate:api": "openapi-ts",
-    "check:api-contract": "openapi-ts --dry-run",
+    "check:api-contract": "openapi-ts && git -c safe.directory=* diff --exit-code -- src/app/data-access/generated",
     "test": "ng test"
   },
   "private": true,

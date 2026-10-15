@@ -19,7 +19,7 @@ O cliente HTTP é gerado a partir de `contracts/openapi`:
 
 ```bash
 npm run generate:api        # regenera o cliente
-npm run check:api-contract  # confere, sem gravar, se o cliente está em dia com o contrato
+npm run check:api-contract  # regenera o cliente e falha se ele diferir do versionado (mesma verificação da CI)
 ```
 
 ## Build

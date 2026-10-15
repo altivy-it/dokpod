@@ -7,7 +7,7 @@
     </div>
     <div class="dok-actions">
       <button dok-button variant="outline" size="sm" startIcon="play" type="button" (click)="prepareBatch('start')">Iniciar</button>
-      <button dok-button variant="outline" size="sm" startIcon="pause" type="button" (click)="prepareBatch('stop')">Parar</button>
+      <button dok-button variant="outline" size="sm" startIcon="stop" type="button" (click)="prepareBatch('stop')">Parar</button>
       <button dok-button variant="outline" size="sm" startIcon="refresh" type="button" (click)="prepareBatch('restart')">Reiniciar</button>
       <div class="cl-more">
         <button dok-button variant="ghost" size="sm" icon="more" type="button" aria-label="Mais ações em lote" aria-haspopup="menu" [attr.aria-expanded]="moreOpen()" (click)="moreOpen.set(!moreOpen())"></button>

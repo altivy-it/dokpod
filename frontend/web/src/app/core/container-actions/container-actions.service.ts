@@ -5,7 +5,7 @@ import { newUuid } from '../uuid';
 
 export const ACTION_LABEL: Record<ContainerAction, { verb: string; done: string; icon: string }> = {
   start: { verb: 'Iniciar', done: 'iniciado', icon: 'play' },
-  stop: { verb: 'Parar', done: 'parado', icon: 'pause' },
+  stop: { verb: 'Parar', done: 'parado', icon: 'stop' },
   restart: { verb: 'Reiniciar', done: 'reiniciado', icon: 'refresh' },
   pause: { verb: 'Pausar', done: 'pausado', icon: 'pause' },
   unpause: { verb: 'Retomar', done: 'retomado', icon: 'play' },
