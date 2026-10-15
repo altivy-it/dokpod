@@ -19,12 +19,13 @@ def test_overview_counts_follow_the_global_stage(page: Page) -> None:
     assert axe_violations(page) == []
 
 
-def test_bell_lists_attention_events_and_closes_with_escape(page: Page) -> None:
+def test_bell_lists_open_alerts_and_closes_with_escape(page: Page) -> None:
+    # Spec 016 FR-006: o sino passou a listar alertas abertos no lugar de eventos que pedem atenção.
     goto(page)
-    bell = page.get_by_role("button", name=re.compile("Eventos que pedem atenção"))
+    bell = page.get_by_role("button", name=re.compile("^Alertas abertos"))
     bell.click()
-    dialog = page.get_by_role("dialog", name="Eventos que pedem atenção")
-    expect(dialog.get_by_text("Container encerrado com erro")).to_be_visible()
+    dialog = page.get_by_role("dialog", name="Alertas abertos")
+    expect(dialog.get_by_text("Container migracao-catalogo encerrado com erro (código 1)")).to_be_visible()
     # Regressão (2026-10-14): o painel ficava por baixo dos cards da Visão geral; o ponto central de cada
     # item precisa pertencer ao painel, não ao conteúdo da página.
     for item in dialog.locator(".dok-notif__item").all():
@@ -41,7 +42,7 @@ def test_bell_lists_attention_events_and_closes_with_escape(page: Page) -> None:
             [box["x"] + box["width"] / 2, box["y"] + box["height"] / 2],
         )
         assert covering is None, f"o painel do sino está coberto por: {covering}"
-    expect(dialog.get_by_text("Agente desconectado")).to_be_visible()
+    expect(dialog.get_by_text("Agente desconectado", exact=True)).to_be_visible()
     expect(dialog.get_by_text("Comando reiniciar concluído")).to_have_count(0)
     page.keyboard.press("Escape")
     expect(dialog).to_be_hidden()

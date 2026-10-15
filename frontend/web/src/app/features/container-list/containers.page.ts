@@ -8,6 +8,7 @@ import {
   evaluateEligibility,
   type Eligibility,
 } from '../../core/container-actions/container-actions.service';
+import { intentionalLabel } from '../../data-access/alert-labels';
 import { CONTAINER_STATUS, CONTAINER_STATUS_TONES, ENGINE_LABEL } from '../../data-access/console-labels';
 import type { ContainerAction } from '../../data-access/control-plane-api.service';
 import type { ContainerDisplayStatus, ContainerListItem } from '../../data-access/generated/control-plane';
@@ -110,7 +111,12 @@ export class ContainersPage {
   /** Drawer "Novo container" (spec 013), também aberto por `?novo=1` vindo da Visão geral. */
   protected readonly creating = signal(false);
   protected readonly statusLabels = CONTAINER_STATUS;
-  protected readonly tones = CONTAINER_STATUS_TONES;
+  protected readonly tones: Record<string, string> = {
+    ...CONTAINER_STATUS_TONES,
+    // Spec 016 FR-018: parada e pausa justificadas não se confundem com falha.
+    'Parado intencionalmente': 'neutral',
+    'Pausado intencionalmente': 'info',
+  };
   protected readonly actionLabels = ACTION_LABEL;
   protected readonly statusOrder: ContainerDisplayStatus[] = ['running', 'starting', 'restarting', 'failed', 'paused', 'stopped'];
 
@@ -130,7 +136,7 @@ export class ContainersPage {
     this.facade.items().map(item => ({
       id: rowKey(item),
       name: item.name,
-      status: CONTAINER_STATUS[item.displayStatus ?? 'stopped'].label,
+      status: item.intentional ? intentionalLabel(item.intentional) : CONTAINER_STATUS[item.displayStatus ?? 'stopped'].label,
       engine: item.engine ? (ENGINE_LABEL[item.engine] ?? item.engine) : '—',
       host: item.environmentName,
       image: item.imageReference,
@@ -316,16 +322,23 @@ export class ContainersPage {
     this.pending.set({ action, eligibility: evaluateEligibility(items, action) });
   }
 
+  /** Falhas de envio com texto do operador; demais códigos aparecem como vieram. */
+  protected failureText(code: string): string {
+    if (code === 'justification_required') return 'justificativa obrigatória neste estágio';
+    if (code === 'justification_invalid') return 'justificativa inválida';
+    return code;
+  }
+
   protected readonly pendingProduction = computed(() =>
     this.pending()?.eligibility.eligible.some(item => item.stage === 'production') ?? false,
   );
 
-  protected async confirm(): Promise<void> {
+  protected async confirm(justification: string | null = null): Promise<void> {
     const pending = this.pending();
     if (!pending) return;
     this.submitting.set(true);
     try {
-      await this.actions.run(pending.action, pending.eligibility.eligible);
+      await this.actions.run(pending.action, pending.eligibility.eligible, justification);
       this.pending.set(null);
       this.selection.set([]);
     } catch (error: unknown) {

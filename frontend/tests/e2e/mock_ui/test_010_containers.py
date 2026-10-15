@@ -68,6 +68,8 @@ def test_production_bulk_removal_requires_typing_the_quantity(page: Page) -> Non
     confirm = drawer.get_by_role("button", name="Remover")
     expect(confirm).to_be_disabled()
     drawer.get_by_label(re.compile("Digite 2 para confirmar")).fill("2")
+    expect(confirm).to_be_disabled()  # spec 016: justificativa obrigatória em Produção
+    drawer.get_by_label(re.compile("Justificativa")).fill("Limpeza de containers antigos")
     expect(confirm).to_be_enabled()
     screenshot(page, "010-remocao-reforcada-1440")
     confirm.click()
@@ -78,6 +80,7 @@ def test_pause_and_resume_from_row_menu(page: Page) -> None:
     goto(page, "containers")
     page.get_by_role("button", name="Ações de prometheus em srv-prod-04").click()
     page.get_by_role("menuitem", name="Pausar").click()
+    page.get_by_role("dialog").get_by_label(re.compile("Justificativa")).fill("Manutenção do Prometheus")
     page.get_by_role("dialog").get_by_role("button", name="Pausar").click()
     expect(page.get_by_role("region", name="Andamento do lote").get_by_text("Concluído", exact=True)).to_be_visible(timeout=15_000)
     page.get_by_role("button", name="Ações de worker-notificacoes em srv-prod-03").click()
@@ -97,11 +100,12 @@ def test_csv_export_downloads_the_loaded_rows(page: Page) -> None:
 
 
 def test_stop_two_failed_containers_in_four_interactions(page: Page) -> None:
-    """SC-005: filtrar pela situação, selecionar a página, acionar Parar e confirmar."""
+    """SC-005: filtrar pela situação, selecionar a página, acionar Parar e confirmar (mais a justificativa da spec 016 em Produção)."""
     goto(page, "containers")
     page.get_by_role("button", name="1 reiniciando").click()  # 1
     page.get_by_role("checkbox", name="Selecionar página").click()  # 2
     page.get_by_role("button", name="Parar", exact=True).click()  # 3
+    page.get_by_role("dialog").get_by_label(re.compile("Justificativa")).fill("Gateway em loop de reinício")
     page.get_by_role("dialog").get_by_role("button", name="Parar").click()  # 4
     expect(page.get_by_role("region", name="Andamento do lote").get_by_text("Concluído", exact=True)).to_be_visible(timeout=15_000)
 

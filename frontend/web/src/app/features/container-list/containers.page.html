@@ -77,7 +77,7 @@
             <dok-status-chip
               size="sm"
               [color]="item.state === 'succeeded' ? 'success' : item.state === 'failed' ? 'error' : item.state === 'indeterminate' ? 'warning' : 'info'"
-              [label]="item.state === 'succeeded' ? 'Concluído' : item.state === 'failed' ? 'Falhou' + (item.failureCode ? ': ' + item.failureCode : '') : item.state === 'indeterminate' ? 'Indeterminado' : item.state === 'queued' ? 'Na fila' : 'Em andamento'"
+              [label]="item.state === 'succeeded' ? 'Concluído' : item.state === 'failed' ? 'Falhou' + (item.failureCode ? ': ' + failureText(item.failureCode) : '') : item.state === 'indeterminate' ? 'Indeterminado' : item.state === 'queued' ? 'Na fila' : 'Em andamento'"
             />
           </li>
         }
@@ -136,7 +136,7 @@
     [production]="pendingProduction()"
     [busy]="submitting()"
     (cancelled)="pending.set(null)"
-    (confirmed)="confirm()"
+    (confirmed)="confirm($event)"
   />
 }
 

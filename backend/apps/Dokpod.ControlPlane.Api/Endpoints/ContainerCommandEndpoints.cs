@@ -164,7 +164,7 @@ public static class ContainerCommandEndpoints
                 containerId,
                 request.ExpectedContainerRevision,
                 request.DeadlineUtc,
-                AuthenticatedActor.FromSubject(subject),
+                AuthenticatedActor.FromSubject(subject) with { DisplayName = context.User.FindFirstValue("preferred_username") },
                 accessToken,
                 GetCorrelationId(context),
                 cancellationToken,

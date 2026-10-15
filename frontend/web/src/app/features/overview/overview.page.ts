@@ -180,8 +180,6 @@ export class OverviewPage {
   constructor() {
     effect(() => {
       this.context.set('Visão geral', ['Operação', 'Visão geral']);
-      this.context.notifications.set(this.attention() || null);
-      this.context.alertCount.set(this.attention() || null);
     });
   }
 

@@ -99,12 +99,12 @@ public sealed class AlertGovernanceService(
 
     public Task<GovernanceResult> AcknowledgeAsync(AlertCaller caller, Guid alertId, string? comment, CancellationToken cancellationToken) =>
         ActAsync(caller, alertId, comment, "alert.acknowledged", async (alert, masked, now) =>
-            await alerts.TransitionAsync(alert.AlertId, alert.State == AlertState.Silenced ? AlertState.Silenced : AlertState.Acknowledged, caller.Actor.Subject, alert.SilenceId, null, now, AlertTimelineKinds.Acknowledged, caller.Actor.Subject, masked, cancellationToken).ConfigureAwait(false),
+            await alerts.TransitionAsync(alert.AlertId, alert.State == AlertState.Silenced ? AlertState.Silenced : AlertState.Acknowledged, caller.Actor.Label, alert.SilenceId, null, now, AlertTimelineKinds.Acknowledged, caller.Actor.Label, masked, cancellationToken).ConfigureAwait(false),
             cancellationToken);
 
     public Task<GovernanceResult> ResolveAsync(AlertCaller caller, Guid alertId, string? comment, CancellationToken cancellationToken) =>
         ActAsync(caller, alertId, comment, "alert.resolved", async (alert, masked, now) =>
-            await alerts.TransitionAsync(alert.AlertId, AlertState.Resolved, null, null, AlertResolutionReasons.Manual, now, AlertTimelineKinds.Resolved, caller.Actor.Subject, masked, cancellationToken).ConfigureAwait(false),
+            await alerts.TransitionAsync(alert.AlertId, AlertState.Resolved, null, null, AlertResolutionReasons.Manual, now, AlertTimelineKinds.Resolved, caller.Actor.Label, masked, cancellationToken).ConfigureAwait(false),
             cancellationToken);
 
     public async Task<GovernanceResult> SilenceAlertAsync(AlertCaller caller, Guid alertId, DateTimeOffset until, string? justification, CancellationToken cancellationToken)
@@ -114,10 +114,10 @@ public sealed class AlertGovernanceService(
         Guid? silenceId = null;
         var result = await ActAsync(caller, alertId, justification, "alert.silenced", async (alert, masked, at) =>
         {
-            var silence = new AlertSilence(Guid.NewGuid(), AlertScope.Everything, alert.AlertId, at, until, null, masked, caller.Actor.Subject);
+            var silence = new AlertSilence(Guid.NewGuid(), AlertScope.Everything, alert.AlertId, at, until, null, masked, caller.Actor.Label);
             await alerts.CreateSilenceAsync(silence, cancellationToken).ConfigureAwait(false);
             silenceId = silence.SilenceId;
-            return await alerts.TransitionAsync(alert.AlertId, AlertState.Silenced, null, silence.SilenceId, null, at, AlertTimelineKinds.Silenced, caller.Actor.Subject, masked, cancellationToken).ConfigureAwait(false);
+            return await alerts.TransitionAsync(alert.AlertId, AlertState.Silenced, null, silence.SilenceId, null, at, AlertTimelineKinds.Silenced, caller.Actor.Label, masked, cancellationToken).ConfigureAwait(false);
         }, cancellationToken, new Dictionary<string, string> { ["until"] = until.ToString("O") }).ConfigureAwait(false);
         return result.Outcome == GovernanceOutcome.Ok ? GovernanceResult.Ok(silenceId) : result;
     }
@@ -180,7 +180,7 @@ public sealed class AlertGovernanceService(
 
         var covered = await CoveredHostsAsync(caller, rule.Scope, previous?.Scope, cancellationToken).ConfigureAwait(false);
         if (covered is null) return new GovernanceResult(GovernanceOutcome.Forbidden, "authorization_denied");
-        if (!await alerts.SaveRuleAsync(rule with { BuiltIn = previous?.BuiltIn ?? false }, caller.Actor.Subject, expectedVersion, timeProvider.GetUtcNow(), cancellationToken).ConfigureAwait(false))
+        if (!await alerts.SaveRuleAsync(rule with { BuiltIn = previous?.BuiltIn ?? false }, caller.Actor.Label, expectedVersion, timeProvider.GetUtcNow(), cancellationToken).ConfigureAwait(false))
         {
             return new GovernanceResult(GovernanceOutcome.Conflict, expectedVersion is null ? "rule_exists" : "version_conflict");
         }
@@ -208,7 +208,7 @@ public sealed class AlertGovernanceService(
         var now = timeProvider.GetUtcNow();
         foreach (var alert in (await alerts.ListActiveAsync(cancellationToken).ConfigureAwait(false)).Where(a => a.RuleId == ruleId))
         {
-            await alerts.TransitionAsync(alert.AlertId, AlertState.Resolved, null, null, AlertResolutionReasons.RuleRemoved, now, AlertTimelineKinds.Resolved, caller.Actor.Subject, null, cancellationToken).ConfigureAwait(false);
+            await alerts.TransitionAsync(alert.AlertId, AlertState.Resolved, null, null, AlertResolutionReasons.RuleRemoved, now, AlertTimelineKinds.Resolved, caller.Actor.Label, null, cancellationToken).ConfigureAwait(false);
         }
 
         await alerts.DeleteRuleAsync(ruleId, cancellationToken).ConfigureAwait(false);
@@ -216,9 +216,11 @@ public sealed class AlertGovernanceService(
         return GovernanceResult.Ok(ruleId);
     }
 
-    public async Task<IReadOnlyList<AlertSilence>> ListSilencesAsync(AlertCaller caller, bool activeOnly, CancellationToken cancellationToken)
+    /// <summary>Silenciamentos visíveis e se o chamador pode criá-los (alert:manage em todos os hosts com alert:read).</summary>
+    public async Task<(IReadOnlyList<AlertSilence> Silences, bool CanManage)> ListSilencesAsync(AlertCaller caller, bool activeOnly, CancellationToken cancellationToken)
     {
         var readable = await FilterAsync(caller, EnvironmentResourceScopes.ReadAlerts, null, cancellationToken).ConfigureAwait(false);
+        var canManage = readable.Count > 0 && (await FilterAsync(caller, EnvironmentResourceScopes.ManageAlerts, readable, cancellationToken).ConfigureAwait(false)).Count == readable.Count;
         var ids = readable.Select(r => r.EnvironmentId).ToHashSet();
         var visibleAlerts = new HashSet<Guid>();
         var silences = await alerts.ListSilencesAsync(activeOnly, timeProvider.GetUtcNow(), cancellationToken).ConfigureAwait(false);
@@ -227,7 +229,7 @@ public sealed class AlertGovernanceService(
             if (await alerts.GetAsync(silence.AlertId!.Value, cancellationToken).ConfigureAwait(false) is { } alert && ids.Contains(alert.EnvironmentId)) visibleAlerts.Add(silence.SilenceId);
         }
 
-        return silences.Where(s => s.AlertId is not null ? visibleAlerts.Contains(s.SilenceId) : readable.Count > 0 && (s.Scope.EnvironmentId is null || ids.Contains(s.Scope.EnvironmentId.Value))).ToArray();
+        return (silences.Where(s => s.AlertId is not null ? visibleAlerts.Contains(s.SilenceId) : readable.Count > 0 && (s.Scope.EnvironmentId is null || ids.Contains(s.Scope.EnvironmentId.Value))).ToArray(), canManage);
     }
 
     public async Task<GovernanceResult> CreateSilenceAsync(AlertCaller caller, AlertScope scope, DateTimeOffset startsAt, DateTimeOffset endsAt, string? justification, CancellationToken cancellationToken)
@@ -237,7 +239,7 @@ public sealed class AlertGovernanceService(
         if (scope.ContainerPattern is { Length: > AlertScope.MaxPatternLength }) return new GovernanceResult(GovernanceOutcome.Invalid, "scope.containerPattern");
         var covered = await CoveredHostsAsync(caller, scope, null, cancellationToken).ConfigureAwait(false);
         if (covered is null) return new GovernanceResult(GovernanceOutcome.Forbidden, "authorization_denied");
-        var silence = new AlertSilence(Guid.NewGuid(), scope, null, startsAt, endsAt, null, JustificationMasker.Mask(justification!.Trim()), caller.Actor.Subject);
+        var silence = new AlertSilence(Guid.NewGuid(), scope, null, startsAt, endsAt, null, JustificationMasker.Mask(justification!.Trim()), caller.Actor.Label);
         await alerts.CreateSilenceAsync(silence, cancellationToken).ConfigureAwait(false);
         foreach (var host in covered)
         {
@@ -287,7 +289,7 @@ public sealed class AlertGovernanceService(
         if (candidates.Length == 0) return new GovernanceResult(GovernanceOutcome.Forbidden, "authorization_denied");
         var allowed = await FilterAsync(caller, EnvironmentResourceScopes.Manage, candidates, cancellationToken).ConfigureAwait(false);
         if (allowed.Count != candidates.Length) return new GovernanceResult(GovernanceOutcome.Forbidden, "authorization_denied");
-        await justifications.SetPolicyAsync(stage, required, caller.Actor.Subject, timeProvider.GetUtcNow(), cancellationToken).ConfigureAwait(false);
+        await justifications.SetPolicyAsync(stage, required, caller.Actor.Label, timeProvider.GetUtcNow(), cancellationToken).ConfigureAwait(false);
         foreach (var host in candidates)
         {
             await AuditAsync(caller, "container.justification_policy_changed", host.EnvironmentId,

@@ -13,6 +13,7 @@ import {
 import { toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterLink } from '@angular/router';
 import { filter, map } from 'rxjs';
+import { AlertSummaryService } from '../core/alert-summary.service';
 import { DokIcon } from '../design-system/icon/dok-icon';
 import { activeNavId, groupNavigation, NAV_ITEMS } from './navigation';
 import { DokNotificationsPanel } from './notifications-panel';
@@ -47,6 +48,8 @@ export class DokAppShell {
   private readonly router = inject(Router);
   private readonly document = inject(DOCUMENT);
   protected readonly context = inject(ShellContextService);
+  /** Contador do menu e sino (spec 016): instanciado com o shell autenticado. */
+  private readonly alertSummary = inject(AlertSummaryService);
   protected readonly stageFilter = inject(StageFilterService);
   protected readonly stages = STAGES;
   protected readonly collapsed = signal(this.narrow());

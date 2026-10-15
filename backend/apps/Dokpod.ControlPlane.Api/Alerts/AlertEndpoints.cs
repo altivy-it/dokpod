@@ -170,9 +170,10 @@ public static class AlertEndpoints
     {
         var (caller, error) = await CallerAsync(context, authorized, ct);
         if (error is not null) return error;
-        var silences = await service.ListSilencesAsync(caller!, context.Request.Query["active"].ToString() != "false", ct);
+        var (silences, canManage) = await service.ListSilencesAsync(caller!, context.Request.Query["active"].ToString() != "false", ct);
         return Results.Ok(new
         {
+            canManage,
             silences = silences.Select(s => new
             {
                 id = s.SilenceId,

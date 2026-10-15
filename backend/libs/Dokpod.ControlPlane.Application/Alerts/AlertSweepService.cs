@@ -39,6 +39,9 @@ public sealed class AlertSweepService(
     IControlPlaneNotifier notifier,
     TimeProvider timeProvider)
 {
+    /// <summary>Tempo para o inventário refletir um container antes de a ausência valer como remoção.</summary>
+    public static readonly TimeSpan InventoryGrace = TimeSpan.FromMinutes(2);
+
     public async Task<AlertSweepResult> RunOnceAsync(CancellationToken cancellationToken)
     {
         var now = timeProvider.GetUtcNow();
@@ -71,7 +74,9 @@ public sealed class AlertSweepService(
             if (alert.ContainerId is { } containerId && AlertEvaluator.ContainerFailureEvents.Contains(rule.EventType!))
             {
                 var container = await Container(alert.EnvironmentId, containerId).ConfigureAwait(false);
-                if (container is null) reason = AlertResolutionReasons.ContainerRemoved;
+                // Ausência só conta depois da carência: um container que nasce e falha em segundos ainda pode não
+                // estar no inventário; a remoção imediata chega pelo evento container.removed.
+                if (container is null) reason = now - alert.LastOccurredAtUtc > InventoryGrace ? AlertResolutionReasons.ContainerRemoved : null;
                 else if (IsHealthyRunning(container) && container.ObservedAtUtc > alert.LastOccurredAtUtc) reason = AlertResolutionReasons.ConditionCleared;
             }
             else if (rule.EventType == OperationalEventTypes.AgentDisconnected && hosts.TryGetValue(alert.EnvironmentId, out var host) && host.Connected)

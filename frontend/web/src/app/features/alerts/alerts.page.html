@@ -1,0 +1,202 @@
+<div class="dok-stack">
+  <div class="dok-page-head">
+    <div class="dok-page-head__text">
+      <span class="eyebrow">Governança · {{ stageName() }}</span>
+      <h1 class="app-title">Alertas</h1>
+      <p class="app-small">Condições que pedem ação, abertas pelas regras a partir dos eventos e do uso de CPU e memória dos hosts que você pode ler.</p>
+    </div>
+    <div class="dok-actions">
+      <button dok-button variant="outline" size="sm" startIcon="refresh" type="button" [loading]="facade.loading()" (click)="facade.reload()">Atualizar</button>
+      @if (view() === 'regras' && facade.canManageRules()) {
+        <button dok-button variant="primary" size="sm" startIcon="plus" type="button" (click)="ruleDrawer.set({ rule: null })">Nova regra</button>
+      }
+      @if (view() === 'silenciamentos' && facade.canManageSilences()) {
+        <button dok-button variant="primary" size="sm" startIcon="bell" type="button" (click)="silenceDrawer.set(true)">Novo silenciamento</button>
+      }
+    </div>
+  </div>
+
+  <dok-tabs [tabs]="tabs()" [value]="view()" (valueChange)="selectView($event)" ariaLabel="Vistas de alertas" controls="al-panel" />
+
+  <div id="al-panel" role="tabpanel" class="dok-stack" [attr.aria-label]="'Vista ' + view()">
+    @switch (view()) {
+      @case ('regras') {
+        <section class="al-policy alt-panel" aria-labelledby="al-policy-title">
+          <div>
+            <h2 id="al-policy-title" class="app-subtitle">Justificativa para parar, pausar e remover</h2>
+            <p class="app-small al-muted">
+              Onde é obrigatória, o console pede o motivo antes do envio e a API recusa comandos sem justificativa. O container fica marcado como parado ou pausado intencionalmente e não abre alerta.
+            </p>
+          </div>
+          <ul class="al-policy__list">
+            @for (item of policies(); track item.stage) {
+              <li>
+                <dok-checkbox
+                  [label]="item.label"
+                  [help]="item.canEdit ? (item.required ? 'Obrigatória' : 'Opcional') : 'Exige environment:manage em todos os hosts do estágio'"
+                  [ngModel]="item.required"
+                  (ngModelChange)="setPolicy(item.stage, $event)"
+                  [disabled]="!item.canEdit || policyBusy() !== null"
+                />
+              </li>
+            }
+          </ul>
+        </section>
+
+        @if (facade.error(); as e) {
+          <dok-empty-state [kind]="e.status === 403 ? 'forbidden' : 'error'" [title]="e.title" [detail]="e.detail">
+            <button dok-button variant="outline" size="sm" startIcon="refresh" type="button" (click)="facade.reload()">Tentar novamente</button>
+          </dok-empty-state>
+        } @else {
+          <dok-data-grid
+            title="Regras de alerta"
+            [entityLabel]="['regra', 'regras']"
+            [rows]="ruleRows()"
+            [columns]="ruleColumns"
+            [statusTones]="tones"
+            [rowActionsFor]="ruleActionsFor"
+            [rowLabel]="ruleLabel"
+            [selectable]="false"
+            storageKey="alert-rules"
+            [loading]="facade.loading()"
+            [updatedAt]="updatedAt()"
+            searchPlaceholder="Nome ou condição"
+            exportName="regras-de-alerta"
+            emptyTitle="Nenhuma regra visível"
+            (rowAction)="onRuleAction($event)"
+            (rowOpen)="openRule($event)"
+          />
+          @if (!facade.canManageRules()) {
+            <p class="app-small al-muted"><dok-icon name="lock" [size]="13" /> Criar e alterar regras exige alert:manage em todos os hosts abrangidos.</p>
+          }
+        }
+      }
+      @case ('silenciamentos') {
+        <div class="al-filters">
+          <dok-checkbox label="Mostrar encerrados" [ngModel]="facade.showEndedSilences()" (ngModelChange)="facade.toggleEndedSilences()" name="ended" />
+        </div>
+        @if (facade.error(); as e) {
+          <dok-empty-state [kind]="e.status === 403 ? 'forbidden' : 'error'" [title]="e.title" [detail]="e.detail">
+            <button dok-button variant="outline" size="sm" startIcon="refresh" type="button" (click)="facade.reload()">Tentar novamente</button>
+          </dok-empty-state>
+        } @else {
+          <dok-data-grid
+            title="Silenciamentos"
+            [entityLabel]="['silenciamento', 'silenciamentos']"
+            [rows]="silenceRows()"
+            [columns]="silenceColumns"
+            [statusTones]="tones"
+            [rowActionsFor]="silenceActionsFor"
+            [rowLabel]="silenceLabel"
+            [selectable]="false"
+            storageKey="alert-silences"
+            [loading]="facade.loading()"
+            [updatedAt]="updatedAt()"
+            searchPlaceholder="Abrangência, justificativa ou autor"
+            exportName="silenciamentos"
+            [emptyTitle]="facade.showEndedSilences() ? 'Nenhum silenciamento' : 'Nenhum silenciamento vigente'"
+            (rowAction)="onSilenceAction($event)"
+          />
+        }
+      }
+      @default {
+        <div class="al-filters" role="group" aria-label="Filtros rápidos">
+          @for (chip of filterChips(); track chip.key) {
+            <dok-status-chip variant="filter" [field]="chip.field" [label]="chip.label" [removable]="true" (removed)="removeFilter(chip.key)" />
+          }
+          <span class="app-small al-muted">Severidade:</span>
+          @for (severity of severities; track severity) {
+            <button type="button" class="al-chip-btn" [attr.aria-pressed]="severityActive(severity)" (click)="toggleSeverity(severity)">
+              <dok-status-chip
+                variant="outlined"
+                [color]="severityLabels[severity].tone"
+                size="sm"
+                [label]="(severityCount(severity) !== null ? severityCount(severity) + ' ' : '') + severityLabels[severity].label.toLowerCase()"
+              />
+              <span class="sr-only">, filtrar a lista</span>
+            </button>
+          }
+          @if (view() === 'abertos') {
+            <span class="app-small al-muted">Situação:</span>
+            @for (state of openStates; track state) {
+              <button type="button" class="al-chip-btn" [attr.aria-pressed]="stateActive(state)" (click)="toggleState(state)">
+                <dok-status-chip variant="outlined" [color]="stateLabels[state].tone" size="sm" [label]="stateLabels[state].label.toLowerCase()" />
+                <span class="sr-only">, filtrar a lista</span>
+              </button>
+            }
+          } @else {
+            <label class="al-date">
+              <span class="app-small al-muted">De</span>
+              <input type="date" class="al-input" [value]="desde() ?? ''" (change)="setPeriod('desde', $any($event.target).value)" aria-label="Resolvidos desde" />
+            </label>
+            <label class="al-date">
+              <span class="app-small al-muted">até</span>
+              <input type="date" class="al-input" [value]="ate() ?? ''" (change)="setPeriod('ate', $any($event.target).value)" aria-label="Resolvidos até" />
+            </label>
+            <span class="app-caption al-muted">Retenção de 90 dias.</span>
+          }
+        </div>
+
+        @if (facade.error(); as e) {
+          <dok-empty-state [kind]="e.status === 403 ? 'forbidden' : 'error'" [code]="e.status ? 'Erro ' + e.status : null" [title]="e.title" [detail]="e.detail">
+            <button dok-button variant="outline" size="sm" startIcon="refresh" type="button" (click)="facade.reload()">Tentar novamente</button>
+          </dok-empty-state>
+        } @else {
+          <dok-data-grid
+            [title]="view() === 'historico' ? 'Alertas resolvidos' : 'Alertas abertos'"
+            [entityLabel]="['alerta', 'alertas']"
+            [rows]="alertRows()"
+            [columns]="alertColumns()"
+            [statusTones]="tones"
+            [selectable]="false"
+            [(search)]="search"
+            [clientSide]="false"
+            [filters]="gridFilters()"
+            (filtersChange)="onGridFilters($event)"
+            [facetOptions]="facets()"
+            [showFilterChips]="false"
+            [storageKey]="'alerts-' + view()"
+            [loading]="facade.loading()"
+            [hasMore]="!!facade.nextCursor()"
+            [loadingMore]="facade.loadingMore()"
+            [updatedAt]="updatedAt()"
+            searchPlaceholder="Condição, regra ou container"
+            [exportName]="view() === 'historico' ? 'alertas-historico' : 'alertas-abertos'"
+            height="560px"
+            [emptyTitle]="emptyTitle()"
+            (rowOpen)="openAlert($event)"
+            (loadMore)="facade.loadMore()"
+          />
+        }
+      }
+    }
+  </div>
+</div>
+
+@if (alerta(); as alertId) {
+  <app-alert-detail-drawer [open]="true" [alertId]="alertId" [refreshKey]="detailRefresh()" (closed)="closeAlert()" (changed)="alertChanged()" />
+}
+
+@if (ruleDrawer(); as drawer) {
+  <app-rule-drawer [open]="true" [rule]="drawer.rule" (closed)="ruleDrawer.set(null)" (saved)="ruleSaved()" />
+}
+
+@if (silenceDrawer()) {
+  <app-silence-drawer [open]="true" (closed)="silenceDrawer.set(false)" (saved)="silenceSaved()" />
+}
+
+@if (ruleToDelete(); as rule) {
+  <dok-drawer
+    [open]="true"
+    eyebrow="Ação destrutiva"
+    [title]="'Excluir ' + rule.name + '?'"
+    subtitle="Os alertas abertos por esta regra serão resolvidos. A exclusão fica na auditoria."
+    primaryLabel="Excluir regra"
+    primaryIcon="trash"
+    primaryVariant="danger"
+    [primaryLoading]="deleting()"
+    width="480px"
+    (closed)="ruleToDelete.set(null)"
+    (primary)="deleteRule()"
+  />
+}

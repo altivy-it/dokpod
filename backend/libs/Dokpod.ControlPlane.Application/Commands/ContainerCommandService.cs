@@ -164,7 +164,7 @@ public sealed class ContainerCommandService(
             // Depois de Created ou Duplicate: nova tentativa com a mesma chave completa o registro (D-005).
             var name = containers is null ? null : (await containers.GetAsync(environmentId, containerId, cancellationToken).ConfigureAwait(false))?.Name;
             await justifications!.RecordAsync(
-                new Alerts.ContainerActionJustification(Guid.NewGuid(), commandId, environmentId, containerId, name, action, actor.Subject, maskedJustification, (timeProvider ?? TimeProvider.System).GetUtcNow(), null),
+                new Alerts.ContainerActionJustification(Guid.NewGuid(), commandId, environmentId, containerId, name, action, actor.Label, maskedJustification, (timeProvider ?? TimeProvider.System).GetUtcNow(), null),
                 cancellationToken).ConfigureAwait(false);
         }
 

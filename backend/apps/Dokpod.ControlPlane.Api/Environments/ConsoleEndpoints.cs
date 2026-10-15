@@ -352,7 +352,7 @@ public static class ConsoleEndpoints
             return false;
         }
 
-        actor = AuthenticatedActor.FromSubject(subject);
+        actor = AuthenticatedActor.FromSubject(subject) with { DisplayName = context.User.FindFirstValue("preferred_username") };
         error = null;
         return true;
     }

@@ -85,6 +85,12 @@ paths:
                 $ref: '#/components/schemas/ContainerCommandAccepted'
         '400':
           $ref: '#/components/responses/InvalidRequest'
+        '422':
+          description: Justificativa obrigatória pela política do estágio (justification_required).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
         '401':
           $ref: '#/components/responses/AuthenticationRequired'
         '403':
@@ -1097,6 +1103,600 @@ paths:
           $ref: '#/components/responses/NotFound'
         '503':
           $ref: '#/components/responses/DependencyUnavailable'
+  /api/v1/alerts/summary:
+    get:
+      operationId: getAlertSummary
+      summary: Contagem de alertas abertos por severidade e os mais recentes (menu e sino)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: stage
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/Stage'
+        - $ref: '#/components/parameters/CorrelationId'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlertSummary'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '503':
+          $ref: '#/components/responses/DependencyUnavailable'
+  /api/v1/alerts:
+    get:
+      operationId: listAlerts
+      summary: Alertas ativos ou histórico (90 dias) dos hosts com alert:read
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: stage
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/Stage'
+        - name: view
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [open, history]
+        - name: severity
+          in: query
+          required: false
+          schema:
+            type: array
+            items:
+              $ref: '#/components/schemas/AlertSeverity'
+        - name: state
+          in: query
+          required: false
+          schema:
+            type: array
+            items:
+              $ref: '#/components/schemas/AlertState'
+        - name: environmentId
+          in: query
+          required: false
+          schema:
+            type: array
+            items:
+              type: string
+              format: uuid
+        - name: ruleId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: q
+          in: query
+          required: false
+          schema:
+            type: string
+            maxLength: 128
+        - name: since
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: until
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+        - $ref: '#/components/parameters/CorrelationId'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlertPage'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '503':
+          $ref: '#/components/responses/DependencyUnavailable'
+  /api/v1/alerts/{alertId}:
+    get:
+      operationId: getAlert
+      summary: Detalhe do alerta com regra e linha do tempo
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: alertId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/CorrelationId'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlertDetail'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '503':
+          $ref: '#/components/responses/DependencyUnavailable'
+  /api/v1/alerts/{alertId}/acknowledge:
+    post:
+      operationId: acknowledgeAlert
+      summary: Reconhece o alerta (alert:manage)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: alertId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/CorrelationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AlertCommentRequest'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IdResponse'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '403':
+          $ref: '#/components/responses/AccessDenied'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/DependencyUnavailable'
+  /api/v1/alerts/{alertId}/resolve:
+    post:
+      operationId: resolveAlert
+      summary: Resolve o alerta manualmente (alert:manage)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: alertId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/CorrelationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AlertCommentRequest'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IdResponse'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '403':
+          $ref: '#/components/responses/AccessDenied'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/DependencyUnavailable'
+  /api/v1/alerts/{alertId}/silence:
+    post:
+      operationId: silenceAlert
+      summary: Silencia o alerta até o horário informado (alert:manage)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: alertId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/CorrelationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AlertSilenceRequest'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IdResponse'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '403':
+          $ref: '#/components/responses/AccessDenied'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/DependencyUnavailable'
+  /api/v1/alert-rules:
+    get:
+      operationId: listAlertRules
+      summary: Regras de alerta visíveis ao usuário
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CorrelationId'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlertRulePage'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '503':
+          $ref: '#/components/responses/DependencyUnavailable'
+    post:
+      operationId: createAlertRule
+      summary: Cria regra de alerta (alert:manage nos hosts abrangidos)
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CorrelationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AlertRuleRequest'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IdResponse'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '403':
+          $ref: '#/components/responses/AccessDenied'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/DependencyUnavailable'
+  /api/v1/alert-rules/{ruleId}:
+    put:
+      operationId: updateAlertRule
+      summary: Altera regra de alerta com controle de versão
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: ruleId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/CorrelationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AlertRuleRequest'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IdResponse'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '403':
+          $ref: '#/components/responses/AccessDenied'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/DependencyUnavailable'
+    delete:
+      operationId: deleteAlertRule
+      summary: Remove regra criada pelo administrador e resolve seus alertas
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: ruleId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/CorrelationId'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IdResponse'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '403':
+          $ref: '#/components/responses/AccessDenied'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/DependencyUnavailable'
+  /api/v1/alert-silences:
+    get:
+      operationId: listAlertSilences
+      summary: Silenciamentos vigentes (active=false inclui encerrados)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: active
+          in: query
+          required: false
+          schema:
+            type: boolean
+        - $ref: '#/components/parameters/CorrelationId'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlertSilencePage'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '503':
+          $ref: '#/components/responses/DependencyUnavailable'
+    post:
+      operationId: createAlertSilence
+      summary: Cria silenciamento de até 7 dias com justificativa
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CorrelationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAlertSilenceRequest'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IdResponse'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '403':
+          $ref: '#/components/responses/AccessDenied'
+        '503':
+          $ref: '#/components/responses/DependencyUnavailable'
+  /api/v1/alert-silences/{silenceId}/end:
+    post:
+      operationId: endAlertSilence
+      summary: Encerra o silenciamento antes do fim
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: silenceId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/CorrelationId'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IdResponse'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '403':
+          $ref: '#/components/responses/AccessDenied'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/DependencyUnavailable'
+  /api/v1/action-justification-policies:
+    get:
+      operationId: listActionJustificationPolicies
+      summary: Política de justificativa de parar, pausar e remover por estágio
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CorrelationId'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JustificationPolicyPage'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '503':
+          $ref: '#/components/responses/DependencyUnavailable'
+  /api/v1/action-justification-policies/{stage}:
+    put:
+      operationId: setActionJustificationPolicy
+      summary: Liga ou desliga a justificativa obrigatória no estágio (environment:manage em todos os hosts do estágio)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: stage
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Stage'
+        - $ref: '#/components/parameters/CorrelationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/JustificationPolicyRequest'
+      responses:
+        '204':
+          description: Feito.
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '403':
+          $ref: '#/components/responses/AccessDenied'
+        '503':
+          $ref: '#/components/responses/DependencyUnavailable'
+  /api/v1/environments/{environmentId}/containers/{containerId}/justifications:
+    get:
+      operationId: listContainerJustifications
+      summary: Justificativa vigente e histórico de ações justificadas do container
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: environmentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: containerId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 128
+        - $ref: '#/components/parameters/CorrelationId'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContainerJustifications'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '503':
+          $ref: '#/components/responses/DependencyUnavailable'
+  /api/v1/environments/{environmentId}/justifications:
+    get:
+      operationId: listEnvironmentJustifications
+      summary: Ações justificadas do host por período
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: environmentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: since
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: until
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+        - $ref: '#/components/parameters/CorrelationId'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JustificationPage'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '503':
+          $ref: '#/components/responses/DependencyUnavailable'
 components:
   securitySchemes:
     bearerAuth:
@@ -1128,6 +1728,11 @@ components:
         deadlineUtc:
           type: string
           format: date-time
+        justification:
+          type: string
+          minLength: 10
+          maxLength: 500
+          description: Obrigatória para stop, pause e delete quando a política do estágio exige (spec 016); senão 422 justification_required.
     ImageListPage:
       type: object
       required: [images, summary, nextCursor]
@@ -1895,6 +2500,8 @@ components:
               items:
                 type: string
                 enum: [start, stop, restart, delete, pause, unpause, exec]
+            intentional:
+              $ref: '#/components/schemas/IntentionalAction'
     ContainerListPage:
       type: object
       required: [containers, summary]
@@ -2043,6 +2650,389 @@ components:
           type: boolean
         omittedLines:
           type: integer
+    AlertSeverity:
+      type: string
+      enum: [critical, high, medium, low]
+    AlertState:
+      type: string
+      enum: [open, acknowledged, silenced, resolved]
+    AlertScope:
+      type: object
+      additionalProperties: false
+      properties:
+        stage:
+          oneOf:
+            - $ref: '#/components/schemas/Stage'
+            - type: 'null'
+        environmentId:
+          type: [string, 'null']
+          format: uuid
+        containerPattern:
+          type: [string, 'null']
+          maxLength: 128
+    Alert:
+      type: object
+      required: [id, ruleId, ruleName, environmentId, severity, state, condition, openedAt, lastOccurredAt, occurrences, canManage]
+      properties:
+        id:
+          type: string
+          format: uuid
+        ruleId:
+          type: string
+          format: uuid
+        ruleName:
+          type: string
+        environmentId:
+          type: string
+          format: uuid
+        containerId:
+          type: [string, 'null']
+        containerName:
+          type: [string, 'null']
+        severity:
+          $ref: '#/components/schemas/AlertSeverity'
+        state:
+          $ref: '#/components/schemas/AlertState'
+        condition:
+          type: string
+        openedAt:
+          type: string
+          format: date-time
+        lastOccurredAt:
+          type: string
+          format: date-time
+        occurrences:
+          type: integer
+          minimum: 1
+        assignee:
+          type: [string, 'null']
+        silenceId:
+          type: [string, 'null']
+          format: uuid
+        resolvedAt:
+          type: [string, 'null']
+          format: date-time
+        resolution:
+          type: [string, 'null']
+          enum: [condition_cleared, manual, container_removed, rule_removed, null]
+        canManage:
+          type: boolean
+    AlertSummary:
+      type: object
+      required: [open, bySeverity, recent]
+      properties:
+        open:
+          type: integer
+        bySeverity:
+          $ref: '#/components/schemas/CountMap'
+        recent:
+          type: array
+          maxItems: 10
+          items:
+            $ref: '#/components/schemas/Alert'
+    AlertPage:
+      type: object
+      required: [alerts]
+      properties:
+        alerts:
+          type: array
+          maxItems: 100
+          items:
+            $ref: '#/components/schemas/Alert'
+        nextCursor:
+          type: [string, 'null']
+    AlertTimelineEntry:
+      type: object
+      required: [at, kind]
+      properties:
+        at:
+          type: string
+          format: date-time
+        kind:
+          type: string
+          enum: [opened, occurred, acknowledged, silenced, unsilenced, resolved]
+        actor:
+          type: [string, 'null']
+        comment:
+          type: [string, 'null']
+    AlertDetail:
+      type: object
+      required: [alert, timeline]
+      properties:
+        alert:
+          $ref: '#/components/schemas/Alert'
+        rule:
+          oneOf:
+            - $ref: '#/components/schemas/AlertRule'
+            - type: 'null'
+        timeline:
+          type: array
+          items:
+            $ref: '#/components/schemas/AlertTimelineEntry'
+    AlertRule:
+      type: object
+      required: [id, name, conditionKind, durationSeconds, minOccurrences, severity, scope, enabled, builtIn, version]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: [string, 'null']
+        conditionKind:
+          type: string
+          enum: [event, metric]
+        eventType:
+          type: [string, 'null']
+        metric:
+          type: [string, 'null']
+          enum: [host_cpu, host_memory, container_cpu, container_memory, null]
+        thresholdPercent:
+          type: [number, 'null']
+        durationSeconds:
+          type: integer
+          minimum: 0
+        minOccurrences:
+          type: integer
+          minimum: 1
+        severity:
+          $ref: '#/components/schemas/AlertSeverity'
+        scope:
+          $ref: '#/components/schemas/AlertScope'
+        enabled:
+          type: boolean
+        builtIn:
+          type: boolean
+        version:
+          type: integer
+    AlertRulePage:
+      type: object
+      required: [rules, canManage]
+      properties:
+        rules:
+          type: array
+          items:
+            $ref: '#/components/schemas/AlertRule'
+        canManage:
+          type: boolean
+    AlertRuleRequest:
+      type: object
+      required: [name, conditionKind, durationSeconds, severity, enabled]
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 120
+        description:
+          type: [string, 'null']
+          maxLength: 500
+        conditionKind:
+          type: string
+          enum: [event, metric]
+        eventType:
+          type: [string, 'null']
+        metric:
+          type: [string, 'null']
+          enum: [host_cpu, host_memory, container_cpu, container_memory, null]
+        thresholdPercent:
+          type: [number, 'null']
+          minimum: 1
+          maximum: 100
+        durationSeconds:
+          type: integer
+          minimum: 0
+          maximum: 86400
+        minOccurrences:
+          type: [integer, 'null']
+          minimum: 1
+          maximum: 100
+        severity:
+          $ref: '#/components/schemas/AlertSeverity'
+        scope:
+          $ref: '#/components/schemas/AlertScope'
+        enabled:
+          type: boolean
+        version:
+          type: [integer, 'null']
+          description: Obrigatório na alteração (controle de concorrência).
+    AlertCommentRequest:
+      type: object
+      additionalProperties: false
+      required: [comment]
+      properties:
+        comment:
+          type: string
+          minLength: 10
+          maxLength: 500
+    AlertSilenceRequest:
+      type: object
+      required: [until, justification]
+      additionalProperties: false
+      properties:
+        until:
+          type: string
+          format: date-time
+        justification:
+          type: string
+          minLength: 10
+          maxLength: 500
+    AlertSilence:
+      type: object
+      required: [id, scope, startsAt, endsAt, justification, createdBy]
+      properties:
+        id:
+          type: string
+          format: uuid
+        scope:
+          $ref: '#/components/schemas/AlertScope'
+        alertId:
+          type: [string, 'null']
+          format: uuid
+        startsAt:
+          type: string
+          format: date-time
+        endsAt:
+          type: string
+          format: date-time
+        endedAt:
+          type: [string, 'null']
+          format: date-time
+        justification:
+          type: string
+        createdBy:
+          type: string
+    AlertSilencePage:
+      type: object
+      required: [silences, canManage]
+      properties:
+        silences:
+          type: array
+          items:
+            $ref: '#/components/schemas/AlertSilence'
+        canManage:
+          type: boolean
+          description: alert:manage em todos os hosts com alert:read (pode criar e encerrar silenciamentos).
+    CreateAlertSilenceRequest:
+      type: object
+      required: [endsAt, justification]
+      additionalProperties: false
+      properties:
+        scope:
+          $ref: '#/components/schemas/AlertScope'
+        startsAt:
+          type: [string, 'null']
+          format: date-time
+        endsAt:
+          type: string
+          format: date-time
+        justification:
+          type: string
+          minLength: 10
+          maxLength: 500
+    IdResponse:
+      type: object
+      required: [id]
+      properties:
+        id:
+          type: string
+          format: uuid
+    JustifiedAction:
+      type: string
+      enum: [stop, pause, delete]
+    JustificationPolicy:
+      type: object
+      required: [stage, required, actions]
+      properties:
+        stage:
+          $ref: '#/components/schemas/Stage'
+        required:
+          type: boolean
+        actions:
+          type: array
+          items:
+            $ref: '#/components/schemas/JustifiedAction'
+    JustificationPolicyPage:
+      type: object
+      required: [policies]
+      properties:
+        policies:
+          type: array
+          items:
+            $ref: '#/components/schemas/JustificationPolicy'
+    JustificationPolicyRequest:
+      type: object
+      required: [required]
+      additionalProperties: false
+      properties:
+        required:
+          type: boolean
+    ContainerJustification:
+      type: object
+      required: [id, commandId, environmentId, containerId, action, actor, reason, at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        commandId:
+          type: string
+          format: uuid
+        environmentId:
+          type: string
+          format: uuid
+        containerId:
+          type: string
+        containerName:
+          type: [string, 'null']
+        action:
+          $ref: '#/components/schemas/JustifiedAction'
+        actor:
+          type: string
+        reason:
+          type: string
+        at:
+          type: string
+          format: date-time
+        endedAt:
+          type: [string, 'null']
+          format: date-time
+    ContainerJustifications:
+      type: object
+      required: [history]
+      properties:
+        current:
+          oneOf:
+            - $ref: '#/components/schemas/ContainerJustification'
+            - type: 'null'
+        history:
+          type: array
+          items:
+            $ref: '#/components/schemas/ContainerJustification'
+    JustificationPage:
+      type: object
+      required: [justifications]
+      properties:
+        justifications:
+          type: array
+          items:
+            $ref: '#/components/schemas/ContainerJustification'
+        nextCursor:
+          type: [string, 'null']
+    IntentionalAction:
+      type: object
+      required: [action, actor, at, reason]
+      properties:
+        action:
+          type: string
+          enum: [stop, pause]
+        actor:
+          type: string
+        at:
+          type: string
+          format: date-time
+        reason:
+          type: string
     ResourceScope:
       type: string
       enum:
@@ -2059,6 +3049,8 @@ components:
         - image:pull
         - container:create
         - container:exec
+        - alert:read
+        - alert:manage
     Stage:
       type: string
       enum: [production, staging, development]

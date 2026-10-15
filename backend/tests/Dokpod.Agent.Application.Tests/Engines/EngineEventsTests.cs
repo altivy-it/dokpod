@@ -26,6 +26,18 @@ public sealed class EngineEventsTests
         Assert.Equal(0u, batch.DroppedCount);
     }
 
+    [Theory]
+    [InlineData("destroy")] // Docker
+    [InlineData("remove")] // Podman
+    public void Publisher_MapsContainerRemovalOfBothEngines(string action)
+    {
+        var publisher = new EngineEventPublisher(new ManualTimeProvider(DateTimeOffset.UtcNow));
+
+        Assert.True(publisher.Observe(Record(action)));
+
+        Assert.Equal(EngineEventType.ContainerRemoved, Assert.Single(publisher.Drain()!.Events).Type);
+    }
+
     [Fact]
     public void Publisher_AggregatesWithinWindowIgnoresCleanExitAndReportsRecovery()
     {
