@@ -230,7 +230,7 @@ public sealed class ContainerCreationService(
                 Names(Parse(secrets.Result), "secrets"),
                 Names(Parse(networks.Result), "networks"),
                 Names(volumeJson, "volumes"),
-                registryPolicy.AllowedRegistriesByStage.TryGetValue(stage, out var allowed) ? allowed : [],
+                registryPolicy.AllowedFor(stage),
                 volumeJson is { } v && v.TryGetProperty("bindMountsAllowed", out var bind) && bind.ValueKind == JsonValueKind.True,
                 new[] { secrets.Result, networks.Result, volumes.Result }.Any(r => r.Kind != QueryOutcomeKind.Ok)));
     }

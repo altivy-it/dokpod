@@ -37,6 +37,7 @@ export const AUDIT_ACTION: Record<string, string> = {
   'audit.exported': 'Auditoria exportada',
   'volume.remove': 'Remover volume',
   'network.remove': 'Remover rede',
+  'registry.policy_changed': 'Política de registros alterada',
 };
 
 export const AUDIT_CATEGORIES: { id: AuditCategory; label: string }[] = [
@@ -76,6 +77,8 @@ export const AUDIT_DETAIL: Record<string, string> = {
   image: 'Imagem',
   name: 'Nome',
   networkId: 'Identificador da rede',
+  registries: 'Registros permitidos',
+  previousRegistries: 'Registros permitidos antes',
   command: 'Comando equivalente',
   tail: 'Linhas pedidas',
   lines: 'Linhas lidas',
