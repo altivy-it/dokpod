@@ -120,6 +120,7 @@ public sealed class DockerEngineClient(HttpClient httpClient, RegistryCredential
                 Ports = ParseListPorts(item),
                 ImageId = item.TryGetProperty("ImageID", out var imageId) ? imageId.GetString() : null,
                 Mounts = ParseListMounts(item),
+                Networks = ParseListNetworks(item),
             });
         }
 
@@ -405,6 +406,96 @@ public sealed class DockerEngineClient(HttpClient httpClient, RegistryCredential
         }
 
         return result;
+    }
+
+    /// <summary>Conexões de `NetworkSettings.Networks` da listagem (inclusive containers parados, sem endereço).</summary>
+    private static IReadOnlyList<EngineNetworkAttachment> ParseListNetworks(JsonElement item)
+    {
+        if (!item.TryGetProperty("NetworkSettings", out var settings) || settings.ValueKind != JsonValueKind.Object ||
+            !settings.TryGetProperty("Networks", out var networks) || networks.ValueKind != JsonValueKind.Object)
+        {
+            return [];
+        }
+
+        string? Text(JsonElement element, string property) =>
+            element.TryGetProperty(property, out var value) && value.ValueKind == JsonValueKind.String && value.GetString() is { Length: > 0 } text ? text : null;
+        var result = new List<EngineNetworkAttachment>();
+        foreach (var network in networks.EnumerateObject())
+        {
+            if (network.Value.ValueKind != JsonValueKind.Object) continue;
+            result.Add(new EngineNetworkAttachment(network.Name, Text(network.Value, "NetworkID"), Text(network.Value, "IPAddress"), Text(network.Value, "GlobalIPv6Address")));
+        }
+
+        return result;
+    }
+
+    public async Task<IReadOnlyList<EngineNetwork>> ListNetworksAsync(CancellationToken cancellationToken)
+    {
+        await EnsureNegotiatedAsync(cancellationToken);
+        using var response = await httpClient.GetAsync($"v{apiVersion}/networks", HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+        response.EnsureSuccessStatusCode();
+        await using var content = await ReadLimitedAsync(response, cancellationToken);
+        using var document = await JsonDocument.ParseAsync(content, cancellationToken: cancellationToken);
+        if (document.RootElement.ValueKind != JsonValueKind.Array) return [];
+        bool Flag(JsonElement element, string property) => element.TryGetProperty(property, out var value) && value.ValueKind == JsonValueKind.True;
+        string Text(JsonElement element, string property, string fallback) =>
+            element.TryGetProperty(property, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() ?? fallback : fallback;
+        var result = new List<EngineNetwork>();
+        foreach (var item in document.RootElement.EnumerateArray())
+        {
+            if (item.ValueKind != JsonValueKind.Object) continue;
+            var id = Text(item, "Id", string.Empty);
+            var name = Text(item, "Name", string.Empty);
+            if (!Dokpod.Domain.Networks.NetworkNames.IsValidId(id) || !Dokpod.Domain.Networks.NetworkNames.IsValidName(name)) continue;
+            var subnets = new List<EngineNetworkSubnet>();
+            if (item.TryGetProperty("IPAM", out var ipam) && ipam.ValueKind == JsonValueKind.Object &&
+                ipam.TryGetProperty("Config", out var config) && config.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var entry in config.EnumerateArray())
+                {
+                    if (entry.ValueKind != JsonValueKind.Object) continue;
+                    var subnet = Text(entry, "Subnet", string.Empty);
+                    if (subnet.Length > 0) subnets.Add(new EngineNetworkSubnet(subnet, Text(entry, "Gateway", string.Empty) is { Length: > 0 } gateway ? gateway : null));
+                }
+            }
+
+            var labels = new Dictionary<string, string>(StringComparer.Ordinal);
+            if (item.TryGetProperty("Labels", out var labelsElement) && labelsElement.ValueKind == JsonValueKind.Object)
+            {
+                foreach (var label in labelsElement.EnumerateObject())
+                {
+                    if (label.Value.ValueKind == JsonValueKind.String) labels[label.Name] = label.Value.GetString() ?? string.Empty;
+                }
+            }
+
+            DateTimeOffset? created = item.TryGetProperty("Created", out var createdElement) && createdElement.ValueKind == JsonValueKind.String &&
+                DateTimeOffset.TryParse(createdElement.GetString(), System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.AssumeUniversal, out var parsed) &&
+                parsed.Year > 1
+                ? parsed.ToUniversalTime()
+                : null;
+            // Spec 019 D-002: `Options` (interface física, MTU...) e `Containers` (só os em execução) não são lidos.
+            result.Add(new EngineNetwork(
+                id, name, Text(item, "Driver", string.Empty), Text(item, "Scope", "local"),
+                Flag(item, "Internal"), Flag(item, "EnableIPv6"), Flag(item, "Attachable"), Flag(item, "Ingress"),
+                created, subnets, labels));
+        }
+
+        return result;
+    }
+
+    public async Task<string?> RemoveNetworkAsync(string networkId, CancellationToken cancellationToken)
+    {
+        if (!Dokpod.Domain.Networks.NetworkNames.IsValidId(networkId)) throw new ArgumentException("Network id is invalid.", nameof(networkId));
+        await EnsureNegotiatedAsync(cancellationToken);
+        // Spec 019 D-004: rede com endpoints ativos é recusada pelo engine (403/409); nada é desconectado.
+        using var response = await httpClient.DeleteAsync($"v{apiVersion}/networks/{networkId}", cancellationToken);
+        return response.StatusCode switch
+        {
+            HttpStatusCode.NoContent or HttpStatusCode.OK => null,
+            HttpStatusCode.NotFound => Dokpod.Domain.Networks.NetworkRemovalCodes.NotFound,
+            HttpStatusCode.Conflict or HttpStatusCode.Forbidden => Dokpod.Domain.Networks.NetworkRemovalCodes.InUse,
+            _ => Dokpod.Domain.Networks.NetworkRemovalCodes.Failed,
+        };
     }
 
     public async Task<IReadOnlyList<EngineVolume>> ListVolumesAsync(CancellationToken cancellationToken)
@@ -844,7 +935,7 @@ public sealed class DockerEngineClient(HttpClient httpClient, RegistryCredential
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
     {
         await EnsureNegotiatedAsync(cancellationToken);
-        var filters = Uri.EscapeDataString("""{"type":["container","image","volume"]}""");
+        var filters = Uri.EscapeDataString("""{"type":["container","image","volume","network"]}""");
         using var request = new HttpRequestMessage(HttpMethod.Get, $"v{apiVersion}/events?filters={filters}");
         using var response = await httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
         response.EnsureSuccessStatusCode();

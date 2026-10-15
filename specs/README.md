@@ -138,24 +138,24 @@ Dependências: 007 → 008 → {009, 010, 012} → 011 → 013 → 014 (013 usa 
 
 Evita colisão de tags entre specs desenvolvidas em paralelo. Alterar somente com atualização desta tabela.
 
-| Contrato | 008 | 009 | 010 | 011 | 012 | 013 | 014 | 018 |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `AgentMessage.payload` | 17 `engine_events` | 18 `resource_samples` | — | 19 `container_query_response`, 20 `log_chunk` | 21 `image_snapshot_page`, 22 `image_delta` | — | — | 23 `volume_snapshot_page` |
-| `SessionEstablished` | 6 `accepted_capabilities` | — | — | — | — | — | — | — |
-| `ContainerState` | 7-13 (14 não alocada) | — | — | — | 15 `image_id` | — | — | — |
-| `Heartbeat` | — | — | — | — | 3 `image_revision` | — | — | 4 `volume_revision` |
-| `CommandResult` | — | — | — | — | 6 `resolved_image_digest`, 7 `image_size_bytes` | 8 `created_container_id` | — | — |
-| `SnapshotRequest` | — | — | — | — | 2 `scope` | — | — | — |
-| `ControlPlaneMessage.payload` | — | — | — | 14 `container_query`, 15 `log_stream_control` | — | — | 16 `exec_open` | — |
-| `Capability` | 6 `ENGINE_EVENTS` | 7 `RESOURCE_METRICS` | 8 `CONTAINER_PAUSE`, 9 `CONTAINER_UNPAUSE` | 10 `CONTAINER_INSPECT`, 11 `CONTAINER_LOGS` | 12 `IMAGE_INVENTORY`, 13 `IMAGE_PULL` | 14 `CONTAINER_CREATE` | 15 `CONTAINER_EXEC` | 16 `VOLUME_INVENTORY`, 17 `VOLUME_REMOVE` |
-| `CommandKind` | — | — | 5 `PAUSE`, 6 `UNPAUSE` | — | 7 `PULL_IMAGE` | 8 `CREATE_CONTAINER` | — | 9 `REMOVE_VOLUME` |
-| `AgentCommand.parameters` | — | — | — | — | 7 `pull_image` | 8 `create_container` | — | 9 `remove_volume` |
-| `ContainerQueryKind` | — | — | — | 1-3 | — | 4-6 | — | 7 `VOLUME_USAGE` |
-| `ContainerQueryRequest` | — | — | — | — | — | — | — | 6 `volume_name` |
-| RPC | — | — | — | — | — | — | `Exec` | — |
-| `EngineEventType` | 1-10 | — | — | — | — | — | 11 `EXEC_ORPHAN_SUSPECTED` | — |
-| Scope Keycloak | — | — | `container:pause` | `container:inspect`, `container:logs` | `image:pull` | `container:create` | `container:exec` | `volume:delete` |
-| `SnapshotScope` | — | — | — | — | 2 `IMAGES` | — | — | 3 `VOLUMES` |
+| Contrato | 008 | 009 | 010 | 011 | 012 | 013 | 014 | 018 | 019 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `AgentMessage.payload` | 17 `engine_events` | 18 `resource_samples` | — | 19 `container_query_response`, 20 `log_chunk` | 21 `image_snapshot_page`, 22 `image_delta` | — | — | 23 `volume_snapshot_page` | 24 `network_snapshot_page` |
+| `SessionEstablished` | 6 `accepted_capabilities` | — | — | — | — | — | — | — | — |
+| `ContainerState` | 7-13 (14 não alocada) | — | — | — | 15 `image_id` | — | — | — | — |
+| `Heartbeat` | — | — | — | — | 3 `image_revision` | — | — | 4 `volume_revision` | 5 `network_revision` |
+| `CommandResult` | — | — | — | — | 6 `resolved_image_digest`, 7 `image_size_bytes` | 8 `created_container_id` | — | — | — |
+| `SnapshotRequest` | — | — | — | — | 2 `scope` | — | — | — | — |
+| `ControlPlaneMessage.payload` | — | — | — | 14 `container_query`, 15 `log_stream_control` | — | — | 16 `exec_open` | — | — |
+| `Capability` | 6 `ENGINE_EVENTS` | 7 `RESOURCE_METRICS` | 8 `CONTAINER_PAUSE`, 9 `CONTAINER_UNPAUSE` | 10 `CONTAINER_INSPECT`, 11 `CONTAINER_LOGS` | 12 `IMAGE_INVENTORY`, 13 `IMAGE_PULL` | 14 `CONTAINER_CREATE` | 15 `CONTAINER_EXEC` | 16 `VOLUME_INVENTORY`, 17 `VOLUME_REMOVE` | 18 `NETWORK_INVENTORY`, 19 `NETWORK_REMOVE` |
+| `CommandKind` | — | — | 5 `PAUSE`, 6 `UNPAUSE` | — | 7 `PULL_IMAGE` | 8 `CREATE_CONTAINER` | — | 9 `REMOVE_VOLUME` | 10 `REMOVE_NETWORK` |
+| `AgentCommand.parameters` | — | — | — | — | 7 `pull_image` | 8 `create_container` | — | 9 `remove_volume` | 10 `remove_network` |
+| `ContainerQueryKind` | — | — | — | 1-3 | — | 4-6 | — | 7 `VOLUME_USAGE` | — |
+| `ContainerQueryRequest` | — | — | — | — | — | — | — | 6 `volume_name` | — |
+| RPC | — | — | — | — | — | — | `Exec` | — | — |
+| `EngineEventType` | 1-10 | — | — | — | — | — | 11 `EXEC_ORPHAN_SUSPECTED` | — | — |
+| Scope Keycloak | — | — | `container:pause` | `container:inspect`, `container:logs` | `image:pull` | `container:create` | `container:exec` | `volume:delete` | `network:delete` |
+| `SnapshotScope` | — | — | — | — | 2 `IMAGES` | — | — | 3 `VOLUMES` | 4 `NETWORKS` |
 
 **Regra de negociação (008 D-009)**: o agente só envia payloads novos de `AgentMessage` (17-22) cujas capabilities o servidor confirmou em `SessionEstablished.accepted_capabilities`; lista ausente = servidor N-1. O servidor só envia payloads novos de `ControlPlaneMessage` (14-16) e `CommandKind` novos a agentes que anunciaram a capability no `Hello`. Cada spec testa agente N contra servidor N-1.
 

@@ -42,6 +42,8 @@ message AgentMessage {
     ImageDelta image_delta = 22;
     // Spec 018: inventário de volumes (capability 16 confirmada).
     VolumeSnapshotPage volume_snapshot_page = 23;
+    // Spec 019: inventário de redes (capability 18 confirmada).
+    NetworkSnapshotPage network_snapshot_page = 24;
   }
 }
 
@@ -140,6 +142,8 @@ message Heartbeat {
   uint64 image_revision = 3;
   // Spec 018: revisão do inventário de volumes (0 = agente sem inventário de volumes).
   uint64 volume_revision = 4;
+  // Spec 019: revisão do inventário de redes (0 = agente sem inventário de redes).
+  uint64 network_revision = 5;
 }
 
 message InventorySnapshotPage {
@@ -299,11 +303,18 @@ message AgentCommand {
     CreateContainerParameters create_container = 8;
     // Spec 018: remoção de volume sem uso (nunca forçada).
     RemoveVolumeParameters remove_volume = 9;
+    // Spec 019: remoção de rede sem uso (nunca desconecta containers).
+    RemoveNetworkParameters remove_network = 10;
   }
 }
 
 message RemoveVolumeParameters {
   string name = 1;
+}
+
+message RemoveNetworkParameters {
+  string network_id = 1;
+  string name = 2;
 }
 
 // Spec 013: allowlist fechada; valores de variáveis só trafegam dentro do canal mTLS.
@@ -418,6 +429,7 @@ enum SnapshotScope {
   SNAPSHOT_SCOPE_CONTAINERS = 1;
   SNAPSHOT_SCOPE_IMAGES = 2;
   SNAPSHOT_SCOPE_VOLUMES = 3;
+  SNAPSHOT_SCOPE_NETWORKS = 4;
 }
 
 // Spec 018 D-001: página ≤ 256 KiB e ≤ 500 volumes; caminho no host nunca é publicado.
@@ -444,6 +456,44 @@ message VolumeContainerMount {
   string container_name = 2;
   string destination = 3;
   bool read_only = 4;
+}
+
+// Spec 019 D-001: página ≤ 256 KiB e ≤ 500 redes; opções do driver nunca são publicadas.
+message NetworkSnapshotPage {
+  string snapshot_id = 1;
+  uint64 network_revision = 2;
+  uint32 page_number = 3;
+  bool is_last_page = 4;
+  repeated NetworkState networks = 5;
+}
+
+message NetworkState {
+  string network_id = 1;
+  string name = 2;
+  string driver = 3;
+  string scope = 4;
+  bool internal = 5;
+  bool ipv6 = 6;
+  bool attachable = 7;
+  bool system = 8;
+  google.protobuf.Timestamp created_at = 9;
+  repeated NetworkSubnet subnets = 10;
+  map<string, string> labels = 11;
+  repeated NetworkContainerConnection containers = 12;
+  bool truncated = 13;
+}
+
+message NetworkSubnet {
+  string subnet = 1;
+  string gateway = 2;
+}
+
+// Inclui containers parados (sem endereço).
+message NetworkContainerConnection {
+  string container_id = 1;
+  string container_name = 2;
+  string ipv4_address = 3;
+  string ipv6_address = 4;
 }
 
 // Spec 012 D-007: página ≤ 256 KiB e ≤ 200 imagens; tags e digests limitados a 64 cada.
@@ -523,6 +573,8 @@ enum Capability {
   CAPABILITY_CONTAINER_EXEC = 15;
   CAPABILITY_VOLUME_INVENTORY = 16;
   CAPABILITY_VOLUME_REMOVE = 17;
+  CAPABILITY_NETWORK_INVENTORY = 18;
+  CAPABILITY_NETWORK_REMOVE = 19;
 }
 
 enum ContainerQueryKind {
@@ -617,6 +669,7 @@ enum CommandKind {
   COMMAND_KIND_PULL_IMAGE = 7;
   COMMAND_KIND_CREATE_CONTAINER = 8;
   COMMAND_KIND_REMOVE_VOLUME = 9;
+  COMMAND_KIND_REMOVE_NETWORK = 10;
 }
 
 enum CommandAcceptance {

@@ -24,7 +24,28 @@ public sealed record EngineContainer(
     public string? ImageId { get; init; }
     /// <summary>Montagens da listagem (spec 018): base de "volume em uso".</summary>
     public IReadOnlyList<EngineMount> Mounts { get; init; } = [];
+    /// <summary>Conexões de rede da listagem (spec 019): base de "rede em uso", inclusive parados.</summary>
+    public IReadOnlyList<EngineNetworkAttachment> Networks { get; init; } = [];
 }
+
+/// <summary>Conexão de um container a uma rede; endereços vazios quando o container não está em execução.</summary>
+public sealed record EngineNetworkAttachment(string Name, string? NetworkId, string? IPv4Address, string? IPv6Address);
+
+/// <summary>Rede do engine (spec 019); as opções do driver nunca são lidas para fora do agente.</summary>
+public sealed record EngineNetwork(
+    string NetworkId,
+    string Name,
+    string Driver,
+    string Scope,
+    bool Internal,
+    bool IPv6,
+    bool Attachable,
+    bool Ingress,
+    DateTimeOffset? CreatedAtUtc,
+    IReadOnlyList<EngineNetworkSubnet> Subnets,
+    IReadOnlyDictionary<string, string> Labels);
+
+public sealed record EngineNetworkSubnet(string Subnet, string? Gateway);
 
 /// <summary>Montagem de um container: `volume` (com nome), `bind`, `tmpfs` etc.</summary>
 public sealed record EngineMount(string Type, string? Name, string Destination, bool ReadOnly);
@@ -171,6 +192,14 @@ public interface IContainerEngine
     /// <summary>Tamanho e referências do volume por `system df`; nulo quando o engine não informa.</summary>
     Task<EngineVolumeUsage?> GetVolumeUsageAsync(string name, CancellationToken cancellationToken) =>
         Task.FromResult<EngineVolumeUsage?>(null);
+
+    /// <summary>Redes do host (`/networks`, spec 019).</summary>
+    Task<IReadOnlyList<EngineNetwork>> ListNetworksAsync(CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<EngineNetwork>>([]);
+
+    /// <summary>`DELETE /networks/{id}`; devolve código de falha da spec 019 ou nulo quando removida. Nunca desconecta containers.</summary>
+    Task<string?> RemoveNetworkAsync(string networkId, CancellationToken cancellationToken) =>
+        Task.FromResult<string?>("not_supported");
 
     /// <summary>Nomes de segredos do Podman, redes ou volumes do host (sem valores).</summary>
     Task<IReadOnlyList<EngineHostObject>> ListHostObjectsAsync(EngineHostObjectKind kind, CancellationToken cancellationToken) =>

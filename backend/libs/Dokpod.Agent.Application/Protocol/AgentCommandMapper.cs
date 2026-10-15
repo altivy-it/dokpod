@@ -64,6 +64,18 @@ public static class AgentCommandMapper
 
                 parameters = new Dokpod.Domain.Commands.RemoveVolumeParameters(message.RemoveVolume.Name);
             }
+            else if (kind == DomainCommandKind.RemoveNetwork)
+            {
+                if (message.ParametersCase != Dokpod.Agent.Contracts.V1.AgentCommand.ParametersOneofCase.RemoveNetwork ||
+                    !Dokpod.Domain.Networks.NetworkNames.IsValidId(message.RemoveNetwork.NetworkId) ||
+                    !Dokpod.Domain.Networks.NetworkNames.IsValidName(message.RemoveNetwork.Name))
+                {
+                    failureCode = "network_invalid";
+                    return false;
+                }
+
+                parameters = new Dokpod.Domain.Commands.RemoveNetworkParameters(message.RemoveNetwork.NetworkId, message.RemoveNetwork.Name);
+            }
             else if (message.ParametersCase != Dokpod.Agent.Contracts.V1.AgentCommand.ParametersOneofCase.PullImage ||
                 !Dokpod.Domain.Images.ImageReference.TryParse(message.PullImage.Reference, out var reference))
             {
@@ -136,6 +148,7 @@ public static class AgentCommandMapper
         CommandKind.PullImage => DomainCommandKind.PullImage,
         CommandKind.CreateContainer => DomainCommandKind.CreateContainer,
         CommandKind.RemoveVolume => DomainCommandKind.RemoveVolume,
+        CommandKind.RemoveNetwork => DomainCommandKind.RemoveNetwork,
         _ => DomainCommandKind.Unknown,
     };
 }
