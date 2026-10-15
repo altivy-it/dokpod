@@ -187,6 +187,13 @@ export class ContainerDetailPage {
       .filter(v => v.type === 'volume' && !!v.name)
       .map(v => ({ name: v.name!, destination: v.destination, queryParams: { environmentId, volumeHost: environmentId, volume: v.name } }));
   });
+  /** Redes do container, com link para o detalhe em Operação → Redes (spec 019 FR-009). */
+  protected readonly networkLinks = computed(() => {
+    const environmentId = this.environmentId();
+    return (this.summary().value?.networks ?? [])
+      .filter(n => !!n.name)
+      .map(n => ({ name: n.name!, address: n.ipAddress || null, queryParams: { environmentId, redeHost: environmentId, rede: n.name } }));
+  });
   protected readonly limits = computed(() => {
     const s = this.summary().value;
     return {

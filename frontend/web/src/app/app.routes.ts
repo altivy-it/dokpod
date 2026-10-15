@@ -41,7 +41,12 @@ export const routes: Routes = [
     path: 'auditoria',
     loadComponent: () => import('./features/audit/audit.page').then(m => m.AuditPage),
   },
+  {
+    path: 'redes',
+    loadComponent: () => import('./features/networks/networks.page').then(m => m.NetworksPage),
+  },
   { path: 'em-breve/volumes', redirectTo: 'volumes' },
+  { path: 'em-breve/redes', redirectTo: 'redes' },
   {
     path: 'em-breve/:item',
     loadComponent: () => import('./shell/pages/coming-soon.page').then(m => m.ComingSoonPage),

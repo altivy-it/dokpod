@@ -42,8 +42,8 @@ def test_stage_shortcut_persists_in_url_across_navigation(page: Page) -> None:
 
 
 def test_coming_soon_and_not_found_pages(page: Page) -> None:
-    goto(page, "em-breve/redes")
-    expect(page.get_by_text("Redes em breve")).to_be_visible()
+    goto(page, "em-breve/registros")
+    expect(page.get_by_text("Registros em breve")).to_be_visible()
     expect(page.get_by_role("link", name="Voltar à visão geral")).to_be_visible()
     goto(page, "rota-que-nao-existe")
     expect(page.get_by_text("Página não encontrada").first).to_be_visible()
