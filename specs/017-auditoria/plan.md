@@ -34,7 +34,7 @@ Consulta da trilha de auditoria existente (spec 001) pelo console: API de leitur
 | II. Engine local como fonte | OK: só leitura da trilha do plano de controle. |
 | III. Identidade externa e menor privilégio | OK: `audit:read` por host decidido no Keycloak; sem scope novo. |
 | IV. Operações duráveis | OK: exportação registrada como evento de auditoria. |
-| V. Modularidade e compatibilidade | OK: coluna nova anulável e sobrecarga nova da função (a anterior continua válida); Down remove só o que a migration criou. |
+| V. Modularidade e compatibilidade | OK: coluna nova anulável e sobrecarga nova da função (a anterior continua válida); Down remove a sobrecarga e o índice e mantém a coluna, para não apagar evidência. |
 | VI. Qualidade verificável | OK: testes por camada, PostgreSQL real, E2E simulada e stack real. |
 
 Reavaliação após o desenho: sem violações.

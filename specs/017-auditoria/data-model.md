@@ -10,7 +10,7 @@
 
 Função nova (sobrecarga): `dokpod_append_audit_event(..., p_subject_id, p_details, p_actor_name)`; `EXECUTE` só para `dokpod_runtime`. As assinaturas anteriores continuam válidas.
 
-Down: remove a sobrecarga, o índice e a coluna (a coluna nova não guarda evidência anterior à migration).
+Down: remove a sobrecarga e o índice e mantém a coluna `actor_name` (remover apagaria evidência; o código anterior a ignora).
 
 ## Ação nova
 

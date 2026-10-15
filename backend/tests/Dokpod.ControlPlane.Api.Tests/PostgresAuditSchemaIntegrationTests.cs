@@ -231,7 +231,7 @@ public sealed class PostgresAuditSchemaIntegrationTests
                 """)
             .ToListAsync(TestContext.Current.CancellationToken);
 
-        Assert.Equal([10, 11, 13], argumentCounts);
+        Assert.Equal([10, 11, 13, 14], argumentCounts); // 14: nome do ator (spec 017)
     }
 
     [Fact]

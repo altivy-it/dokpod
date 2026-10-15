@@ -205,6 +205,10 @@ public static class ApiHost
         builder.Services.AddScoped<Dokpod.ControlPlane.Application.Alerts.AlertEvaluator>();
         builder.Services.AddScoped<Dokpod.ControlPlane.Application.Alerts.AlertSweepService>();
         builder.Services.AddScoped<Dokpod.ControlPlane.Application.Alerts.AlertGovernanceService>();
+        // Spec 017: consulta da auditoria e nome do ator nos eventos novos.
+        builder.Services.AddHttpContextAccessor();
+        builder.Services.AddScoped<Dokpod.ControlPlane.Application.Auditing.IAuditActorNameProvider, Dokpod.ControlPlane.Api.Auditing.HttpAuditActorNameProvider>();
+        builder.Services.AddScoped<Dokpod.ControlPlane.Application.Auditing.AuditQueryService>();
         builder.Services.AddHostedService<Dokpod.ControlPlane.Api.Alerts.AlertSweeper>();
         builder.Services.AddScoped<OverviewQueryService>();
         builder.Services.AddScoped<IContainerSearchStore, UnavailableContainerSearchStore>();
@@ -281,6 +285,7 @@ public static class ApiHost
         MetricsEndpoints.Map(app);
         ContainerCommandEndpoints.Map(app);
         AlertEndpoints.Map(app);
+        AuditEndpoints.Map(app);
         app.MapHub<ControlPlaneHub>("/hubs/control-plane").RequireAuthorization();
     }
 

@@ -596,6 +596,45 @@ export type IntentionalAction = {
     reason: string;
 };
 
+export type AuditCategory = 'environments' | 'containers' | 'commands' | 'images' | 'inspection' | 'terminal' | 'governance' | 'audit';
+
+export type AuditOutcome = 'succeeded' | 'denied' | 'failed' | 'indeterminate';
+
+export type AuditEventView = {
+    id: string;
+    occurredAt: string;
+    correlationId: string;
+    actorKind: 'user' | 'agent' | 'system';
+    actorId: string;
+    actorName?: string | null;
+    action: string;
+    category?: AuditCategory | null;
+    environmentId: string;
+    environmentName?: string | null;
+    outcome: AuditOutcome;
+    failureCode?: string | null;
+    subjectId?: string | null;
+    commandId?: string | null;
+    details?: {
+        [key: string]: string;
+    } | null;
+};
+
+export type AuditEventPage = {
+    events: Array<AuditEventView>;
+    nextCursor?: string | null;
+};
+
+export type AuditEventDetail = {
+    event: AuditEventView;
+    related: Array<AuditEventView>;
+};
+
+export type AuditSummary = {
+    readableHosts: number;
+    oldestEventAt?: string | null;
+};
+
 export type ResourceScope = 'environment:read' | 'environment:manage' | 'container:start' | 'container:stop' | 'container:restart' | 'container:delete' | 'audit:read' | 'container:pause' | 'container:inspect' | 'container:logs' | 'image:pull' | 'container:create' | 'container:exec' | 'alert:read' | 'alert:manage';
 
 export type Stage = 'production' | 'staging' | 'development';
@@ -2778,3 +2817,185 @@ export type ListEnvironmentJustificationsResponses = {
 };
 
 export type ListEnvironmentJustificationsResponse = ListEnvironmentJustificationsResponses[keyof ListEnvironmentJustificationsResponses];
+
+export type GetAuditSummaryData = {
+    body?: never;
+    headers?: {
+        /**
+         * Identificador técnico opcional para correlação server-side.
+         */
+        'X-Correlation-Id'?: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/audit/summary';
+};
+
+export type GetAuditSummaryErrors = {
+    /**
+     * Autenticação ausente ou inválida.
+     */
+    401: ProblemDetails;
+    /**
+     * Autorização ou persistência indisponível.
+     */
+    503: ProblemDetails;
+};
+
+export type GetAuditSummaryError = GetAuditSummaryErrors[keyof GetAuditSummaryErrors];
+
+export type GetAuditSummaryResponses = {
+    /**
+     * OK.
+     */
+    200: AuditSummary;
+};
+
+export type GetAuditSummaryResponse = GetAuditSummaryResponses[keyof GetAuditSummaryResponses];
+
+export type ListAuditEventsData = {
+    body?: never;
+    headers?: {
+        /**
+         * Identificador técnico opcional para correlação server-side.
+         */
+        'X-Correlation-Id'?: string;
+    };
+    path?: never;
+    query?: {
+        since?: string;
+        until?: string;
+        stage?: Stage;
+        environmentId?: Array<string>;
+        actor?: string;
+        category?: Array<AuditCategory>;
+        action?: Array<string>;
+        outcome?: Array<AuditOutcome>;
+        q?: string;
+        cursor?: string;
+        limit?: number;
+    };
+    url: '/api/v1/audit/events';
+};
+
+export type ListAuditEventsErrors = {
+    /**
+     * Requisição inválida.
+     */
+    400: ProblemDetails;
+    /**
+     * Autenticação ausente ou inválida.
+     */
+    401: ProblemDetails;
+    /**
+     * Autorização ou persistência indisponível.
+     */
+    503: ProblemDetails;
+};
+
+export type ListAuditEventsError = ListAuditEventsErrors[keyof ListAuditEventsErrors];
+
+export type ListAuditEventsResponses = {
+    /**
+     * OK.
+     */
+    200: AuditEventPage;
+};
+
+export type ListAuditEventsResponse = ListAuditEventsResponses[keyof ListAuditEventsResponses];
+
+export type GetAuditEventData = {
+    body?: never;
+    headers?: {
+        /**
+         * Identificador técnico opcional para correlação server-side.
+         */
+        'X-Correlation-Id'?: string;
+    };
+    path: {
+        eventId: string;
+    };
+    query?: {
+        at?: string;
+    };
+    url: '/api/v1/audit/events/{eventId}';
+};
+
+export type GetAuditEventErrors = {
+    /**
+     * Requisição inválida.
+     */
+    400: ProblemDetails;
+    /**
+     * Autenticação ausente ou inválida.
+     */
+    401: ProblemDetails;
+    /**
+     * O ambiente não foi encontrado após autorização.
+     */
+    404: ProblemDetails;
+    /**
+     * Autorização ou persistência indisponível.
+     */
+    503: ProblemDetails;
+};
+
+export type GetAuditEventError = GetAuditEventErrors[keyof GetAuditEventErrors];
+
+export type GetAuditEventResponses = {
+    /**
+     * OK.
+     */
+    200: AuditEventDetail;
+};
+
+export type GetAuditEventResponse = GetAuditEventResponses[keyof GetAuditEventResponses];
+
+export type ExportAuditEventsData = {
+    body?: never;
+    headers?: {
+        /**
+         * Identificador técnico opcional para correlação server-side.
+         */
+        'X-Correlation-Id'?: string;
+    };
+    path?: never;
+    query?: {
+        since?: string;
+        until?: string;
+        stage?: Stage;
+        environmentId?: Array<string>;
+        actor?: string;
+        category?: Array<AuditCategory>;
+        action?: Array<string>;
+        outcome?: Array<AuditOutcome>;
+        q?: string;
+    };
+    url: '/api/v1/audit/export';
+};
+
+export type ExportAuditEventsErrors = {
+    /**
+     * Requisição inválida.
+     */
+    400: ProblemDetails;
+    /**
+     * Autenticação ausente ou inválida.
+     */
+    401: ProblemDetails;
+    /**
+     * Autorização ou persistência indisponível.
+     */
+    503: ProblemDetails;
+};
+
+export type ExportAuditEventsError = ExportAuditEventsErrors[keyof ExportAuditEventsErrors];
+
+export type ExportAuditEventsResponses = {
+    /**
+     * Arquivo CSV (UTF-8, separador ;).
+     */
+    200: string;
+};
+
+export type ExportAuditEventsResponse = ExportAuditEventsResponses[keyof ExportAuditEventsResponses];
