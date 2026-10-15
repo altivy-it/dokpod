@@ -261,6 +261,57 @@ public sealed class AlertGovernanceIntegrationTests
         }
     }
 
+    [Fact]
+    public async Task OpenList_With2000ActiveAlertsAcross56Hosts_RespondsWithinTwoSecondsAtP95()
+    {
+        // SC-007: 2.000 containers em 56 hosts, todos com alerta ativo (pior caso), mais 20.000 resolvidos no histórico.
+        await using var context = CreateContextOrSkip();
+        var ct = TestContext.Current.CancellationToken;
+        var hosts = Enumerable.Range(0, 56).Select(_ => Guid.NewGuid()).ToArray();
+        var store = new PostgresAlertStore(context);
+        try
+        {
+            await context.Database.ExecuteSqlRawAsync(
+                """
+                INSERT INTO dokpod.alerts (alert_id, rule_id, environment_id, container_id, container_name, target_key, severity, state,
+                    condition_text, opened_at_utc, last_occurred_at_utc, occurrences, resolved_at_utc, resolution_reason)
+                SELECT gen_random_uuid(), @rule, (@hosts::uuid[])[1 + i % 56], 'c' || i, 'container-' || i,
+                    (@hosts::uuid[])[1 + i % 56]::text || ':c' || i || CASE WHEN i >= 2000 THEN ':' || i ELSE '' END,
+                    (ARRAY['critical','high','medium','low'])[1 + i % 4],
+                    CASE WHEN i < 2000 THEN (ARRAY['open','acknowledged'])[1 + i % 2] ELSE 'resolved' END,
+                    'Container container-' || i || ' encerrado com erro (código 1)',
+                    now() - (i || ' seconds')::interval, now() - (i || ' seconds')::interval, 1,
+                    CASE WHEN i < 2000 THEN NULL ELSE now() - (i || ' seconds')::interval END,
+                    CASE WHEN i < 2000 THEN NULL ELSE 'condition_cleared' END
+                FROM generate_series(0, 21999) AS i
+                """,
+                [new NpgsqlParameter("rule", DiedRule), new NpgsqlParameter("hosts", hosts)],
+                ct);
+            await context.Database.ExecuteSqlRawAsync("ANALYZE dokpod.alerts", ct);
+
+            var timings = new List<double>();
+            for (var i = 0; i < 40; i++)
+            {
+                var watch = System.Diagnostics.Stopwatch.StartNew();
+                var page = await store.ListAsync(
+                    new AlertQuery(hosts, false, i % 2 == 0 ? [] : [AlertSeverity.High], [], i % 3 == 0 ? "container-1" : null, null, null, null, null, 50),
+                    ct);
+                watch.Stop();
+                Assert.NotEmpty(page.Alerts);
+                timings.Add(watch.Elapsed.TotalMilliseconds);
+            }
+
+            timings.Sort();
+            var p95 = timings[(int)Math.Ceiling(timings.Count * 0.95) - 1];
+            TestContext.Current.SendDiagnosticMessage($"SC-007 lista aberta p95={p95:0} ms (máx {timings[^1]:0} ms)");
+            Assert.True(p95 < 2000, $"p95 {p95:0} ms");
+        }
+        finally
+        {
+            await context.Database.ExecuteSqlRawAsync("DELETE FROM dokpod.alerts WHERE environment_id = ANY(@hosts)", [new NpgsqlParameter("hosts", hosts)], ct);
+        }
+    }
+
     private sealed class CountingNotifier : Dokpod.ControlPlane.Application.Realtime.IControlPlaneNotifier
     {
         public List<string> Kinds { get; } = [];

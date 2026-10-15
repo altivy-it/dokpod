@@ -42,6 +42,14 @@ Features integram por rotas, contratos públicos e fachadas pequenas; não impor
 - a confirmação lista afetados e ignorados com motivo, informa que volumes não são removidos e, para remover mais de um container em Produção, exige digitar a quantidade;
 - toda mutação usa `X-Dokpod-Antiforgery`, chave de idempotência UUID v4 (com fallback a `crypto.getRandomValues` fora de contexto seguro) e a revisão observada do container.
 
+### Alertas e ações justificadas (spec 016)
+
+- Governança → Alertas (`/alertas`) tem as vistas Abertos, Histórico (90 dias), Regras e Silenciamentos; vista, severidade, situação, host, regra, período e busca ficam na URL (`vista`, `severidade`, `estado`, `environmentId`, `regra`, `desde`, `ate`, `q`), e `alerta=<id>` abre o detalhe com a linha do tempo;
+- reconhecer e resolver pedem comentário; silenciar pede janela e justificativa (10 a 500 caracteres); ações só aparecem com `canManage` devolvido pela API, nunca deduzido da lista de scopes do registro do ambiente;
+- o contador do menu "Alertas" e o sino vêm de `AlertSummaryService` (`GET /api/v1/alerts/summary` do estágio selecionado), recarregado pela invalidação `alerts` do hub e, sem tempo real, a cada minuto;
+- a política de justificativa por estágio fica na vista Regras; o diálogo de parar, pausar e remover (lista, detalhe e lote) mostra o campo obrigatório ou opcional conforme `JustificationPolicyService`, e a API continua sendo a autoridade (422 `justification_required`);
+- containers parados ou pausados com justificativa vigente aparecem como "Parado intencionalmente"/"Pausado intencionalmente", com autor, horário e motivo no detalhe.
+
 ## Experiência operacional
 
 - densidade informacional adequada a tarefas repetidas;
