@@ -152,10 +152,10 @@ public sealed class ContainerCommandService(
             environmentId,
             AuditOutcome.Succeeded,
             commandId: commandId);
-        if (maskedJustification is not null)
-        {
-            auditEvent = auditEvent.WithSubject(containerId, new Dictionary<string, string> { ["justification"] = maskedJustification });
-        }
+        // Spec 017: o container é sempre o alvo do evento, para a auditoria filtrar por container.
+        auditEvent = auditEvent.WithSubject(
+            containerId,
+            maskedJustification is null ? null : new Dictionary<string, string> { ["justification"] = maskedJustification });
 
         var enqueueResult = await queueService.EnqueueAsync(command, auditEvent, cancellationToken)
             .ConfigureAwait(false);

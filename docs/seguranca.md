@@ -166,6 +166,21 @@ A telemetria usa allowlist de campos, limites e normalização de caracteres de 
 
 **Risco residual**: o estado das condições de duração (limites de CPU e memória, agente desconectado) vive em memória da réplica única, como as amostras da spec 009; reiniciar a API recomeça a contagem. A autoria exibida usa `preferred_username`; a auditoria continua com o `sub` do token.
 
+## Threat model: consulta da auditoria (spec 017)
+
+**Fronteira nova**: navegador → BFF → `GET /api/v1/audit/{summary,events,events/{id},export}` → leitura de `dokpod.audit_events`. Não há escrita na trilha além de `audit.exported`.
+
+| Ameaça | Mitigação | Teste negativo |
+| --- | --- | --- |
+| Ler eventos de host sem permissão | `audit:read` decidido no Keycloak por host em cada consulta, detalhe, relacionados e exportação; evento de host sem acesso responde 404 (indistinguível) | `AuditConsoleIntegrationTests` (acesso parcial) e E2E sem `audit:read` |
+| Varredura cara da trilha (DoS) | período obrigatório de até 90 dias, cursor por chave, página de até 100, exportação limitada a 10.000 eventos | período maior → `period_too_long`; exportação maior → `export_too_large` |
+| Exfiltração silenciosa | toda exportação grava `audit.exported` (período e quantidade) em cada host abrangido | evento conferido na stack real |
+| Fórmula maliciosa no CSV | células iniciadas por `= + - @`, tabulação ou retorno recebem apóstrofo | E2E de exportação |
+| Revelar dado mascarado | a API devolve os detalhes como gravados (já mascarados na origem); não há rota de desmascaramento | — |
+| Alterar ou apagar evidência | sem rotas de escrita; gatilho existente rejeita `UPDATE`/`DELETE`; o Down da migration mantém a coluna `actor_name` | testes rodam em transação desfeita porque o próprio teste não consegue apagar |
+
+**Nome do ator**: eventos novos guardam o `preferred_username` do token (o `sub` continua como identificador). Para eventos gravados fora da requisição do usuário (por exemplo, fim do terminal), a API usa o último nome visto para o `sub`, mantido só em memória e limitado. **Risco residual**: a consulta em si não é auditada (decisão da spec), só a exportação.
+
 ## Desenvolvimento e release
 
 - threat model atualizado para cada nova fronteira;

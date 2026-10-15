@@ -54,7 +54,14 @@ public sealed record AuditEvent
         "alert.silence_created",
         "alert.silence_ended",
         "container.justification_policy_changed",
+        // Spec 017: exportação da trilha.
+        "audit.exported",
     ];
+
+    /// <summary>Ações aceitas pela trilha (spec 017: filtros e categorias da consulta).</summary>
+    public static IReadOnlySet<string> Actions => SupportedActions;
+
+    public const int MaxActorNameLength = 255;
 
     private static readonly HashSet<string> CommandActions =
     [
@@ -104,6 +111,9 @@ public sealed record AuditEvent
     public string? FailureCode { get; }
     public Guid? CommandId { get; }
 
+    /// <summary>Nome exibível do usuário no momento da ação (spec 017 D-001); nulo para agente, sistema e eventos antigos.</summary>
+    public string? ActorName { get; private init; }
+
     /// <summary>Recurso afetado (ex.: container) quando a ação não tem comando (spec 011 D-006).</summary>
     public string? SubjectId { get; private init; }
 
@@ -118,6 +128,7 @@ public sealed record AuditEvent
         "command", "image", "name", "engine",
         "justification", "shell", "root", "bytesIn", "bytesOut", "orphanSuspected", "stage",
         "ruleId", "alertId", "silenceId", "severity", "enabled", "required", "version", "thresholdPercent", "until", "action",
+        "count",
     ];
 
     /// <summary>Justificativa do terminal (spec 014 D-009): única exceção de texto livre além do comando equivalente.</summary>
@@ -162,7 +173,17 @@ public sealed record AuditEvent
         {
             SubjectId = subject,
             Details = clean,
+            ActorName = ActorName,
         };
+    }
+
+    /// <summary>Nome exibível de quem agiu; só para eventos de usuário e sem caracteres de controle.</summary>
+    public AuditEvent WithActorName(string? actorName)
+    {
+        if (ActorKind != AuditActorKind.User || string.IsNullOrWhiteSpace(actorName)) return this;
+        var normalized = actorName.Trim();
+        if (normalized.Any(char.IsControl) || normalized.Length > MaxActorNameLength) return this;
+        return this with { ActorName = normalized };
     }
 
     public static AuditEvent Create(

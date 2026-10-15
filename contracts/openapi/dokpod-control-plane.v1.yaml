@@ -1697,6 +1697,231 @@ paths:
           $ref: '#/components/responses/NotFound'
         '503':
           $ref: '#/components/responses/DependencyUnavailable'
+  /api/v1/audit/summary:
+    get:
+      operationId: getAuditSummary
+      summary: Hosts com audit:read e evento mais antigo disponível (menu Auditoria)
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CorrelationId'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditSummary'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '503':
+          $ref: '#/components/responses/DependencyUnavailable'
+  /api/v1/audit/events:
+    get:
+      operationId: listAuditEvents
+      summary: Trilha de auditoria por período (máximo 90 dias) dos hosts com audit:read
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: since
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: until
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: stage
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/Stage'
+        - name: environmentId
+          in: query
+          required: false
+          schema:
+            type: array
+            items:
+              type: string
+              format: uuid
+        - name: actor
+          in: query
+          required: false
+          schema:
+            type: string
+            maxLength: 255
+        - name: category
+          in: query
+          required: false
+          schema:
+            type: array
+            items:
+              $ref: '#/components/schemas/AuditCategory'
+        - name: action
+          in: query
+          required: false
+          schema:
+            type: array
+            items:
+              type: string
+        - name: outcome
+          in: query
+          required: false
+          schema:
+            type: array
+            items:
+              $ref: '#/components/schemas/AuditOutcome'
+        - name: q
+          in: query
+          required: false
+          description: UUID exato (correlação, comando ou evento), prefixo do alvo ou busca full-text em português sem acentos (aspas, or, -exclusão).
+          schema:
+            type: string
+            maxLength: 255
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+        - $ref: '#/components/parameters/CorrelationId'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditEventPage'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '503':
+          $ref: '#/components/responses/DependencyUnavailable'
+  /api/v1/audit/events/{eventId}:
+    get:
+      operationId: getAuditEvent
+      summary: Evento de auditoria com os relacionados pela correlação ou comando
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: at
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - $ref: '#/components/parameters/CorrelationId'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditEventDetail'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '503':
+          $ref: '#/components/responses/DependencyUnavailable'
+  /api/v1/audit/export:
+    get:
+      operationId: exportAuditEvents
+      summary: Exporta em CSV o resultado do filtro (até 10.000 eventos) e registra audit.exported
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: since
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: until
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: stage
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/Stage'
+        - name: environmentId
+          in: query
+          required: false
+          schema:
+            type: array
+            items:
+              type: string
+              format: uuid
+        - name: actor
+          in: query
+          required: false
+          schema:
+            type: string
+            maxLength: 255
+        - name: category
+          in: query
+          required: false
+          schema:
+            type: array
+            items:
+              $ref: '#/components/schemas/AuditCategory'
+        - name: action
+          in: query
+          required: false
+          schema:
+            type: array
+            items:
+              type: string
+        - name: outcome
+          in: query
+          required: false
+          schema:
+            type: array
+            items:
+              $ref: '#/components/schemas/AuditOutcome'
+        - name: q
+          in: query
+          required: false
+          schema:
+            type: string
+            maxLength: 255
+        - $ref: '#/components/parameters/CorrelationId'
+      responses:
+        '200':
+          description: Arquivo CSV (UTF-8, separador ;).
+          content:
+            text/csv:
+              schema:
+                type: string
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '503':
+          $ref: '#/components/responses/DependencyUnavailable'
 components:
   securitySchemes:
     bearerAuth:
@@ -3033,6 +3258,87 @@ components:
           format: date-time
         reason:
           type: string
+    AuditCategory:
+      type: string
+      enum: [environments, containers, commands, images, inspection, terminal, governance, audit]
+    AuditOutcome:
+      type: string
+      enum: [succeeded, denied, failed, indeterminate]
+    AuditEventView:
+      type: object
+      required: [id, occurredAt, correlationId, actorKind, actorId, action, environmentId, outcome]
+      properties:
+        id:
+          type: string
+          format: uuid
+        occurredAt:
+          type: string
+          format: date-time
+        correlationId:
+          type: string
+          format: uuid
+        actorKind:
+          type: string
+          enum: [user, agent, system]
+        actorId:
+          type: string
+        actorName:
+          type: [string, 'null']
+        action:
+          type: string
+        category:
+          oneOf:
+            - $ref: '#/components/schemas/AuditCategory'
+            - type: 'null'
+        environmentId:
+          type: string
+          format: uuid
+        environmentName:
+          type: [string, 'null']
+        outcome:
+          $ref: '#/components/schemas/AuditOutcome'
+        failureCode:
+          type: [string, 'null']
+        subjectId:
+          type: [string, 'null']
+        commandId:
+          type: [string, 'null']
+          format: uuid
+        details:
+          type: [object, 'null']
+          additionalProperties:
+            type: string
+    AuditEventPage:
+      type: object
+      required: [events]
+      properties:
+        events:
+          type: array
+          maxItems: 100
+          items:
+            $ref: '#/components/schemas/AuditEventView'
+        nextCursor:
+          type: [string, 'null']
+    AuditEventDetail:
+      type: object
+      required: [event, related]
+      properties:
+        event:
+          $ref: '#/components/schemas/AuditEventView'
+        related:
+          type: array
+          items:
+            $ref: '#/components/schemas/AuditEventView'
+    AuditSummary:
+      type: object
+      required: [readableHosts]
+      properties:
+        readableHosts:
+          type: integer
+          minimum: 0
+        oldestEventAt:
+          type: [string, 'null']
+          format: date-time
     ResourceScope:
       type: string
       enum:

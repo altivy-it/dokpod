@@ -128,8 +128,9 @@ conclusão de tarefas ou dispensa implícita de gate obrigatório da matriz decl
 | 8 | [014 - Terminal interativo](014-terminal-container/spec.md) | aba Terminal | ADR 2026-0006; threat model |
 | 9 | [015 - Visão geral com KPIs navegáveis](015-visao-geral-kpis-navegaveis/spec.md) | `01 · Visão geral` (cards de KPI), `02 · Containers` (ordenação por consumo) | — |
 | 10 | [016 - Governança de alertas e parada justificada](016-governanca-alertas/spec.md) | Governança → Alertas, sino, ações Parar, Pausar e Remover | scopes `alert:read`/`alert:manage` |
+| 11 | [017 - Auditoria](017-auditoria/spec.md) | Governança → Auditoria | aprovação da spec; nome do ator nos eventos novos |
 
-Dependências: 007 → 008 → {009, 010, 012} → 011 → 013 → 014 (013 usa 011 para consultas ao host; 014 usa a página e o hub de 011). Itens de menu sem spec (Pods, Volumes, Redes, Registros, Alertas, Auditoria, Configurações) abrem página "Em breve".
+Dependências: 007 → 008 → {009, 010, 012} → 011 → 013 → 014 (013 usa 011 para consultas ao host; 014 usa a página e o hub de 011). Itens de menu sem spec (Pods, Volumes, Redes, Registros, Configurações) abrem página "Em breve".
 
 ### Registro de alocação de contratos
 

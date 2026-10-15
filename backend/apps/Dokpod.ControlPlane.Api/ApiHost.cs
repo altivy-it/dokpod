@@ -205,6 +205,11 @@ public static class ApiHost
         builder.Services.AddScoped<Dokpod.ControlPlane.Application.Alerts.AlertEvaluator>();
         builder.Services.AddScoped<Dokpod.ControlPlane.Application.Alerts.AlertSweepService>();
         builder.Services.AddScoped<Dokpod.ControlPlane.Application.Alerts.AlertGovernanceService>();
+        // Spec 017: consulta da auditoria e nome do ator nos eventos novos.
+        builder.Services.AddHttpContextAccessor();
+        builder.Services.AddSingleton<Dokpod.ControlPlane.Api.Auditing.AuditActorNameCache>();
+        builder.Services.AddScoped<Dokpod.ControlPlane.Application.Auditing.IAuditActorNameProvider, Dokpod.ControlPlane.Api.Auditing.HttpAuditActorNameProvider>();
+        builder.Services.AddScoped<Dokpod.ControlPlane.Application.Auditing.AuditQueryService>();
         builder.Services.AddHostedService<Dokpod.ControlPlane.Api.Alerts.AlertSweeper>();
         builder.Services.AddScoped<OverviewQueryService>();
         builder.Services.AddScoped<IContainerSearchStore, UnavailableContainerSearchStore>();
@@ -267,6 +272,12 @@ public static class ApiHost
         }).AllowAnonymous();
         app.UseAuthentication();
         app.UseAuthorization();
+        // Spec 017: lembra o nome do usuário para eventos de auditoria gravados fora da requisição (fim do terminal).
+        app.Use((context, next) =>
+        {
+            context.RequestServices.GetService<Dokpod.ControlPlane.Api.Auditing.AuditActorNameCache>()?.Remember(context.User);
+            return next(context);
+        });
         app.MapGet("/api/v1/session", (ClaimsPrincipal principal) => Results.Ok(new
         {
             subject = principal.FindFirstValue("sub")
@@ -281,6 +292,7 @@ public static class ApiHost
         MetricsEndpoints.Map(app);
         ContainerCommandEndpoints.Map(app);
         AlertEndpoints.Map(app);
+        AuditEndpoints.Map(app);
         app.MapHub<ControlPlaneHub>("/hubs/control-plane").RequireAuthorization();
     }
 
