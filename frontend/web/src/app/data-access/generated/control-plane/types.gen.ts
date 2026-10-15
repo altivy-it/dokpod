@@ -169,7 +169,7 @@ export type ContainerCommandAccepted = {
 export type ContainerCommandStatus = {
     environmentId: string;
     commandId: string;
-    action: 'start' | 'stop' | 'restart' | 'delete' | 'pause' | 'unpause' | 'pull' | 'create' | 'remove_volume';
+    action: 'start' | 'stop' | 'restart' | 'delete' | 'pause' | 'unpause' | 'pull' | 'create' | 'remove_volume' | 'remove_network';
     /**
      * Alvo do comando (spec 012); `image` para pull com alvo de host.
      */
@@ -596,7 +596,7 @@ export type IntentionalAction = {
     reason: string;
 };
 
-export type AuditCategory = 'environments' | 'containers' | 'commands' | 'images' | 'volumes' | 'inspection' | 'terminal' | 'governance' | 'audit';
+export type AuditCategory = 'environments' | 'containers' | 'commands' | 'images' | 'volumes' | 'networks' | 'inspection' | 'terminal' | 'governance' | 'audit';
 
 export type AuditOutcome = 'succeeded' | 'denied' | 'failed' | 'indeterminate';
 
@@ -686,7 +686,63 @@ export type RemoveVolumeRequest = {
     justification?: string;
 };
 
-export type ResourceScope = 'environment:read' | 'environment:manage' | 'container:start' | 'container:stop' | 'container:restart' | 'container:delete' | 'audit:read' | 'container:pause' | 'container:inspect' | 'container:logs' | 'image:pull' | 'container:create' | 'container:exec' | 'alert:read' | 'alert:manage' | 'volume:delete';
+export type NetworkConnection = {
+    containerId: string;
+    containerName: string;
+    ipv4?: string | null;
+    ipv6?: string | null;
+};
+
+export type NetworkSubnet = {
+    subnet: string;
+    gateway?: string | null;
+};
+
+export type NetworkItem = {
+    environmentId: string;
+    environmentName: string;
+    stage?: Stage | null;
+    engine?: 'docker' | 'podman' | null;
+    hostConnected: boolean;
+    networkId: string;
+    name: string;
+    driver: string;
+    scope: string;
+    internal: boolean;
+    ipv6: boolean;
+    attachable: boolean;
+    system: boolean;
+    createdAt?: string | null;
+    subnets: Array<NetworkSubnet>;
+    labels: {
+        [key: string]: string;
+    };
+    containers: Array<NetworkConnection>;
+    inUse: boolean;
+    truncated: boolean;
+    observedAt: string;
+    canRemove: boolean;
+};
+
+export type NetworkListPage = {
+    networks: Array<NetworkItem>;
+    summary: {
+        total: number;
+        unused: number;
+        unavailableHosts: Array<{
+            environmentId: string;
+            environmentName: string;
+        }>;
+    };
+    nextCursor?: string | null;
+};
+
+export type RemoveNetworkRequest = {
+    deadlineUtc: string;
+    justification?: string;
+};
+
+export type ResourceScope = 'environment:read' | 'environment:manage' | 'container:start' | 'container:stop' | 'container:restart' | 'container:delete' | 'audit:read' | 'container:pause' | 'container:inspect' | 'container:logs' | 'image:pull' | 'container:create' | 'container:exec' | 'alert:read' | 'alert:manage' | 'volume:delete' | 'network:delete';
 
 export type Stage = 'production' | 'staging' | 'development';
 
@@ -3253,3 +3309,161 @@ export type RemoveVolumeResponses = {
 };
 
 export type RemoveVolumeResponse = RemoveVolumeResponses[keyof RemoveVolumeResponses];
+
+export type ListNetworksData = {
+    body?: never;
+    headers?: {
+        /**
+         * Identificador técnico opcional para correlação server-side.
+         */
+        'X-Correlation-Id'?: string;
+    };
+    path?: never;
+    query?: {
+        stage?: Stage;
+        environmentId?: Array<string>;
+        engine?: Array<'docker' | 'podman'>;
+        driver?: Array<string>;
+        unused?: boolean;
+        system?: boolean;
+        q?: string;
+        sort?: 'name' | '-name' | 'createdAt' | '-createdAt' | 'environment';
+        cursor?: string;
+        limit?: number;
+    };
+    url: '/api/v1/networks';
+};
+
+export type ListNetworksErrors = {
+    /**
+     * Requisição inválida.
+     */
+    400: ProblemDetails;
+    /**
+     * Autenticação ausente ou inválida.
+     */
+    401: ProblemDetails;
+    /**
+     * Autorização ou persistência indisponível.
+     */
+    503: ProblemDetails;
+};
+
+export type ListNetworksError = ListNetworksErrors[keyof ListNetworksErrors];
+
+export type ListNetworksResponses = {
+    /**
+     * OK.
+     */
+    200: NetworkListPage;
+};
+
+export type ListNetworksResponse = ListNetworksResponses[keyof ListNetworksResponses];
+
+export type GetNetworkData = {
+    body?: never;
+    headers?: {
+        /**
+         * Identificador técnico opcional para correlação server-side.
+         */
+        'X-Correlation-Id'?: string;
+    };
+    path: {
+        environmentId: string;
+        /**
+         * Identificador (64 hex) ou nome da rede.
+         */
+        network: string;
+    };
+    query?: never;
+    url: '/api/v1/environments/{environmentId}/networks/{network}';
+};
+
+export type GetNetworkErrors = {
+    /**
+     * Requisição inválida.
+     */
+    400: ProblemDetails;
+    /**
+     * Autenticação ausente ou inválida.
+     */
+    401: ProblemDetails;
+    /**
+     * O ambiente não foi encontrado após autorização.
+     */
+    404: ProblemDetails;
+    /**
+     * Autorização ou persistência indisponível.
+     */
+    503: ProblemDetails;
+};
+
+export type GetNetworkError = GetNetworkErrors[keyof GetNetworkErrors];
+
+export type GetNetworkResponses = {
+    /**
+     * OK.
+     */
+    200: NetworkItem;
+};
+
+export type GetNetworkResponse = GetNetworkResponses[keyof GetNetworkResponses];
+
+export type RemoveNetworkData = {
+    body: RemoveNetworkRequest;
+    headers: {
+        'Idempotency-Key': string;
+        /**
+         * Identificador técnico opcional para correlação server-side.
+         */
+        'X-Correlation-Id'?: string;
+    };
+    path: {
+        environmentId: string;
+        networkId: string;
+    };
+    query?: never;
+    url: '/api/v1/environments/{environmentId}/networks/{networkId}/remove';
+};
+
+export type RemoveNetworkErrors = {
+    /**
+     * Requisição inválida.
+     */
+    400: ProblemDetails;
+    /**
+     * Autenticação ausente ou inválida.
+     */
+    401: ProblemDetails;
+    /**
+     * Decisão do Keycloak negou o cadastro.
+     */
+    403: ProblemDetails;
+    /**
+     * O ambiente não foi encontrado após autorização.
+     */
+    404: ProblemDetails;
+    /**
+     * O ambiente já existe.
+     */
+    409: ProblemDetails;
+    /**
+     * Justificativa obrigatória pela política do estágio.
+     */
+    422: ProblemDetails;
+    /**
+     * Autorização ou persistência indisponível.
+     */
+    503: ProblemDetails;
+};
+
+export type RemoveNetworkError = RemoveNetworkErrors[keyof RemoveNetworkErrors];
+
+export type RemoveNetworkResponses = {
+    /**
+     * Comando aceito.
+     */
+    202: ContainerCommandAccepted;
+};
+
+export type RemoveNetworkResponse = RemoveNetworkResponses[keyof RemoveNetworkResponses];

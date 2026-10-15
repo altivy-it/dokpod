@@ -58,6 +58,8 @@ public sealed record AuditEvent
         "audit.exported",
         // Spec 018: remoção de volume.
         "volume.remove",
+        // Spec 019: remoção de rede.
+        "network.remove",
     ];
 
     /// <summary>Ações aceitas pela trilha (spec 017: filtros e categorias da consulta).</summary>
@@ -77,6 +79,7 @@ public sealed record AuditEvent
         "image.pull",
         "container.create.requested",
         "volume.remove",
+        "network.remove",
     ];
 
     private AuditEvent(
@@ -132,6 +135,8 @@ public sealed record AuditEvent
         "justification", "shell", "root", "bytesIn", "bytesOut", "orphanSuspected", "stage",
         "ruleId", "alertId", "silenceId", "severity", "enabled", "required", "version", "thresholdPercent", "until", "action",
         "count",
+        // Spec 019: identificador da rede removida.
+        "networkId",
     ];
 
     /// <summary>Justificativa do terminal (spec 014 D-009): única exceção de texto livre além do comando equivalente.</summary>

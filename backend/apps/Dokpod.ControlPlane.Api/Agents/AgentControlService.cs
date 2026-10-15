@@ -29,6 +29,7 @@ public sealed class AgentControlService(
     Dokpod.ControlPlane.Application.Images.IImageInventoryStore imageStore,
     ILogger<AgentControlService> logger,
     Dokpod.ControlPlane.Application.Volumes.IVolumeInventoryStore? volumeStore = null,
+    Dokpod.ControlPlane.Application.Networks.INetworkInventoryStore? networkStore = null,
     Dokpod.ControlPlane.Application.Terminal.TerminalSessionRegistry? terminals = null,
     IAgentIdentityRegistry? identities = null) : AgentControl.AgentControlBase
 {
@@ -100,11 +101,12 @@ public sealed class AgentControlService(
                     FencingToken = session.FencingToken,
                     HeartbeatIntervalSeconds = 15,
                     MaximumMessageBytes = MaximumMessageBytes,
-                    // Spec 018: sem projeção de volumes (sem banco), o servidor não confirma as capabilities de volume.
+                    // Specs 018/019: sem projeção (sem banco), o servidor não confirma as capabilities de volume e de rede.
                     AcceptedCapabilities =
                     {
                         AgentHostActivity.Accept(hello).Where(capability =>
-                            volumeStore is not null || capability is not (Capability.VolumeInventory or Capability.VolumeRemove)),
+                            (volumeStore is not null || capability is not (Capability.VolumeInventory or Capability.VolumeRemove)) &&
+                            (networkStore is not null || capability is not (Capability.NetworkInventory or Capability.NetworkRemove))),
                     },
                 },
             });
@@ -129,6 +131,11 @@ public sealed class AgentControlService(
             var volumesAccepted = volumeStore is not null && hello.Capabilities.Contains(Capability.VolumeInventory);
             ulong appliedVolumeRevision = 0;
             var lastVolumeSnapshotRequest = DateTimeOffset.MinValue;
+            // Spec 019: inventário de redes por snapshot, como os volumes.
+            var networkAccumulator = new Dokpod.ControlPlane.Application.Networks.NetworkSnapshotAccumulator(session.EnvironmentId, TimeProvider.System);
+            var networksAccepted = networkStore is not null && hello.Capabilities.Contains(Capability.NetworkInventory);
+            ulong appliedNetworkRevision = 0;
+            var lastNetworkSnapshotRequest = DateTimeOffset.MinValue;
             var recoveredCommands = new Queue<PersistedAgentCommand>(
                 await commandStore.ClaimDispatchableAsync(
                     session.EnvironmentId,
@@ -286,6 +293,34 @@ public sealed class AgentControlService(
                                 Metadata = CreateServerMetadata(session, ++serverSequence),
                                 SnapshotRequest = new SnapshotRequest { ReasonCode = "volume_revision_mismatch", Scope = SnapshotScope.Volumes },
                             });
+                        }
+
+                        var networkRevision = requestStream.Current.Heartbeat.NetworkRevision;
+                        if (networksAccepted && networkRevision != 0 && networkRevision != appliedNetworkRevision &&
+                            DateTimeOffset.UtcNow - lastNetworkSnapshotRequest >= TimeSpan.FromMinutes(1))
+                        {
+                            lastNetworkSnapshotRequest = DateTimeOffset.UtcNow;
+                            await responseStream.WriteAsync(new ControlPlaneMessage
+                            {
+                                Metadata = CreateServerMetadata(session, ++serverSequence),
+                                SnapshotRequest = new SnapshotRequest { ReasonCode = "network_revision_mismatch", Scope = SnapshotScope.Networks },
+                            });
+                        }
+
+                        break;
+
+                    case AgentMessage.PayloadOneofCase.NetworkSnapshotPage when networksAccepted:
+                        var networkSnapshot = networkAccumulator.AddPage(MapNetworkPage(requestStream.Current.NetworkSnapshotPage), out var networkFailure);
+                        if (networkFailure is not null)
+                        {
+                            throw new RpcException(new Status(StatusCode.InvalidArgument, networkFailure));
+                        }
+
+                        if (networkSnapshot is not null &&
+                            await networkStore!.ReplaceSnapshotAsync(networkSnapshot, context.CancellationToken) == Dokpod.ControlPlane.Application.Networks.NetworkSnapshotOutcome.Accepted)
+                        {
+                            appliedNetworkRevision = networkSnapshot.Revision;
+                            await notifier.NotifyAsync(session.EnvironmentId, InvalidationKinds.Networks, context.CancellationToken);
                         }
 
                         break;
@@ -530,6 +565,7 @@ public sealed class AgentControlService(
         Dokpod.Domain.Commands.AgentCommandKind.PullImage => hello.Capabilities.Contains(Capability.ImagePull),
         Dokpod.Domain.Commands.AgentCommandKind.CreateContainer => hello.Capabilities.Contains(Capability.ContainerCreate),
         Dokpod.Domain.Commands.AgentCommandKind.RemoveVolume => hello.Capabilities.Contains(Capability.VolumeRemove),
+        Dokpod.Domain.Commands.AgentCommandKind.RemoveNetwork => hello.Capabilities.Contains(Capability.NetworkRemove),
         _ => true,
     };
 
@@ -624,6 +660,36 @@ public sealed class AgentControlService(
                     .ToArray(),
                 volume.Truncated || volume.Labels.Count > 64 || volume.Mounts.Count > 100)).ToArray());
 
+    private static Dokpod.ControlPlane.Application.Networks.NetworkSnapshotPage MapNetworkPage(NetworkSnapshotPage page) =>
+        new(
+            page.SnapshotId,
+            page.NetworkRevision,
+            page.PageNumber,
+            page.IsLastPage,
+            page.Networks.Select(network => new Dokpod.ControlPlane.Application.Networks.NetworkInventoryItem(
+                network.NetworkId,
+                network.Name,
+                Clip(network.Driver),
+                Clip(network.Scope),
+                network.Internal,
+                network.Ipv6,
+                network.Attachable,
+                // O servidor também reconhece as redes do sistema pelo nome, sem depender só do agente.
+                network.System || Dokpod.Domain.Networks.NetworkNames.SystemNames.Contains(network.Name),
+                IsValidTimestamp(network.CreatedAt) && network.CreatedAt.Seconds > 0 ? network.CreatedAt.ToDateTimeOffset() : null,
+                network.Subnets.Take(16).Select(subnet => new Dokpod.ControlPlane.Application.Networks.NetworkSubnet(
+                    Clip(subnet.Subnet), subnet.Gateway.Length == 0 ? null : Clip(subnet.Gateway))).ToArray(),
+                network.Labels.Take(64).ToDictionary(label => Clip(label.Key), label => Clip(label.Value), StringComparer.Ordinal),
+                network.Containers.Take(200)
+                    .Where(container => IsContainerId(container.ContainerId))
+                    .Select(container => new Dokpod.ControlPlane.Application.Networks.NetworkConnection(
+                        container.ContainerId,
+                        Clip(container.ContainerName),
+                        container.Ipv4Address.Length == 0 ? null : Clip(container.Ipv4Address),
+                        container.Ipv6Address.Length == 0 ? null : Clip(container.Ipv6Address)))
+                    .ToArray(),
+                network.Truncated || network.Subnets.Count > 16 || network.Labels.Count > 64 || network.Containers.Count > 200)).ToArray());
+
     private static string Clip(string value) => value.Length <= 255 ? value : value[..255];
 
     private static Dokpod.Agent.Contracts.V1.AgentCommand MapCommand(
@@ -641,6 +707,10 @@ public sealed class AgentControlService(
         else if (command.Parameters is Dokpod.Domain.Commands.RemoveVolumeParameters volume)
         {
             message.RemoveVolume = new Dokpod.Agent.Contracts.V1.RemoveVolumeParameters { Name = volume.Name };
+        }
+        else if (command.Parameters is Dokpod.Domain.Commands.RemoveNetworkParameters network)
+        {
+            message.RemoveNetwork = new Dokpod.Agent.Contracts.V1.RemoveNetworkParameters { NetworkId = network.NetworkId, Name = network.Name };
         }
 
         return message;
@@ -661,6 +731,7 @@ public sealed class AgentControlService(
                 Dokpod.Domain.Commands.AgentCommandKind.PullImage => CommandKind.PullImage,
                 Dokpod.Domain.Commands.AgentCommandKind.CreateContainer => CommandKind.CreateContainer,
                 Dokpod.Domain.Commands.AgentCommandKind.RemoveVolume => CommandKind.RemoveVolume,
+                Dokpod.Domain.Commands.AgentCommandKind.RemoveNetwork => CommandKind.RemoveNetwork,
                 _ => CommandKind.Unspecified,
             },
             ContainerId = command.ContainerId,

@@ -12,6 +12,7 @@ public enum AgentCommandKind
     PullImage = 7,
     CreateContainer = 8,
     RemoveVolume = 9,
+    RemoveNetwork = 10,
 }
 
 /// <summary>Parâmetros de comandos com alvo de host (spec 012 D-001); a 013 acrescenta criação de container.</summary>
@@ -46,13 +47,32 @@ public sealed record RemoveVolumeParameters : AgentCommandParameters
     public override string Canonical => $"volume={Name}";
 }
 
+/// <summary>Remoção de rede sem uso (spec 019); o agente nunca desconecta containers.</summary>
+public sealed record RemoveNetworkParameters : AgentCommandParameters
+{
+    public RemoveNetworkParameters(string networkId, string name)
+    {
+        if (!Dokpod.Domain.Networks.NetworkNames.IsValidId(networkId)) throw new ArgumentException("Network id is invalid.", nameof(networkId));
+        if (!Dokpod.Domain.Networks.NetworkNames.IsValidName(name)) throw new ArgumentException("Network name is invalid.", nameof(name));
+        NetworkId = networkId;
+        Name = name;
+    }
+
+    public string NetworkId { get; }
+
+    /// <summary>Nome para a auditoria e a tela; fora do hash (o alvo é o identificador).</summary>
+    public string Name { get; }
+
+    public override string Canonical => $"network={NetworkId}";
+}
+
 /// <summary>Saída de comandos parametrizados: digest e tamanho do pull (012), container criado (013).</summary>
 public sealed record AgentCommandOutput(string? ResolvedImageDigest = null, long? ImageSizeBytes = null, string? CreatedContainerId = null);
 
 public static class AgentCommandKinds
 {
     /// <summary>Comandos cujo alvo é o host (sem container): `container_id` nulo no armazenamento.</summary>
-    public static bool IsHostTarget(AgentCommandKind kind) => kind is AgentCommandKind.PullImage or AgentCommandKind.CreateContainer or AgentCommandKind.RemoveVolume;
+    public static bool IsHostTarget(AgentCommandKind kind) => kind is AgentCommandKind.PullImage or AgentCommandKind.CreateContainer or AgentCommandKind.RemoveVolume or AgentCommandKind.RemoveNetwork;
 
     /// <summary>
     /// Hash `v1` (tipos 1-6, sem prazo): `v1\n{kind}\n{container}\n{revisão}`; hash `v2` (tipos parametrizados):
