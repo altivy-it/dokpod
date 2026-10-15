@@ -50,6 +50,14 @@ Features integram por rotas, contratos públicos e fachadas pequenas; não impor
 - a política de justificativa por estágio fica na vista Regras; o diálogo de parar, pausar e remover (lista, detalhe e lote) mostra o campo obrigatório ou opcional conforme `JustificationPolicyService`, e a API continua sendo a autoridade (422 `justification_required`);
 - containers parados ou pausados com justificativa vigente aparecem como "Parado intencionalmente"/"Pausado intencionalmente", com autor, horário e motivo no detalhe.
 
+### Auditoria (spec 017)
+
+- Governança → Auditoria (`/auditoria`) lista a trilha dos hosts com `audit:read`, sempre por período (`periodo` = 24h, 7d, 30d, 90d ou `personalizado` com `desde`/`ate`); categoria, resultado, ator, host e alvo ficam na URL (`categoria`, `resultado`, `ator`, `environmentId`, `q`), e `evento`/`em` abrem o detalhe;
+- o detalhe mostra os campos como gravados, o alvo navegável (container ou alerta) e os eventos relacionados pela correlação ou comando;
+- o item de menu depende de `GET /api/v1/audit/summary` (decisão do Keycloak), não da lista de scopes do registro do ambiente; o detalhe do container oferece "Ver auditoria";
+- "Exportar CSV" baixa todo o filtro (até 10.000 eventos) e a exportação fica registrada na própria trilha;
+- a consulta fica em `features/audit/audit-api.service.ts`, fora do bundle inicial.
+
 ## Experiência operacional
 
 - densidade informacional adequada a tarefas repetidas;
