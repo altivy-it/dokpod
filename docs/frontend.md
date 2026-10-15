@@ -66,6 +66,13 @@ Features integram por rotas, contratos públicos e fachadas pequenas; não impor
 - remover (linha, detalhe ou seleção, até 50) abre a confirmação reforçada: aviso de apagamento definitivo, afetados e ignorados, digitar a quantidade (lote) ou o nome (um volume em Produção) e justificativa conforme `JustificationPolicyService`; o lote é acompanhado por comando e retomado após recarregar (`sessionStorage`) sem reenvio automático;
 - as chamadas ficam em `features/volumes/volumes-api.service.ts`, fora do bundle inicial.
 
+### Redes (spec 019)
+
+- Operação → Redes (`/redes`) lista as redes dos hosts autorizados com os containers conectados (inclusive parados) e as sub-redes; sem uso, do sistema (`sistema=1`/`0`), driver, engine, host, busca (nome, identificador, sub-rede, label ou container) e ordenação ficam na URL (`semUso`, `sistema`, `driver`, `engine`, `environmentId`, `q`, `sort`), e `redeHost` + `rede` (identificador ou nome) abrem o detalhe, link usado pelo detalhe do container;
+- redes do sistema aparecem como "Do sistema" e não contam como "sem uso"; o resumo mostra os hosts com inventário indisponível; a invalidação `networks` do hub recarrega a lista;
+- remover (linha, detalhe ou seleção, até 50) lista afetadas e ignoradas (sistema, cluster, em uso, sem permissão, host desconectado), pede a quantidade só em lote com rede de Produção e justificativa conforme `JustificationPolicyService`; o lote é acompanhado e retomado como o de volumes;
+- as chamadas ficam em `features/networks/networks-api.service.ts`, fora do bundle inicial (419,51 kB, aviso em 420 kB).
+
 ## Experiência operacional
 
 - densidade informacional adequada a tarefas repetidas;
