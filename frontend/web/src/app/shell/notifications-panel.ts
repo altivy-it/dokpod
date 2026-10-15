@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, ElementRef, inject, input
 import { RouterLink } from '@angular/router';
 import { AlertSummaryService } from '../core/alert-summary.service';
 import { EnvironmentDirectoryService } from '../core/environment-directory.service';
-import { ALERT_SEVERITY } from '../data-access/alert-labels';
+import { ALERT_SEVERITY } from '../data-access/alert-severity';
 import type { Stage } from '../data-access/generated/control-plane';
 import { formatTime } from '../design-system/format/format';
 import { DokIcon } from '../design-system/icon/dok-icon';

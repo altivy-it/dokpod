@@ -52,6 +52,16 @@ Antes da chamada, o operador deve:
 
 A partição `DEFAULT` evita perda silenciosa, mas não substitui o rollover. Linhas nela exigem diagnóstico e criação da faixa correta antes de qualquer movimentação controlada.
 
+## Consulta pelo console (spec 017)
+
+A migration `202610150001_AuditConsole` acrescenta a coluna `actor_name` (nome exibível do usuário nos eventos novos), uma sobrecarga de `dokpod_append_audit_event` com o nome e o índice `ix_audit_events_time_event (occurred_at_utc DESC, event_id DESC)`. O Up é idempotente na coluna e no índice; o Down remove só a sobrecarga e o índice, mantendo a coluna para não apagar evidência.
+
+- A consulta é sempre limitada a 90 dias e paginada por cursor; com 1 milhão de eventos em 56 hosts, a primeira página respondeu com p95 de 14 ms no teste de carga.
+- Exportações aparecem como `audit.exported` (sujeito `audit`, detalhes `since`, `until`, `count`) em cada host abrangido.
+- A migration `202610150002_AuditFullTextSearch` cria a busca textual: índice GIN por expressão (`ix_audit_events_search`) e índice de prefixo do alvo (`ix_audit_events_subject_pattern`), no pai e em cada partição. A criação trava as gravações de auditoria enquanto os índices são construídos; em instalação com muitos eventos, aplique em janela de manutenção. Partições novas criadas por `dokpod_ensure_monthly_partitions` herdam os índices automaticamente.
+- Verificação: `SELECT count(*) FROM pg_indexes WHERE schemaname = 'dokpod' AND indexdef LIKE '%dokpod_audit_search_document%';` deve ser o número de partições mais 1.
+- O EF não localiza migrations destes ids (12 dígitos) por nome no `database update <alvo>`: para validar o Down, execute os scripts `Down`/`Up` da migration num banco descartável.
+
 ## Verificação
 
 Consultar a estrutura sem conteúdo sensível:

@@ -27,6 +27,8 @@ import {
   revokeAgentIdentity,
   setEnvironmentStage,
   submitContainerCommand,
+  getAuditSummary,
+  type AuditSummary,
   acknowledgeAlert,
   createAlertRule,
   createAlertSilence,
@@ -365,6 +367,12 @@ export class ControlPlaneApiService {
 
   async listContainerJustifications(environmentId: string, containerId: string): Promise<ContainerJustifications> {
     const result = await listContainerJustifications({ path: { environmentId, containerId }, throwOnError: true });
+    return result.data;
+  }
+
+  /** Auditoria (spec 017): só o resumo de acesso, usado pelo menu; a consulta fica em features/audit (lazy). */
+  async getAuditSummary(): Promise<AuditSummary> {
+    const result = await getAuditSummary({ throwOnError: true });
     return result.data;
   }
 

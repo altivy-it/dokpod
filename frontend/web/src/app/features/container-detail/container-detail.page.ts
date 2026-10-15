@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, input, signal, untracked } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
+import { AuditAccessService } from '../../core/audit-access.service';
 import { ConfirmActionDrawer } from '../../core/container-actions/confirm-action.drawer';
 import { ACTION_LABEL, ContainerActionsService, evaluateEligibility, type Eligibility } from '../../core/container-actions/container-actions.service';
 import { ConsoleRealtimeService } from '../../core/console-realtime.service';
@@ -74,6 +75,7 @@ export class ContainerDetailPage {
   private readonly toast = inject(ToastService);
   private readonly context = inject(ShellContextService);
   protected readonly actions = inject(ContainerActionsService);
+  protected readonly auditAccess = inject(AuditAccessService);
 
   protected readonly detail = signal<ContainerDetail | null>(null);
   protected readonly loading = signal(true);

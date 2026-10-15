@@ -1,15 +1,8 @@
-import type { AlertRule, AlertScope, AlertSeverity, AlertState, IntentionalAction } from './generated/control-plane';
+import type { AlertRule, AlertScope, AlertState, IntentionalAction } from './generated/control-plane';
 import type { LabelTone } from './console-labels';
 
-/** Severidade do alerta (spec 016) → rótulo e tom, da mais grave à mais leve. */
-export const ALERT_SEVERITY: Record<AlertSeverity, LabelTone> = {
-  critical: { label: 'Crítica', tone: 'error' },
-  high: { label: 'Alta', tone: 'error' },
-  medium: { label: 'Média', tone: 'warning' },
-  low: { label: 'Baixa', tone: 'info' },
-};
-
-export const ALERT_SEVERITIES: AlertSeverity[] = ['critical', 'high', 'medium', 'low'];
+// Severidades ficam num módulo próprio: o sino (bundle inicial) usa só elas.
+export { ALERT_SEVERITIES, ALERT_SEVERITY } from './alert-severity';
 
 export const ALERT_STATE: Record<AlertState, LabelTone> = {
   open: { label: 'Aberto', tone: 'error' },

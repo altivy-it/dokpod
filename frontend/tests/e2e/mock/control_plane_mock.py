@@ -139,6 +139,71 @@ def seed_alerts() -> dict:
 ALERTS: dict = seed_alerts()
 
 
+def seed_audit() -> list[dict]:
+    """Trilha de auditoria (spec 017) derivada dos hosts e containers do mock, mais recente primeiro."""
+    def cid(name: str) -> str:
+        return (name.encode().hex() * 4)[:64]
+    corr = "0c0c0000-0000-4000-8000-000000000001"
+    cmd = "0c0d0000-0000-4000-8000-000000000001"
+    rows = [
+        (2, "user", "u-mariana", "Mariana Costa", "container.stop", 1, "succeeded", None, cid("checkout-web"), cmd, corr, {"justification": "Janela de manutenção do checkout"}),
+        (2, "agent", "agent:srv-prod-01", None, "container.command.result", 1, "succeeded", None, None, cmd, corr, None),
+        (15, "user", "u-carlos", "Carlos Lima", "container.exec.denied", 3, "denied", "scope", cid("api-pedidos-7f9c"), None, None, {"reason": "scope"}),
+        (40, "user", "u-mariana", "Mariana Costa", "environment.stage_changed", 6, "succeeded", None, None, None, None, {"previousStage": "development", "stage": "staging"}),
+        (80, "user", "u-carlos", "Carlos Lima", "alert.acknowledged", 7, "succeeded", None, "0a1e0000-0000-4000-8000-000000000003", None, None, {"alertId": "0a1e0000-0000-4000-8000-000000000003", "severity": "high"}),
+        (300, "user", "u-mariana", "Mariana Costa", "container.logs.read", 2, "succeeded", None, cid("postgres-principal"), None, None, {"tail": "500", "lines": "500"}),
+        (60 * 24 * 3, "user", "sub-legado", None, "image.pull", 3, "failed", "registry_unauthorized", None, "0c0d0000-0000-4000-8000-000000000002", None, {"image": "registry.empresa.com/privado/app:1.0"}),
+    ]
+    return [{
+        "id": f"0a0d1000-0000-4000-8000-{i:012d}", "occurredAt": iso(minutes), "correlationId": correlation or f"0c0c0000-0000-4000-8000-{100 + i:012d}",
+        "actorKind": kind, "actorId": actor, "actorName": name, "action": action, "environmentId": env_id(n), "outcome": outcome,
+        "failureCode": failure, "subjectId": subject, "commandId": command, "details": details,
+    } for i, (minutes, kind, actor, name, action, n, outcome, failure, subject, command, correlation, details) in enumerate(rows, start=1)]
+
+
+AUDIT: list = seed_audit()
+AUDIT_CATEGORY = {
+    "environments": ["environment.register", "environment.approve", "environment.suspend", "environment.revoke", "environment.stage_changed"],
+    "containers": ["container.start", "container.stop", "container.restart", "container.delete", "container.pause", "container.unpause", "container.create.requested"],
+    "commands": ["container.command.result"], "images": ["image.pull"],
+    "inspection": ["container.inspected", "container.logs.read", "container.logs.stream_started", "container.logs.stream_ended"],
+    "terminal": ["container.exec.requested", "container.exec.started", "container.exec.ended", "container.exec.denied"],
+    "governance": ["alert.rule_created", "alert.rule_updated", "alert.rule_deleted", "alert.acknowledged", "alert.resolved", "alert.silenced",
+                   "alert.silence_created", "alert.silence_ended", "container.justification_policy_changed"],
+    "audit": ["audit.exported"],
+}
+
+
+def audit_view(e: dict) -> dict:
+    category = next((c for c, actions in AUDIT_CATEGORY.items() if e["action"] in actions), None)
+    return {**e, "category": category, "environmentName": host_by_n(int(e["environmentId"][-12:]))[1]}
+
+
+def fold(text: str) -> str:
+    """Aproxima a busca textual do PostgreSQL (D-008): minúsculas e sem acentos."""
+    return text.lower().translate(str.maketrans("áàâãäéèêëíìîïóòôõöúùûüçñ", "aaaaaeeeeiiiiooooouuuucn"))
+
+
+def audit_filter(query: dict) -> list[dict] | None:
+    q = lambda key: (query.get(key) or [None])[0]  # noqa: E731
+    since, until = q("since"), q("until")
+    if since and until and datetime.fromisoformat(until.replace("Z", "+00:00")) - datetime.fromisoformat(since.replace("Z", "+00:00")) > timedelta(days=90):
+        return None
+    actions = {a for c in query.get("category", []) for a in AUDIT_CATEGORY.get(c, [])}
+    when = lambda text: datetime.fromisoformat(text.replace("Z", "+00:00"))  # noqa: E731
+    rows = [e for e in AUDIT if (not since or when(e["occurredAt"]) >= when(since)) and (not until or when(e["occurredAt"]) <= when(until))]
+    rows = [e for e in rows
+            if (not actions or e["action"] in actions)
+            and (not query.get("outcome") or e["outcome"] in query["outcome"])
+            and (not query.get("environmentId") or e["environmentId"] in query["environmentId"])
+            and (not q("stage") or host_stage(e["environmentId"]) == q("stage"))
+            and (not q("actor") or e["actorId"] == q("actor") or (e["actorName"] or "").lower().startswith(q("actor").lower()))
+            and (not q("q") or q("q") in (e["correlationId"], e["commandId"], e["id"]) or (e["subjectId"] or "").startswith(q("q").lower())
+                 or all(word in fold(" ".join([e["action"].replace(".", " "), e["actorId"], e["actorName"] or "", e["subjectId"] or "", e["failureCode"] or "",
+                                                 *(e["details"] or {}).values()])) for word in fold(q("q")).split()))]
+    return [audit_view(e) for e in rows]
+
+
 def alert_view(a: dict) -> dict:
     return {**{k: v for k, v in a.items() if k != "timeline"}, "canManage": "alert:manage" in scopes()}
 
@@ -486,6 +551,7 @@ class Handler(BaseHTTPRequestHandler):
             STATE["created"] = []
             ALERTS.clear()
             ALERTS.update(seed_alerts())
+            AUDIT[:] = seed_audit()
             return self.send_json(200, {"scenario": STATE["scenario"]})
         if path == "/__mock/submitted":
             return self.send_json(200, STATE.get("submitted", []))
@@ -510,6 +576,8 @@ class Handler(BaseHTTPRequestHandler):
             STATE["scenario"] = "default"
             return self.send_json(401, problem(401, "Sessão expirada"), "application/problem+json")
 
+        if path.startswith("/api/v1/audit/"):
+            return self.audit_routes(path, q, query)
         handled = self.alert_routes(method, path, q, query)
         if handled is not None:
             return handled
@@ -941,6 +1009,47 @@ def _alert_routes(self, method: str, path: str, q, query) -> object | None:
 
 
 Handler.alert_routes = _alert_routes
+
+
+def _audit_routes(self, path: str, q, query) -> object:
+    """Rotas da spec 017 (contracts/audit-api.md)."""
+    readable = "audit:read" in scopes()
+    if path == "/api/v1/audit/summary":
+        return self.send_json(200, {"readableHosts": len(hosts()) if readable else 0, "oldestEventAt": AUDIT[-1]["occurredAt"] if readable else None})
+    if not readable:
+        return self.send_json(403, problem(403, "Acesso negado", "authorization_denied"), "application/problem+json")
+    if path == "/api/v1/audit/events":
+        rows = audit_filter(query)
+        if rows is None:
+            return self.send_json(400, problem(400, "Período longo", "period_too_long"), "application/problem+json")
+        return self.send_json(200, {"events": rows, "nextCursor": None})
+    m = re.fullmatch(r"/api/v1/audit/events/([^/]+)", path)
+    if m:
+        e = next((x for x in AUDIT if x["id"] == m.group(1)), None)
+        if e is None:
+            return self.send_json(404, problem(404, "Evento não encontrado", "not_found"), "application/problem+json")
+        related = [audit_view(x) for x in AUDIT if x["id"] != e["id"] and (x["correlationId"] == e["correlationId"] or (e["commandId"] and x["commandId"] == e["commandId"]))]
+        return self.send_json(200, {"event": audit_view(e), "related": related})
+    if path == "/api/v1/audit/export":
+        rows = audit_filter(query) or []
+        lines = ["Horário (UTC);Ator;Identificador do ator;Tipo de ator;Ação;Categoria;Host;Alvo;Resultado;Código de falha;Correlação;Comando;Detalhes"]
+        lines += [";".join([e["occurredAt"], e["actorName"] or "", e["actorId"], e["actorKind"], e["action"], e["category"] or "", e["environmentName"],
+                            e["subjectId"] or "", e["outcome"], e["failureCode"] or "", e["correlationId"], e["commandId"] or "", ""]) for e in rows]
+        AUDIT.insert(0, {"id": str(uuid.uuid4()), "occurredAt": iso(0), "correlationId": str(uuid.uuid4()), "actorKind": "user", "actorId": "u-mariana",
+                         "actorName": "Mariana Costa", "action": "audit.exported", "environmentId": env_id(1), "outcome": "succeeded", "failureCode": None,
+                         "subjectId": "audit", "commandId": None, "details": {"count": str(len(rows))}})
+        body = ("\ufeff" + "\n".join(lines) + "\n").encode()
+        self.send_response(200)
+        self.send_header("Content-Type", "text/csv; charset=utf-8")
+        self.send_header("Content-Disposition", 'attachment; filename="auditoria-mock.csv"')
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+        return None
+    return self.send_json(404, problem(404, "Rota inexistente"))
+
+
+Handler.audit_routes = _audit_routes
 
 
 def main() -> None:

@@ -16,4 +16,5 @@ public sealed class AuditEventEntity
     public string? FailureCode { get; set; }
     public string? SubjectId { get; set; }
     public string? Details { get; set; }
+    public string? ActorName { get; set; }
 }
