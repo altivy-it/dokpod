@@ -4,7 +4,7 @@
 
 **Criada em**: 2026-10-15
 
-**Estado**: `draft` - aguardando aprovação do solicitante.
+**Estado**: `approved` - aprovada pelo solicitante em 2026-10-15 ("Aprovado, siga com o plano").
 
 **Entrada**: Pedido do solicitante em 2026-10-15: "Siga com os Volumes", item "Volumes" da seção Operação do menu, hoje uma página "Em breve" ("Inventário e limpeza de volumes por host").
 
