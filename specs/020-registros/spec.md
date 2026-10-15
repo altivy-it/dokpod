@@ -4,7 +4,7 @@
 
 **Criada em**: 2026-10-15
 
-**Estado**: `draft` - aguardando aprovação do solicitante.
+**Estado**: `approved` - aprovada pelo solicitante em 2026-10-15 ("Siga para implementação").
 
 **Entrada**: Pedido do solicitante em 2026-10-15: "Siga agora para Registros". Item "Registros" da seção Infraestrutura do menu, hoje uma página "Em breve" ("Registros de imagens configurados nos hosts").
 
