@@ -45,6 +45,11 @@ export const routes: Routes = [
     path: 'redes',
     loadComponent: () => import('./features/networks/networks.page').then(m => m.NetworksPage),
   },
+  {
+    path: 'registros',
+    loadComponent: () => import('./features/registries/registries.page').then(m => m.RegistriesPage),
+  },
+  { path: 'em-breve/registros', redirectTo: 'registros' },
   { path: 'em-breve/volumes', redirectTo: 'volumes' },
   { path: 'em-breve/redes', redirectTo: 'redes' },
   {

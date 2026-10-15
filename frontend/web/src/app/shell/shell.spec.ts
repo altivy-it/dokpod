@@ -33,7 +33,7 @@ describe('navigation', () => {
   it('resolves the active item from the URL, ignoring query strings', () => {
     expect(activeNavId('/?stage=production')).toBe('overview');
     expect(activeNavId('/containers/env/abc?tab=logs')).toBe('containers');
-    expect(activeNavId('/em-breve/registros')).toBe('registries');
+    expect(activeNavId('/em-breve/configuracoes')).toBe('settings');
     expect(activeNavId('/imagens?semUso=1')).toBe('images');
     expect(activeNavId('/em-breve/pods')).toBe('pods');
     expect(activeNavId('/nao-existe')).toBe('');

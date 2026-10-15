@@ -40,7 +40,7 @@ describe('audit period (spec 017)', () => {
 
 describe('audit labels and targets', () => {
   it('labels every action supported by the backend list and keeps unknown actions verbatim', () => {
-    expect(Object.keys(AUDIT_ACTION)).toHaveLength(34);
+    expect(Object.keys(AUDIT_ACTION)).toHaveLength(35);
     expect(auditActionLabel('container.stop')).toBe('Parar container');
     expect(auditActionLabel('futuro.acao')).toBe('futuro.acao');
   });

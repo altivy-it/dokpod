@@ -9,20 +9,35 @@ using Dokpod.Domain.Images;
 
 namespace Dokpod.ControlPlane.Application.Images;
 
-/// <summary>Registros permitidos por estágio (`Images:AllowedRegistriesByStage`); lista vazia = qualquer registro.</summary>
+/// <summary>
+/// Registros permitidos por estágio; lista vazia = qualquer registro. A configuração `Images:AllowedRegistriesByStage`
+/// é o valor inicial e a política editada no console (spec 020) a sobrepõe por estágio.
+/// </summary>
 public sealed class ImagePullPolicy
 {
+    private IReadOnlyDictionary<string, string[]> overrides = new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase);
+
     public Dictionary<string, string[]> AllowedRegistriesByStage { get; init; } = new(StringComparer.OrdinalIgnoreCase);
 
-    public bool Allows(EnvironmentStage? stage, ImageReference reference)
-    {
-        var key = stage is null ? "none" : EnvironmentStages.ToValue(stage.Value);
-        if (!AllowedRegistriesByStage.TryGetValue(key, out var registries) || registries.Length == 0)
-        {
-            return true;
-        }
+    /// <summary>Lista efetiva do estágio (`none` = sem estágio); vazia = qualquer registro.</summary>
+    public string[] AllowedFor(string stageKey) =>
+        Volatile.Read(ref overrides).TryGetValue(stageKey, out var stored) ? stored
+        : AllowedRegistriesByStage.TryGetValue(stageKey, out var configured) ? configured.Select(r => r.Trim()).Where(r => r.Length > 0).ToArray()
+        : [];
 
-        return registries.Any(registry => string.Equals(registry.Trim(), reference.Registry, StringComparison.OrdinalIgnoreCase));
+    /// <summary>Verdadeiro quando o estágio tem lista própria salva no console.</summary>
+    public bool IsOverridden(string stageKey) => Volatile.Read(ref overrides).ContainsKey(stageKey);
+
+    /// <summary>Troca as listas salvas no console (recarga periódica e alteração local).</summary>
+    public void ApplyOverrides(IReadOnlyDictionary<string, string[]> stored) =>
+        Volatile.Write(ref overrides, new Dictionary<string, string[]>(stored, StringComparer.OrdinalIgnoreCase));
+
+    public bool Allows(EnvironmentStage? stage, ImageReference reference) => Allows(stage, reference.Registry);
+
+    public bool Allows(EnvironmentStage? stage, string registry)
+    {
+        var registries = AllowedFor(stage is null ? "none" : EnvironmentStages.ToValue(stage.Value));
+        return registries.Length == 0 || registries.Any(allowed => string.Equals(allowed.Trim(), registry, StringComparison.OrdinalIgnoreCase));
     }
 }
 

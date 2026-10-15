@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, effect, inject, input, ou
 import { FormsModule } from '@angular/forms';
 import { EnvironmentDirectoryService } from '../../core/environment-directory.service';
 import { JUSTIFICATION_MAX, JUSTIFICATION_MIN } from '../../core/justification-policy.service';
-import { ControlPlaneApiService } from '../../data-access/control-plane-api.service';
+import { AlertsApiService } from './alerts-api.service';
 import type { CreateAlertSilenceRequest, Stage } from '../../data-access/generated/control-plane';
 import { DokDrawer, DokField } from '../../design-system';
 import { STAGES } from '../../shell/stage-filter.service';
@@ -125,7 +125,7 @@ export class SilenceDrawer {
   readonly closed = output<void>();
   readonly saved = output<void>();
 
-  private readonly api = inject(ControlPlaneApiService);
+  private readonly api = inject(AlertsApiService);
   private readonly directory = inject(EnvironmentDirectoryService);
   protected readonly stages = STAGES;
   protected readonly min = JUSTIFICATION_MIN;
