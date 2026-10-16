@@ -433,7 +433,8 @@ public sealed class DockerEngineClient(HttpClient httpClient, RegistryCredential
     {
         await EnsureNegotiatedAsync(cancellationToken);
         // Spec 021 D-001: só o Podman tem pods; no Docker a rota libpod não existe.
-        using var response = await httpClient.GetAsync("libpod/pods/json", HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+        // O Podman só atende as rotas libpod com o prefixo de versão (sem ele, 404).
+        using var response = await httpClient.GetAsync($"v{apiVersion}/libpod/pods/json", HttpCompletionOption.ResponseHeadersRead, cancellationToken);
         if (response.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.BadRequest or HttpStatusCode.MethodNotAllowed) return null;
         response.EnsureSuccessStatusCode();
         await using var content = await ReadLimitedAsync(response, cancellationToken);
@@ -485,7 +486,14 @@ public sealed class DockerEngineClient(HttpClient httpClient, RegistryCredential
     {
         if (!Dokpod.Domain.Pods.PodNames.IsValidId(podId)) throw new ArgumentException("Pod id is invalid.", nameof(podId));
         await EnsureNegotiatedAsync(cancellationToken);
-        using var response = await httpClient.PostAsync($"libpod/pods/{podId}/{Dokpod.Domain.Pods.PodNames.ToValue(action)}", content: null, cancellationToken);
+        using var response = await httpClient.PostAsync($"v{apiVersion}/libpod/pods/{podId}/{Dokpod.Domain.Pods.PodNames.ToValue(action)}", content: null, cancellationToken);
+        if (response.StatusCode == HttpStatusCode.NotModified && action is Dokpod.Domain.Pods.PodActionKind.Stop or Dokpod.Domain.Pods.PodActionKind.Pause)
+        {
+            // O Podman responde 304 sem agir quando o pod não está todo em execução (por exemplo, degradado); o CLI age
+            // membro a membro. O agente faz o mesmo nos membros ainda em execução, inclusive o de infraestrutura.
+            return await PodMembersActionAsync(podId, action, cancellationToken);
+        }
+
         return response.StatusCode switch
         {
             HttpStatusCode.OK or HttpStatusCode.NoContent or HttpStatusCode.NotModified => null,
@@ -496,12 +504,28 @@ public sealed class DockerEngineClient(HttpClient httpClient, RegistryCredential
         };
     }
 
+    private async Task<string?> PodMembersActionAsync(string podId, Dokpod.Domain.Pods.PodActionKind action, CancellationToken cancellationToken)
+    {
+        var pod = (await ListPodsAsync(cancellationToken))?.FirstOrDefault(p => p.PodId == podId);
+        if (pod is null) return Dokpod.Domain.Pods.PodActionCodes.NotFound;
+        var kind = action == Dokpod.Domain.Pods.PodActionKind.Stop ? AgentCommandKind.StopContainer : AgentCommandKind.PauseContainer;
+        var targets = pod.Members.Where(member => member.Status.StartsWith("running", StringComparison.OrdinalIgnoreCase) ||
+            (kind == AgentCommandKind.StopContainer && member.Status.StartsWith("paused", StringComparison.OrdinalIgnoreCase)));
+        var failed = false;
+        foreach (var member in targets)
+        {
+            failed |= !(await ExecuteAsync(kind, member.ContainerId, cancellationToken)).Succeeded;
+        }
+
+        return failed ? Dokpod.Domain.Pods.PodActionCodes.PartialFailure : null;
+    }
+
     public async Task<EngineRegistryConfig> GetRegistryConfigAsync(CancellationToken cancellationToken)
     {
         var credentials = registryCredentials?.ListRegistries() ?? [];
         await EnsureNegotiatedAsync(cancellationToken);
         // Spec 020 D-001: o Podman só informa `registries.conf` pela API libpod; a compatível devolve `RegistryConfig` vazio.
-        using (var libpod = await httpClient.GetAsync("libpod/info", HttpCompletionOption.ResponseHeadersRead, cancellationToken))
+        using (var libpod = await httpClient.GetAsync($"v{apiVersion}/libpod/info", HttpCompletionOption.ResponseHeadersRead, cancellationToken))
         {
             if (libpod.IsSuccessStatusCode)
             {

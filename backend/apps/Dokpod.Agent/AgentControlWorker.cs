@@ -465,6 +465,7 @@ public sealed class AgentControlWorker(
         long volumesDirtySince = 0;
         long networksDirtySince = 0;
         long podsDirtySince = 0;
+        long podsFirstDirty = 0;
         var pump = Task.Run(async () =>
         {
             using var timer = new PeriodicTimer(TimeSpan.FromSeconds(1));
@@ -486,10 +487,14 @@ public sealed class AgentControlWorker(
                     await networks.SendAsync(force: false, cancellationToken);
                 }
 
+                // Pods: 2 s sem eventos ou, com eventos contínuos, no máximo 5 s após a primeira mudança.
                 var podsSince = Interlocked.Read(ref podsDirtySince);
-                if (podsSince != 0 && Environment.TickCount64 - podsSince >= 2000 &&
+                var podsFirst = Interlocked.Read(ref podsFirstDirty);
+                if (podsSince != 0 &&
+                    (Environment.TickCount64 - podsSince >= 2000 || Environment.TickCount64 - podsFirst >= 5000) &&
                     Interlocked.CompareExchange(ref podsDirtySince, 0, podsSince) == podsSince)
                 {
+                    Interlocked.Exchange(ref podsFirstDirty, 0);
                     await pods.SendAsync(force: false, cancellationToken);
                 }
 
@@ -537,9 +542,11 @@ public sealed class AgentControlWorker(
                         Interlocked.Exchange(ref volumesDirtySince, Environment.TickCount64);
                     }
 
-                    // A situação do pod deriva dos containers: eventos de pod e de container republicam os pods.
-                    if (record.Type is "pod" or "container")
+                    // A situação do pod deriva dos containers: eventos de pod e de container republicam os pods. O health check
+                    // não muda a situação e chega a cada poucos segundos: contá-lo adiaria o envio indefinidamente.
+                    if (record.Type is "pod" or "container" && !record.Action.StartsWith("health_status", StringComparison.Ordinal))
                     {
+                        Interlocked.CompareExchange(ref podsFirstDirty, Environment.TickCount64, 0);
                         Interlocked.Exchange(ref podsDirtySince, Environment.TickCount64);
                     }
 

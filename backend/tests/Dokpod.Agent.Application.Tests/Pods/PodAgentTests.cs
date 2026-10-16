@@ -29,7 +29,7 @@ public sealed class PodAgentTests
         var podman = new Handler(request => request.RequestUri!.AbsolutePath switch
         {
             "/version" => Json("""{"Version":"5.7.0","ApiVersion":"1.41","MinAPIVersion":"1.24"}"""),
-            "/libpod/pods/json" => Json($$$"""
+            "/v1.41/libpod/pods/json" => Json($$$"""
                 [{"Id":"{{{PodA}}}","Name":"pod-loja","Status":"Degraded","Created":"2026-10-15T10:00:00Z","InfraId":"","Labels":{"io.podman.compose.project":"loja"},"Networks":["loja_default"],
                   "Containers":[{"Id":"{{{Web}}}","Names":"web","Status":"running","RestartCount":2},{"Id":"{{{Worker}}}","Names":"worker","Status":"exited","RestartCount":0}]},
                  {"Id":"invalido","Name":"x"}]
@@ -65,8 +65,30 @@ public sealed class PodAgentTests
         var client = new DockerEngineClient(new HttpClient(handler) { BaseAddress = new Uri("http://docker/") });
 
         Assert.Equal(expected, await client.PodActionAsync(PodA, PodActionKind.Restart, TestContext.Current.CancellationToken));
-        Assert.Equal($"/libpod/pods/{PodA}/restart", handler.Requests.Last().RequestUri!.AbsolutePath);
+        Assert.Equal($"/v1.41/libpod/pods/{PodA}/restart", handler.Requests.Last().RequestUri!.AbsolutePath);
         Assert.Equal(HttpMethod.Post, handler.Requests.Last().Method);
+    }
+
+    [Fact]
+    public async Task DockerClient_StopsRunningMembersWhenPodmanAnswers304ForADegradedPod()
+    {
+        var handler = new Handler(request => request.RequestUri!.AbsolutePath switch
+        {
+            "/version" => Json("""{"Version":"5.7.0","ApiVersion":"1.41","MinAPIVersion":"1.24"}"""),
+            var path when path == $"/v1.41/libpod/pods/{PodA}/stop" => new HttpResponseMessage(HttpStatusCode.NotModified),
+            "/v1.41/libpod/pods/json" => Json($$$"""
+                [{"Id":"{{{PodA}}}","Name":"pod-teste","Status":"Degraded","Containers":[
+                  {"Id":"{{{Web}}}","Names":"web","Status":"running","RestartCount":0},
+                  {"Id":"{{{Worker}}}","Names":"worker","Status":"exited","RestartCount":0}]}]
+                """),
+            var path when path.EndsWith("/stop", StringComparison.Ordinal) => new HttpResponseMessage(HttpStatusCode.NoContent),
+            _ => new HttpResponseMessage(HttpStatusCode.NotFound),
+        });
+        var client = new DockerEngineClient(new HttpClient(handler) { BaseAddress = new Uri("http://docker/") });
+
+        Assert.Null(await client.PodActionAsync(PodA, PodActionKind.Stop, TestContext.Current.CancellationToken));
+        var stops = handler.Requests.Where(r => r.RequestUri!.AbsolutePath.StartsWith("/v1.41/containers/", StringComparison.Ordinal)).Select(r => r.RequestUri!.AbsolutePath).ToArray();
+        Assert.Equal([$"/v1.41/containers/{Web}/stop"], stops); // só o membro em execução
     }
 
     [Fact]
