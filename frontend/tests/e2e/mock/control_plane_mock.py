@@ -243,7 +243,7 @@ def host_view(h) -> dict:
             "cpuCount": cpus,
             "memoryBytes": mem * 1024**3,
             "capabilities": ["CONTAINER_LIFECYCLE", "ENGINE_EVENTS", "RESOURCE_METRICS", "CONTAINER_PAUSE", "CONTAINER_UNPAUSE", "CONTAINER_INSPECT", "CONTAINER_LOGS"]
-            + ([] if situation == "update_required" else ["ImageInventory", "ImagePull", "ContainerCreate", "ContainerExec", "VolumeInventory", "VolumeRemove", "NetworkInventory", "NetworkRemove", "RegistryInventory"]),
+            + ([] if situation == "update_required" else ["ImageInventory", "ImagePull", "ContainerCreate", "ContainerExec", "VolumeInventory", "VolumeRemove", "NetworkInventory", "NetworkRemove", "RegistryInventory"] + (["PodInventory", "PodActions"] if engine == "podman" else [])),
         },
     }
 
@@ -618,6 +618,56 @@ def e_name(e: dict) -> str:
     return e["registry"]
 
 
+POD_SEEDS = [
+    # host n, nome, containers (do mock), pod do agente
+    (3, "pod-pedidos", ["api-pedidos-7f9c", "worker-notificacoes"], False),
+    (3, "pod_dokpod", [], True),
+    (5, "pod-batch", ["migracao-catalogo", "relatorios-bi"], False),
+]
+POD_ACTION_SCOPE = {"start": "container:start", "stop": "container:stop", "restart": "container:restart", "pause": "container:pause", "unpause": "container:pause"}
+
+
+def pods() -> list[dict]:
+    """Spec 021: pods dos hosts Podman; o pod do agente contém o container do agente; host 4 sem inventário de pods."""
+    by_name = {(c["environmentId"], c["name"]): c for c in containers()}
+    hosts_by_n = {h[0]: h for h in all_hosts()}
+    result = []
+    for n, name, members, agent in POD_SEEDS:
+        env = env_id(n)
+        h = hosts_by_n.get(n)
+        if not h or h[3] != "podman" or h[5] == "update_required":
+            continue
+        pod_id = (uuid.uuid5(uuid.NAMESPACE_URL, f"pod-{n}-{name}").hex * 2)[:64]
+        override = STATE.get("pod_status", {}).get(pod_id)
+        conts = []
+        for member in members:
+            c = by_name.get((env, member))
+            if not c:
+                continue
+            state = c["state"] if not override else ("running" if override in ("running", "degraded") and member != "migracao-catalogo" else "paused" if override == "paused" else "exited")
+            conts.append({"containerId": c["containerId"], "name": member, "status": state, "restarts": c.get("restartCount") or 0, "infra": False})
+        if agent:
+            conts.append({"containerId": (uuid.uuid5(uuid.NAMESPACE_URL, f"agent-{n}").hex * 2)[:64], "name": "dokpod-agent", "status": "running", "restarts": 0, "infra": False})
+        running = sum(c["status"] == "running" for c in conts)
+        paused = sum(c["status"] == "paused" for c in conts)
+        status = override or ("running" if conts and running == len(conts) else "paused" if conts and paused == len(conts) else "exited" if running == 0 and paused == 0 else "degraded")
+        connected = h[5] != "disconnected"
+        allowed = []
+        if connected:
+            candidates = []
+            if status not in ("running", "paused"): candidates.append("start")
+            if status in ("running", "degraded", "paused"): candidates.append("stop")
+            if status not in ("paused", "created"): candidates.append("restart")
+            if status in ("running", "degraded"): candidates.append("pause")
+            if status == "paused": candidates.append("unpause")
+            allowed = [a for a in candidates if not (agent and a in ("stop", "pause", "restart")) and POD_ACTION_SCOPE[a] in scopes()]
+        result.append({"environmentId": env, "environmentName": h[1], "stage": STATE["stages"].get(env, h[2]), "hostConnected": connected, "podId": pod_id,
+                       "name": name, "status": status, "createdAt": iso(60 * 24 * 3), "labels": {"io.podman.compose.project": name}, "networks": [f"{name}_default"],
+                       "infraId": None, "containers": conts, "runningContainers": running, "agentPod": agent, "truncated": False, "observedAt": iso(0.5),
+                       "allowedActions": allowed})
+    return result
+
+
 def host_stage(environment_id: str) -> str | None:
     return next((h["stage"] for h in hosts() if h["environmentId"] == environment_id), None)
 
@@ -681,6 +731,7 @@ class Handler(BaseHTTPRequestHandler):
             STATE["removed_volumes"] = set()
             STATE["removed_networks"] = set()
             STATE["registry_policies"] = {}
+            STATE["pod_status"] = {}
             ALERTS.clear()
             ALERTS.update(seed_alerts())
             AUDIT[:] = seed_audit()
@@ -802,6 +853,26 @@ class Handler(BaseHTTPRequestHandler):
             key = {"name": lambda v: v["name"], "createdAt": lambda v: v["createdAt"], "environment": lambda v: v["environmentName"]}[sort.lstrip("-")]
             rows.sort(key=key, reverse=sort.startswith("-"))
             return self.send_json(200, {"volumes": rows, "summary": summary, "nextCursor": None})
+
+        if path == "/api/v1/pods":
+            rows = [p for p in pods() if (not q("stage") or p["stage"] == q("stage")) and (not query.get("environmentId") or p["environmentId"] in query["environmentId"])]
+            if q("containerId"):
+                rows = [p for p in rows if any(c["containerId"] == q("containerId") for c in p["containers"])]
+            if q("q"):
+                rows = [p for p in rows if q("q").lower() in json.dumps([p["name"], p["labels"], [c["name"] for c in p["containers"]]]).lower()]
+            by_status: dict[str, int] = {}
+            for p in rows:
+                by_status[p["status"]] = by_status.get(p["status"], 0) + 1
+            if query.get("status"):
+                rows = [p for p in rows if p["status"] in query["status"]]
+            visible = [h for h in hosts() if (not q("stage") or h["stage"] == q("stage")) and (not query.get("environmentId") or h["environmentId"] in query["environmentId"])]
+            ref = lambda h: {"environmentId": h["environmentId"], "environmentName": h["name"]}  # noqa: E731
+            caps = lambda h: (h.get("agent") or {}).get("capabilities") or []  # noqa: E731
+            summary = {"total": sum(by_status.values()), "byStatus": by_status,
+                       "withoutPodsHosts": [ref(h) for h in visible if h.get("agent") and h["agent"].get("engine") == "docker"],
+                       "unavailableHosts": [ref(h) for h in visible if h.get("agent") and h["agent"].get("engine") == "podman" and "PodInventory" not in caps(h)]}
+            rows.sort(key=lambda p: p["name"], reverse=(q("sort") or "name").startswith("-"))
+            return self.send_json(200, {"pods": rows, "summary": summary, "nextCursor": None})
 
         if path == "/api/v1/networks":
             rows = [v for v in networks() if not q("stage") or v["stage"] == q("stage")]
@@ -971,6 +1042,37 @@ class Handler(BaseHTTPRequestHandler):
             }
             STATE.setdefault("submitted", []).append(("pull", host["name"], canonical))
             return self.send_json(202, {"commandId": command_id, "reference": canonical})
+        pm = re.fullmatch(r"/pods/([^/]+)(/actions)?", rest)
+        if pm:
+            key, sub = pm.group(1), pm.group(2) or ""
+            pod = next((p for p in pods() if p["environmentId"] == environment_id and (p["podId"] == key or p["name"] == key)), None)
+            if pod is None:
+                return self.send_json(404, problem(404, "Pod não encontrado", "pod_not_found"), "application/problem+json")
+            if sub == "":
+                return self.send_json(200, pod)
+            body = self.read_body()
+            action = body.get("action")
+            justification = (body.get("justification") or "").strip()
+            if POD_ACTION_SCOPE.get(action) not in scopes():
+                return self.send_json(403, problem(403, "Acesso negado", "authorization_denied"), "application/problem+json")
+            if pod["agentPod"] and action in ("stop", "pause", "restart"):
+                return self.send_json(409, problem(409, "O pod do agente é protegido.", "agent_pod"), "application/problem+json")
+            if action in ("stop", "pause") and not justification and ALERTS["policies"].get(host["stage"]):
+                return self.send_json(422, problem(422, "Informe a justificativa para esta ação (política do estágio).", "justification_required"), "application/problem+json")
+            idem = self.headers.get("Idempotency-Key")
+            existing = next((c for c in STATE["commands"].values() if c.get("idempotencyKey") == idem), None)
+            if existing:
+                return self.send_json(202, {"commandId": existing["commandId"]})
+            command_id = str(uuid.uuid4())
+            partial = pod["name"] == "pod-batch" and action in ("start", "restart")
+            STATE["commands"][command_id] = {
+                "environmentId": environment_id, "commandId": command_id, "action": f"pod_{action}", "kind": "pod", "containerId": None,
+                "expectedContainerRevision": None, "podName": pod["name"], "podId": pod["podId"], "podAction": action, "state": "pending", "failureCode": None,
+                "result": None, "observedContainerRevision": None, "deadlineUtc": body.get("deadlineUtc"), "createdAtUtc": iso(0), "updatedAtUtc": iso(0),
+                "completedAtUtc": None, "idempotencyKey": idem, "polls": 0, "failure": "pod_partial_failure" if partial else None,
+            }
+            STATE.setdefault("submitted", []).append(("pod_" + action, host["name"], pod["name"]) + ((justification,) if justification else ()))
+            return self.send_json(202, {"commandId": command_id})
         nm = re.fullmatch(r"/networks/([^/]+)(/remove)?", rest)
         if nm:
             key, sub = nm.group(1), nm.group(2) or ""
@@ -1069,6 +1171,17 @@ class Handler(BaseHTTPRequestHandler):
                     command.update({"state": "failed" if failure else "succeeded", "failureCode": failure, "completedAtUtc": iso(0),
                                     "result": {"createdContainerId": cid} if cid else None})
                 return self.send_json(200, {k: v for k, v in command.items() if k not in ("idempotencyKey", "polls", "failure", "body")})
+            if command["action"].startswith("pod_"):
+                command["polls"] += 1
+                if command["polls"] == 1:
+                    command["state"] = "accepted"
+                elif command["state"] not in ("succeeded", "failed"):
+                    failure = command["failure"]
+                    target = {"start": "running", "restart": "running", "unpause": "running", "stop": "exited", "pause": "paused"}[command["podAction"]]
+                    STATE.setdefault("pod_status", {})[command["podId"]] = "degraded" if failure else target
+                    command.update({"state": "failed" if failure else "succeeded", "failureCode": failure, "completedAtUtc": iso(0),
+                                    "result": {"failedContainers": ["migracao-catalogo"]} if failure else None})
+                return self.send_json(200, {k: v for k, v in command.items() if k not in ("idempotencyKey", "polls", "failure", "podId", "podAction")})
             if command["action"] == "remove_network":
                 command["polls"] += 1
                 if command["polls"] == 1:

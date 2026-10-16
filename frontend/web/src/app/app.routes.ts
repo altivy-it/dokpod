@@ -50,6 +50,11 @@ export const routes: Routes = [
     loadComponent: () => import('./features/registries/registries.page').then(m => m.RegistriesPage),
   },
   { path: 'em-breve/registros', redirectTo: 'registros' },
+  {
+    path: 'pods',
+    loadComponent: () => import('./features/pods/pods.page').then(m => m.PodsPage),
+  },
+  { path: 'em-breve/pods', redirectTo: 'pods' },
   { path: 'em-breve/volumes', redirectTo: 'volumes' },
   { path: 'em-breve/redes', redirectTo: 'redes' },
   {
