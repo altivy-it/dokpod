@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, forwardRef, input, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ElementRef, forwardRef, input, signal, viewChild } from '@angular/core';
 import { ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';
 import { DokIcon } from '../icon/dok-icon';
 
@@ -25,6 +25,7 @@ let nextId = 0;
   template: `
     <label class="dok-check">
       <input
+        #native
         type="checkbox"
         [id]="inputId"
         [checked]="checked()"
@@ -57,8 +58,13 @@ export class DokCheckbox implements ControlValueAccessor {
   private onChange: (value: boolean) => void = () => undefined;
   protected onTouched: () => void = () => undefined;
 
+  private readonly native = viewChild<ElementRef<HTMLInputElement>>('native');
+
+  /** Também acerta o elemento nativo: o clique já o alterou e o valor devolvido pode ser igual ao último renderizado. */
   writeValue(value: unknown): void {
     this.checked.set(!!value);
+    const element = this.native()?.nativeElement;
+    if (element) element.checked = !!value;
   }
 
   registerOnChange(fn: (value: boolean) => void): void {

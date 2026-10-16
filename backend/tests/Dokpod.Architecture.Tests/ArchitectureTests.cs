@@ -19,6 +19,20 @@ public sealed class ArchitectureTests
         Assert.DoesNotContain(includes, value => value.Contains("Dokpod.ControlPlane.Api", StringComparison.OrdinalIgnoreCase));
     }
 
+    /// <summary>Spec 022 D-001: o console mostra a mesma versão do produto que o backend.</summary>
+    [Fact]
+    public void ProductVersion_IsTheSameInBackendAndConsole()
+    {
+        var root = Path.Combine(AppContext.BaseDirectory, "../../../../../");
+        var backend = XDocument.Load(Path.Combine(root, "Directory.Build.props")).Descendants("Version").Single().Value;
+        using var package = System.Text.Json.JsonDocument.Parse(File.ReadAllText(Path.Combine(root, "../frontend/web/package.json")));
+
+        Assert.Matches(@"^\d+\.\d+\.\d+$", backend);
+        Assert.Equal(backend, package.RootElement.GetProperty("version").GetString());
+        var console = File.ReadAllText(Path.Combine(root, "../frontend/web/src/app/features/settings/settings-api.service.ts"));
+        Assert.Contains($"export const CONSOLE_VERSION = '{backend}';", console, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void AgentApplication_DoesNotDependOnControlPlaneContractsOrApi()
     {

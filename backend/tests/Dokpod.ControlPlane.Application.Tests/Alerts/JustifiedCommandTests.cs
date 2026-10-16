@@ -144,6 +144,14 @@ public sealed class JustifiedCommandTests
                 [EnvironmentStage.Development] = false,
             });
 
+        public Task<IReadOnlyList<JustificationPolicyEntry>> ListPolicyEntriesAsync(CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<JustificationPolicyEntry>>(
+            [
+                new(EnvironmentStage.Production, true, "admin", DateTimeOffset.UnixEpoch),
+                new(EnvironmentStage.Staging, false, null, null),
+                new(EnvironmentStage.Development, false, null, null),
+            ]);
+
         public Task RecordAsync(ContainerActionJustification justification, CancellationToken cancellationToken)
         {
             Recorded.Add(justification);

@@ -156,6 +156,17 @@ public sealed class AlertGovernanceServiceTests
             Assert.Equal(GovernanceOutcome.Forbidden, (await service.SetPolicyAsync(caller, EnvironmentStage.Production, false, ct)).Outcome);
             Assert.True((await new PostgresActionJustificationStore(context).GetPoliciesAsync(ct))[EnvironmentStage.Production]);
             Assert.DoesNotContain(audit.Events, e => e.Action == "container.justification_policy_changed");
+
+            // Spec 022 D-005: canEdit segue a mesma regra; com só o host administrado, edita e o autor fica registrado.
+            Assert.All(await service.ListPoliciesAsync(caller, ct), p => Assert.False(p.CanEdit));
+            var onlyManaged = caller with { Readable = caller.Readable.Where(r => r.EnvironmentId == prod1).ToArray() };
+            var listed = await service.ListPoliciesAsync(onlyManaged, ct);
+            Assert.True(listed.Single(p => p.Policy.Stage == EnvironmentStage.Production).CanEdit);
+            Assert.Equal(GovernanceOutcome.Ok, (await service.SetPolicyAsync(onlyManaged, EnvironmentStage.Production, true, ct)).Outcome);
+            var production = (await service.ListPoliciesAsync(onlyManaged, ct)).Single(p => p.Policy.Stage == EnvironmentStage.Production).Policy;
+            Assert.True(production.Required);
+            Assert.Equal(Operator.Label, production.UpdatedBy);
+            Assert.NotNull(production.UpdatedAt);
         }
         finally
         {
