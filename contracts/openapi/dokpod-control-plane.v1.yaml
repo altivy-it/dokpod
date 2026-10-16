@@ -2494,6 +2494,169 @@ paths:
           $ref: '#/components/responses/AccessDenied'
         '503':
           $ref: '#/components/responses/DependencyUnavailable'
+  /api/v1/pods:
+    get:
+      operationId: listPods
+      summary: Pods do Podman dos hosts autorizados com resumo por situação (spec 021)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: stage
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/Stage'
+        - name: environmentId
+          in: query
+          required: false
+          schema:
+            type: array
+            items:
+              type: string
+              format: uuid
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: array
+            items:
+              $ref: '#/components/schemas/PodStatus'
+        - name: containerId
+          in: query
+          required: false
+          schema:
+            type: string
+            pattern: '^[0-9a-f]{64}$'
+        - name: q
+          in: query
+          required: false
+          schema:
+            type: string
+            minLength: 2
+            maxLength: 128
+        - name: sort
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [name, -name, createdAt, -createdAt, environment]
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+        - $ref: '#/components/parameters/CorrelationId'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PodListPage'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '503':
+          $ref: '#/components/responses/DependencyUnavailable'
+  /api/v1/environments/{environmentId}/pods/{pod}:
+    get:
+      operationId: getPod
+      summary: Detalhe do pod pelo identificador ou pelo nome
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: environmentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: pod
+          in: path
+          required: true
+          description: Identificador (64 hex) ou nome do pod.
+          schema:
+            type: string
+            maxLength: 255
+        - $ref: '#/components/parameters/CorrelationId'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PodItem'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/v1/environments/{environmentId}/pods/{podId}/actions:
+    post:
+      operationId: submitPodAction
+      summary: Inicia, para, reinicia, pausa ou retoma o pod inteiro (scopes de container; pod do agente protegido)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: environmentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: podId
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^[0-9a-f]{64}$'
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/CorrelationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PodActionRequest'
+      responses:
+        '202':
+          description: Comando aceito.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContainerCommandAccepted'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '403':
+          $ref: '#/components/responses/AccessDenied'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          description: Justificativa obrigatória pela política do estágio.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '503':
+          $ref: '#/components/responses/DependencyUnavailable'
 components:
   securitySchemes:
     bearerAuth:
@@ -2920,10 +3083,10 @@ components:
           format: uuid
         action:
           type: string
-          enum: [start, stop, restart, delete, pause, unpause, pull, create, remove_volume, remove_network]
+          enum: [start, stop, restart, delete, pause, unpause, pull, create, remove_volume, remove_network, pod_start, pod_stop, pod_restart, pod_pause, pod_unpause]
         kind:
           type: string
-          enum: [container, image]
+          enum: [container, image, pod]
           description: Alvo do comando (spec 012); `image` para pull com alvo de host.
         containerId:
           type: [string, 'null']
@@ -2940,6 +3103,9 @@ components:
         containerName:
           type: [string, 'null']
           description: Nome pedido na criação (spec 013).
+        podName:
+          type: [string, 'null']
+          description: Pod alvo de uma ação de pod (spec 021).
         result:
           oneOf:
             - type: 'null'
@@ -2954,6 +3120,11 @@ components:
                 createdContainerId:
                   type: [string, 'null']
                   description: Container criado (spec 013); presente também em `start_failed`.
+                failedContainers:
+                  type: [array, 'null']
+                  description: Membros do pod fora do estado esperado após a ação (spec 021, `pod_partial_failure`).
+                  items:
+                    type: string
         state:
           type: string
           enum: [pending, dispatched, accepted, succeeded, failed, indeterminate]
@@ -3832,7 +4003,7 @@ components:
           type: string
     AuditCategory:
       type: string
-      enum: [environments, containers, commands, images, volumes, networks, inspection, terminal, governance, audit]
+      enum: [environments, containers, commands, images, volumes, networks, pods, inspection, terminal, governance, audit]
     AuditOutcome:
       type: string
       enum: [succeeded, denied, failed, indeterminate]
@@ -4302,6 +4473,129 @@ components:
           items:
             type: string
             maxLength: 255
+    PodStatus:
+      type: string
+      enum: [running, degraded, exited, paused, created, error]
+    PodAction:
+      type: string
+      enum: [start, stop, restart, pause, unpause]
+    PodMember:
+      type: object
+      required: [containerId, name, status, restarts, infra]
+      properties:
+        containerId:
+          type: string
+        name:
+          type: string
+        status:
+          type: string
+        restarts:
+          type: integer
+        infra:
+          type: boolean
+    PodItem:
+      type: object
+      required: [environmentId, environmentName, hostConnected, podId, name, status, labels, networks, containers, runningContainers, agentPod, truncated, observedAt, allowedActions]
+      properties:
+        environmentId:
+          type: string
+          format: uuid
+        environmentName:
+          type: string
+        stage:
+          oneOf:
+            - $ref: '#/components/schemas/Stage'
+            - type: 'null'
+        hostConnected:
+          type: boolean
+        podId:
+          type: string
+        name:
+          type: string
+        status:
+          $ref: '#/components/schemas/PodStatus'
+        createdAt:
+          type: [string, 'null']
+          format: date-time
+        labels:
+          type: object
+          additionalProperties:
+            type: string
+        networks:
+          type: array
+          items:
+            type: string
+        infraId:
+          type: [string, 'null']
+        containers:
+          type: array
+          items:
+            $ref: '#/components/schemas/PodMember'
+        runningContainers:
+          type: integer
+        agentPod:
+          type: boolean
+        truncated:
+          type: boolean
+        observedAt:
+          type: string
+          format: date-time
+        allowedActions:
+          type: array
+          items:
+            $ref: '#/components/schemas/PodAction'
+    PodHostRef:
+      type: object
+      required: [environmentId, environmentName]
+      properties:
+        environmentId:
+          type: string
+          format: uuid
+        environmentName:
+          type: string
+    PodListPage:
+      type: object
+      required: [pods, summary]
+      properties:
+        pods:
+          type: array
+          maxItems: 200
+          items:
+            $ref: '#/components/schemas/PodItem'
+        summary:
+          type: object
+          required: [total, byStatus, withoutPodsHosts, unavailableHosts]
+          properties:
+            total:
+              type: integer
+            byStatus:
+              type: object
+              additionalProperties:
+                type: integer
+            withoutPodsHosts:
+              type: array
+              items:
+                $ref: '#/components/schemas/PodHostRef'
+            unavailableHosts:
+              type: array
+              items:
+                $ref: '#/components/schemas/PodHostRef'
+        nextCursor:
+          type: [string, 'null']
+    PodActionRequest:
+      type: object
+      required: [action, deadlineUtc]
+      additionalProperties: false
+      properties:
+        action:
+          $ref: '#/components/schemas/PodAction'
+        deadlineUtc:
+          type: string
+          format: date-time
+        justification:
+          type: string
+          minLength: 10
+          maxLength: 500
     ResourceScope:
       type: string
       enum:

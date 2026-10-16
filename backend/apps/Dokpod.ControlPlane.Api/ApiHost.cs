@@ -216,6 +216,7 @@ public static class ApiHost
         // Spec 020: catálogo de registros e política editável (os stores só existem com banco).
         builder.Services.AddScoped<Dokpod.ControlPlane.Application.Registries.RegistryCatalog>();
         builder.Services.AddScoped<Dokpod.ControlPlane.Application.Registries.RegistryPolicyService>();
+        builder.Services.AddScoped<Dokpod.ControlPlane.Application.Pods.PodActionService>();
         builder.Services.AddHostedService<Dokpod.ControlPlane.Api.Alerts.AlertSweeper>();
         builder.Services.AddScoped<OverviewQueryService>();
         builder.Services.AddScoped<IContainerSearchStore, UnavailableContainerSearchStore>();
@@ -303,6 +304,7 @@ public static class ApiHost
         VolumeEndpoints.Map(app);
         NetworkEndpoints.Map(app);
         RegistryEndpoints.Map(app);
+        PodEndpoints.Map(app);
         app.MapHub<ControlPlaneHub>("/hubs/control-plane").RequireAuthorization();
     }
 

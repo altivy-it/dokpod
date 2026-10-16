@@ -21,10 +21,14 @@ public sealed class AgentControlWorker(
     Dokpod.Agent.Application.Containers.IHostSecretFiles secretFiles,
     Dokpod.Agent.Application.Containers.ContainerCreationPolicy creationPolicy,
     ILogger<AgentControlWorker> logger,
-    Dokpod.Agent.Application.Terminal.ExecSessionManager? execSessions = null) : BackgroundService
+    Dokpod.Agent.Application.Terminal.ExecSessionManager? execSessions = null,
+    Dokpod.Agent.Application.Pods.ISelfContainer? selfContainer = null) : BackgroundService
 {
     // Containers em execução do último snapshot (alvo da amostragem de recursos, spec 009).
     private IReadOnlyList<Dokpod.Agent.Application.Metrics.SampleTarget> runningTargets = [];
+    /// <summary>Container do próprio agente (spec 021): marca o pod do agente.</summary>
+    private readonly Dokpod.Agent.Application.Pods.ISelfContainer self = selfContainer ?? new Dokpod.Agent.Application.Pods.NoSelfContainer();
+
     /// <summary>Último inventário de containers (spec 018): montagens para o snapshot de volumes.</summary>
     private IReadOnlyList<EngineContainer> latestContainers = [];
     private static readonly TimeSpan ReconnectDelay = TimeSpan.FromSeconds(5);
@@ -145,17 +149,21 @@ public sealed class AgentControlWorker(
             using var timer = new PeriodicTimer(TimeSpan.FromMinutes(5));
             while (await timer.WaitForNextTickAsync(sessionCancellation.Token)) await registries.SendAsync(force: false, sessionCancellation.Token);
         }, sessionCancellation.Token).ContinueWith(_ => { }, TaskScheduler.Default);
+        // Spec 021: pods (só Podman; no Docker o snapshot informa "sem pods").
+        var pods = new PodPublisher(this, outbound.Writer, established.AcceptedCapabilities.Contains(Capability.PodInventory));
+        await pods.SendAsync(force: true, sessionCancellation.Token);
         var heartbeat = SendHeartbeatsAsync(
             outbound.Writer,
             () => inventory.Revision,
             () => images.Revision,
             () => volumes.Revision,
             () => networks.Revision,
+            () => pods.Revision,
             TimeSpan.FromSeconds(established.HeartbeatIntervalSeconds),
             sessionCancellation.Token);
         // Agente N só envia payloads novos com capability confirmada pelo servidor (008 D-009).
         var eventsAccepted = established.AcceptedCapabilities.Contains(Capability.EngineEvents);
-        var events = WatchEngineEventsAsync(outbound.Writer, inventory, images, volumes, networks, eventsAccepted, sessionCancellation.Token);
+        var events = WatchEngineEventsAsync(outbound.Writer, inventory, images, volumes, networks, pods, eventsAccepted, sessionCancellation.Token);
         await ReportOrphanExecsAsync(outbound.Writer, eventsAccepted, sessionCancellation.Token);
         var metricsAccepted = established.AcceptedCapabilities.Contains(Capability.ResourceMetrics);
         var metrics = metricsAccepted
@@ -207,6 +215,7 @@ public sealed class AgentControlWorker(
                     }
                     await volumes.SendAsync(force: false, sessionCancellation.Token);
                     await networks.SendAsync(force: false, sessionCancellation.Token);
+                    await pods.SendAsync(force: false, sessionCancellation.Token);
                 }
                 else if (message.PayloadCase == ControlPlaneMessage.PayloadOneofCase.SnapshotRequest)
                 {
@@ -214,6 +223,7 @@ public sealed class AgentControlWorker(
                     else if (message.SnapshotRequest.Scope == SnapshotScope.Volumes) await volumes.SendAsync(force: true, sessionCancellation.Token);
                     else if (message.SnapshotRequest.Scope == SnapshotScope.Networks) await networks.SendAsync(force: true, sessionCancellation.Token);
                     else if (message.SnapshotRequest.Scope == SnapshotScope.Registries) await registries.SendAsync(force: true, sessionCancellation.Token);
+                    else if (message.SnapshotRequest.Scope == SnapshotScope.Pods) await pods.SendAsync(force: true, sessionCancellation.Token);
                     else await inventory.SendAsync(sessionCancellation.Token);
                 }
                 else if (message.PayloadCase == ControlPlaneMessage.PayloadOneofCase.ContainerQuery)
@@ -327,6 +337,7 @@ public sealed class AgentControlWorker(
         Func<ulong> getImageRevision,
         Func<ulong> getVolumeRevision,
         Func<ulong> getNetworkRevision,
+        Func<ulong> getPodRevision,
         TimeSpan interval,
         CancellationToken cancellationToken)
     {
@@ -336,7 +347,7 @@ public sealed class AgentControlWorker(
             await messages.WriteAsync(
                 new AgentMessage
                 {
-                    Heartbeat = new Heartbeat { InventoryRevision = getInventoryRevision(), ImageRevision = getImageRevision(), VolumeRevision = getVolumeRevision(), NetworkRevision = getNetworkRevision() },
+                    Heartbeat = new Heartbeat { InventoryRevision = getInventoryRevision(), ImageRevision = getImageRevision(), VolumeRevision = getVolumeRevision(), NetworkRevision = getNetworkRevision(), PodRevision = getPodRevision() },
                 },
                 cancellationToken);
         }
@@ -444,6 +455,7 @@ public sealed class AgentControlWorker(
         ImagePublisher images,
         VolumePublisher volumes,
         NetworkPublisher networks,
+        PodPublisher pods,
         bool sendEvents,
         CancellationToken cancellationToken)
     {
@@ -452,6 +464,8 @@ public sealed class AgentControlWorker(
         long imagesDirtySince = 0;
         long volumesDirtySince = 0;
         long networksDirtySince = 0;
+        long podsDirtySince = 0;
+        long podsFirstDirty = 0;
         var pump = Task.Run(async () =>
         {
             using var timer = new PeriodicTimer(TimeSpan.FromSeconds(1));
@@ -471,6 +485,17 @@ public sealed class AgentControlWorker(
                     // Montagens mudam com containers criados ou removidos: o snapshot de volumes só sai se o conjunto mudou.
                     await volumes.SendAsync(force: false, cancellationToken);
                     await networks.SendAsync(force: false, cancellationToken);
+                }
+
+                // Pods: 2 s sem eventos ou, com eventos contínuos, no máximo 5 s após a primeira mudança.
+                var podsSince = Interlocked.Read(ref podsDirtySince);
+                var podsFirst = Interlocked.Read(ref podsFirstDirty);
+                if (podsSince != 0 &&
+                    (Environment.TickCount64 - podsSince >= 2000 || Environment.TickCount64 - podsFirst >= 5000) &&
+                    Interlocked.CompareExchange(ref podsDirtySince, 0, podsSince) == podsSince)
+                {
+                    Interlocked.Exchange(ref podsFirstDirty, 0);
+                    await pods.SendAsync(force: false, cancellationToken);
                 }
 
                 var networksSince = Interlocked.Read(ref networksDirtySince);
@@ -515,6 +540,14 @@ public sealed class AgentControlWorker(
                     if (record.Type == "volume")
                     {
                         Interlocked.Exchange(ref volumesDirtySince, Environment.TickCount64);
+                    }
+
+                    // A situação do pod deriva dos containers: eventos de pod e de container republicam os pods. O health check
+                    // não muda a situação e chega a cada poucos segundos: contá-lo adiaria o envio indefinidamente.
+                    if (record.Type is "pod" or "container" && !record.Action.StartsWith("health_status", StringComparison.Ordinal))
+                    {
+                        Interlocked.CompareExchange(ref podsFirstDirty, Environment.TickCount64, 0);
+                        Interlocked.Exchange(ref podsDirtySince, Environment.TickCount64);
                     }
 
                     if (record.Type == "network")
@@ -652,6 +685,47 @@ public sealed class AgentControlWorker(
     }
 
     private Task<IReadOnlyList<EngineNetwork>> ListNetworksAsync(CancellationToken cancellationToken) => engine.ListNetworksAsync(cancellationToken);
+
+    private Task<IReadOnlyList<EnginePod>?> ListPodsAsync(CancellationToken cancellationToken) => engine.ListPodsAsync(cancellationToken);
+
+    private void LogPodInventoryUnavailable(Exception exception) => logger.LogWarning(exception, "Engine pod inventory unavailable");
+
+    /// <summary>Snapshot do inventário de pods quando o conjunto ou a situação dos membros muda (spec 021).</summary>
+    private sealed class PodPublisher(AgentControlWorker worker, ChannelWriter<AgentMessage> messages, bool enabled)
+    {
+        private readonly SemaphoreSlim gate = new(1, 1);
+        private readonly Dokpod.Agent.Application.Pods.PodInventoryBuilder builder = new(TimeProvider.System, worker.self);
+
+        public ulong Revision => enabled ? builder.Revision : 0;
+
+        public async Task SendAsync(bool force, CancellationToken cancellationToken)
+        {
+            if (!enabled) return;
+            await gate.WaitAsync(cancellationToken);
+            try
+            {
+                IReadOnlyList<EnginePod>? list;
+                try
+                {
+                    list = await worker.ListPodsAsync(cancellationToken);
+                }
+                catch (Exception exception) when (exception is HttpRequestException or IOException or InvalidDataException or System.Text.Json.JsonException)
+                {
+                    worker.LogPodInventoryUnavailable(exception);
+                    return;
+                }
+
+                foreach (var page in builder.Build(list, force))
+                {
+                    await messages.WriteAsync(new AgentMessage { PodSnapshotPage = page }, cancellationToken);
+                }
+            }
+            finally
+            {
+                gate.Release();
+            }
+        }
+    }
 
     private Task<EngineRegistryConfig> GetRegistryConfigAsync(CancellationToken cancellationToken) => engine.GetRegistryConfigAsync(cancellationToken);
 
@@ -802,6 +876,8 @@ public sealed class AgentControlWorker(
                 Capability.NetworkInventory,
                 Capability.NetworkRemove,
                 Capability.RegistryInventory,
+                Capability.PodInventory,
+                Capability.PodActions,
             },
             SupportedProtocolVersions = { "1" },
         };

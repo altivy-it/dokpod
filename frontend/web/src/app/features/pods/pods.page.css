@@ -1,0 +1,17 @@
+.pd-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.pd-muted { color: var(--muted); }
+.pd-partial { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); }
+.pd-chip-btn { padding: 0; border: 0; background: none; cursor: pointer; border-radius: 999px; }
+.pd-chip-btn:focus-visible { outline: 2px solid var(--teal-light); outline-offset: 2px; }
+.pd-chip-btn[aria-pressed='true'] dok-status-chip { box-shadow: 0 0 0 1px var(--warning-strong, currentColor); border-radius: 999px; }
+.pd-note { display: flex; gap: 10px; align-items: center; padding: 10px 14px; border-radius: var(--radius-md); background: var(--warning-tint); font-size: 13px; }
+.pd-batch { display: flex; flex-direction: column; gap: 8px; padding: 12px 16px; border-radius: var(--radius-lg); }
+.pd-batch__head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.pd-batch__head strong { color: var(--text-strong); font-size: 14px; }
+.pd-batch__list { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 4px 16px; max-height: 160px; overflow: auto; }
+.pd-batch__list li { display: flex; align-items: center; gap: 8px; font-size: 13px; min-width: 0; }
+.pd-batch__name { color: var(--foreground); font-weight: 500; font-family: var(--font-mono, monospace); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pd-hosts { display: flex; flex-wrap: wrap; gap: 6px 16px; color: var(--muted); }
+.pd-hosts span { display: inline-flex; align-items: center; gap: 6px; }
+.pd-more { position: relative; display: inline-flex; }
+.pd-more__menu { position: absolute; top: calc(100% + 6px); right: 0; z-index: 40; min-width: 180px; display: flex; flex-direction: column; gap: 2px; }

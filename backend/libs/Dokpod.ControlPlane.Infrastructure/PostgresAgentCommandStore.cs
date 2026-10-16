@@ -63,9 +63,12 @@ public sealed class PostgresAgentCommandStore(
             row.UpdatedAtUtc,
             row.CompletedAtUtc)
         {
-            Output = row.ResolvedImageDigest is null && row.ImageSizeBytes is null && row.CreatedContainerId is null
+            Output = row.ResolvedImageDigest is null && row.ImageSizeBytes is null && row.CreatedContainerId is null && row.FailedContainers is null
                 ? null
-                : new AgentCommandOutput(row.ResolvedImageDigest, row.ImageSizeBytes, row.CreatedContainerId),
+                : new AgentCommandOutput(row.ResolvedImageDigest, row.ImageSizeBytes, row.CreatedContainerId)
+                {
+                    FailedContainers = row.FailedContainers?.Split(',', StringSplitOptions.RemoveEmptyEntries),
+                },
             ImageReference = parameters.GetValueOrDefault(commandId) switch
             {
                 PullImageParameters pull => pull.Reference.Canonical,
@@ -73,6 +76,8 @@ public sealed class PostgresAgentCommandStore(
                 _ => null,
             },
             ContainerName = parameters.GetValueOrDefault(commandId) is CreateContainerParameters created ? created.Spec.Name : null,
+            PodName = parameters.GetValueOrDefault(commandId) is PodActionParameters pod ? pod.Name : null,
+            PodAction = parameters.GetValueOrDefault(commandId) is PodActionParameters podAction ? Dokpod.Domain.Pods.PodNames.ToValue(podAction.Action) : null,
         };
     }
 
@@ -168,7 +173,7 @@ public sealed class PostgresAgentCommandStore(
             auditEvent,
             command.Command.EnvironmentId,
             command.Command.CommandId,
-            GetCommandAction(command.Command.Kind));
+            command.Command.Parameters is PodActionParameters podParameters ? Dokpod.Domain.Pods.PodNames.AuditAction(podParameters.Action) : GetCommandAction(command.Command.Kind));
         await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken)
             .ConfigureAwait(false);
         var result = await EnqueueAsync(command, cancellationToken).ConfigureAwait(false);
@@ -211,6 +216,7 @@ public sealed class PostgresAgentCommandStore(
                     .SetProperty(command => command.ResolvedImageDigest, update.Output == null ? null : update.Output.ResolvedImageDigest)
                     .SetProperty(command => command.ImageSizeBytes, update.Output == null ? null : update.Output.ImageSizeBytes)
                     .SetProperty(command => command.CreatedContainerId, update.Output == null ? null : update.Output.CreatedContainerId)
+                    .SetProperty(command => command.FailedContainers, update.Output == null || update.Output.FailedContainers == null ? null : string.Join(',', update.Output.FailedContainers))
                     .SetProperty(
                         command => command.UpdatedAtUtc,
                         command => command.UpdatedAtUtc > update.UpdatedAtUtc
@@ -584,6 +590,7 @@ public sealed class PostgresAgentCommandStore(
         CreateContainerParameters => "create_container",
         RemoveVolumeParameters => "remove_volume",
         RemoveNetworkParameters => "remove_network",
+        PodActionParameters => "pod_action",
         _ => throw new ArgumentOutOfRangeException(nameof(parameters)),
     };
 
@@ -595,6 +602,7 @@ public sealed class PostgresAgentCommandStore(
             ParametersJson),
         RemoveVolumeParameters volume => System.Text.Json.JsonSerializer.Serialize(new { name = volume.Name }),
         RemoveNetworkParameters network => System.Text.Json.JsonSerializer.Serialize(new { networkId = network.NetworkId, name = network.Name }),
+        PodActionParameters pod => System.Text.Json.JsonSerializer.Serialize(new { podId = pod.PodId, name = pod.Name, action = Dokpod.Domain.Pods.PodNames.ToValue(pod.Action) }),
         _ => throw new ArgumentOutOfRangeException(nameof(parameters)),
     };
 
@@ -613,6 +621,12 @@ public sealed class PostgresAgentCommandStore(
                 document.RootElement.TryGetProperty("name", out var networkName) &&
                 Dokpod.Domain.Networks.NetworkNames.IsValidId(networkId.GetString()) &&
                 Dokpod.Domain.Networks.NetworkNames.IsValidName(networkName.GetString()) => new RemoveNetworkParameters(networkId.GetString()!, networkName.GetString()!),
+            "pod_action" when document.RootElement.TryGetProperty("podId", out var podId) &&
+                document.RootElement.TryGetProperty("name", out var podName) &&
+                document.RootElement.TryGetProperty("action", out var podAction) &&
+                Dokpod.Domain.Pods.PodNames.IsValidId(podId.GetString()) &&
+                Dokpod.Domain.Pods.PodNames.IsValidName(podName.GetString()) &&
+                Dokpod.Domain.Pods.PodNames.TryParse(podAction.GetString(), out var parsedAction) => new PodActionParameters(podId.GetString()!, podName.GetString()!, parsedAction),
             _ => null,
         };
     }
@@ -650,6 +664,7 @@ public sealed class PostgresAgentCommandStore(
             AgentCommandKind.CreateContainer => "container.create.requested",
             AgentCommandKind.RemoveVolume => "volume.remove",
             AgentCommandKind.RemoveNetwork => "network.remove",
+            AgentCommandKind.PodAction => "pod.start",
             _ => throw new ArgumentOutOfRangeException(nameof(kind)),
         };
 }

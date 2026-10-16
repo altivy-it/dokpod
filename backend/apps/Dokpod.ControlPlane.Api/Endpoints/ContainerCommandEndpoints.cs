@@ -105,15 +105,22 @@ public static class ContainerCommandEndpoints
         {
             command.EnvironmentId,
             command.CommandId,
-            action = MapKind(command.Kind),
-            kind = command.Kind == AgentCommandKind.PullImage ? "image" : "container",
+            action = command.PodAction is { } podAction ? "pod_" + podAction : MapKind(command.Kind),
+            kind = command.Kind switch { AgentCommandKind.PullImage => "image", AgentCommandKind.PodAction => "pod", _ => "container" },
             containerId = command.ContainerId.Length == 0 ? null : command.ContainerId,
             expectedContainerRevision = command.ExpectedContainerRevision.Length == 0 ? null : command.ExpectedContainerRevision,
             reference = command.ImageReference,
             containerName = command.ContainerName,
+            podName = command.PodName,
             result = command.Output is null
                 ? null
-                : new { resolvedImageDigest = command.Output.ResolvedImageDigest, imageSizeBytes = command.Output.ImageSizeBytes, createdContainerId = command.Output.CreatedContainerId },
+                : new
+                {
+                    resolvedImageDigest = command.Output.ResolvedImageDigest,
+                    imageSizeBytes = command.Output.ImageSizeBytes,
+                    createdContainerId = command.Output.CreatedContainerId,
+                    failedContainers = command.Output.FailedContainers,
+                },
             state = MapState(command.State),
             command.FailureCode,
             command.ObservedContainerRevision,
@@ -261,6 +268,7 @@ public static class ContainerCommandEndpoints
         AgentCommandKind.CreateContainer => "create",
         AgentCommandKind.RemoveVolume => "remove_volume",
         AgentCommandKind.RemoveNetwork => "remove_network",
+        AgentCommandKind.PodAction => "pod_action",
         _ => throw new ArgumentOutOfRangeException(nameof(kind)),
     };
 

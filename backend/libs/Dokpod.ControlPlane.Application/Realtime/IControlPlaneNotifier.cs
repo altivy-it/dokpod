@@ -10,6 +10,7 @@ public static class InvalidationKinds
     public const string Volumes = "volumes";
     public const string Networks = "networks";
     public const string Registries = "registries";
+    public const string Pods = "pods";
 }
 
 /// <summary>Invalidação em tempo real por ambiente e tipo; o cliente busca o estado pela API.</summary>

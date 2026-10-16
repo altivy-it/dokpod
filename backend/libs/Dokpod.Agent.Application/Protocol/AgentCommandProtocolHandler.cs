@@ -46,8 +46,7 @@ public sealed class AgentCommandProtocolHandler(AgentCommandProcessor processor)
             return;
         }
 
-        await sendResultAsync(
-            new CommandResult
+        var resultMessage = new CommandResult
             {
                 CommandId = result.CommandId.ToString("D"),
                 State = MapResultState(result.State),
@@ -57,8 +56,9 @@ public sealed class AgentCommandProtocolHandler(AgentCommandProcessor processor)
                 ImageSizeBytes = result.Output?.ImageSizeBytes is > 0 ? (ulong)result.Output.ImageSizeBytes.Value : 0,
                 CreatedContainerId = result.Output?.CreatedContainerId ?? string.Empty,
                 CompletedAt = Timestamp.FromDateTimeOffset(result.CompletedAtUtc),
-            },
-            cancellationToken);
+            };
+        resultMessage.FailedContainers.AddRange(result.Output?.FailedContainers ?? []);
+        await sendResultAsync(resultMessage, cancellationToken);
     }
 
     private static CommandAcceptance MapAcceptance(CommandAdmission admission) => admission switch

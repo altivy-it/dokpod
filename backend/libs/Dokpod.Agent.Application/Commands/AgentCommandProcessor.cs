@@ -9,7 +9,8 @@ public sealed class AgentCommandProcessor(
     ICommandJournal journal,
     IContainerEngine engine,
     TimeProvider timeProvider,
-    Dokpod.Agent.Application.Containers.ContainerCreator? creator = null)
+    Dokpod.Agent.Application.Containers.ContainerCreator? creator = null,
+    Dokpod.Agent.Application.Pods.ISelfContainer? self = null)
 {
     private readonly ConcurrentDictionary<(Guid EnvironmentId, string ContainerId), SemaphoreSlim> mutationLocks = [];
 
@@ -70,6 +71,7 @@ public sealed class AgentCommandProcessor(
             CreateContainerParameters create => "create:" + create.Spec.Name,
             RemoveVolumeParameters volume => "volume:" + volume.Name,
             RemoveNetworkParameters network => "network:" + network.NetworkId,
+            PodActionParameters pod => "pod:" + pod.PodId,
             _ => command.ContainerId,
         };
         var mutationLock = mutationLocks.GetOrAdd(
@@ -142,6 +144,51 @@ public sealed class AgentCommandProcessor(
                         failure is null ? CommandExecutionState.Succeeded : CommandExecutionState.Failed,
                         failure,
                         null));
+                }
+                catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+                {
+                    return await SaveAsync(CreateResult(command, CommandExecutionState.Indeterminate, "deadline_exceeded", null));
+                }
+                catch (Exception exception) when (exception is HttpRequestException or IOException or System.Text.Json.JsonException or InvalidDataException)
+                {
+                    return await SaveAsync(CreateResult(command, CommandExecutionState.Indeterminate, "engine_unavailable", null));
+                }
+            }
+
+            if (command.Kind == AgentCommandKind.PodAction)
+            {
+                if (command.Parameters is not PodActionParameters pod)
+                {
+                    return await SaveAsync(CreateResult(command, CommandExecutionState.Failed, "pod_invalid", null));
+                }
+
+                using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                deadline.CancelAfter(command.DeadlineUtc - timeProvider.GetUtcNow());
+                try
+                {
+                    var pods = await engine.ListPodsAsync(deadline.Token);
+                    if (pods is null) return await SaveAsync(CreateResult(command, CommandExecutionState.Failed, "not_supported", null));
+                    var current = pods.FirstOrDefault(p => p.PodId == pod.PodId);
+                    if (current is null) return await SaveAsync(CreateResult(command, CommandExecutionState.Failed, Dokpod.Domain.Pods.PodActionCodes.NotFound, null));
+                    // Spec 021 FR-005: o pod do próprio agente não é parado, pausado nem reiniciado (o host ficaria sem agente).
+                    if (Dokpod.Domain.Pods.PodNames.RefusedForAgentPod(pod.Action) &&
+                        Dokpod.Agent.Application.Pods.PodStates.IsAgentPod(current, self ?? new Dokpod.Agent.Application.Pods.NoSelfContainer()))
+                    {
+                        return await SaveAsync(CreateResult(command, CommandExecutionState.Failed, Dokpod.Domain.Pods.PodActionCodes.AgentPod, null));
+                    }
+
+                    var failure = await engine.PodActionAsync(pod.PodId, pod.Action, deadline.Token);
+                    if (failure == Dokpod.Domain.Pods.PodActionCodes.NotFound) return await SaveAsync(CreateResult(command, CommandExecutionState.Failed, failure, null));
+                    // Releitura: membros fora do estado esperado indicam falha parcial (FR-008).
+                    var after = (await engine.ListPodsAsync(deadline.Token))?.FirstOrDefault(p => p.PodId == pod.PodId);
+                    var failed = after is null ? [] : Dokpod.Agent.Application.Pods.PodStates.Failed(after, pod.Action);
+                    // 409 com todos os membros no estado esperado na releitura conta como sucesso (o engine convergiu).
+                    var code = failed.Count > 0 ? Dokpod.Domain.Pods.PodActionCodes.PartialFailure
+                        : failure == Dokpod.Domain.Pods.PodActionCodes.PartialFailure ? null : failure;
+                    return await SaveAsync(CreateResult(command, code is null ? CommandExecutionState.Succeeded : CommandExecutionState.Failed, code, null) with
+                    {
+                        Output = failed.Count > 0 ? new AgentCommandOutput { FailedContainers = failed } : null,
+                    });
                 }
                 catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
                 {

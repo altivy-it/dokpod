@@ -49,6 +49,8 @@ public sealed class AgentHostActivity(
         Capability.NetworkInventory,
         Capability.NetworkRemove,
         Capability.RegistryInventory,
+        Capability.PodInventory,
+        Capability.PodActions,
     ];
 
     public static IEnumerable<Capability> Accept(AgentHello hello) =>

@@ -193,6 +193,11 @@
             <p class="app-caption cd-muted">Rede, volumes e variáveis exigem permissão de inspeção.</p>
           } @else {
             <dok-key-value [items]="networkItems()" [labelWidth]="96" />
+            @if (pod(); as p) {
+              <ul class="cd-volume-links" aria-label="Pod do container">
+                <li><span class="cd-muted">Pod</span><a routerLink="/pods" [queryParams]="{ podHost: environmentId(), pod: p.podId }">{{ p.name }}</a></li>
+              </ul>
+            }
             @if (networkLinks().length) {
               <ul class="cd-volume-links" aria-label="Redes do container">
                 @for (link of networkLinks(); track link.name) {
