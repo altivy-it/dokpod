@@ -80,6 +80,12 @@ Features integram por rotas, contratos públicos e fachadas pequenas; não impor
 - a política mostra a lista efetiva de cada estágio e se veio da configuração ou do console; a edição valida host[:porta], mostra quantas imagens ficam fora e só aparece com administração de todos os hosts do estágio;
 - as chamadas ficam em `features/registries/registries-api.service.ts`; as de gestão de alertas passaram para `features/alerts/alerts-api.service.ts`, o que manteve o bundle inicial em 418,91 kB.
 
+### Pods (spec 021)
+
+- Operação → Pods (`/pods`) lista os pods do Podman com situação (em execução, degradado, parado, pausado, criado, com erro), containers em execução, redes e criação; situação, host e busca ficam na URL (`status`, `environmentId`, `q`, `sort`) e `podHost` + `pod` abrem o detalhe (link usado pelo detalhe do container);
+- hosts Docker aparecem como "sem pods" e agentes anteriores como "inventário de pods indisponível"; o pod que contém o agente é rotulado e não oferece parar, pausar nem reiniciar;
+- ações iniciar, parar, reiniciar, pausar e retomar valem para o pod inteiro, por linha, no detalhe ou em lote (até 50), com justificativa para parar e pausar; a falha parcial lista os containers que não mudaram de estado.
+
 ## Experiência operacional
 
 - densidade informacional adequada a tarefas repetidas;

@@ -169,11 +169,11 @@ export type ContainerCommandAccepted = {
 export type ContainerCommandStatus = {
     environmentId: string;
     commandId: string;
-    action: 'start' | 'stop' | 'restart' | 'delete' | 'pause' | 'unpause' | 'pull' | 'create' | 'remove_volume' | 'remove_network';
+    action: 'start' | 'stop' | 'restart' | 'delete' | 'pause' | 'unpause' | 'pull' | 'create' | 'remove_volume' | 'remove_network' | 'pod_start' | 'pod_stop' | 'pod_restart' | 'pod_pause' | 'pod_unpause';
     /**
      * Alvo do comando (spec 012); `image` para pull com alvo de host.
      */
-    kind?: 'container' | 'image';
+    kind?: 'container' | 'image' | 'pod';
     /**
      * Nulo para comandos com alvo de host.
      */
@@ -187,6 +187,10 @@ export type ContainerCommandStatus = {
      * Nome pedido na criação (spec 013).
      */
     containerName?: string | null;
+    /**
+     * Pod alvo de uma ação de pod (spec 021).
+     */
+    podName?: string | null;
     result?: null | {
         resolvedImageDigest?: string | null;
         imageSizeBytes?: number | null;
@@ -194,6 +198,10 @@ export type ContainerCommandStatus = {
          * Container criado (spec 013); presente também em `start_failed`.
          */
         createdContainerId?: string | null;
+        /**
+         * Membros do pod fora do estado esperado após a ação (spec 021, `pod_partial_failure`).
+         */
+        failedContainers?: Array<string> | null;
     };
     state: 'pending' | 'dispatched' | 'accepted' | 'succeeded' | 'failed' | 'indeterminate';
     failureCode: string | null;
@@ -596,7 +604,7 @@ export type IntentionalAction = {
     reason: string;
 };
 
-export type AuditCategory = 'environments' | 'containers' | 'commands' | 'images' | 'volumes' | 'networks' | 'inspection' | 'terminal' | 'governance' | 'audit';
+export type AuditCategory = 'environments' | 'containers' | 'commands' | 'images' | 'volumes' | 'networks' | 'pods' | 'inspection' | 'terminal' | 'governance' | 'audit';
 
 export type AuditOutcome = 'succeeded' | 'denied' | 'failed' | 'indeterminate';
 
@@ -814,6 +822,64 @@ export type RegistryPolicyImpact = {
 
 export type RegistryPolicyRequest = {
     registries: Array<string>;
+};
+
+export type PodStatus = 'running' | 'degraded' | 'exited' | 'paused' | 'created' | 'error';
+
+export type PodAction = 'start' | 'stop' | 'restart' | 'pause' | 'unpause';
+
+export type PodMember = {
+    containerId: string;
+    name: string;
+    status: string;
+    restarts: number;
+    infra: boolean;
+};
+
+export type PodItem = {
+    environmentId: string;
+    environmentName: string;
+    stage?: Stage | null;
+    hostConnected: boolean;
+    podId: string;
+    name: string;
+    status: PodStatus;
+    createdAt?: string | null;
+    labels: {
+        [key: string]: string;
+    };
+    networks: Array<string>;
+    infraId?: string | null;
+    containers: Array<PodMember>;
+    runningContainers: number;
+    agentPod: boolean;
+    truncated: boolean;
+    observedAt: string;
+    allowedActions: Array<PodAction>;
+};
+
+export type PodHostRef = {
+    environmentId: string;
+    environmentName: string;
+};
+
+export type PodListPage = {
+    pods: Array<PodItem>;
+    summary: {
+        total: number;
+        byStatus: {
+            [key: string]: number;
+        };
+        withoutPodsHosts: Array<PodHostRef>;
+        unavailableHosts: Array<PodHostRef>;
+    };
+    nextCursor?: string | null;
+};
+
+export type PodActionRequest = {
+    action: PodAction;
+    deadlineUtc: string;
+    justification?: string;
 };
 
 export type ResourceScope = 'environment:read' | 'environment:manage' | 'container:start' | 'container:stop' | 'container:restart' | 'container:delete' | 'audit:read' | 'container:pause' | 'container:inspect' | 'container:logs' | 'image:pull' | 'container:create' | 'container:exec' | 'alert:read' | 'alert:manage' | 'volume:delete' | 'network:delete';
@@ -3746,3 +3812,155 @@ export type SetRegistryPolicyResponses = {
 };
 
 export type SetRegistryPolicyResponse = SetRegistryPolicyResponses[keyof SetRegistryPolicyResponses];
+
+export type ListPodsData = {
+    body?: never;
+    headers?: {
+        /**
+         * Identificador técnico opcional para correlação server-side.
+         */
+        'X-Correlation-Id'?: string;
+    };
+    path?: never;
+    query?: {
+        stage?: Stage;
+        environmentId?: Array<string>;
+        status?: Array<PodStatus>;
+        containerId?: string;
+        q?: string;
+        sort?: 'name' | '-name' | 'createdAt' | '-createdAt' | 'environment';
+        cursor?: string;
+        limit?: number;
+    };
+    url: '/api/v1/pods';
+};
+
+export type ListPodsErrors = {
+    /**
+     * Requisição inválida.
+     */
+    400: ProblemDetails;
+    /**
+     * Autenticação ausente ou inválida.
+     */
+    401: ProblemDetails;
+    /**
+     * Autorização ou persistência indisponível.
+     */
+    503: ProblemDetails;
+};
+
+export type ListPodsError = ListPodsErrors[keyof ListPodsErrors];
+
+export type ListPodsResponses = {
+    /**
+     * OK.
+     */
+    200: PodListPage;
+};
+
+export type ListPodsResponse = ListPodsResponses[keyof ListPodsResponses];
+
+export type GetPodData = {
+    body?: never;
+    headers?: {
+        /**
+         * Identificador técnico opcional para correlação server-side.
+         */
+        'X-Correlation-Id'?: string;
+    };
+    path: {
+        environmentId: string;
+        /**
+         * Identificador (64 hex) ou nome do pod.
+         */
+        pod: string;
+    };
+    query?: never;
+    url: '/api/v1/environments/{environmentId}/pods/{pod}';
+};
+
+export type GetPodErrors = {
+    /**
+     * Requisição inválida.
+     */
+    400: ProblemDetails;
+    /**
+     * Autenticação ausente ou inválida.
+     */
+    401: ProblemDetails;
+    /**
+     * O ambiente não foi encontrado após autorização.
+     */
+    404: ProblemDetails;
+};
+
+export type GetPodError = GetPodErrors[keyof GetPodErrors];
+
+export type GetPodResponses = {
+    /**
+     * OK.
+     */
+    200: PodItem;
+};
+
+export type GetPodResponse = GetPodResponses[keyof GetPodResponses];
+
+export type SubmitPodActionData = {
+    body: PodActionRequest;
+    headers: {
+        'Idempotency-Key': string;
+        /**
+         * Identificador técnico opcional para correlação server-side.
+         */
+        'X-Correlation-Id'?: string;
+    };
+    path: {
+        environmentId: string;
+        podId: string;
+    };
+    query?: never;
+    url: '/api/v1/environments/{environmentId}/pods/{podId}/actions';
+};
+
+export type SubmitPodActionErrors = {
+    /**
+     * Requisição inválida.
+     */
+    400: ProblemDetails;
+    /**
+     * Autenticação ausente ou inválida.
+     */
+    401: ProblemDetails;
+    /**
+     * Decisão do Keycloak negou o cadastro.
+     */
+    403: ProblemDetails;
+    /**
+     * O ambiente não foi encontrado após autorização.
+     */
+    404: ProblemDetails;
+    /**
+     * O ambiente já existe.
+     */
+    409: ProblemDetails;
+    /**
+     * Justificativa obrigatória pela política do estágio.
+     */
+    422: ProblemDetails;
+    /**
+     * Autorização ou persistência indisponível.
+     */
+    503: ProblemDetails;
+};
+
+export type SubmitPodActionError = SubmitPodActionErrors[keyof SubmitPodActionErrors];
+
+export type SubmitPodActionResponses = {
+    /**
+     * Comando aceito.
+     */
+    202: ContainerCommandAccepted;
+};
+
+export type SubmitPodActionResponse = SubmitPodActionResponses[keyof SubmitPodActionResponses];

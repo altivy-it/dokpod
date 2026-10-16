@@ -47,6 +47,19 @@ public sealed record EngineNetwork(
 
 public sealed record EngineNetworkSubnet(string Subnet, string? Gateway);
 
+/// <summary>Pod do Podman (spec 021); membros com situação e reinícios.</summary>
+public sealed record EnginePod(
+    string PodId,
+    string Name,
+    string Status,
+    DateTimeOffset? CreatedAtUtc,
+    IReadOnlyDictionary<string, string> Labels,
+    IReadOnlyList<string> Networks,
+    string? InfraId,
+    IReadOnlyList<EnginePodMember> Members);
+
+public sealed record EnginePodMember(string ContainerId, string Name, string Status, int Restarts);
+
 /// <summary>Registro na configuração do engine (spec 020); `MirrorOf` quando é espelho de outro registro.</summary>
 public sealed record EngineRegistry(string Registry, IReadOnlyList<string> Mirrors, bool Insecure, bool Blocked, bool Search);
 
@@ -202,6 +215,14 @@ public interface IContainerEngine
     /// <summary>Configuração de registros (`/libpod/info` no Podman, `/info` no Docker) e registros com credencial (spec 020).</summary>
     Task<EngineRegistryConfig> GetRegistryConfigAsync(CancellationToken cancellationToken) =>
         Task.FromResult(new EngineRegistryConfig(false, [], []));
+
+    /// <summary>Pods do host (`/libpod/pods/json`, spec 021); nulo quando o engine não tem pods (Docker).</summary>
+    Task<IReadOnlyList<EnginePod>?> ListPodsAsync(CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<EnginePod>?>(null);
+
+    /// <summary>`POST /libpod/pods/{id}/{ação}`; código de falha da spec 021 ou nulo (304 = já no estado).</summary>
+    Task<string?> PodActionAsync(string podId, Dokpod.Domain.Pods.PodActionKind action, CancellationToken cancellationToken) =>
+        Task.FromResult<string?>("not_supported");
 
     /// <summary>Redes do host (`/networks`, spec 019).</summary>
     Task<IReadOnlyList<EngineNetwork>> ListNetworksAsync(CancellationToken cancellationToken) =>

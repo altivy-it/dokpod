@@ -31,6 +31,7 @@ public sealed class AgentControlService(
     Dokpod.ControlPlane.Application.Volumes.IVolumeInventoryStore? volumeStore = null,
     Dokpod.ControlPlane.Application.Networks.INetworkInventoryStore? networkStore = null,
     Dokpod.ControlPlane.Application.Registries.IRegistryInventoryStore? registryStore = null,
+    Dokpod.ControlPlane.Application.Pods.IPodInventoryStore? podStore = null,
     Dokpod.ControlPlane.Application.Terminal.TerminalSessionRegistry? terminals = null,
     IAgentIdentityRegistry? identities = null) : AgentControl.AgentControlBase
 {
@@ -108,7 +109,8 @@ public sealed class AgentControlService(
                         AgentHostActivity.Accept(hello).Where(capability =>
                             (volumeStore is not null || capability is not (Capability.VolumeInventory or Capability.VolumeRemove)) &&
                             (networkStore is not null || capability is not (Capability.NetworkInventory or Capability.NetworkRemove)) &&
-                            (registryStore is not null || capability is not Capability.RegistryInventory)),
+                            (registryStore is not null || capability is not Capability.RegistryInventory) &&
+                            (podStore is not null || capability is not (Capability.PodInventory or Capability.PodActions))),
                     },
                 },
             });
@@ -140,6 +142,11 @@ public sealed class AgentControlService(
             var lastNetworkSnapshotRequest = DateTimeOffset.MinValue;
             // Spec 020: configuração de registros do host em uma mensagem (sem credenciais).
             var registriesAccepted = registryStore is not null && hello.Capabilities.Contains(Capability.RegistryInventory);
+            // Spec 021: pods (só Podman; o snapshot informa quando o engine não tem pods).
+            var podAccumulator = new Dokpod.ControlPlane.Application.Pods.PodSnapshotAccumulator(session.EnvironmentId, TimeProvider.System);
+            var podsAccepted = podStore is not null && hello.Capabilities.Contains(Capability.PodInventory);
+            ulong appliedPodRevision = 0;
+            var lastPodSnapshotRequest = DateTimeOffset.MinValue;
             var recoveredCommands = new Queue<PersistedAgentCommand>(
                 await commandStore.ClaimDispatchableAsync(
                     session.EnvironmentId,
@@ -309,6 +316,33 @@ public sealed class AgentControlService(
                                 Metadata = CreateServerMetadata(session, ++serverSequence),
                                 SnapshotRequest = new SnapshotRequest { ReasonCode = "network_revision_mismatch", Scope = SnapshotScope.Networks },
                             });
+                        }
+
+                        var podRevision = requestStream.Current.Heartbeat.PodRevision;
+                        if (podsAccepted && podRevision != 0 && podRevision != appliedPodRevision &&
+                            DateTimeOffset.UtcNow - lastPodSnapshotRequest >= TimeSpan.FromMinutes(1))
+                        {
+                            lastPodSnapshotRequest = DateTimeOffset.UtcNow;
+                            await responseStream.WriteAsync(new ControlPlaneMessage
+                            {
+                                Metadata = CreateServerMetadata(session, ++serverSequence),
+                                SnapshotRequest = new SnapshotRequest { ReasonCode = "pod_revision_mismatch", Scope = SnapshotScope.Pods },
+                            });
+                        }
+
+                        break;
+
+                    case AgentMessage.PayloadOneofCase.PodSnapshotPage when podsAccepted:
+                        var podSnapshot = podAccumulator.AddPage(MapPodPage(requestStream.Current.PodSnapshotPage), out var podFailure);
+                        if (podFailure is not null)
+                        {
+                            throw new RpcException(new Status(StatusCode.InvalidArgument, podFailure));
+                        }
+
+                        if (podSnapshot is not null && await podStore!.ReplaceSnapshotAsync(podSnapshot, context.CancellationToken))
+                        {
+                            appliedPodRevision = podSnapshot.Revision;
+                            await notifier.NotifyAsync(session.EnvironmentId, InvalidationKinds.Pods, context.CancellationToken);
                         }
 
                         break;
@@ -578,6 +612,7 @@ public sealed class AgentControlService(
         Dokpod.Domain.Commands.AgentCommandKind.CreateContainer => hello.Capabilities.Contains(Capability.ContainerCreate),
         Dokpod.Domain.Commands.AgentCommandKind.RemoveVolume => hello.Capabilities.Contains(Capability.VolumeRemove),
         Dokpod.Domain.Commands.AgentCommandKind.RemoveNetwork => hello.Capabilities.Contains(Capability.NetworkRemove),
+        Dokpod.Domain.Commands.AgentCommandKind.PodAction => hello.Capabilities.Contains(Capability.PodActions),
         _ => true,
     };
 
@@ -702,6 +737,28 @@ public sealed class AgentControlService(
                     .ToArray(),
                 network.Truncated || network.Subnets.Count > 16 || network.Labels.Count > 64 || network.Containers.Count > 200)).ToArray());
 
+    private static Dokpod.ControlPlane.Application.Pods.PodSnapshotPage MapPodPage(PodSnapshotPage page) =>
+        new(
+            page.SnapshotId,
+            page.PodRevision,
+            page.PageNumber,
+            page.IsLastPage,
+            !page.EngineWithoutPods,
+            page.Pods.Select(pod => new Dokpod.ControlPlane.Application.Pods.PodInventoryItem(
+                pod.PodId,
+                pod.Name,
+                Clip(pod.Status),
+                IsValidTimestamp(pod.CreatedAt) && pod.CreatedAt.Seconds > 0 ? pod.CreatedAt.ToDateTimeOffset() : null,
+                pod.Labels.Take(64).ToDictionary(label => Clip(label.Key), label => Clip(label.Value), StringComparer.Ordinal),
+                pod.Networks.Take(16).Select(Clip).ToArray(),
+                IsContainerId(pod.InfraId) ? pod.InfraId : null,
+                pod.Containers.Take(100)
+                    .Where(member => IsContainerId(member.ContainerId))
+                    .Select(member => new Dokpod.ControlPlane.Application.Pods.PodMemberItem(member.ContainerId, Clip(member.Name), Clip(member.Status), (int)Math.Min(member.Restarts, int.MaxValue), member.Infra))
+                    .ToArray(),
+                pod.AgentPod,
+                pod.Truncated || pod.Containers.Count > 100 || pod.Labels.Count > 64)).ToArray());
+
     /// <summary>Configuração de registros (spec 020): nomes fora da gramática são descartados; até 500 registros e 16 espelhos.</summary>
     private static Dokpod.ControlPlane.Application.Registries.RegistryInventorySnapshot MapRegistryInventory(Guid environmentId, RegistryInventory inventory)
     {
@@ -740,6 +797,10 @@ public sealed class AgentControlService(
         {
             message.RemoveVolume = new Dokpod.Agent.Contracts.V1.RemoveVolumeParameters { Name = volume.Name };
         }
+        else if (command.Parameters is Dokpod.Domain.Commands.PodActionParameters pod)
+        {
+            message.PodAction = new Dokpod.Agent.Contracts.V1.PodActionParameters { PodId = pod.PodId, Name = pod.Name, Action = (PodAction)(int)pod.Action };
+        }
         else if (command.Parameters is Dokpod.Domain.Commands.RemoveNetworkParameters network)
         {
             message.RemoveNetwork = new Dokpod.Agent.Contracts.V1.RemoveNetworkParameters { NetworkId = network.NetworkId, Name = network.Name };
@@ -764,6 +825,7 @@ public sealed class AgentControlService(
                 Dokpod.Domain.Commands.AgentCommandKind.CreateContainer => CommandKind.CreateContainer,
                 Dokpod.Domain.Commands.AgentCommandKind.RemoveVolume => CommandKind.RemoveVolume,
                 Dokpod.Domain.Commands.AgentCommandKind.RemoveNetwork => CommandKind.RemoveNetwork,
+                Dokpod.Domain.Commands.AgentCommandKind.PodAction => CommandKind.PodAction,
                 _ => CommandKind.Unspecified,
             },
             ContainerId = command.ContainerId,
@@ -835,12 +897,17 @@ public sealed class AgentControlService(
                 message.ObservedContainerRevision,
                 message.CompletedAt.ToDateTimeOffset(),
                 cancellationToken,
-                string.IsNullOrEmpty(message.ResolvedImageDigest) && message.ImageSizeBytes == 0 && string.IsNullOrEmpty(message.CreatedContainerId)
+                string.IsNullOrEmpty(message.ResolvedImageDigest) && message.ImageSizeBytes == 0 && string.IsNullOrEmpty(message.CreatedContainerId) && message.FailedContainers.Count == 0
                     ? null
                     : new Dokpod.Domain.Commands.AgentCommandOutput(
                         string.IsNullOrEmpty(message.ResolvedImageDigest) ? null : message.ResolvedImageDigest,
                         message.ImageSizeBytes == 0 ? null : (long)Math.Min(message.ImageSizeBytes, long.MaxValue),
-                        IsContainerId(message.CreatedContainerId) ? message.CreatedContainerId : null)));
+                        IsContainerId(message.CreatedContainerId) ? message.CreatedContainerId : null)
+                    {
+                        // Spec 021 FR-008: membros do pod que falharam (nomes fora da gramática são descartados).
+                        FailedContainers = message.FailedContainers.Count == 0 ? null
+                            : message.FailedContainers.Where(Dokpod.Domain.Pods.PodNames.IsValidName).Take(50).ToArray(),
+                    }));
         }
         catch (ArgumentException)
         {

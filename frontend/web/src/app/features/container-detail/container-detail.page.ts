@@ -32,6 +32,7 @@ import { ContainerMetricsFacade } from './container-metrics.facade';
 import { LogsPanel } from './logs.panel';
 import { TerminalTab } from './terminal.tab';
 import { EnvironmentDirectoryService } from '../../core/environment-directory.service';
+import { PodsApiService } from '../pods/pods-api.service';
 
 type TabId = 'resumo' | 'logs' | 'inspecionar' | 'estatisticas' | 'terminal';
 type Loadable<T> = { state: 'idle' | 'loading' | 'ready' | 'forbidden' | 'unavailable' | 'error'; value: T | null; message?: string };
@@ -187,6 +188,10 @@ export class ContainerDetailPage {
       .filter(v => v.type === 'volume' && !!v.name)
       .map(v => ({ name: v.name!, destination: v.destination, queryParams: { environmentId, volumeHost: environmentId, volume: v.name } }));
   });
+  /** Pod do container (spec 021 FR-004), consultado só em hosts com pods. */
+  protected readonly pod = signal<{ name: string; podId: string } | null>(null);
+  private readonly podsApi = inject(PodsApiService);
+
   /** Redes do container, com link para o detalhe em Operação → Redes (spec 019 FR-009). */
   protected readonly networkLinks = computed(() => {
     const environmentId = this.environmentId();
@@ -211,6 +216,18 @@ export class ContainerDetailPage {
       const environmentId = this.environmentId();
       const containerId = this.containerId();
       untracked(() => this.metrics.watch(environmentId, containerId));
+    });
+    // Pod do container (spec 021): uma consulta por container; hosts sem pods devolvem lista vazia.
+    effect(() => {
+      const environmentId = this.environmentId();
+      const containerId = this.containerId();
+      untracked(() => {
+        this.pod.set(null);
+        void this.podsApi.podOfContainer(environmentId, containerId).then(
+          pod => this.containerId() === containerId && this.pod.set(pod ? { name: pod.name, podId: pod.podId } : null),
+          () => this.pod.set(null),
+        );
+      });
     });
     effect(() => {
       const env = this.environmentId();

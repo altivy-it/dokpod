@@ -41,6 +41,11 @@ public sealed record AgentCommandStatusSnapshot(
 
     /// <summary>Nome do container pedido na criação (spec 013).</summary>
     public string? ContainerName { get; init; }
+
+    /// <summary>Pod e ação de um comando de pod (spec 021).</summary>
+    public string? PodName { get; init; }
+
+    public string? PodAction { get; init; }
 }
 
 public enum AgentCommandEnqueueResult

@@ -20,7 +20,7 @@ export interface NavGroup {
 export const NAV_ITEMS: NavItem[] = [
   { id: 'overview', label: 'Visão geral', icon: 'gauge', route: '/', section: 'Operação' },
   { id: 'containers', label: 'Containers', icon: 'box', route: '/containers', section: 'Operação' },
-  { id: 'pods', label: 'Pods', icon: 'grid', route: '/em-breve/pods', section: 'Operação' },
+  { id: 'pods', label: 'Pods', icon: 'grid', route: '/pods', section: 'Operação' },
   { id: 'images', label: 'Imagens', icon: 'package', route: '/imagens', section: 'Operação' },
   { id: 'volumes', label: 'Volumes', icon: 'columns', route: '/volumes', section: 'Operação' },
   { id: 'networks', label: 'Redes', icon: 'link', route: '/redes', section: 'Operação' },
@@ -32,7 +32,6 @@ export const NAV_ITEMS: NavItem[] = [
 ];
 
 export const COMING_SOON: Record<string, { label: string; description: string }> = {
-  pods: { label: 'Pods', description: 'Gestão de pods do Podman ficará disponível com o adapter Libpod.' },
   configuracoes: { label: 'Configurações', description: 'Preferências da instalação Dokpod.' },
 };
 
@@ -54,6 +53,7 @@ export function activeNavId(url: string): string {
   const path = url.split(/[?#]/)[0];
   if (path === '/' || path === '') return 'overview';
   if (path.startsWith('/containers')) return 'containers';
+  if (path.startsWith('/pods')) return 'pods';
   if (path.startsWith('/imagens')) return 'images';
   if (path.startsWith('/volumes')) return 'volumes';
   if (path.startsWith('/redes')) return 'networks';

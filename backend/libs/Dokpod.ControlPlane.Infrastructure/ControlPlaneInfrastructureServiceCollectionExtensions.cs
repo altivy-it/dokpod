@@ -36,6 +36,7 @@ public static class ControlPlaneInfrastructureServiceCollectionExtensions
         services.AddScoped<Dokpod.ControlPlane.Application.Networks.INetworkInventoryStore, PostgresNetworkInventoryStore>();
         services.AddScoped<Dokpod.ControlPlane.Application.Registries.IRegistryInventoryStore, PostgresRegistryInventoryStore>();
         services.AddScoped<Dokpod.ControlPlane.Application.Registries.IRegistryPolicyStore, PostgresRegistryPolicyStore>();
+        services.AddScoped<Dokpod.ControlPlane.Application.Pods.IPodInventoryStore, PostgresPodInventoryStore>();
         services.AddScoped<IEnvironmentRegistrationStore, PostgresEnvironmentRegistrationStore>();
         services.AddScoped<IInventoryProjectionStore, PostgresInventoryProjectionStore>();
         services.AddScoped<PostgresAgentHostStore>();

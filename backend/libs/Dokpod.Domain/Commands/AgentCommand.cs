@@ -13,6 +13,7 @@ public enum AgentCommandKind
     CreateContainer = 8,
     RemoveVolume = 9,
     RemoveNetwork = 10,
+    PodAction = 11,
 }
 
 /// <summary>Parâmetros de comandos com alvo de host (spec 012 D-001); a 013 acrescenta criação de container.</summary>
@@ -66,13 +67,39 @@ public sealed record RemoveNetworkParameters : AgentCommandParameters
     public override string Canonical => $"network={NetworkId}";
 }
 
-/// <summary>Saída de comandos parametrizados: digest e tamanho do pull (012), container criado (013).</summary>
-public sealed record AgentCommandOutput(string? ResolvedImageDigest = null, long? ImageSizeBytes = null, string? CreatedContainerId = null);
+/// <summary>Ação sobre o pod inteiro (spec 021); o agente recusa parar, pausar e reiniciar o pod do agente.</summary>
+public sealed record PodActionParameters : AgentCommandParameters
+{
+    public PodActionParameters(string podId, string name, Dokpod.Domain.Pods.PodActionKind action)
+    {
+        if (!Dokpod.Domain.Pods.PodNames.IsValidId(podId)) throw new ArgumentException("Pod id is invalid.", nameof(podId));
+        if (!Dokpod.Domain.Pods.PodNames.IsValidName(name)) throw new ArgumentException("Pod name is invalid.", nameof(name));
+        if (!Enum.IsDefined(action)) throw new ArgumentException("Pod action is invalid.", nameof(action));
+        PodId = podId;
+        Name = name;
+        Action = action;
+    }
+
+    public string PodId { get; }
+
+    /// <summary>Nome para a auditoria e a tela; fora do hash (o alvo é o identificador).</summary>
+    public string Name { get; }
+
+    public Dokpod.Domain.Pods.PodActionKind Action { get; }
+
+    public override string Canonical => $"pod={PodId};action={Dokpod.Domain.Pods.PodNames.ToValue(Action)}";
+}
+
+/// <summary>Saída de comandos parametrizados: digest e tamanho do pull (012), container criado (013), membros do pod que falharam (021).</summary>
+public sealed record AgentCommandOutput(string? ResolvedImageDigest = null, long? ImageSizeBytes = null, string? CreatedContainerId = null)
+{
+    public IReadOnlyList<string>? FailedContainers { get; init; }
+}
 
 public static class AgentCommandKinds
 {
     /// <summary>Comandos cujo alvo é o host (sem container): `container_id` nulo no armazenamento.</summary>
-    public static bool IsHostTarget(AgentCommandKind kind) => kind is AgentCommandKind.PullImage or AgentCommandKind.CreateContainer or AgentCommandKind.RemoveVolume or AgentCommandKind.RemoveNetwork;
+    public static bool IsHostTarget(AgentCommandKind kind) => kind is AgentCommandKind.PullImage or AgentCommandKind.CreateContainer or AgentCommandKind.RemoveVolume or AgentCommandKind.RemoveNetwork or AgentCommandKind.PodAction;
 
     /// <summary>
     /// Hash `v1` (tipos 1-6, sem prazo): `v1\n{kind}\n{container}\n{revisão}`; hash `v2` (tipos parametrizados):

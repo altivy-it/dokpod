@@ -49,7 +49,7 @@ public sealed class RegistryAgentTests
             var handler = new Handler(request => request.RequestUri!.AbsolutePath switch
             {
                 "/version" => Json("""{"Version":"5.2.3","ApiVersion":"1.41","MinAPIVersion":"1.24"}"""),
-                "/libpod/info" => Json("""
+                "/v1.41/libpod/info" => Json("""
                     {"registries":{"search":["docker.io","quay.io"],
                       "docker.io":{"Prefix":"docker.io","Location":"docker.io","Insecure":false,"Blocked":false,"Mirrors":[{"Location":"mirror.empresa.com","Insecure":false}]},
                       "registry.local:5000":{"Prefix":"registry.local:5000","Location":"registry.local:5000","Insecure":true,"Blocked":false,"Mirrors":null},

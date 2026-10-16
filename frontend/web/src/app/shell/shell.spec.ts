@@ -35,7 +35,7 @@ describe('navigation', () => {
     expect(activeNavId('/containers/env/abc?tab=logs')).toBe('containers');
     expect(activeNavId('/em-breve/configuracoes')).toBe('settings');
     expect(activeNavId('/imagens?semUso=1')).toBe('images');
-    expect(activeNavId('/em-breve/pods')).toBe('pods');
+    expect(activeNavId('/pods?status=degraded')).toBe('pods');
     expect(activeNavId('/nao-existe')).toBe('');
   });
 });
