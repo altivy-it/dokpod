@@ -46,6 +46,8 @@ message AgentMessage {
     NetworkSnapshotPage network_snapshot_page = 24;
     // Spec 020: configuração de registros do host (capability 20 confirmada).
     RegistryInventory registry_inventory = 25;
+    // Spec 021: inventário de pods do Podman (capability 21 confirmada).
+    PodSnapshotPage pod_snapshot_page = 26;
   }
 }
 
@@ -146,6 +148,8 @@ message Heartbeat {
   uint64 volume_revision = 4;
   // Spec 019: revisão do inventário de redes (0 = agente sem inventário de redes).
   uint64 network_revision = 5;
+  // Spec 021: revisão do inventário de pods (0 = agente sem inventário de pods).
+  uint64 pod_revision = 6;
 }
 
 message InventorySnapshotPage {
@@ -307,7 +311,24 @@ message AgentCommand {
     RemoveVolumeParameters remove_volume = 9;
     // Spec 019: remoção de rede sem uso (nunca desconecta containers).
     RemoveNetworkParameters remove_network = 10;
+    // Spec 021: ação sobre o pod inteiro (nunca parar, pausar ou reiniciar o pod do agente).
+    PodActionParameters pod_action = 11;
   }
+}
+
+message PodActionParameters {
+  string pod_id = 1;
+  string name = 2;
+  PodAction action = 3;
+}
+
+enum PodAction {
+  POD_ACTION_UNSPECIFIED = 0;
+  POD_ACTION_START = 1;
+  POD_ACTION_STOP = 2;
+  POD_ACTION_RESTART = 3;
+  POD_ACTION_PAUSE = 4;
+  POD_ACTION_UNPAUSE = 5;
 }
 
 message RemoveVolumeParameters {
@@ -418,6 +439,8 @@ message CommandResult {
   uint64 image_size_bytes = 7;
   // Spec 013: container criado (também em falha de start, quando o container permanece criado).
   string created_container_id = 8;
+  // Spec 021: membros do pod fora do estado esperado após a ação (falha parcial).
+  repeated string failed_containers = 9;
 }
 
 message SnapshotRequest {
@@ -434,6 +457,39 @@ enum SnapshotScope {
   SNAPSHOT_SCOPE_NETWORKS = 4;
   // Spec 020: reenvio da configuração de registros.
   SNAPSHOT_SCOPE_REGISTRIES = 5;
+  SNAPSHOT_SCOPE_PODS = 6;
+}
+
+// Spec 021 D-001: página ≤ 256 KiB e ≤ 500 pods; `engine_without_pods` quando o engine não tem pods (Docker).
+message PodSnapshotPage {
+  string snapshot_id = 1;
+  uint64 pod_revision = 2;
+  uint32 page_number = 3;
+  bool is_last_page = 4;
+  repeated PodState pods = 5;
+  bool engine_without_pods = 6;
+}
+
+message PodState {
+  string pod_id = 1;
+  string name = 2;
+  string status = 3;
+  google.protobuf.Timestamp created_at = 4;
+  map<string, string> labels = 5;
+  repeated string networks = 6;
+  string infra_id = 7;
+  repeated PodMember containers = 8;
+  // Pod que contém o container do próprio agente (D-002).
+  bool agent_pod = 9;
+  bool truncated = 10;
+}
+
+message PodMember {
+  string container_id = 1;
+  string name = 2;
+  string status = 3;
+  uint32 restarts = 4;
+  bool infra = 5;
 }
 
 // Spec 018 D-001: página ≤ 256 KiB e ≤ 500 volumes; caminho no host nunca é publicado.
@@ -598,6 +654,8 @@ enum Capability {
   CAPABILITY_NETWORK_INVENTORY = 18;
   CAPABILITY_NETWORK_REMOVE = 19;
   CAPABILITY_REGISTRY_INVENTORY = 20;
+  CAPABILITY_POD_INVENTORY = 21;
+  CAPABILITY_POD_ACTIONS = 22;
 }
 
 enum ContainerQueryKind {
@@ -693,6 +751,7 @@ enum CommandKind {
   COMMAND_KIND_CREATE_CONTAINER = 8;
   COMMAND_KIND_REMOVE_VOLUME = 9;
   COMMAND_KIND_REMOVE_NETWORK = 10;
+  COMMAND_KIND_POD_ACTION = 11;
 }
 
 enum CommandAcceptance {

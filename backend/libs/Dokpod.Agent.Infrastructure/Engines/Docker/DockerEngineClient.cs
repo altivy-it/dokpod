@@ -429,6 +429,73 @@ public sealed class DockerEngineClient(HttpClient httpClient, RegistryCredential
         return result;
     }
 
+    public async Task<IReadOnlyList<EnginePod>?> ListPodsAsync(CancellationToken cancellationToken)
+    {
+        await EnsureNegotiatedAsync(cancellationToken);
+        // Spec 021 D-001: só o Podman tem pods; no Docker a rota libpod não existe.
+        using var response = await httpClient.GetAsync("libpod/pods/json", HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+        if (response.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.BadRequest or HttpStatusCode.MethodNotAllowed) return null;
+        response.EnsureSuccessStatusCode();
+        await using var content = await ReadLimitedAsync(response, cancellationToken);
+        using var document = await JsonDocument.ParseAsync(content, cancellationToken: cancellationToken);
+        if (document.RootElement.ValueKind != JsonValueKind.Array) return [];
+        string Text(JsonElement element, string property) =>
+            element.TryGetProperty(property, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() ?? string.Empty : string.Empty;
+        var result = new List<EnginePod>();
+        foreach (var item in document.RootElement.EnumerateArray())
+        {
+            var id = Text(item, "Id");
+            var name = Text(item, "Name");
+            if (!Dokpod.Domain.Pods.PodNames.IsValidId(id) || !Dokpod.Domain.Pods.PodNames.IsValidName(name)) continue;
+            var labels = new Dictionary<string, string>(StringComparer.Ordinal);
+            if (item.TryGetProperty("Labels", out var labelsElement) && labelsElement.ValueKind == JsonValueKind.Object)
+            {
+                foreach (var label in labelsElement.EnumerateObject())
+                {
+                    if (label.Value.ValueKind == JsonValueKind.String) labels[label.Name] = label.Value.GetString() ?? string.Empty;
+                }
+            }
+
+            var networks = item.TryGetProperty("Networks", out var networksElement) && networksElement.ValueKind == JsonValueKind.Array
+                ? networksElement.EnumerateArray().Where(n => n.ValueKind == JsonValueKind.String).Select(n => n.GetString()!).ToArray()
+                : [];
+            var members = new List<EnginePodMember>();
+            if (item.TryGetProperty("Containers", out var containers) && containers.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var member in containers.EnumerateArray())
+                {
+                    var memberId = Text(member, "Id");
+                    if (memberId.Length != 64 || !memberId.All(Uri.IsHexDigit)) continue;
+                    var restarts = member.TryGetProperty("RestartCount", out var restartElement) && restartElement.ValueKind == JsonValueKind.Number ? restartElement.GetInt32() : 0;
+                    members.Add(new EnginePodMember(memberId, Text(member, "Names"), Text(member, "Status"), restarts));
+                }
+            }
+
+            DateTimeOffset? created = DateTimeOffset.TryParse(Text(item, "Created"), System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.AssumeUniversal, out var parsed) && parsed.Year > 1
+                ? parsed.ToUniversalTime()
+                : null;
+            var infra = Text(item, "InfraId");
+            result.Add(new EnginePod(id, name, Text(item, "Status"), created, labels, networks, infra.Length == 64 ? infra : null, members));
+        }
+
+        return result;
+    }
+
+    public async Task<string?> PodActionAsync(string podId, Dokpod.Domain.Pods.PodActionKind action, CancellationToken cancellationToken)
+    {
+        if (!Dokpod.Domain.Pods.PodNames.IsValidId(podId)) throw new ArgumentException("Pod id is invalid.", nameof(podId));
+        await EnsureNegotiatedAsync(cancellationToken);
+        using var response = await httpClient.PostAsync($"libpod/pods/{podId}/{Dokpod.Domain.Pods.PodNames.ToValue(action)}", content: null, cancellationToken);
+        return response.StatusCode switch
+        {
+            HttpStatusCode.OK or HttpStatusCode.NoContent or HttpStatusCode.NotModified => null,
+            HttpStatusCode.NotFound => Dokpod.Domain.Pods.PodActionCodes.NotFound,
+            // 409 traz os erros por container: o processador relê o pod e lista os que ficaram fora do estado.
+            HttpStatusCode.Conflict => Dokpod.Domain.Pods.PodActionCodes.PartialFailure,
+            _ => Dokpod.Domain.Pods.PodActionCodes.Failed,
+        };
+    }
+
     public async Task<EngineRegistryConfig> GetRegistryConfigAsync(CancellationToken cancellationToken)
     {
         var credentials = registryCredentials?.ListRegistries() ?? [];
@@ -1028,7 +1095,7 @@ public sealed class DockerEngineClient(HttpClient httpClient, RegistryCredential
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
     {
         await EnsureNegotiatedAsync(cancellationToken);
-        var filters = Uri.EscapeDataString("""{"type":["container","image","volume","network"]}""");
+        var filters = Uri.EscapeDataString("""{"type":["container","image","volume","network","pod"]}""");
         using var request = new HttpRequestMessage(HttpMethod.Get, $"v{apiVersion}/events?filters={filters}");
         using var response = await httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
         response.EnsureSuccessStatusCode();

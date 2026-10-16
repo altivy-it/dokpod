@@ -62,6 +62,8 @@ public sealed record AuditEvent
         "network.remove",
         // Spec 020: política de registros permitidos por estágio.
         "registry.policy_changed",
+        // Spec 021: ações de pod.
+        "pod.start", "pod.stop", "pod.restart", "pod.pause", "pod.unpause",
     ];
 
     /// <summary>Ações aceitas pela trilha (spec 017: filtros e categorias da consulta).</summary>
@@ -82,6 +84,7 @@ public sealed record AuditEvent
         "container.create.requested",
         "volume.remove",
         "network.remove",
+        "pod.start", "pod.stop", "pod.restart", "pod.pause", "pod.unpause",
     ];
 
     private AuditEvent(
@@ -141,6 +144,8 @@ public sealed record AuditEvent
         "networkId",
         // Spec 020: listas anterior e nova da política de registros.
         "registries", "previousRegistries",
+        // Spec 021: identificador do pod.
+        "podId",
     ];
 
     /// <summary>Justificativa do terminal (spec 014 D-009): única exceção de texto livre além do comando equivalente.</summary>

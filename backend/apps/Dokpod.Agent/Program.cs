@@ -31,6 +31,7 @@ builder.Services.AddSingleton<AgentCommandGate>();
 builder.Services.AddSingleton<Dokpod.Agent.Application.Containers.IHostSecretFiles>(new Dokpod.Agent.Infrastructure.Secrets.HostSecretFileStore(options.SecretsDirectory));
 builder.Services.AddSingleton(new Dokpod.Agent.Application.Containers.ContainerCreationPolicy(options.BindMountAllowlist ?? [], options.DockerSocketPath));
 builder.Services.AddSingleton<Dokpod.Agent.Application.Containers.ContainerCreator>();
+builder.Services.AddSingleton<Dokpod.Agent.Application.Pods.ISelfContainer>(new Dokpod.Agent.Infrastructure.Engines.SelfContainerIdentity());
 builder.Services.AddSingleton<AgentCommandProcessor>();
 builder.Services.AddSingleton<AgentCommandProtocolHandler>();
 builder.Services.AddHostedService<AgentWorker>();

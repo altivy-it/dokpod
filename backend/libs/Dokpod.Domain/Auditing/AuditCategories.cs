@@ -11,6 +11,7 @@ public static class AuditCategories
         ["images"] = ["image.pull"],
         ["volumes"] = ["volume.remove"],
         ["networks"] = ["network.remove"],
+        ["pods"] = ["pod.start", "pod.stop", "pod.restart", "pod.pause", "pod.unpause"],
         ["inspection"] = ["container.inspected", "container.logs.read", "container.logs.stream_started", "container.logs.stream_ended"],
         ["terminal"] = ["container.exec.requested", "container.exec.started", "container.exec.ended", "container.exec.denied"],
         ["governance"] =

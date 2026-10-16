@@ -64,6 +64,19 @@ public static class AgentCommandMapper
 
                 parameters = new Dokpod.Domain.Commands.RemoveVolumeParameters(message.RemoveVolume.Name);
             }
+            else if (kind == DomainCommandKind.PodAction)
+            {
+                if (message.ParametersCase != Dokpod.Agent.Contracts.V1.AgentCommand.ParametersOneofCase.PodAction ||
+                    !Dokpod.Domain.Pods.PodNames.IsValidId(message.PodAction.PodId) ||
+                    !Dokpod.Domain.Pods.PodNames.IsValidName(message.PodAction.Name) ||
+                    message.PodAction.Action is < Dokpod.Agent.Contracts.V1.PodAction.Start or > Dokpod.Agent.Contracts.V1.PodAction.Unpause)
+                {
+                    failureCode = "pod_invalid";
+                    return false;
+                }
+
+                parameters = new Dokpod.Domain.Commands.PodActionParameters(message.PodAction.PodId, message.PodAction.Name, (Dokpod.Domain.Pods.PodActionKind)(int)message.PodAction.Action);
+            }
             else if (kind == DomainCommandKind.RemoveNetwork)
             {
                 if (message.ParametersCase != Dokpod.Agent.Contracts.V1.AgentCommand.ParametersOneofCase.RemoveNetwork ||
@@ -149,6 +162,7 @@ public static class AgentCommandMapper
         CommandKind.CreateContainer => DomainCommandKind.CreateContainer,
         CommandKind.RemoveVolume => DomainCommandKind.RemoveVolume,
         CommandKind.RemoveNetwork => DomainCommandKind.RemoveNetwork,
+        CommandKind.PodAction => DomainCommandKind.PodAction,
         _ => DomainCommandKind.Unknown,
     };
 }
