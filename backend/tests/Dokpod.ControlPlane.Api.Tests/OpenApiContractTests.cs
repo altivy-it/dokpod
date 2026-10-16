@@ -48,7 +48,7 @@ public sealed class OpenApiContractTests
         Assert.Contains("operationId: getTerminalPolicy", contract, StringComparison.Ordinal);
         Assert.Contains("operationId: renewTerminalSession", contract, StringComparison.Ordinal);
         Assert.Contains("ImageListPage:", contract, StringComparison.Ordinal);
-        Assert.Contains("enum: [start, stop, restart, delete, pause, unpause, pull, create, remove_volume, remove_network]", contract, StringComparison.Ordinal);
+        Assert.Contains("enum: [start, stop, restart, delete, pause, unpause, pull, create, remove_volume, remove_network, pod_start, pod_stop, pod_restart, pod_pause, pod_unpause]", contract, StringComparison.Ordinal);
         Assert.Contains("operationId: listHostMetrics", contract, StringComparison.Ordinal);
         Assert.Contains("operationId: getContainerMetrics", contract, StringComparison.Ordinal);
         Assert.Contains("ContainerResources:", contract, StringComparison.Ordinal);
@@ -96,6 +96,10 @@ public sealed class OpenApiContractTests
         Assert.Contains("operationId: listRegistryPolicies", contract, StringComparison.Ordinal);
         Assert.Contains("operationId: setRegistryPolicy", contract, StringComparison.Ordinal);
         Assert.Contains("RegistryItem:", contract, StringComparison.Ordinal);
+        Assert.Contains("operationId: listPods", contract, StringComparison.Ordinal);
+        Assert.Contains("operationId: getPod", contract, StringComparison.Ordinal);
+        Assert.Contains("operationId: submitPodAction", contract, StringComparison.Ordinal);
+        Assert.Contains("PodItem:", contract, StringComparison.Ordinal);
         Assert.DoesNotContain("operationId: listHosts", contract, StringComparison.Ordinal);
         Assert.DoesNotContain("AuditEventEntity", contract, StringComparison.Ordinal);
         Assert.DoesNotContain("EnvironmentRegistrationEntity", contract, StringComparison.Ordinal);

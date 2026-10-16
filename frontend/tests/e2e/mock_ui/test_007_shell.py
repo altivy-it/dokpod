@@ -54,7 +54,7 @@ def test_coming_soon_and_not_found_pages(page: Page) -> None:
 @pytest.mark.parametrize("width", [1920, 1440, 1100, 390, 320])
 def test_no_horizontal_scroll_at_supported_widths(page: Page, width: int) -> None:
     page.set_viewport_size({"width": width, "height": 900})
-    for path in ("", "containers", "hosts", "em-breve/pods"):
+    for path in ("", "containers", "hosts", "em-breve/configuracoes"):
         goto(page, path)
         assert no_horizontal_scroll(page), f"rolagem horizontal em {path or '/'} a {width}px"
     if width in (1440, 390):

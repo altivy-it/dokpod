@@ -230,6 +230,20 @@ A telemetria usa allowlist de campos, limites e normalização de caracteres de 
 
 **Risco residual**: mudar a política não remove imagens nem containers existentes (decisão da spec); a tela mostra quantas imagens ficam fora da lista.
 
+## Threat model: pods (spec 021)
+
+**Fronteira nova**: agente → inventário de pods (`/v{versão}/libpod/pods/json`) → `dokpod.inventory_pods`; navegador → BFF → API → fila de comandos → stream mTLS do agente → `POST /v{versão}/libpod/pods/{id}/{ação}`. Uma ação de pod age em todos os containers do pod de uma vez.
+
+| Ameaça | Mitigação | Teste negativo |
+| --- | --- | --- |
+| Derrubar o próprio agente (perda de controle do host) | O agente identifica o próprio container (`/proc/self/mountinfo` e hostname) e marca o pod do agente; parar, pausar e reiniciar esse pod são recusados na API (`agent_pod`) **e** no agente; a tela não oferece essas ações | `PodAgentTests`, `PodActionServiceTests`; stack real: parar `pod_dokpod` pela API → 409 `agent_pod`, pod em execução |
+| Escalar privilégio por pod (agir em containers sem permissão) | Cada ação exige o scope de container correspondente no host (`container:start`, `container:stop`, `container:restart`, `container:pause`), decidido no Keycloak | `PodActionServiceTests` (scope por ação, negado sem permissão) |
+| Ação parcial silenciosa | O agente relê o pod e informa os membros fora do estado esperado (`pod_partial_failure`, `failedContainers`) | stack real: container que sempre falha aparece em `failedContainers` |
+| Remoção acidental de containers | Remover pod está fora de escopo (no Podman, remove os containers) | — |
+| Remoção sem rastreio | Comando durável com auditoria `pod.<ação>` (ator, host, pod e justificativa mascarada); parar e pausar pedem justificativa pela política do estágio | 422 `justification_required` |
+
+**Risco residual**: outros pods de infraestrutura que não contêm o agente (por exemplo, o da plataforma de identidade no laboratório) podem ser parados por quem tem os scopes de container; a proteção cobre só o pod do agente.
+
 ## Desenvolvimento e release
 
 - threat model atualizado para cada nova fronteira;

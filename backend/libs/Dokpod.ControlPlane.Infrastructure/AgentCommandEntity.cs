@@ -22,6 +22,9 @@ public sealed class AgentCommandEntity
     public string? ResolvedImageDigest { get; set; }
     public long? ImageSizeBytes { get; set; }
     public string? CreatedContainerId { get; set; }
+
+    /// <summary>Membros do pod que falharam na ação (spec 021), separados por vírgula.</summary>
+    public string? FailedContainers { get; set; }
     public DateTimeOffset CreatedAtUtc { get; set; }
     public DateTimeOffset UpdatedAtUtc { get; set; }
 }
