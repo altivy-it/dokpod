@@ -96,7 +96,8 @@ public sealed class AgentCommandStatusService(IAgentCommandStore commandStore)
         AgentCommandOutput? output = null)
     {
         ValidateUpdate(environmentId, commandId, failureCode, observedContainerRevision, updatedAtUtc);
-        if (output?.ResolvedImageDigest?.Length > 160 || output?.ImageSizeBytes < 0 || output?.CreatedContainerId?.Length > 128)
+        if (output?.ResolvedImageDigest?.Length > 160 || output?.ImageSizeBytes < 0 || output?.CreatedContainerId?.Length > 128 ||
+            output?.FailedContainers is { } failed && (failed.Count > 50 || failed.Any(name => !Dokpod.Domain.Pods.PodNames.IsValidName(name))))
         {
             throw new ArgumentException("Command output exceeds its limits.", nameof(output));
         }
@@ -109,7 +110,10 @@ public sealed class AgentCommandStatusService(IAgentCommandStore commandStore)
             observedContainerRevision,
             updatedAtUtc)
         {
-            Output = state == ControlPlaneCommandState.Succeeded ? output : output?.CreatedContainerId is { } created ? new AgentCommandOutput(CreatedContainerId: created) : null,
+            Output = state == ControlPlaneCommandState.Succeeded ? output
+                : output?.CreatedContainerId is not null || output?.FailedContainers is { Count: > 0 }
+                    ? new AgentCommandOutput(CreatedContainerId: output.CreatedContainerId) { FailedContainers = output.FailedContainers }
+                    : null,
         };
         var auditEvent = AuditEvent.Create(
             Guid.NewGuid(),

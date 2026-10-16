@@ -25,6 +25,7 @@ public sealed class AgentCommandConfiguration : IEntityTypeConfiguration<AgentCo
         entity.Property(command => command.ResolvedImageDigest).HasColumnName("resolved_image_digest").HasMaxLength(160);
         entity.Property(command => command.ImageSizeBytes).HasColumnName("image_size_bytes");
         entity.Property(command => command.CreatedContainerId).HasColumnName("created_container_id").HasMaxLength(128);
+        entity.Property(command => command.FailedContainers).HasColumnName("failed_containers").HasMaxLength(4096);
         entity.Property(command => command.CreatedAtUtc).HasColumnName("created_at_utc").IsRequired();
         entity.Property(command => command.UpdatedAtUtc).HasColumnName("updated_at_utc").IsRequired();
         entity.HasOne<EnvironmentRegistrationEntity>()

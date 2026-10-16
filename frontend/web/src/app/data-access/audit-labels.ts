@@ -38,6 +38,11 @@ export const AUDIT_ACTION: Record<string, string> = {
   'volume.remove': 'Remover volume',
   'network.remove': 'Remover rede',
   'registry.policy_changed': 'Política de registros alterada',
+  'pod.start': 'Iniciar pod',
+  'pod.stop': 'Parar pod',
+  'pod.restart': 'Reiniciar pod',
+  'pod.pause': 'Pausar pod',
+  'pod.unpause': 'Retomar pod',
 };
 
 export const AUDIT_CATEGORIES: { id: AuditCategory; label: string }[] = [
@@ -47,6 +52,7 @@ export const AUDIT_CATEGORIES: { id: AuditCategory; label: string }[] = [
   { id: 'images', label: 'Imagens' },
   { id: 'volumes', label: 'Volumes' },
   { id: 'networks', label: 'Redes' },
+  { id: 'pods', label: 'Pods' },
   { id: 'inspection', label: 'Logs e inspeção' },
   { id: 'terminal', label: 'Terminal' },
   { id: 'governance', label: 'Alertas e política' },
@@ -79,6 +85,7 @@ export const AUDIT_DETAIL: Record<string, string> = {
   networkId: 'Identificador da rede',
   registries: 'Registros permitidos',
   previousRegistries: 'Registros permitidos antes',
+  podId: 'Identificador do pod',
   command: 'Comando equivalente',
   tail: 'Linhas pedidas',
   lines: 'Linhas lidas',
