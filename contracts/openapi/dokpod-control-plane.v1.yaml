@@ -1568,6 +1568,67 @@ paths:
           $ref: '#/components/responses/Conflict'
         '503':
           $ref: '#/components/responses/DependencyUnavailable'
+  /api/v1/settings/access:
+    get:
+      operationId: getSettingsAccess
+      summary: Se o usuário pode ver Configurações (environment:manage em algum host)
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CorrelationId'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SettingsAccess'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '503':
+          $ref: '#/components/responses/DependencyUnavailable'
+  /api/v1/settings/installation:
+    get:
+      operationId: getSettingsInstallation
+      summary: Versões, banco, saúde das dependências e agentes (spec 022)
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CorrelationId'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SettingsInstallation'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '403':
+          $ref: '#/components/responses/AccessDenied'
+        '503':
+          $ref: '#/components/responses/DependencyUnavailable'
+  /api/v1/settings/parameters:
+    get:
+      operationId: listSettingsParameters
+      summary: Retenções e limites efetivos, somente leitura (spec 022)
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CorrelationId'
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SettingsParameterPage'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '403':
+          $ref: '#/components/responses/AccessDenied'
+        '503':
+          $ref: '#/components/responses/DependencyUnavailable'
   /api/v1/action-justification-policies:
     get:
       operationId: listActionJustificationPolicies
@@ -3911,7 +3972,7 @@ components:
       enum: [stop, pause, delete]
     JustificationPolicy:
       type: object
-      required: [stage, required, actions]
+      required: [stage, required, actions, updatedBy, updatedAt, canEdit]
       properties:
         stage:
           $ref: '#/components/schemas/Stage'
@@ -3921,6 +3982,125 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/JustifiedAction'
+        updatedBy:
+          type: [string, 'null']
+        updatedAt:
+          type: [string, 'null']
+          format: date-time
+        canEdit:
+          type: boolean
+          description: environment:manage em todos os hosts legíveis do estágio (spec 022 D-005).
+    SettingsAccess:
+      type: object
+      required: [allowed]
+      properties:
+        allowed:
+          type: boolean
+    SettingsDependency:
+      type: object
+      required: [name, status, description, durationMs]
+      properties:
+        name:
+          type: string
+        status:
+          type: string
+          enum: [healthy, degraded, unhealthy]
+        description:
+          type: [string, 'null']
+        durationMs:
+          type: integer
+    SettingsCount:
+      type: object
+      required: [version, count]
+      properties:
+        version:
+          type: string
+        count:
+          type: integer
+    SettingsEngineCount:
+      type: object
+      required: [engine, version, count]
+      properties:
+        engine:
+          type: string
+        version:
+          type: string
+        count:
+          type: integer
+    SettingsInstallation:
+      type: object
+      required: [controlPlane, protocolVersion, database, dependencies, checkedAt, agents]
+      properties:
+        controlPlane:
+          type: object
+          required: [version]
+          properties:
+            version:
+              type: string
+        protocolVersion:
+          type: string
+        database:
+          type: object
+          required: [configured, lastMigration, pendingMigrations]
+          properties:
+            configured:
+              type: boolean
+            lastMigration:
+              type: [string, 'null']
+            pendingMigrations:
+              type: integer
+        dependencies:
+          type: array
+          items:
+            $ref: '#/components/schemas/SettingsDependency'
+        checkedAt:
+          type: string
+          format: date-time
+        agents:
+          type: object
+          required: [total, connected, updateRequired, unknown, byAgentVersion, byEngine]
+          properties:
+            total:
+              type: integer
+            connected:
+              type: integer
+            updateRequired:
+              type: integer
+            unknown:
+              type: integer
+            byAgentVersion:
+              type: array
+              items:
+                $ref: '#/components/schemas/SettingsCount'
+            byEngine:
+              type: array
+              items:
+                $ref: '#/components/schemas/SettingsEngineCount'
+    SettingsParameter:
+      type: object
+      required: [group, key, label, value, source]
+      properties:
+        group:
+          type: string
+          enum: [retention, limits, terminal]
+        key:
+          type: [string, 'null']
+          description: Chave de configuração da instalação; nula para constantes do produto.
+        label:
+          type: string
+        value:
+          type: string
+        source:
+          type: string
+          enum: [default, installation]
+    SettingsParameterPage:
+      type: object
+      required: [parameters]
+      properties:
+        parameters:
+          type: array
+          items:
+            $ref: '#/components/schemas/SettingsParameter'
     JustificationPolicyPage:
       type: object
       required: [policies]

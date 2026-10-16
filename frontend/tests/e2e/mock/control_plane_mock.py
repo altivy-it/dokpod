@@ -745,6 +745,8 @@ class Handler(BaseHTTPRequestHandler):
             if STATE["scenario"] == "anonymous":
                 return self.send_json(200, {"authenticated": False})
             return self.send_json(200, {"authenticated": True, "subject": "u-mariana", "name": "Mariana Costa", "displayGroup": "Plataforma · SRE"})
+        if path == "/bff/version":
+            return self.send_json(200, {"version": "0.1.0"})
         if path == "/bff/antiforgery":
             return self.send_json(200, {"requestToken": "mock-antiforgery"})
         if path == "/bff/logout" and method == "POST":
@@ -761,6 +763,8 @@ class Handler(BaseHTTPRequestHandler):
 
         if path.startswith("/api/v1/audit/"):
             return self.audit_routes(path, q, query)
+        if path.startswith("/api/v1/settings/"):
+            return self.settings_routes(path)
         handled = self.alert_routes(method, path, q, query)
         if handled is not None:
             return handled
@@ -1431,17 +1435,84 @@ def _alert_routes(self, method: str, path: str, q, query) -> object | None:
         silence["endedAt"] = iso(0)
         return self.send_json(200, {"id": silence["id"]})
     if path == "/api/v1/action-justification-policies":
-        return self.send_json(200, {"policies": [{"stage": k, "required": v, "actions": ["stop", "pause", "delete"]} for k, v in ALERTS["policies"].items()]})
+        # Spec 022: autor e horário da última alteração e se o usuário pode editar (a regra real é por estágio).
+        can_edit = "environment:manage" in scopes()
+        meta = ALERTS.setdefault("policy_meta", {})
+        return self.send_json(200, {"policies": [{"stage": k, "required": v, "actions": ["stop", "pause", "delete"],
+                                                  "updatedBy": meta.get(k, {}).get("by"), "updatedAt": meta.get(k, {}).get("at"), "canEdit": can_edit}
+                                                 for k, v in ALERTS["policies"].items()]})
     m = re.fullmatch(r"/api/v1/action-justification-policies/([a-z]+)", path)
     if m and method == "PUT":
         if "environment:manage" not in scopes():
             return denied()
         ALERTS["policies"][m.group(1)] = bool(self.read_body().get("required"))
+        ALERTS.setdefault("policy_meta", {})[m.group(1)] = {"by": "Mariana Costa", "at": iso(0)}
+        STATE.setdefault("submitted", []).append(("justification_policy", m.group(1), ALERTS["policies"][m.group(1)]))
         return self.send_json(204, None)
     return self.send_json(404, problem(404, "Rota inexistente"))
 
 
 Handler.alert_routes = _alert_routes
+
+
+SETTINGS_PARAMETERS = [
+    ("retention", "Commands:Retention", "Comandos concluídos e seus parâmetros", "90 dias", "default"),
+    ("retention", "EventRetention:Period", "Eventos operacionais", "30 dias", "default"),
+    ("retention", "Alerts:ResolvedRetention", "Alertas resolvidos", "90 dias", "default"),
+    ("retention", "Metrics:HostRetention", "Métricas por host", "2 dias", "installation"),
+    ("retention", "Metrics:LatestExpiry", "Validade da última amostra de métrica", "45 s", "default"),
+    ("retention", None, "Auditoria", "sem remoção automática (partições mensais)", "default"),
+    ("limits", None, "Ações e remoções em lote", "50 itens por lote", "default"),
+    ("limits", None, "Exportação da auditoria", "até 10.000 eventos por arquivo", "default"),
+    ("limits", None, "Período de consulta da auditoria", "até 90 dias", "default"),
+    ("terminal", "Terminal:IdleTimeout", "Encerramento por ociosidade", "10 min", "default"),
+    ("terminal", "Terminal:MaxDuration", "Duração máxima da sessão", "30 min", "default"),
+    ("terminal", "Terminal:MaxPerUser", "Sessões simultâneas por usuário", "2", "default"),
+    ("terminal", "Terminal:RequireJustificationStages", "Estágios que exigem justificativa", "Produção", "default"),
+]
+
+
+def _settings_routes(self, path: str) -> object:
+    """Rotas da spec 022 (contracts/settings-api.md): só com environment:manage em algum host."""
+    allowed = "environment:manage" in scopes()
+    if path == "/api/v1/settings/access":
+        return self.send_json(200, {"allowed": allowed})
+    if not allowed:
+        return self.send_json(403, problem(403, "Acesso negado", "authorization_denied"), "application/problem+json")
+    if path == "/api/v1/settings/installation":
+        rows = hosts()
+        known = [h for h in rows if h.get("agent")]
+        by_version: dict = {}
+        by_engine: dict = {}
+        for h in known:
+            by_version[h["agent"]["agentVersion"]] = by_version.get(h["agent"]["agentVersion"], 0) + 1
+            key = (h["agent"]["engine"], h["agent"]["engineVersion"])
+            by_engine[key] = by_engine.get(key, 0) + 1
+        keycloak_down = STATE["scenario"] == "keycloak-down"
+        return self.send_json(200, {
+            "controlPlane": {"version": "0.1.0"}, "protocolVersion": "1",
+            "database": {"configured": True, "lastMigration": "202610160001_PodInventory", "pendingMigrations": 0},
+            "dependencies": [
+                {"name": "controlplane-api", "status": "healthy", "description": None, "durationMs": 0},
+                {"name": "keycloak", "status": "unhealthy" if keycloak_down else "healthy",
+                 "description": "Keycloak indisponível" if keycloak_down else None, "durationMs": 1200 if keycloak_down else 18},
+                {"name": "postgresql", "status": "healthy", "description": None, "durationMs": 3},
+            ],
+            "checkedAt": iso(0),
+            "agents": {
+                "total": len(rows), "connected": sum(1 for h in known if h["agent"]["connected"]),
+                "updateRequired": sum(1 for h in rows if h["situation"] == "update_required"), "unknown": len(rows) - len(known),
+                "byAgentVersion": [{"version": k, "count": v} for k, v in sorted(by_version.items())],
+                "byEngine": [{"engine": k[0], "version": k[1], "count": v} for k, v in sorted(by_engine.items())],
+            },
+        })
+    if path == "/api/v1/settings/parameters":
+        return self.send_json(200, {"parameters": [{"group": g, "key": k, "label": label, "value": v, "source": src}
+                                                   for g, k, label, v, src in SETTINGS_PARAMETERS]})
+    return self.send_json(404, problem(404, "Rota inexistente"))
+
+
+Handler.settings_routes = _settings_routes
 
 
 def _audit_routes(self, path: str, q, query) -> object:

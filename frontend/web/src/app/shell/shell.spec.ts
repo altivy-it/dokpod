@@ -28,12 +28,15 @@ describe('navigation', () => {
     expect(without.flatMap(g => g.items).some(i => i.id === 'audit')).toBe(false);
     const withAudit = groupNavigation(NAV_ITEMS, new Set(['audit:read']));
     expect(withAudit.flatMap(g => g.items).some(i => i.id === 'audit')).toBe(true);
+    expect(without.flatMap(g => g.items).some(i => i.id === 'settings')).toBe(false);
+    expect(groupNavigation(NAV_ITEMS, new Set(['settings:read'])).flatMap(g => g.items).some(i => i.id === 'settings')).toBe(true);
   });
 
   it('resolves the active item from the URL, ignoring query strings', () => {
     expect(activeNavId('/?stage=production')).toBe('overview');
     expect(activeNavId('/containers/env/abc?tab=logs')).toBe('containers');
-    expect(activeNavId('/em-breve/configuracoes')).toBe('settings');
+    expect(activeNavId('/configuracoes?vista=instalacao')).toBe('settings');
+    expect(activeNavId('/em-breve/futuro')).toBe('');
     expect(activeNavId('/imagens?semUso=1')).toBe('images');
     expect(activeNavId('/pods?status=degraded')).toBe('pods');
     expect(activeNavId('/nao-existe')).toBe('');

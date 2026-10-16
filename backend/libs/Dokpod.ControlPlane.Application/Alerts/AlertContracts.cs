@@ -137,6 +137,9 @@ public sealed record ContainerActionJustification(
     DateTimeOffset CreatedAtUtc,
     DateTimeOffset? EndedAtUtc);
 
+/// <summary>Política de um estágio com a última alteração (spec 022: Configurações → Políticas).</summary>
+public sealed record JustificationPolicyEntry(EnvironmentStage Stage, bool Required, string? UpdatedBy, DateTimeOffset? UpdatedAt);
+
 public sealed record JustificationCursor(DateTimeOffset At, Guid JustificationId);
 
 public interface IActionJustificationStore
@@ -144,6 +147,9 @@ public interface IActionJustificationStore
     Task<IReadOnlyDictionary<EnvironmentStage, bool>> GetPoliciesAsync(CancellationToken cancellationToken);
 
     Task SetPolicyAsync(EnvironmentStage stage, bool required, string actor, DateTimeOffset at, CancellationToken cancellationToken);
+
+    /// <summary>Todos os estágios; os nunca alterados vêm sem autor nem horário.</summary>
+    Task<IReadOnlyList<JustificationPolicyEntry>> ListPolicyEntriesAsync(CancellationToken cancellationToken);
 
     /// <summary>Grava uma vez por comando (nova tentativa idempotente não duplica).</summary>
     Task RecordAsync(ContainerActionJustification justification, CancellationToken cancellationToken);

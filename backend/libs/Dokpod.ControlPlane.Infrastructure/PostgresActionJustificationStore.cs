@@ -25,6 +25,20 @@ public sealed class PostgresActionJustificationStore(ControlPlaneDbContext dbCon
         return policies;
     }
 
+    public async Task<IReadOnlyList<JustificationPolicyEntry>> ListPolicyEntriesAsync(CancellationToken cancellationToken)
+    {
+        var rows = await QueryAsync("SELECT stage, required, updated_by, updated_at_utc FROM dokpod.action_justification_policies", [],
+            reader => (Stage: reader.GetString(0), Required: reader.GetBoolean(1), By: reader.IsDBNull(2) ? null : reader.GetString(2), At: reader.GetFieldValue<DateTimeOffset>(3)),
+            cancellationToken).ConfigureAwait(false);
+        return Enum.GetValues<EnvironmentStage>().Select(stage =>
+        {
+            var row = rows.FirstOrDefault(r => r.Stage == EnvironmentStages.ToValue(stage));
+            return row.Stage is null
+                ? new JustificationPolicyEntry(stage, false, null, null)
+                : new JustificationPolicyEntry(stage, row.Required, row.By, row.By is null ? null : row.At);
+        }).ToArray();
+    }
+
     public Task SetPolicyAsync(EnvironmentStage stage, bool required, string actor, DateTimeOffset at, CancellationToken cancellationToken) =>
         dbContext.Database.ExecuteSqlRawAsync(
             """

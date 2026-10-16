@@ -42,8 +42,8 @@ def test_stage_shortcut_persists_in_url_across_navigation(page: Page) -> None:
 
 
 def test_coming_soon_and_not_found_pages(page: Page) -> None:
-    goto(page, "em-breve/configuracoes")
-    expect(page.get_by_text("Configurações em breve")).to_be_visible()
+    goto(page, "em-breve/futuro")
+    expect(page.get_by_text("Funcionalidade em breve")).to_be_visible()
     expect(page.get_by_role("link", name="Voltar à visão geral")).to_be_visible()
     goto(page, "rota-que-nao-existe")
     expect(page.get_by_text("Página não encontrada").first).to_be_visible()
@@ -54,7 +54,7 @@ def test_coming_soon_and_not_found_pages(page: Page) -> None:
 @pytest.mark.parametrize("width", [1920, 1440, 1100, 390, 320])
 def test_no_horizontal_scroll_at_supported_widths(page: Page, width: int) -> None:
     page.set_viewport_size({"width": width, "height": 900})
-    for path in ("", "containers", "hosts", "em-breve/configuracoes"):
+    for path in ("", "containers", "hosts", "configuracoes"):
         goto(page, path)
         assert no_horizontal_scroll(page), f"rolagem horizontal em {path or '/'} a {width}px"
     if width in (1440, 390):
