@@ -4,7 +4,7 @@
 
 **Criada em**: 2026-10-16
 
-**Estado**: `draft` - aguardando aprovação do solicitante.
+**Estado**: `approved` - aprovada pelo solicitante em 2026-10-16 ("Aprovado, pode implementar").
 
 **Entrada**: Pedido do solicitante em 2026-10-16: "siga com sua recomendação" (Pods antes de Configurações). Item "Pods" da seção Operação do menu, hoje uma página "Em breve" ("Gestão de pods do Podman ficará disponível com o adapter Libpod").
 
