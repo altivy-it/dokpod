@@ -131,13 +131,15 @@ export class SettingsPage {
     void this.load(this.view());
   }
 
-  protected async setJustification(stage: Stage, required: boolean): Promise<void> {
+  /** Em caso de falha, devolve o marcador ao valor salvo sem recriar o cartão (mantém o foco de quem usa teclado). */
+  protected async setJustification(stage: Stage, required: boolean, box?: DokCheckbox): Promise<void> {
     this.justificationBusy.set(stage);
     try {
       await this.justification.set(stage, required);
       this.toast.success(`${STAGES.find(s => s.id === stage)?.label}: justificativa ${required ? 'obrigatória' : 'opcional'} para parar, pausar e remover.`);
     } catch (error: unknown) {
       this.toast.error(this.policyError(error));
+      box?.writeValue(!required);
     } finally {
       this.justificationBusy.set(null);
       await this.load('politicas');

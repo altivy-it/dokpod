@@ -130,6 +130,19 @@ describe('settings page', () => {
     await new Promise(resolve => setTimeout(resolve));
     expect(set).toHaveBeenCalledWith('development', true);
     expect(api.justificationPolicies).toHaveBeenCalledTimes(2);
+ 
+    // Falha ao salvar: o marcador volta ao valor salvo.
+    set.mockRejectedValueOnce({ status: 403, code: 'authorization_denied' });
+    const box = () => (fixture.nativeElement.querySelectorAll('input[type="checkbox"]') as NodeListOf<HTMLInputElement>)[0];
+    box().click();
+    expect(box().checked).toBe(false);
+    for (let i = 0; i < 3; i++) {
+      await fixture.whenStable();
+      await new Promise(resolve => setTimeout(resolve));
+      fixture.detectChanges();
+    }
+    expect(set).toHaveBeenLastCalledWith('production', false);
+    expect(box().checked).toBe(true);
   });
 
   it('shows versions, an unavailable dependency and the agents needing an update', async () => {

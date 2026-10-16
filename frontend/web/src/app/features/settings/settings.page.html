@@ -34,10 +34,11 @@
                     <div class="st-block">
                       <h3 class="st-block__title">Justificativa para parar, pausar e remover</h3>
                       <dok-checkbox
+                        #box
                         [label]="'Obrigatória em ' + item.label"
                         [help]="j.canEdit ? null : 'Somente leitura: exige environment:manage em todos os hosts do estágio'"
                         [ngModel]="j.required"
-                        (ngModelChange)="setJustification(item.stage, $event)"
+                        (ngModelChange)="setJustification(item.stage, $event, box)"
                         [disabled]="!j.canEdit || justificationBusy() !== null"
                       />
                       <p class="app-caption st-muted">{{ changedBy(j.updatedBy, j.updatedAt, 'Valor inicial') }}</p>

@@ -842,7 +842,10 @@ public sealed class AgentControlWorker(
     {
         var hello = new AgentHello
         {
-            AgentVersion = typeof(AgentControlWorker).Assembly.GetName().Version?.ToString() ?? "0.0.0",
+            // Spec 022: versão do produto (a mesma de API, BFF e console), sem a revisão do código-fonte.
+            AgentVersion = (typeof(AgentControlWorker).Assembly
+                .GetCustomAttributes(typeof(System.Reflection.AssemblyInformationalVersionAttribute), false)
+                .OfType<System.Reflection.AssemblyInformationalVersionAttribute>().FirstOrDefault()?.InformationalVersion ?? "0.0.0").Split('+')[0],
             Engine = hostInfo?.Engine == "podman" ? EngineKind.Podman : EngineKind.Docker,
             EngineVersion = descriptor.EngineVersion,
             EngineApiVersion = descriptor.ApiVersion,
