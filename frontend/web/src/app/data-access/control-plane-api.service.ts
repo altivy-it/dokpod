@@ -7,7 +7,6 @@ import {
   getContainerLogs,
   getContainerSummary,
   inspectContainer,
-  getEnvironment,
   getOverview,
   getContainerMetrics,
   getStageMetrics,
@@ -31,10 +30,8 @@ import {
   type AuditSummary,
   getAlertSummary,
   listActionJustificationPolicies,
-  listContainerJustifications,
   setActionJustificationPolicy,
   type AlertSummary,
-  type ContainerJustifications,
   type JustificationPolicyPage,
   type ContainerConfigSummary,
   type ContainerMetrics,
@@ -61,7 +58,6 @@ import {
   type Stage,
   type ContainerCommandStatus,
   type ContainerInventory,
-  type EnvironmentState,
   type EnvironmentPage,
   type InventoryPage,
   type RegisterEnvironmentRequest,
@@ -287,11 +283,6 @@ export class ControlPlaneApiService {
     await setActionJustificationPolicy({ path: { stage }, headers, body: { required }, throwOnError: true });
   }
 
-  async listContainerJustifications(environmentId: string, containerId: string): Promise<ContainerJustifications> {
-    const result = await listContainerJustifications({ path: { environmentId, containerId }, throwOnError: true });
-    return result.data;
-  }
-
   /** Auditoria (spec 017): só o resumo de acesso, usado pelo menu; a consulta fica em features/audit (lazy). */
   async getAuditSummary(): Promise<AuditSummary> {
     const result = await getAuditSummary({ throwOnError: true });
@@ -314,15 +305,6 @@ export class ControlPlaneApiService {
     });
 
     return result.data.environmentId;
-  }
-
-  async getEnvironment(environmentId: string): Promise<EnvironmentState> {
-    const result = await getEnvironment({
-      path: { environmentId },
-      throwOnError: true,
-    });
-
-    return result.data;
   }
 
   async getCommand(environmentId: string, commandId: string): Promise<ContainerCommandStatus> {

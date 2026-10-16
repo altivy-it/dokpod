@@ -35,6 +35,10 @@ public sealed class BffCompositionTests
         Assert.Contains("/api/v1/{**path}", routes);
         Assert.Contains("/hubs/{**path}", routes);
         Assert.Equal("login", loginEndpoint.Metadata.GetMetadata<EnableRateLimitingAttribute>()?.PolicyName);
+        // Spec 022: versão do BFF para Configurações → Instalação, só para usuário autenticado.
+        var versionEndpoint = ((IEndpointRouteBuilder)app).DataSources.SelectMany(source => source.Endpoints)
+            .Single(endpoint => endpoint is RouteEndpoint route && route.RoutePattern.RawText == "/bff/version");
+        Assert.NotNull(versionEndpoint.Metadata.GetMetadata<Microsoft.AspNetCore.Authorization.IAuthorizeData>());
     }
 
     [Fact]

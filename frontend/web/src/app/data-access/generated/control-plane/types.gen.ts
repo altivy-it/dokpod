@@ -564,6 +564,71 @@ export type JustificationPolicy = {
     stage: Stage;
     required: boolean;
     actions: Array<JustifiedAction>;
+    updatedBy: string | null;
+    updatedAt: string | null;
+    /**
+     * environment:manage em todos os hosts legíveis do estágio (spec 022 D-005).
+     */
+    canEdit: boolean;
+};
+
+export type SettingsAccess = {
+    allowed: boolean;
+};
+
+export type SettingsDependency = {
+    name: string;
+    status: 'healthy' | 'degraded' | 'unhealthy';
+    description: string | null;
+    durationMs: number;
+};
+
+export type SettingsCount = {
+    version: string;
+    count: number;
+};
+
+export type SettingsEngineCount = {
+    engine: string;
+    version: string;
+    count: number;
+};
+
+export type SettingsInstallation = {
+    controlPlane: {
+        version: string;
+    };
+    protocolVersion: string;
+    database: {
+        configured: boolean;
+        lastMigration: string | null;
+        pendingMigrations: number;
+    };
+    dependencies: Array<SettingsDependency>;
+    checkedAt: string;
+    agents: {
+        total: number;
+        connected: number;
+        updateRequired: number;
+        unknown: number;
+        byAgentVersion: Array<SettingsCount>;
+        byEngine: Array<SettingsEngineCount>;
+    };
+};
+
+export type SettingsParameter = {
+    group: 'retention' | 'limits' | 'terminal';
+    /**
+     * Chave de configuração da instalação; nula para constantes do produto.
+     */
+    key: string | null;
+    label: string;
+    value: string;
+    source: 'default' | 'installation';
+};
+
+export type SettingsParameterPage = {
+    parameters: Array<SettingsParameter>;
 };
 
 export type JustificationPolicyPage = {
@@ -2893,6 +2958,119 @@ export type EndAlertSilenceResponses = {
 };
 
 export type EndAlertSilenceResponse = EndAlertSilenceResponses[keyof EndAlertSilenceResponses];
+
+export type GetSettingsAccessData = {
+    body?: never;
+    headers?: {
+        /**
+         * Identificador técnico opcional para correlação server-side.
+         */
+        'X-Correlation-Id'?: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/settings/access';
+};
+
+export type GetSettingsAccessErrors = {
+    /**
+     * Autenticação ausente ou inválida.
+     */
+    401: ProblemDetails;
+    /**
+     * Autorização ou persistência indisponível.
+     */
+    503: ProblemDetails;
+};
+
+export type GetSettingsAccessError = GetSettingsAccessErrors[keyof GetSettingsAccessErrors];
+
+export type GetSettingsAccessResponses = {
+    /**
+     * OK.
+     */
+    200: SettingsAccess;
+};
+
+export type GetSettingsAccessResponse = GetSettingsAccessResponses[keyof GetSettingsAccessResponses];
+
+export type GetSettingsInstallationData = {
+    body?: never;
+    headers?: {
+        /**
+         * Identificador técnico opcional para correlação server-side.
+         */
+        'X-Correlation-Id'?: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/settings/installation';
+};
+
+export type GetSettingsInstallationErrors = {
+    /**
+     * Autenticação ausente ou inválida.
+     */
+    401: ProblemDetails;
+    /**
+     * Decisão do Keycloak negou o cadastro.
+     */
+    403: ProblemDetails;
+    /**
+     * Autorização ou persistência indisponível.
+     */
+    503: ProblemDetails;
+};
+
+export type GetSettingsInstallationError = GetSettingsInstallationErrors[keyof GetSettingsInstallationErrors];
+
+export type GetSettingsInstallationResponses = {
+    /**
+     * OK.
+     */
+    200: SettingsInstallation;
+};
+
+export type GetSettingsInstallationResponse = GetSettingsInstallationResponses[keyof GetSettingsInstallationResponses];
+
+export type ListSettingsParametersData = {
+    body?: never;
+    headers?: {
+        /**
+         * Identificador técnico opcional para correlação server-side.
+         */
+        'X-Correlation-Id'?: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/settings/parameters';
+};
+
+export type ListSettingsParametersErrors = {
+    /**
+     * Autenticação ausente ou inválida.
+     */
+    401: ProblemDetails;
+    /**
+     * Decisão do Keycloak negou o cadastro.
+     */
+    403: ProblemDetails;
+    /**
+     * Autorização ou persistência indisponível.
+     */
+    503: ProblemDetails;
+};
+
+export type ListSettingsParametersError = ListSettingsParametersErrors[keyof ListSettingsParametersErrors];
+
+export type ListSettingsParametersResponses = {
+    /**
+     * OK.
+     */
+    200: SettingsParameterPage;
+};
+
+export type ListSettingsParametersResponse = ListSettingsParametersResponses[keyof ListSettingsParametersResponses];
 
 export type ListActionJustificationPoliciesData = {
     body?: never;

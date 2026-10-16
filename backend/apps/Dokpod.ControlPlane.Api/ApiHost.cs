@@ -305,6 +305,7 @@ public static class ApiHost
         NetworkEndpoints.Map(app);
         RegistryEndpoints.Map(app);
         PodEndpoints.Map(app);
+        SettingsEndpoints.Map(app);
         app.MapHub<ControlPlaneHub>("/hubs/control-plane").RequireAuthorization();
     }
 

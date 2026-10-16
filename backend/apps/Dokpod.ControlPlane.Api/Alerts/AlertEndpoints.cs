@@ -196,11 +196,23 @@ public static class AlertEndpoints
         return ToResult(context, await service.CreateSilenceAsync(caller!, scope!, body.StartsAt ?? DateTimeOffset.UtcNow, body.EndsAt, body.Justification, ct));
     }
 
-    private static async Task<IResult> PoliciesAsync(HttpContext context, AlertGovernanceService service, CancellationToken ct)
+    private static async Task<IResult> PoliciesAsync(HttpContext context, AuthorizedEnvironmentsService authorized, AlertGovernanceService service, CancellationToken ct)
     {
-        if (!TryAuthenticate(context, out _, out _, out var unauthorized)) return unauthorized!;
-        var policies = await service.GetPoliciesAsync(ct);
-        return Results.Ok(new { policies = policies.Select(p => new { stage = EnvironmentStages.ToValue(p.Key), required = p.Value, actions = new[] { "stop", "pause", "delete" } }) });
+        var (caller, error) = await CallerAsync(context, authorized, ct);
+        if (error is not null) return error;
+        var policies = await service.ListPoliciesAsync(caller!, ct);
+        return Results.Ok(new
+        {
+            policies = policies.Select(p => new
+            {
+                stage = EnvironmentStages.ToValue(p.Policy.Stage),
+                required = p.Policy.Required,
+                actions = new[] { "stop", "pause", "delete" },
+                updatedBy = p.Policy.UpdatedBy,
+                updatedAt = p.Policy.UpdatedAt,
+                canEdit = p.CanEdit,
+            }),
+        });
     }
 
     private static async Task<IResult> SetPolicyAsync(string stage, JustificationPolicyRequest body, HttpContext context, AuthorizedEnvironmentsService authorized, AlertGovernanceService service, CancellationToken ct)

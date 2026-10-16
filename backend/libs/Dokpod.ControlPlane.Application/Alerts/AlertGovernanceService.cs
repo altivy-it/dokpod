@@ -279,13 +279,31 @@ public sealed class AlertGovernanceService(
         return GovernanceResult.Ok(silenceId);
     }
 
-    public Task<IReadOnlyDictionary<EnvironmentStage, bool>> GetPoliciesAsync(CancellationToken cancellationToken) => justifications.GetPoliciesAsync(cancellationToken);
+
+    /// <summary>Políticas com a última alteração e se o chamador pode editar cada estágio (spec 022 D-005).</summary>
+    public async Task<IReadOnlyList<(JustificationPolicyEntry Policy, bool CanEdit)>> ListPoliciesAsync(AlertCaller caller, CancellationToken cancellationToken)
+    {
+        var entries = await justifications.ListPolicyEntriesAsync(cancellationToken).ConfigureAwait(false);
+        var managed = (await FilterAsync(caller, EnvironmentResourceScopes.Manage, null, cancellationToken).ConfigureAwait(false))
+            .Select(r => r.EnvironmentId).ToHashSet();
+        return entries.Select(entry =>
+        {
+            var candidates = PolicyCandidates(caller, entry.Stage);
+            return (entry, candidates.Length > 0 && candidates.All(r => managed.Contains(r.EnvironmentId)));
+        }).ToArray();
+    }
+
+    /// <summary>Hosts que decidem a política: os legíveis do estágio ou, sem nenhum, todos os legíveis habilitados.</summary>
+    private static EnvironmentRegistration[] PolicyCandidates(AlertCaller caller, EnvironmentStage stage)
+    {
+        var inStage = caller.Readable.Where(r => r.Enabled && r.Stage == stage).ToArray();
+        return inStage.Length > 0 ? inStage : caller.Readable.Where(r => r.Enabled).ToArray();
+    }
 
     /// <summary>Política de justificativa (D-007): `environment:manage` em todos os hosts legíveis do estágio.</summary>
     public async Task<GovernanceResult> SetPolicyAsync(AlertCaller caller, EnvironmentStage stage, bool required, CancellationToken cancellationToken)
     {
-        var inStage = caller.Readable.Where(r => r.Enabled && r.Stage == stage).ToArray();
-        var candidates = inStage.Length > 0 ? inStage : caller.Readable.Where(r => r.Enabled).ToArray();
+        var candidates = PolicyCandidates(caller, stage);
         if (candidates.Length == 0) return new GovernanceResult(GovernanceOutcome.Forbidden, "authorization_denied");
         var allowed = await FilterAsync(caller, EnvironmentResourceScopes.Manage, candidates, cancellationToken).ConfigureAwait(false);
         if (allowed.Count != candidates.Length) return new GovernanceResult(GovernanceOutcome.Forbidden, "authorization_denied");

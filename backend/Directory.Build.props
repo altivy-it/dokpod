@@ -7,5 +7,7 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <AnalysisLevel>latest</AnalysisLevel>
     <Deterministic>true</Deterministic>
+    <!-- Spec 022 D-001: versão única do produto; o console usa a mesma em frontend/web/package.json. -->
+    <Version>0.1.0</Version>
   </PropertyGroup>
 </Project>

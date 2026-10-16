@@ -28,12 +28,11 @@ export const NAV_ITEMS: NavItem[] = [
   { id: 'registries', label: 'Registros', icon: 'inbox', route: '/registros', section: 'Infraestrutura' },
   { id: 'alerts', label: 'Alertas', icon: 'alert', route: '/alertas', section: 'Governança', countLabel: 'alertas abertos' },
   { id: 'audit', label: 'Auditoria', icon: 'shield', route: '/auditoria', section: 'Governança', requiredScope: 'audit:read' },
-  { id: 'settings', label: 'Configurações', icon: 'settings', route: '/em-breve/configuracoes', section: 'Governança' },
+  { id: 'settings', label: 'Configurações', icon: 'settings', route: '/configuracoes', section: 'Governança', requiredScope: 'settings:read' },
 ];
 
-export const COMING_SOON: Record<string, { label: string; description: string }> = {
-  configuracoes: { label: 'Configurações', description: 'Preferências da instalação Dokpod.' },
-};
+/** Itens ainda não entregues (spec 022: todos os itens do menu já têm tela). */
+export const COMING_SOON: Record<string, { label: string; description: string }> = {};
 
 export function groupNavigation(items: NavItem[], scopes: ReadonlySet<string>): NavGroup[] {
   const groups: NavGroup[] = [];
@@ -61,6 +60,7 @@ export function activeNavId(url: string): string {
   if (path.startsWith('/registros')) return 'registries';
   if (path.startsWith('/alertas')) return 'alerts';
   if (path.startsWith('/auditoria')) return 'audit';
+  if (path.startsWith('/configuracoes')) return 'settings';
   const soon = /^\/em-breve\/([^/]+)/.exec(path);
   if (soon) return NAV_ITEMS.find(item => item.route === `/em-breve/${soon[1]}`)?.id ?? '';
   return '';
