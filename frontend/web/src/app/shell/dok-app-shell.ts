@@ -67,10 +67,11 @@ export class DokAppShell {
   );
 
   private readonly auditAccess = inject(AuditAccessService);
-  /** `audit:read` vem da decisão do Keycloak (spec 017 D-006), não da lista de scopes do registro. */
+  /** `audit:read` (spec 017 D-006) e Configurações (spec 022 D-002) vêm da decisão do Keycloak, não da lista de scopes do registro. */
   protected readonly groups = computed(() => {
-    const scopes = new Set([...this.scopes()].filter(scope => scope !== 'audit:read'));
+    const scopes = new Set([...this.scopes()].filter(scope => scope !== 'audit:read' && scope !== 'settings:read'));
     if (this.auditAccess.canRead()) scopes.add('audit:read');
+    if (this.auditAccess.settings()) scopes.add('settings:read');
     return groupNavigation(NAV_ITEMS, scopes);
   });
   protected readonly active = computed(() => activeNavId(this.url()));

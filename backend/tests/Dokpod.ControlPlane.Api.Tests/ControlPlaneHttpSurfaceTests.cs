@@ -84,6 +84,9 @@ public sealed class ControlPlaneHttpSurfaceTests
             "/api/v1/environments/{environmentId:guid}/create-options",
             "/api/v1/environments/{environmentId:guid}/containers/{containerId}/terminal-policy",
             "/api/v1/terminal-sessions/{sessionId:guid}/renew",
+            "/api/v1/settings/access",
+            "/api/v1/settings/installation",
+            "/api/v1/settings/parameters",
         ];
         Assert.Contains(endpoints, endpoint => endpoint.RoutePattern.RawText == "/api/v1/environments/{environmentId:guid}/containers" &&
             endpoint.Metadata.GetMetadata<Microsoft.AspNetCore.Routing.IHttpMethodMetadata>()?.HttpMethods.Contains("POST") == true);

@@ -159,6 +159,12 @@ public static class BffHost
             var tokens = antiforgery.GetAndStoreTokens(context);
             return Results.Ok(new { requestToken = tokens.RequestToken });
         }).RequireAuthorization();
+        // Spec 022: versão do BFF para Configurações → Instalação (sem revisão do código-fonte).
+        endpoints.MapGet("/bff/version", () => Results.Ok(new
+        {
+            version = (typeof(BffHost).Assembly.GetCustomAttributes(typeof(System.Reflection.AssemblyInformationalVersionAttribute), false)
+                .OfType<System.Reflection.AssemblyInformationalVersionAttribute>().FirstOrDefault()?.InformationalVersion ?? "0.0.0").Split('+')[0],
+        })).RequireAuthorization();
         endpoints.MapGet("/bff/session", (HttpContext context, IOptions<BffRuntimeOptions> runtimeOptions) =>
             Results.Ok(BffSessionResponse.FromPrincipal(context.User, runtimeOptions.Value.Session.DisplayGroupClaim))).AllowAnonymous();
         endpoints.MapMethods("/api/v1/{**path}", [HttpMethods.Get, HttpMethods.Head, HttpMethods.Options], async (HttpContext context, IHttpClientFactory httpClientFactory) =>

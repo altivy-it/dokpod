@@ -1,0 +1,187 @@
+<div class="dok-stack">
+  <div class="dok-page-head">
+    <div class="dok-page-head__text">
+      <span class="eyebrow">Governança</span>
+      <h1 class="app-title">Configurações</h1>
+      <p class="app-small">Políticas da operação, versões e saúde da instalação, retenções e limites em vigor.</p>
+    </div>
+    <div class="dok-actions">
+      <button dok-button variant="outline" size="sm" startIcon="refresh" type="button" [loading]="loading()" (click)="reload()">Atualizar</button>
+    </div>
+  </div>
+
+  <dok-tabs [tabs]="tabs" [value]="view()" (valueChange)="selectView($event)" ariaLabel="Vistas de configurações" controls="st-panel" />
+
+  <div id="st-panel" role="tabpanel" class="dok-stack" [attr.aria-label]="'Vista ' + view()">
+    @if (error(); as e) {
+      <dok-empty-state [kind]="e.status === 403 ? 'forbidden' : 'error'" [code]="e.status ? 'Erro ' + e.status : null" [title]="e.status === 403 ? 'Configurações exigem administração de algum host.' : e.title" [detail]="e.detail">
+        <button dok-button variant="outline" size="sm" startIcon="refresh" type="button" (click)="reload()">Tentar novamente</button>
+      </dok-empty-state>
+    } @else {
+      @switch (view()) {
+        @case ('politicas') {
+          <p class="app-small st-muted">
+            As mesmas políticas de Alertas → Regras e de Registros → Política por estágio. Alterar exige administração de todos os hosts do estágio e fica na
+            auditoria.
+          </p>
+          @if (policies(); as list) {
+            <div class="st-cards">
+              @for (item of list; track item.stage) {
+                <section class="st-card alt-glass" [attr.aria-labelledby]="'st-policy-' + item.stage">
+                  <h2 class="st-card__title" [id]="'st-policy-' + item.stage">{{ item.label }}</h2>
+
+                  @if (item.justification; as j) {
+                    <div class="st-block">
+                      <h3 class="st-block__title">Justificativa para parar, pausar e remover</h3>
+                      <dok-checkbox
+                        #box
+                        [label]="'Obrigatória em ' + item.label"
+                        [help]="j.canEdit ? null : 'Somente leitura: exige environment:manage em todos os hosts do estágio'"
+                        [ngModel]="j.required"
+                        (ngModelChange)="setJustification(item.stage, $event, box)"
+                        [disabled]="!j.canEdit || justificationBusy() !== null"
+                      />
+                      <p class="app-caption st-muted">{{ changedBy(j.updatedBy, j.updatedAt, 'Valor inicial') }}</p>
+                    </div>
+                  }
+
+                  @if (item.registries; as r) {
+                    <div class="st-block">
+                      <div class="st-block__head">
+                        <h3 class="st-block__title">Registros permitidos</h3>
+                        @if (r.canEdit) {
+                          <button dok-button variant="outline" size="xs" startIcon="settings" type="button" [attr.aria-label]="'Editar os registros permitidos em ' + item.label" (click)="editing.set(r)">Editar</button>
+                        }
+                      </div>
+                      @if (r.registries.length) {
+                        <ul class="st-chips" [attr.aria-label]="'Registros permitidos em ' + item.label">
+                          @for (registry of r.registries; track registry) {
+                            <li><dok-status-chip size="sm" variant="outlined" color="info" [label]="registry" /></li>
+                          }
+                        </ul>
+                      } @else {
+                        <p class="app-small">Qualquer registro</p>
+                      }
+                      <p class="app-caption st-muted">
+                        {{ r.source === 'console' ? changedBy(r.updatedBy, r.updatedAt, 'Valor inicial') : 'Valor inicial da configuração da API' }}
+                        @if (!r.canEdit) {
+                          · somente leitura
+                        }
+                      </p>
+                    </div>
+                  }
+                </section>
+              }
+            </div>
+          }
+        }
+
+        @case ('instalacao') {
+          @if (installation(); as info) {
+            <div class="st-cards">
+              <section class="st-card alt-glass" aria-labelledby="st-versions">
+                <h2 class="st-card__title" id="st-versions">Versões</h2>
+                <dok-key-value [items]="versions()" [labelWidth]="150" />
+              </section>
+
+              <section class="st-card alt-glass" aria-labelledby="st-deps">
+                <h2 class="st-card__title" id="st-deps">Dependências</h2>
+                <ul class="st-list">
+                  @for (dep of info.dependencies; track dep.name) {
+                    <li class="st-list__row">
+                      <span>{{ dependencyLabel[dep.name] ?? dep.name }}</span>
+                      <span class="st-list__value">
+                        <dok-status-chip size="sm" [color]="dependencyStatus[dep.status].tone" [label]="dependencyStatus[dep.status].label" />
+                        <span class="app-caption st-muted">{{ dep.durationMs }} ms</span>
+                      </span>
+                      @if (dep.description) {
+                        <span class="app-caption st-muted st-list__note">{{ dep.description }}</span>
+                      }
+                    </li>
+                  }
+                </ul>
+                <p class="app-caption st-muted">Verificado em {{ formatDateTime(info.checkedAt) }}</p>
+              </section>
+
+              <section class="st-card alt-glass" aria-labelledby="st-agents">
+                <h2 class="st-card__title" id="st-agents">Agentes</h2>
+                <ul class="st-list">
+                  <li class="st-list__row"><span>Hosts</span><span class="alt-num">{{ info.agents.total }}</span></li>
+                  <li class="st-list__row"><span>Conectados</span><span class="alt-num">{{ info.agents.connected }}</span></li>
+                  <li class="st-list__row">
+                    <span>Precisam de atualização</span>
+                    <span class="st-list__value">
+                      @if (info.agents.updateRequired) {
+                        <a routerLink="/hosts" [queryParams]="{ q: 'Atualizar' }" queryParamsHandling="merge" class="st-link">{{ info.agents.updateRequired }} · ver em Hosts</a>
+                      } @else {
+                        <span class="alt-num">0</span>
+                      }
+                    </span>
+                  </li>
+                  <li class="st-list__row"><span>Sem informação do agente</span><span class="alt-num">{{ info.agents.unknown }}</span></li>
+                </ul>
+                @if (info.agents.byAgentVersion.length) {
+                  <table class="st-table">
+                    <caption class="st-block__title">Versão do agente</caption>
+                    <thead><tr><th scope="col">Versão</th><th scope="col" class="st-num">Hosts</th></tr></thead>
+                    <tbody>
+                      @for (row of info.agents.byAgentVersion; track row.version) {
+                        <tr><td class="st-mono">{{ row.version }}</td><td class="st-num">{{ row.count }}</td></tr>
+                      }
+                    </tbody>
+                  </table>
+                }
+                @if (info.agents.byEngine.length) {
+                  <table class="st-table">
+                    <caption class="st-block__title">Engine</caption>
+                    <thead><tr><th scope="col">Engine</th><th scope="col">Versão</th><th scope="col" class="st-num">Hosts</th></tr></thead>
+                    <tbody>
+                      @for (row of info.agents.byEngine; track row.engine + row.version) {
+                        <tr><td>{{ row.engine === 'podman' ? 'Podman' : row.engine === 'docker' ? 'Docker' : row.engine }}</td><td class="st-mono">{{ row.version }}</td><td class="st-num">{{ row.count }}</td></tr>
+                      }
+                    </tbody>
+                  </table>
+                }
+              </section>
+            </div>
+          }
+        }
+
+        @case ('limites') {
+          <p class="app-small st-muted">Valores em vigor, somente leitura. Alterar exige mudar a configuração da implantação e reiniciar a API.</p>
+          @for (group of parameterGroups(); track group.id) {
+            <section class="st-card alt-glass" [attr.aria-labelledby]="'st-group-' + group.id">
+              <h2 class="st-card__title" [id]="'st-group-' + group.id">{{ group.title }}</h2>
+              <p class="app-small st-muted">{{ group.description }}</p>
+              <div class="st-scroll">
+                <table class="st-table st-table--wide">
+                  <thead><tr><th scope="col">Parâmetro</th><th scope="col">Valor</th><th scope="col">Origem</th></tr></thead>
+                  <tbody>
+                    @for (p of group.items; track p.label) {
+                      <tr>
+                        <td>
+                          {{ p.label }}
+                          @if (p.key) {
+                            <span class="st-key">{{ p.key }}</span>
+                          }
+                        </td>
+                        <td>{{ p.value }}</td>
+                        <td>
+                          <dok-status-chip size="sm" [variant]="p.source === 'installation' ? 'soft' : 'outlined'" [color]="p.source === 'installation' ? 'accent' : 'neutral'" [label]="sourceLabel[p.source]" />
+                        </td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          }
+        }
+      }
+    }
+  </div>
+</div>
+
+@if (editing(); as p) {
+  <app-registry-policy-drawer [open]="true" [stage]="p.stage" [current]="p.registries" [busy]="saving()" (closed)="editing.set(null)" (saved)="saveRegistries(p.stage, $event)" />
+}
