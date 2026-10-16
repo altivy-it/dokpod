@@ -244,6 +244,18 @@ A telemetria usa allowlist de campos, limites e normalização de caracteres de 
 
 **Risco residual**: outros pods de infraestrutura que não contêm o agente (por exemplo, o da plataforma de identidade no laboratório) podem ser parados por quem tem os scopes de container; a proteção cobre só o pod do agente.
 
+## Threat model: Configurações (spec 022)
+
+**Fronteira nova**: navegador → BFF → API `GET /api/v1/settings/{access,installation,parameters}` e `GET /bff/version`. Somente leitura, exceto as políticas de justificativa e de registros, que reutilizam as rotas e regras das specs 016 e 020.
+
+| Ameaça | Mitigação | Teste negativo |
+| --- | --- | --- |
+| Vazamento de segredo da configuração (cadeia de conexão, segredo do cliente OIDC) | Lista fechada de parâmetros; nenhuma chave é lida por nome vindo da requisição; dependências expõem só nome, situação, descrição curta e duração | `SettingsEndpointsTests` (canário em cadeia de conexão e segredo); stack real: 7 canários dos `.env` em 5 respostas → 0 ocorrências |
+| Reconhecimento da instalação (versões, banco, dependências) por usuário comum | Vistas Instalação e Retenções e limites exigem `environment:manage` em algum host (decisão do Keycloak); o item de menu só aparece com o acesso | E2E simulada (`readonly`: item oculto e 403 na tela) |
+| Alterar política sem permissão pela tela nova | Mesmas rotas e regras das specs 016 e 020 (administração de todos os hosts do estágio), com `canEdit` vindo da API; auditoria `container.justification_policy_changed` | `AlertGovernanceServiceTests` (`canEdit` e recusa) |
+
+**Risco residual**: as versões mostradas vêm dos próprios componentes; um componente adulterado pode informar versão falsa (a verificação de integridade continua sendo a assinatura das imagens).
+
 ## Desenvolvimento e release
 
 - threat model atualizado para cada nova fronteira;

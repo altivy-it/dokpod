@@ -80,6 +80,12 @@ Features integram por rotas, contratos públicos e fachadas pequenas; não impor
 - a política mostra a lista efetiva de cada estágio e se veio da configuração ou do console; a edição valida host[:porta], mostra quantas imagens ficam fora e só aparece com administração de todos os hosts do estágio;
 - as chamadas ficam em `features/registries/registries-api.service.ts`; as de gestão de alertas passaram para `features/alerts/alerts-api.service.ts`, o que manteve o bundle inicial em 418,91 kB.
 
+### Configurações (spec 022)
+
+- Governança → Configurações (`/configuracoes`, vista em `vista`): **Políticas** reúne a justificativa por estágio e os registros permitidos (as mesmas regras e rotas de Alertas e Registros, com `canEdit` da API); **Instalação** mostra versões (plano de controle, BFF, console, protocolo), nível do banco, saúde das dependências e distribuição dos agentes, com link para Hosts; **Retenções e limites** mostra valores efetivos e a origem (padrão ou instalação), somente leitura;
+- o item de menu só aparece com `environment:manage` em algum host (decisão do Keycloak, carregada junto com o acesso à Auditoria);
+- versão única do produto em `backend/Directory.Build.props`, `frontend/web/package.json` e `CONSOLE_VERSION`, conferida por teste de arquitetura.
+
 ### Pods (spec 021)
 
 - Operação → Pods (`/pods`) lista os pods do Podman com situação (em execução, degradado, parado, pausado, criado, com erro), containers em execução, redes e criação; situação, host e busca ficam na URL (`status`, `environmentId`, `q`, `sort`) e `podHost` + `pod` abrem o detalhe (link usado pelo detalhe do container);
