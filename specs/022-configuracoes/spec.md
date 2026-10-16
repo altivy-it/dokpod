@@ -4,7 +4,7 @@
 
 **Criada em**: 2026-10-16
 
-**Estado**: `draft` - aguardando aprovação do solicitante.
+**Estado**: `approved` - aprovada pelo solicitante em 2026-10-16 ("Continue a implementação").
 
 **Entrada**: Pedido do solicitante em 2026-10-16: "pode seguir", após a spec 021. Último item "Em breve" do menu: Governança → Configurações ("Preferências da instalação Dokpod").
 

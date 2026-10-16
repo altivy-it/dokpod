@@ -164,4 +164,4 @@ Evita colisão de tags entre specs desenvolvidas em paralelo. Alterar somente co
 
 ### Rotas do frontend
 
-`/` Visão geral (008) · `/containers` (010) · `/containers/:environmentId/:containerId?aba=` detalhe (011/014) · `/imagens` (012) · `/volumes` (018) · `/redes` (019) · `/registros` (020) · `/pods` (021) · `/hosts` (008) · `/em-breve/:item` (007) · `/dev/componentes` somente desenvolvimento (007). A rota legada `/environments/:environmentId/containers` redireciona para `/containers?environmentId=`.
+`/` Visão geral (008) · `/containers` (010) · `/containers/:environmentId/:containerId?aba=` detalhe (011/014) · `/imagens` (012) · `/volumes` (018) · `/redes` (019) · `/registros` (020) · `/pods` (021) · `/configuracoes` (022) · `/hosts` (008) · `/em-breve/:item` (007) · `/dev/componentes` somente desenvolvimento (007). A rota legada `/environments/:environmentId/containers` redireciona para `/containers?environmentId=`.
