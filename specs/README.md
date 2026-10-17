@@ -134,6 +134,7 @@ conclusão de tarefas ou dispensa implícita de gate obrigatório da matriz decl
 | 14 | [020 - Registros](020-registros/spec.md) | Infraestrutura → Registros | aprovação da spec; política de registros permitidos editável no console; capability de inventário de registros no agente |
 | 15 | [021 - Pods](021-pods/spec.md) | Operação → Pods | aprovação da spec; scopes de container reaproveitados; pod do agente protegido; capability de pods no agente |
 | 16 | [022 - Configurações](022-configuracoes/spec.md) | Governança → Configurações | aprovação da spec; acesso só para administradores; retenções e limites somente leitura |
+| 17 | [023 - Qualificação na stack real](023-qualificacao-stack-real/spec.md) | Docker real, N-1, permissões e canários | aprovação da spec; Docker real aninhado no Podman; alimenta a 005 |
 
 Dependências: 007 → 008 → {009, 010, 012} → 011 → 013 → 014 (013 usa 011 para consultas ao host; 014 usa a página e o hub de 011). Todos os itens do menu têm spec.
 
