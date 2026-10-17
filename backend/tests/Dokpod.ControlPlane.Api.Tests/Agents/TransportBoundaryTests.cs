@@ -1,3 +1,4 @@
+using Google.Protobuf;
 using System.Net.Security;
 using System.Net;
 using System.Security.Cryptography;
@@ -158,7 +159,14 @@ public sealed class TransportBoundaryTests
         Assert.Equal(command.Command.ExpectedContainerRevision, delivered.Command.ExpectedContainerRevision);
         Assert.Equal(command.Command.PayloadHash, Convert.ToHexString(delivered.Command.PayloadHash.Span));
 
-        var accepted = CreateHeartbeat(session, 1);
+        // Spec 023: mensagem de um agente mais novo (campo 999 desconhecido, sem payload conhecido) não derruba a sessão.
+        var known = CreateHeartbeat(session, 1);
+        known.Heartbeat = null;
+        var unknown = AgentMessage.Parser.ParseFrom([.. known.ToByteArray(), 0xBA, 0x3E, 0x00]);
+        Assert.Equal(AgentMessage.PayloadOneofCase.None, unknown.PayloadCase);
+        await call.RequestStream.WriteAsync(unknown, TestContext.Current.CancellationToken);
+
+        var accepted = CreateHeartbeat(session, 2);
         accepted.Heartbeat = null;
         accepted.CommandAccepted = new CommandAccepted
         {
@@ -168,7 +176,7 @@ public sealed class TransportBoundaryTests
         await call.RequestStream.WriteAsync(accepted, TestContext.Current.CancellationToken);
 
         var completedAt = DateTimeOffset.UtcNow;
-        var result = CreateHeartbeat(session, 2);
+        var result = CreateHeartbeat(session, 3);
         result.Heartbeat = null;
         result.CommandResult = new CommandResult
         {

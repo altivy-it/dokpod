@@ -520,6 +520,12 @@ public sealed class AgentControlService(
 
                         break;
 
+                    // Spec 023: mensagem de um agente mais novo (campo do oneof desconhecido neste servidor) é ignorada,
+                    // sem derrubar a sessão; mensagens conhecidas fora da negociação continuam encerrando a sessão.
+                    case AgentMessage.PayloadOneofCase.None:
+                        logger.LogDebug("Ignored agent message with a payload unknown to this server");
+                        break;
+
                     default:
                         throw new RpcException(new Status(StatusCode.Unimplemented, "agent_payload_not_supported"));
                 }
