@@ -1107,7 +1107,7 @@ public sealed class DockerEngineClient(HttpClient httpClient, RegistryCredential
         var text = message.ToLowerInvariant();
         // "pull access denied ..., repository does not exist" (Docker Hub) é inexistência, não falta de credencial.
         if (status == 404 || text.Contains("manifest unknown") || text.Contains("does not exist") || text.Contains("not found")) return "image_not_found";
-        if (status is 401 or 403 || text.Contains("unauthorized") || text.Contains("denied") || text.Contains("authentication required")) return "registry_unauthorized";
+        if (status is 401 or 403 || text.Contains("unauthorized") || text.Contains("denied") || text.Contains("authentication required") || text.Contains("no basic auth credentials")) return "registry_unauthorized";
         if (text.Contains("no space left")) return "insufficient_storage";
         if (text.Contains("no matching manifest") || text.Contains("does not match the specified platform") || text.Contains("choosing an image from manifest list")) return "platform_mismatch";
         if (text.Contains("no such host") || text.Contains("connection refused") || text.Contains("timeout") || text.Contains("i/o timeout") || text.Contains("dial tcp") || text.Contains("tls")) return "registry_unreachable";

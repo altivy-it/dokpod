@@ -39,3 +39,8 @@
 ## Dependências e Ordem de Execução
 
 T001 -> T002/T003/T018 -> T004-T006 (pausa) ∥ T007-T008 (lista) -> T009-T014 -> T015-T016 -> T017. A T018 recebeu esse número para não renumerar as tarefas citadas por outras specs (ex.: 011 usa T011).
+
+## Atualização da spec 023 (2026-10-17)
+
+- **Docker real e stack real**: parar, iniciar, reiniciar, pausar, retomar e remover pelo console contra Docker 28.5.2, com auditoria do ator; usuário só de leitura sem ações oferecidas e recusado pela API.
+- Continua `NOT RUN`: SC-002 com 20 containers em engines reais medido em lote — frente 2.

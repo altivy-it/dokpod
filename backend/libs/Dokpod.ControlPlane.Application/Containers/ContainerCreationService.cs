@@ -7,6 +7,7 @@ using Dokpod.ControlPlane.Application.Environments;
 using Dokpod.ControlPlane.Application.Hosts;
 using Dokpod.ControlPlane.Application.Images;
 using Dokpod.ControlPlane.Application.Queries;
+using Dokpod.ControlPlane.Application.Terminal;
 using Dokpod.Domain.Auditing;
 using Dokpod.Domain.Commands;
 using Dokpod.Domain.Containers;
@@ -157,7 +158,12 @@ public sealed class ContainerCreationService(
         {
             Parameters = parameters,
         };
-        var equivalent = EquivalentCommandRenderer.Render(spec, descriptor.EngineKind);
+        // Spec 023: o comando de saúde pode conter segredo (por exemplo, `Authorization: Bearer`); a resposta e a auditoria
+        // mostram o comando com os padrões de segredo mascarados, como a justificativa do terminal.
+        var displaySpec = spec.HealthCheck is { } health
+            ? spec with { HealthCheck = health with { Test = health.Test.Select((part, index) => index == 0 ? part : JustificationMasker.Mask(part)).ToArray() } }
+            : spec;
+        var equivalent = EquivalentCommandRenderer.Render(displaySpec, descriptor.EngineKind);
         var auditEvent = AuditEvent.Create(
                 Guid.NewGuid(),
                 now,

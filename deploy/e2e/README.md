@@ -146,6 +146,17 @@ docker compose -f deploy/e2e/docker-compose-dokpod.yaml --profile agent --profil
 
 O runner de CI atual não oferece Podman; a execução fica manual, com evidência registrada nas tarefas. A qualificação do adapter sem a stack completa roda com `DOKPOD_TEST_PODMAN_SOCKET` em `backend/tests/Dokpod.Agent.Podman.IntegrationTests`.
 
+## Incluir um Docker real sem instalar Docker no host
+
+O perfil `docker-real` (spec 023) sobe o Docker Engine oficial (`docker:28-dind`) aninhado no Podman, privilegiado só para criar cgroups e redes internas, e o agente `agent-docker` com a identidade do perfil `agent` (`dokpod-agent.pfx` e `DOKPOD_E2E_AGENT_ENVIRONMENT_ID`). O socket fica em volume nomeado compartilhado e as imagens em `docker-engine-data`.
+
+```bash
+podman-compose --env-file <.env> -f deploy/e2e/docker-compose-dokpod.yaml --profile docker-real up -d --no-build docker-engine agent-docker
+podman exec -e DOCKER_HOST=unix:///var/run/docker-engine/docker.sock dokpod_docker-engine_1 docker ps -a
+```
+
+É um engine Docker real (mesma API e mesmo comportamento de containers), mas aninhado: métricas de host e o caminho de dados refletem o container do engine. Docker instalado diretamente no host continua sendo um item próprio da matriz da spec 005.
+
 ## Stack completa em Linux com Podman rootless
 
 Validada em 2026-10-14 (Ubuntu, Podman 5.7.0, podman-compose 1.5.0) com a

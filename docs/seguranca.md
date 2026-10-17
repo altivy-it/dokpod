@@ -244,6 +244,20 @@ A telemetria usa allowlist de campos, limites e normalização de caracteres de 
 
 **Risco residual**: outros pods de infraestrutura que não contêm o agente (por exemplo, o da plataforma de identidade no laboratório) podem ser parados por quem tem os scopes de container; a proteção cobre só o pod do agente.
 
+## Qualificação na stack real (spec 023)
+
+Achados de segurança corrigidos ao executar na stack real o que antes estava `NOT RUN`:
+
+| Achado | Correção | Teste |
+| --- | --- | --- |
+| Menor privilégio inviável: permissões do Keycloak do tipo `resource` faziam qualquer pedido avaliar todas as permissões do host; quem não tinha todos os scopes era negado em tudo | Provisionamento cria permissões por scope com decisão afirmativa e converte as antigas | stack real: usuário só de leitura lê os hosts e é recusado em todas as ações |
+| O console oferecia ações não concedidas: `scopes` e `allowedActions` vinham do cadastro do host, não do usuário | Scopes concedidos ao usuário numa só consulta UMA (`response_mode=permissions`), aplicados à lista, ao detalhe e às ações | `EnvironmentRegistrationServiceTests`; stack real: leitor sem botões de ação e com políticas somente leitura |
+| Comando de saúde em claro no comando equivalente (resposta e auditoria) e nos parâmetros do comando no banco | Cifrado com os valores das variáveis (apagado ao terminar) e mascarado no comando equivalente | `ContainerCreationServiceTests`, `ContainerCreationSpecTests`; varredura com canários: 0 ocorrências em respostas, banco e logs |
+| Revogação de `container:exec` registrada como "encerrada pelo usuário": o console derrubava a sessão ao atualizar o detalhe | Sessão aberta fica montada; o servidor revalida e encerra com `permission_revoked` | stack real: encerrada 55 s após a revogação, com o motivo correto |
+| Agente rebaixado mostrava inventários antigos como atuais | Consultas só usam hosts cujo agente anuncia a capability | `RegistriesIntegrationTests`; stack real com agente N-1 |
+
+Canários desta qualificação: variável de ambiente, label com senha em URL, comando de saúde com `Bearer`, opção de log, linha de log com um par senha e valor, termo de busca e a senha de um registro privado — zero ocorrências fora do mascaramento em respostas da API, PostgreSQL e logs de nginx, BFF, API, agentes e engine.
+
 ## Threat model: Configurações (spec 022)
 
 **Fronteira nova**: navegador → BFF → API `GET /api/v1/settings/{access,installation,parameters}` e `GET /bff/version`. Somente leitura, exceto as políticas de justificativa e de registros, que reutilizam as rotas e regras das specs 016 e 020.

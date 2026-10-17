@@ -880,10 +880,11 @@ public sealed class AgentControlWorker(
                 Capability.NetworkRemove,
                 Capability.RegistryInventory,
                 Capability.PodInventory,
-                Capability.PodActions,
             },
             SupportedProtocolVersions = { "1" },
         };
+        // Ações de pod só existem no Podman; no Docker o inventário de pods informa "sem pods" (spec 023).
+        if (hello.Engine == EngineKind.Podman) hello.Capabilities.Add(Capability.PodActions);
         // Spec 013 T011 / 014 T007: criação e terminal só no Linux (Windows sem qualificação própria).
         if (!System.OperatingSystem.IsWindows())
         {

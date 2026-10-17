@@ -75,10 +75,11 @@ public static partial class NetworkEndpoints
 
         NetworkSearchResult result;
         IReadOnlySet<Guid> projected;
+        var inventoryHosts = hosts.Values.Where(h => h.Publishes("NetworkInventory")).Select(h => h.Registration.EnvironmentId).ToArray();
         try
         {
-            result = await store.SearchAsync(new NetworkSearchQuery(hosts.Keys.ToArray(), unused, system, drivers, text.Length == 0 ? null : text, sort, offset, limit), cancellationToken);
-            projected = await store.ListProjectedAsync(hosts.Keys.ToArray(), cancellationToken);
+            result = await store.SearchAsync(new NetworkSearchQuery(inventoryHosts, unused, system, drivers, text.Length == 0 ? null : text, sort, offset, limit), cancellationToken);
+            projected = await store.ListProjectedAsync(inventoryHosts, cancellationToken);
         }
         catch (InvalidOperationException)
         {

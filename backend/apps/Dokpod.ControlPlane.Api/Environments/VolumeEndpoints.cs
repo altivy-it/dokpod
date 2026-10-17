@@ -76,10 +76,11 @@ public static class VolumeEndpoints
 
         VolumeSearchResult result;
         IReadOnlySet<Guid> projected;
+        var inventoryHosts = hosts.Values.Where(h => h.Publishes("VolumeInventory")).Select(h => h.Registration.EnvironmentId).ToArray();
         try
         {
-            result = await store.SearchAsync(new VolumeSearchQuery(hosts.Keys.ToArray(), unused, anonymous, text.Length == 0 ? null : text, sort, offset, limit), cancellationToken);
-            projected = await store.ListProjectedAsync(hosts.Keys.ToArray(), cancellationToken);
+            result = await store.SearchAsync(new VolumeSearchQuery(inventoryHosts, unused, anonymous, text.Length == 0 ? null : text, sort, offset, limit), cancellationToken);
+            projected = await store.ListProjectedAsync(inventoryHosts, cancellationToken);
         }
         catch (InvalidOperationException)
         {

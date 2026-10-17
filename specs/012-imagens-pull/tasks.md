@@ -43,3 +43,7 @@
 ## Dependências e Ordem de Execução
 
 T000 (gate) -> T001 -> T002/T003 -> T004/T005 -> T006/T007 -> T008/T009 -> T010-T013 -> T014/T015. A spec 013 depende de T002, T004, T005 e T012.
+
+## Atualização da spec 023 (2026-10-17)
+
+- **Registro privado (`registry:2` com htpasswd) e Docker real**: pull autenticado pela stack real com a credencial do `DOKPOD_AGENT_REGISTRY_AUTH_FILE`; sem credencial, a falha passou a ser `registry_unauthorized` (o Docker responde "no basic auth credentials", antes mapeado para o genérico `image_pull_failed`); senha do registro com zero ocorrências em respostas, banco e logs.

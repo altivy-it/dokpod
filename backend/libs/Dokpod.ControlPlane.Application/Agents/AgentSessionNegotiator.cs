@@ -59,15 +59,20 @@ public sealed class AgentSessionNegotiator(
             throw new AgentSessionRejectedException("protocol_version_unsupported");
         }
 
+        // Spec 023: o protocolo v1 é aditivo. Capabilities que este servidor não conhece (agente mais novo) são
+        // descartadas em vez de recusar a sessão; o servidor só usa o que conhece e não envia o que o agente não anunciou.
+        foreach (var unknown in hello.Capabilities.Where(capability => !Enum.IsDefined(capability) || capability == Capability.Unspecified).ToArray())
+        {
+            hello.Capabilities.Remove(unknown);
+        }
+
         if (!Enum.IsDefined(hello.Engine) ||
             hello.Engine == EngineKind.Unspecified ||
             !Enum.IsDefined(hello.OperatingSystem) ||
             hello.OperatingSystem == Agent.Contracts.V1.OperatingSystem.Unspecified ||
             !Enum.IsDefined(hello.Architecture) ||
             hello.Architecture == Architecture.Unspecified ||
-            hello.Capabilities.Count == 0 ||
-            hello.Capabilities.Any(capability =>
-                !Enum.IsDefined(capability) || capability == Capability.Unspecified))
+            hello.Capabilities.Count == 0)
         {
             throw new AgentSessionRejectedException("agent_hello_invalid");
         }
