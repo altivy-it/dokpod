@@ -89,11 +89,20 @@ async def main():
         await page.wait_for_url("**/dokpod/**")
         state = await page.context.storage_state()
         setup = await p.request.new_context(ignore_https_errors=True, storage_state=state)
-        envs = [e for e in (await (await setup.get(BASE + "/api/v1/environments")).json())["environments"] if e["name"].startswith(PREFIX)]
+        envs, cursor = [], None
+        while True:
+            body = await (await setup.get(BASE + "/api/v1/environments?limit=100" + (f"&cursor={cursor}" if cursor else ""))).json()
+            envs += [e for e in body["environments"] if e["name"].startswith(PREFIX) and (e.get("agent") or {}).get("connected")]
+            cursor = body.get("nextCursor")
+            if not cursor: break
         containers = []
         for e in envs:
-            page_ = await (await setup.get(f"{BASE}/api/v1/environments/{e['environmentId']}/containers")).json()
-            containers += [(e["environmentId"], c["containerId"]) for c in page_["containers"]]
+            for attempt in range(5):
+                r = await setup.get(f"{BASE}/api/v1/environments/{e['environmentId']}/containers")
+                if r.ok: break
+                print(f"preparo: {e['name']} respondeu {r.status} ({(await r.text())[:160]}); nova tentativa", flush=True)
+                await asyncio.sleep(2)
+            containers += [(e["environmentId"], c["containerId"]) for c in (await r.json()).get("containers", [])]
         print(f"{len(envs)} hosts de carga, {len(containers)} containers; {USERS} usuários por {MINUTES} min", flush=True)
         contexts = [await p.request.new_context(ignore_https_errors=True, storage_state=state) for _ in range(USERS)]
         deadline = time.monotonic() + MINUTES * 60

@@ -87,4 +87,4 @@ Desktop.ini
 *.tmp
 *~
 # Simulador de carga publicado localmente (spec 005)
-tools/loadtest/**/out/
+tools/loadtest/**/out*/

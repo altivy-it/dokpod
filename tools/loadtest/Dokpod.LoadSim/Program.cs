@@ -29,6 +29,11 @@ using var stop = new CancellationTokenSource();
 Console.CancelKeyPress += (_, e) => { e.Cancel = true; stop.Cancel(); };
 AppDomain.CurrentDomain.ProcessExit += (_, _) => stop.Cancel();
 
+if (Environment.GetEnvironmentVariable("LOADSIM_EXEC_LOG") is { Length: > 0 } execLog)
+{
+    FakeEngine.ExecutionLog = new StreamWriter(execLog, append: true) { AutoFlush = true };
+}
+
 var engines = new List<FakeEngine>();
 var workers = new List<AgentControlWorker>();
 for (var i = 0; i < agents.Length; i++)

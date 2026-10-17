@@ -40,6 +40,9 @@ public sealed class FakeEngine : IContainerEngine
 
     public string HostName => host;
 
+    /// <summary>Destino opcional do registro de execuções (variável LOADSIM_EXEC_LOG).</summary>
+    public static StreamWriter? ExecutionLog { get; set; }
+
     /// <summary>Comandos executados (para o relatório do simulador).</summary>
     public int Commands;
 
@@ -75,6 +78,8 @@ public sealed class FakeEngine : IContainerEngine
             _ => (container.State, ""),
         };
         if (action.Length == 0) return new ContainerMutationResult(false, "not_supported");
+        // Registro de cada execução real (prova de ausência de efeito duplicado na recuperação, T016).
+        if (ExecutionLog is { } log) lock (log) log.WriteLine($"{DateTimeOffset.UtcNow:O},{host},{containerId},{action}");
         if (state == "removed") containers.TryRemove(containerId, out _);
         else Update(container, state, state == "exited" ? 0 : null);
         Publish("container", action, container, state == "exited" ? 0 : null);
