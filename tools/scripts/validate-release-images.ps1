@@ -129,12 +129,16 @@ function Test-VulnerabilityPolicy {
     $acceptances = if (Test-Path $acceptancesPath) { @((Get-Content -Raw $acceptancesPath | ConvertFrom-Json).acceptances) } else { @() }
     $today = [DateTime]::UtcNow.Date
     $report = Get-Content -Raw $ReportPath | ConvertFrom-Json
-    foreach ($result in @($report.Results)) {
-        foreach ($vulnerability in @($result.Vulnerabilities)) {
+    # Modo estrito: relatórios sem achados não trazem `Results`/`Vulnerabilities`, e achados sem correção não trazem `FixedVersion`.
+    $results = if ($report.PSObject.Properties['Results']) { @($report.Results) } else { @() }
+    foreach ($result in $results) {
+        $vulnerabilities = if ($null -ne $result -and $result.PSObject.Properties['Vulnerabilities']) { @($result.Vulnerabilities) } else { @() }
+        foreach ($vulnerability in $vulnerabilities) {
             if ($null -eq $vulnerability) { continue }
             $label = "$ImageId $($vulnerability.VulnerabilityID) $($vulnerability.PkgName) $($vulnerability.Severity)"
-            if (-not [string]::IsNullOrWhiteSpace($vulnerability.FixedVersion)) {
-                "${label}: correção disponível ($($vulnerability.FixedVersion))"
+            $fixedVersion = if ($vulnerability.PSObject.Properties['FixedVersion']) { [string]$vulnerability.FixedVersion } else { '' }
+            if (-not [string]::IsNullOrWhiteSpace($fixedVersion)) {
+                "${label}: correção disponível ($fixedVersion)"
                 continue
             }
             $acceptance = $acceptances | Where-Object { $_.image -eq $ImageId -and $_.id -eq $vulnerability.VulnerabilityID -and $_.package -eq $vulnerability.PkgName } | Select-Object -First 1
