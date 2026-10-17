@@ -293,6 +293,10 @@ public sealed class TransportBoundaryTests
                 await Task.Delay(50, cancellation.Token);
             }
 
+            // Spec 023: no Docker o agente publica o inventário de pods ("sem pods"), mas não anuncia ações de pod.
+            Assert.True(dispatcher.Supports(environmentId, Capability.PodInventory));
+            Assert.False(dispatcher.Supports(environmentId, Capability.PodActions));
+
             // Handshake com fencing antigo é recusado pelo RPC `Exec`.
             using (var stale = client.Exec(cancellationToken: cancellation.Token))
             {
