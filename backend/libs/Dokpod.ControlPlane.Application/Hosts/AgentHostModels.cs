@@ -41,7 +41,14 @@ public sealed record HostView(
     AgentConnectionState? Connection,
     bool Connected,
     HostSituation Situation,
-    InventoryStatistics? Inventory);
+    InventoryStatistics? Inventory)
+{
+    /// <summary>
+    /// O agente do host publica este inventário (spec 023): com um agente anterior, a projeção gravada por uma versão
+    /// mais nova é antiga e o host aparece como "inventário indisponível", não com dados velhos.
+    /// </summary>
+    public bool Publishes(string capability) => Descriptor?.Capabilities.Contains(capability) ?? false;
+}
 
 public interface IAgentHostStore
 {

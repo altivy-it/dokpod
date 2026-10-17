@@ -71,7 +71,7 @@ public static class ImageEndpoints
         try
         {
             result = await store.SearchAsync(
-                new ImageSearchQuery(hosts.Keys.ToArray(), unused, text.Length == 0 ? null : text, sort, offset, limit),
+                new ImageSearchQuery(hosts.Values.Where(h => h.Publishes("ImageInventory")).Select(h => h.Registration.EnvironmentId).ToArray(), unused, text.Length == 0 ? null : text, sort, offset, limit),
                 cancellationToken);
         }
         catch (InvalidOperationException)

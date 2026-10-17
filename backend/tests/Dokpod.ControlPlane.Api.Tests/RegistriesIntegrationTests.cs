@@ -13,7 +13,11 @@ namespace Dokpod.ControlPlane.Api.Tests;
 [Collection(AgentCommandsPostgresCollection.Name)]
 public sealed class RegistriesIntegrationTests
 {
-    internal static HostView Host(EnvironmentRegistration registration) => new(registration, null, null, true, HostSituation.Unknown, null);
+    internal static HostView Host(EnvironmentRegistration registration, params string[] capabilities) => new(
+        registration,
+        new AgentDescriptor(registration.EnvironmentId, "docker", "28.5.2", "1.47", false, "linux", "6", "amd64", "0.1.0",
+            capabilities.Length == 0 ? ["ImageInventory", "RegistryInventory"] : capabilities, "host", 2, 1024, DateTimeOffset.UtcNow),
+        null, true, HostSituation.UpToDate, null);
 
     [Fact]
     public async Task Stores_ReplaceConfigurationByRevisionAndFeedTheCatalogWithImageOrigins()
@@ -51,6 +55,9 @@ public sealed class RegistriesIntegrationTests
             Assert.Equal((1, 100L), (hub.Images, hub.SizeBytes));
             Assert.Equal(["credential", "images", "insecure"], page.Rows.Single(r => r.Registry == "registry.empresa.com").Origins);
             Assert.Equal(1, page.Summary.Insecure);
+
+            // Spec 023: agente anterior (sem RegistryInventory nem ImageInventory) não traz a projeção gravada por uma versão mais nova.
+            Assert.Empty(await catalog.EntriesAsync([Host(registration, "Inventory")], ct));
 
             Assert.True(await store.ReplaceAsync(first with { Revision = 11, ConfigAvailable = false, Registries = [] }, ct));
             Assert.Empty(await store.ListConfigAvailableAsync([env], ct));
