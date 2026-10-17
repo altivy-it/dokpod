@@ -45,3 +45,9 @@
 ## Dependências e Ordem de Execução
 
 T001/T002 (gates) -> T003/T004 -> T005-T007 -> T008-T011 -> T012/T013 -> T014-T017 -> T018.
+
+## Atualização da spec 023 (2026-10-17)
+
+- **Docker real**: criação e início pela stack real; reinício por health check recusado com `healthcheck.onFailure: unsupported_option`; criação a partir de imagem de registro privado.
+- **Achado corrigido**: o comando de saúde aparecia em claro no comando equivalente (resposta e auditoria) e nos parâmetros do comando; agora é cifrado com os valores das variáveis e mascarado no comando equivalente. Varredura de canários na stack real: 0 ocorrências.
+- Continuam `NOT RUN`: Podman rootful (spec 005) e imagem real com `VOLUME` + remoção automática (coberto por teste unitário) — frente 2.

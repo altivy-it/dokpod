@@ -46,3 +46,9 @@
 ## Dependências e Ordem de Execução
 
 T001 -> T002 (gate) -> T003/T004 -> T005-T007 -> T008-T012 -> T013-T019 -> T020-T022.
+
+## Atualização da spec 023 (2026-10-17)
+
+- **Docker real**: resumo, inspeção e logs (com busca) contra Docker 28.5.2.
+- **T020 (canários ponta a ponta)**: executado. Canários em variável, label com senha em URL, comando de saúde com `Bearer`, opção de log, linha de log com um par senha e valor e termo de busca: zero ocorrências fora do mascaramento em respostas da API, PostgreSQL e logs de nginx, BFF, API, agentes e engine; nenhum conteúdo de log no PostgreSQL (SC-004).
+- Continuam `NOT RUN`: T022 (carga do canal) e logs ao vivo medidos pela stack real — frente 2.

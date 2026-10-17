@@ -62,3 +62,9 @@
 ## Dependências e Ordem de Execução
 
 T001 -> T002/T003 -> T004-T008 -> T009-T011 (T011 pode seguir em paralelo após T009) e T027 -> T012-T018 e T028 -> T019-T024 e T029 -> T025-T026. Specs 009-014 dependem de T002 (incluindo `accepted_capabilities`), T007, T012 e T018.
+
+## Atualização da spec 023 (2026-10-17)
+
+- **Docker real**: executado com Docker Engine 28.5.2 aninhado no Podman (perfil `docker-real`): visão de hosts, inventário igual ao `docker` CLI, eventos e métricas.
+- **T026 (N-1)**: agente da spec 020 com o servidor atual por 10 minutos — sessão mantida, inventário e comandos funcionando, sem erro de protocolo. Agente atual com servidor da spec 020: **falha** (`agent_hello_invalid`, capability desconhecida). Corrigido a partir desta versão (o servidor descarta capabilities e mensagens desconhecidas); para servidores anteriores, atualizar o servidor antes dos agentes (`docs/distribuicao.md`).
+- Continuam `NOT RUN`: Podman rootful e agente Windows (matriz da spec 005).
