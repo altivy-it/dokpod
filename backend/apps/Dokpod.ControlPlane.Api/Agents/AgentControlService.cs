@@ -521,8 +521,8 @@ public sealed class AgentControlService(
                         break;
 
                     // Spec 023: mensagem de um agente mais novo (campo do oneof desconhecido neste servidor) é ignorada,
-                    // sem derrubar a sessão; mensagens conhecidas fora da negociação continuam encerrando a sessão.
-                    case AgentMessage.PayloadOneofCase.None:
+                    // sem derrubar a sessão; mensagem vazia e mensagens conhecidas fora da negociação continuam encerrando.
+                    case AgentMessage.PayloadOneofCase.None when HasUnknownPayload(requestStream.Current):
                         logger.LogDebug("Ignored agent message with a payload unknown to this server");
                         break;
 
@@ -1008,4 +1008,12 @@ public sealed class AgentControlService(
                 "inventoryChanged",
                 new InventoryChangedNotification(environmentId, revision),
                 cancellationToken);
+
+    /// <summary>Sem payload conhecido, mas com campos desconhecidos além dos metadados: mensagem de uma versão mais nova.</summary>
+    private static bool HasUnknownPayload(AgentMessage message)
+    {
+        var probe = message.Clone();
+        probe.Metadata = null;
+        return probe.CalculateSize() > 0;
+    }
 }

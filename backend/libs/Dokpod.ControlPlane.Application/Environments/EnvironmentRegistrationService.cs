@@ -1,4 +1,3 @@
-using System.Collections.Frozen;
 using Dokpod.Domain.Auditing;
 using Dokpod.Domain.Environments;
 using Dokpod.ControlPlane.Application.Authorization;
@@ -98,13 +97,7 @@ public sealed class EnvironmentRegistrationService(
     {
         if (grantReader is null || registrations.Count == 0) return registrations;
         var grants = await grantReader.ReadAsync(actor, accessToken, correlationId, cancellationToken).ConfigureAwait(false);
-        if (grants is null) return registrations;
-        return registrations.Select(registration => registration with
-        {
-            Scopes = registration.Scopes
-                .Where(scope => grants.TryGetValue(registration.EnvironmentId, out var granted) && granted.Contains(scope))
-                .ToFrozenSet(StringComparer.Ordinal),
-        }).ToList();
+        return registrations.Select(registration => EnvironmentGrants.Restrict(registration, grants)).ToList();
     }
 
     public async Task<EnvironmentRegistrationResult> RegisterAsync(
@@ -157,6 +150,11 @@ public sealed class EnvironmentRegistrationService(
         }
 
         var registration = await registrationStore.GetAsync(environmentId, cancellationToken).ConfigureAwait(false);
+        if (registration is not null && grantReader is not null)
+        {
+            registration = EnvironmentGrants.Restrict(registration, await grantReader.ReadAsync(actor, accessToken, correlationId, cancellationToken).ConfigureAwait(false));
+        }
+
         return new EnvironmentStateResult(registration, true, null, AuthorizationDecisionOutcome.Allowed);
     }
 

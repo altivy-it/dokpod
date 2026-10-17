@@ -1,3 +1,6 @@
+using System.Collections.Frozen;
+using Dokpod.Domain.Environments;
+
 namespace Dokpod.ControlPlane.Application.Authorization;
 
 /// <summary>
@@ -12,4 +15,19 @@ public interface IEnvironmentGrantReader
         string accessToken,
         Guid correlationId,
         CancellationToken cancellationToken);
+}
+
+public static class EnvironmentGrants
+{
+    /// <summary>
+    /// `Scopes` do host passa a ser o cadastro ∩ o concedido ao usuário (spec 023). Sem resposta do provedor (`grants` nulo),
+    /// mantém o cadastro: cada ação continua decidida no provedor no envio.
+    /// </summary>
+    public static EnvironmentRegistration Restrict(EnvironmentRegistration registration, IReadOnlyDictionary<Guid, IReadOnlySet<string>>? grants) =>
+        grants is null ? registration : registration with
+        {
+            Scopes = registration.Scopes
+                .Where(scope => grants.TryGetValue(registration.EnvironmentId, out var granted) && granted.Contains(scope))
+                .ToFrozenSet(StringComparer.Ordinal),
+        };
 }
