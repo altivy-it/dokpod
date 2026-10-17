@@ -106,6 +106,8 @@ public sealed class ImagePullTests
     [InlineData(500, "no matching manifest for linux/amd64 in the manifest list entries", "platform_mismatch")]
     [InlineData(500, "dial tcp: lookup registry.invalid: no such host", "registry_unreachable")]
     [InlineData(500, "algo inesperado", "image_pull_failed")]
+    // Spec 023: Docker sem credencial para o registro responde 500 com "no basic auth credentials".
+    [InlineData(500, "Head \"http://127.0.0.1:5000/v2/dok023/privada/manifests/1\": no basic auth credentials", "registry_unauthorized")]
     public void MapPullFailure_UsesContractCodes(int status, string message, string code)
     {
         Assert.Equal(code, DockerEngineClient.MapPullFailure(status, message));

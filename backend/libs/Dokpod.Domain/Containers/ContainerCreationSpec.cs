@@ -95,7 +95,10 @@ public sealed partial record ContainerCreationSpec(
     private static readonly string[] ReservedNetworks = ["host", "none"];
 
     /// <summary>Valores literais presentes (falso quando os valores foram purgados ou não chegaram).</summary>
-    public bool ValuesAvailable => Environment.All(e => e.Secret is not null || e.Value is not null);
+    public bool ValuesAvailable => Environment.All(e => e.Secret is not null || e.Value is not null) && !HealthCheckStripped;
+
+    /// <summary>Comando de saúde substituído por `***` ao persistir e ainda não recolocado (spec 023).</summary>
+    private bool HealthCheckStripped { get; init; }
 
     /// <summary>Valida a allowlist, os limites e as regras cruzadas; `engine` (docker|podman) habilita regras por engine.</summary>
     public IReadOnlyList<FieldError> Validate(string? engine = null)
@@ -184,21 +187,43 @@ public sealed partial record ContainerCreationSpec(
     /// <summary>Quando falso (parâmetros vindos do armazenamento sem valores), variáveis sem valor são aceitas na validação.</summary>
     private bool ValuesExpected { get; init; } = true;
 
+    /// <summary>
+    /// Chave do comando de saúde entre os valores cifrados (spec 023): pode conter segredo e, como os valores das
+    /// variáveis, só fica em claro na memória. O caractere nulo não é aceito em nomes de variável, então não colide.
+    /// </summary>
+    public const string HealthCheckValueKey = "\0healthcheck";
+
+    private const string MaskedHealthCheck = "***";
+
     /// <summary>Cópia sem os valores literais (para persistir em claro e para a auditoria).</summary>
     public ContainerCreationSpec WithoutValues() =>
-        this with { Environment = Environment.Select(e => e with { Value = null }).ToArray(), ValuesExpected = false };
+        this with
+        {
+            Environment = Environment.Select(e => e with { Value = null }).ToArray(),
+            HealthCheck = HealthCheck is { } health ? health with { Test = [health.Test[0], MaskedHealthCheck] } : null,
+            HealthCheckStripped = HealthCheck is not null,
+            ValuesExpected = false,
+        };
 
     /// <summary>Recoloca os valores literais por nome (reentrega após decifrar).</summary>
     public ContainerCreationSpec WithValues(IReadOnlyDictionary<string, string> values) =>
         this with
         {
             Environment = Environment.Select(e => e.Secret is null && values.TryGetValue(e.Name, out var value) ? e with { Value = value } : e).ToArray(),
+            HealthCheck = HealthCheck is { } health && values.TryGetValue(HealthCheckValueKey, out var test)
+                ? health with { Test = test.Split('\u001f') }
+                : HealthCheck,
+            HealthCheckStripped = HealthCheckStripped && !values.ContainsKey(HealthCheckValueKey),
             ValuesExpected = true,
         };
 
-    /// <summary>Valores literais por nome, para cifrar.</summary>
-    public IReadOnlyDictionary<string, string> LiteralValues() =>
-        Environment.Where(e => e.Secret is null && e.Value is not null).ToDictionary(e => e.Name, e => e.Value!, StringComparer.Ordinal);
+    /// <summary>Valores literais por nome e o comando de saúde, para cifrar.</summary>
+    public IReadOnlyDictionary<string, string> LiteralValues()
+    {
+        var values = Environment.Where(e => e.Secret is null && e.Value is not null).ToDictionary(e => e.Name, e => e.Value!, StringComparer.Ordinal);
+        if (HealthCheck is { } health) values[HealthCheckValueKey] = string.Join('\u001f', health.Test);
+        return values;
+    }
 
     /// <summary>
     /// Forma canônica (hash `v2`, D-001): campos em ordem fixa; valores literais entram como SHA-256, nunca em claro.
