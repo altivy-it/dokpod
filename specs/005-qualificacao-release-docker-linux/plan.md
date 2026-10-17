@@ -2,7 +2,7 @@
 
 **Branch**: `chore/adotar-spec-kit` (migração) | **Data**: 2026-10-06 | **Spec**: [spec.md](spec.md)
 
-**Estado**: `draft` - rascunho de migração, aguardando revisão humana.
+**Estado**: `approved` - execução autorizada em 2026-10-17 com as decisões da [spec](spec.md#decisões-de-execução-2026-10-17-solicitante).
 
 **Entrada**: [Desbloqueio](../../docs/plan/desbloqueio-release.md), [MVP](../../docs/plan/mvp.md) e [release-readiness](../../docs/release-readiness.md), preservados.
 
@@ -63,3 +63,11 @@ Revisão formal pendente, sem aprovação declarada. [Arquitetura](../../docs/ar
 ## Lacunas e Estratégia
 
 34 HIGH históricos não são aceitos por falta de CRITICAL; T004 bloqueia o gate. Carga nominal/margem e N/N-1 seguem `NOT RUN`. Backup/restore histórico não certifica rollback/observabilidade. A avaliação menciona horizontal pendente em uma linha e PASS em outra: catalogar cenário/data sem editar sua inconsistência. Revisão -> inventário de evidências -> gates autorizados -> residual -> decisão humana. Adiamento de 006 precisa constar explicitamente na matriz para não confundir requisito por capability com gate universal da candidata Docker Linux.
+
+## Execução (2026-10-17)
+
+1. **Cadeia de fornecimento (T003, T004, T007)**: job Images do CI passa a gerar SBOM CycloneDX e relatório Trivy por imagem, falhando com CRITICAL corrigível ou HIGH/CRITICAL fora da lista de aceites vigente; aceites por CVE em `docs/seguranca-excecoes.md` com expiração verificada; assinatura keyless (cosign) e attestation de proveniência só em tags `v*`, sem execução nesta etapa; testes negativos locais (digest alterado, chave/identidade errada) com registro local descartável.
+2. **Harness de carga (T005)**: `tools/loadtest/` com simulador de agentes (.NET, contrato v1, mTLS com certificados emitidos pela CA do laboratório fora do repositório), cada um com inventário sintético, heartbeat, eventos, métricas e resposta a comandos; usuários virtuais lendo as rotas do console pela borda nginx/BFF; coleta de latência, erros, convergência, reconexão e recursos (CPU/memória dos containers).
+3. **Recuperação (T006)**: resposta perdida, reconnect storm, comandos concorrentes em ambientes distintos, restart da API com comandos não terminais e verificação de dedup/fencing (sem efeito duplicado).
+4. **Operação (T008)**: N/N-1 (evidência da 023), backup/restore com integridade da auditoria, atualização e rollback da stack, licença e avisos de terceiros.
+5. **Matriz e decisão (T009)**: matriz de gates com evidência, `NOT RUN` explícitos e destino; decisão GO/NO-GO pelo solicitante.

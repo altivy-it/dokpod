@@ -2,13 +2,13 @@
 
 **Entrada**: [spec.md](spec.md) e [plan.md](plan.md).
 
-**Estado**: `draft` - rascunho de migração, aguardando revisão humana.
+**Estado**: `in-progress` - execução iniciada em 2026-10-17 (decisões na [spec](spec.md#decisões-de-execução-2026-10-17-solicitante)).
 
 **Pré-requisitos**: Revisão humana, autorização específica por gate, build identificado e ambiente isolado.
 
 **Testes**: Obrigatórios; resultados históricos não são reexecuções desta branch.
 
-**Organização**: IDs locais e jornadas `[US1]` a `[US3]`; todos os checkboxes permanecem desmarcados.
+**Organização**: IDs locais e jornadas `[US1]` a `[US3]`; T010+ detalham a execução de 2026-10-17.
 
 ## Fase 1: Inventário de Gates
 
@@ -40,3 +40,15 @@
 ## Dependências e Ordem de Execução
 
 T001 -> T002 -> T003 -> T004; T005 exige baseline e laboratório de 004, T006 usa 003 e T005; T007 usa artifacts finais de T004; T008 agrega T003-T007 e decisões de 006; T009 depende de todos. A posição numérica de T007 não implica execução antes da carga: os gates podem ser agendados somente por autorização explícita. Sem evidência, registrar bloqueio, não PASS.
+
+## Execução de 2026-10-17
+
+- [ ] T010 [US1] CI: SBOM CycloneDX e Trivy por imagem no job Images, com falha em CRITICAL corrigível e em HIGH/CRITICAL sem aceite vigente.
+- [ ] T011 [US1] `docs/seguranca-excecoes.md`: aceite por CVE da imagem web (pacote, severidade, impacto no nginx, responsável, expiração) e verificação de expiração no CI.
+- [ ] T012 [US1] CI: assinatura keyless e attestation de proveniência só em tags `v*`; teste local positivo e negativos (digest alterado, chave errada) com registro descartável.
+- [ ] T013 [US2] Harness `tools/loadtest/`: simulador de agentes e usuários virtuais; validação em pequena escala.
+- [ ] T014 [US2] Ambientes e identidades de carga (100 hosts) provisionados e removíveis.
+- [ ] T015 [US2] Carga nominal 56/1.120/30 por 30 min e margem 100/2.000/50, contra os limites aprovados.
+- [ ] T016 [US2] Recuperação: resposta perdida, reconnect storm, comandos concorrentes, restart da API com backlog.
+- [ ] T017 [US3] Operação: backup/restore com auditoria íntegra, atualização e rollback, licença e avisos de terceiros.
+- [ ] T018 [US3] Matriz de gates e submissão à decisão GO/NO-GO.
