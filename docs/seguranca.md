@@ -270,6 +270,13 @@ Canários desta qualificação: variável de ambiente, label com senha em URL, c
 
 **Risco residual**: as versões mostradas vêm dos próprios componentes; um componente adulterado pode informar versão falsa (a verificação de integridade continua sendo a assinatura das imagens).
 
+## Cadeia de fornecimento (spec 005)
+
+- **Vulnerabilidades**: o job Images do CI gera SBOM CycloneDX e relatório Trivy HIGH/CRITICAL por imagem e reprova HIGH/CRITICAL com correção disponível ou sem aceite vigente; aceites em [seguranca-excecoes.md](seguranca-excecoes.md).
+- **Assinatura e proveniência**: só em tag `v*` (job `release-images`): publicação no GHCR por digest, assinatura cosign sem chave com a identidade OIDC do workflow, atestado de proveniência e verificação que exige a identidade `…/.github/workflows/ci.yml@refs/tags/<tag>` e o emissor `https://token.actions.githubusercontent.com`.
+- **Verificação por quem instala**: `cosign verify ghcr.io/<owner>/dokpod-<imagem>@<digest> --certificate-identity https://github.com/<owner>/dokpod/.github/workflows/ci.yml@refs/tags/<tag> --certificate-oidc-issuer https://token.actions.githubusercontent.com`; usar sempre o digest.
+- **Testes negativos (2026-10-17, registro local descartável, chaves de teste)**: assinatura válida aceita; chave errada, digest trocado sob a mesma tag e imagem não assinada rejeitados. A verificação de identidade e emissor sem chave só pode ser exercitada no GitHub, na primeira tag.
+
 ## Desenvolvimento e release
 
 - threat model atualizado para cada nova fronteira;
