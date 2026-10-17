@@ -42,3 +42,9 @@
 ## Dependências e Ordem de Execução
 
 T001-T003 (gates) -> T004/T005 -> T006/T007 -> T008-T010 -> T011/T012 -> T013-T015.
+
+## Atualização da spec 023 (2026-10-17)
+
+- **Terminal real pelo navegador (Keycloak, BFF, hub e agente)**: Docker 28.5.2 — prompt em 0,19 s e eco em 29 ms; Podman 5.7 — 0,22 s e 8 ms; encerramento pelo botão, por queda do navegador (shell encerrado antes de o script terminar), por ociosidade (60 s com o limite temporário de 1 min) e por revogação de `container:exec` (55 s, motivo `permission_revoked`). Conteúdo digitado ausente da auditoria.
+- **Achado corrigido**: na revogação, o console derrubava a sessão ao atualizar o detalhe e o fim era auditado como `user_closed`.
+- Continua `NOT RUN`: carga com 4 sessões por agente (SC-004) — frente 2.

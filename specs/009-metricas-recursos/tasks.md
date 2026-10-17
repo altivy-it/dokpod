@@ -45,3 +45,8 @@
 ## Dependências e Ordem de Execução
 
 T001 -> T002/T003 -> T004-T006 -> T007-T009 -> T010-T012 -> T013-T017 -> T018.
+
+## Atualização da spec 023 (2026-10-17)
+
+- **Docker real**: métricas de host e de container lidas do Docker 28.5.2 pela stack real.
+- Continua `NOT RUN`: T018 (carga de 56 hosts e margem de 2.000 containers) — frente 2 (qualificação de release).

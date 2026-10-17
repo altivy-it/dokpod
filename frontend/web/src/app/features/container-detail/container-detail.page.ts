@@ -136,6 +136,12 @@ export class ContainerDetailPage {
     if (!(d.capabilities ?? []).includes('ContainerExec')) return 'Terminal não suportado pelo agente deste host';
     return 'Disponível somente com o container em execução';
   });
+  /**
+   * Terminal aberto com permissão continua montado enquanto o usuário estiver na aba (spec 023): uma atualização do
+   * detalhe sem `exec` não derruba a sessão; o servidor revalida e encerra com o motivo certo (`permission_revoked`).
+   */
+  private readonly terminalStarted = signal(false);
+  protected readonly terminalView = computed(() => (this.terminalStarted() ? null : this.terminalBlocked()));
   protected readonly summaryItems = computed<KeyValueItem[]>(() => {
     const s = this.summary().value;
     if (!s) return [];
@@ -245,6 +251,11 @@ export class ContainerDetailPage {
     });
     effect(() => {
       if (this.tab() === 'inspecionar' && untracked(() => this.inspection().state) === 'idle') untracked(() => void this.loadInspection());
+    });
+    effect(() => {
+      const onTerminal = this.tab() === 'terminal';
+      if (!onTerminal) this.terminalStarted.set(false);
+      else if (this.terminalBlocked() === null) this.terminalStarted.set(true);
     });
     effect(() => {
       const invalidation = this.realtime.lastInvalidation();

@@ -73,10 +73,12 @@ public sealed class RegistryCatalog(IRegistryInventoryStore store, ImagePullPoli
     {
         if (hosts.Count == 0) return [];
         var byId = hosts.ToDictionary(h => h.Registration.EnvironmentId);
-        var ids = byId.Keys.ToArray();
-        var configs = await store.ListAsync(ids, cancellationToken).ConfigureAwait(false);
-        var available = await store.ListConfigAvailableAsync(ids, cancellationToken).ConfigureAwait(false);
-        var sources = await store.ListImageSourcesAsync(ids, cancellationToken).ConfigureAwait(false);
+        // Spec 023: só a configuração e as imagens que o agente atual publica (projeção de versão mais nova não conta).
+        var configIds = hosts.Where(h => h.Publishes("RegistryInventory")).Select(h => h.Registration.EnvironmentId).ToArray();
+        var imageIds = hosts.Where(h => h.Publishes("ImageInventory")).Select(h => h.Registration.EnvironmentId).ToArray();
+        var configs = await store.ListAsync(configIds, cancellationToken).ConfigureAwait(false);
+        var available = await store.ListConfigAvailableAsync(configIds, cancellationToken).ConfigureAwait(false);
+        var sources = await store.ListImageSourcesAsync(imageIds, cancellationToken).ConfigureAwait(false);
         var images = sources
             .Select(source => (source.EnvironmentId, Registry: RegistryNames.OfImage(source.RepoTags, source.RepoDigests), source.SizeBytes))
             .Where(item => item.Registry is not null)

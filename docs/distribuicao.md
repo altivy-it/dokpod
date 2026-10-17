@@ -75,7 +75,13 @@ O socket nunca é publicado em porta TCP nem compartilhado com outro componente 
 - `DOKPOD_AGENT_DOCKER_SOCKET`, quando definido, sempre vence; sem ele o agente usa o primeiro socket existente na ordem acima. O engine efetivo é detectado por `/version` (`Components` contém "Podman Engine"), não pelo caminho.
 - Hosts abaixo da versão mínima aparecem como "Atualizar" e geram `engine.version_outdated`; versão não interpretável aparece como "Desconhecido".
 - Podman é qualificado pela API compatível com testes reais (`backend/tests/Dokpod.Agent.Podman.IntegrationTests`, `DOKPOD_TEST_PODMAN_SOCKET`). Diferenças tratadas pelo agente: `stop` de container pausado retoma antes de parar (o Podman recusa) e conflitos de estado (HTTP 500 `container state improper`) são mapeados como no Docker (`not_running`/`not_paused`). Pods e API Libpod não fazem parte desta entrega.
-- Evidência atual: Podman 5.7.0 rootless em Ubuntu 24.04 (2026-10-13). Podman rootful, Docker real e Windows: `NOT RUN` nesta entrega.
+- Evidência atual: Podman 5.7.0 rootless em Ubuntu 24.04 (2026-10-13) e Docker Engine 28.5.2 (API 1.51) aninhado no Podman pelo perfil `docker-real` do stack de teste (spec 023, 2026-10-17): inventário, ações, pausa, logs, inspeção, métricas, terminal, criação, pull com registro privado, volumes, redes e registros. Docker instalado diretamente num host, Podman rootful e Windows: `NOT RUN`.
+
+### Compatibilidade de versões e ordem de atualização (spec 023)
+
+- **Agente anterior com servidor novo**: suportado. O servidor só usa o que o agente anuncia; inventários que o agente não publica aparecem como "inventário indisponível" (não com dados antigos gravados por uma versão mais nova). Validado por 10 minutos com o agente da spec 020 e o servidor da 022.
+- **Agente novo com servidor anterior**: a partir desta versão, o servidor descarta capabilities e mensagens que não conhece e mantém a sessão. Servidores **anteriores** a esta versão recusam a sessão de qualquer agente mais novo (`agent_hello_invalid`).
+- **Ordem de atualização**: atualize primeiro o plano de controle e depois os agentes. Até que todos os servidores estejam nesta versão ou posterior, não atualize um agente antes do servidor que ele usa.
 
 O stream operacional com o plano de controle é habilitado quando estas variáveis são injetadas no processo:
 

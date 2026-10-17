@@ -56,7 +56,7 @@ public static class RegistryEndpoints
         try
         {
             entries = await catalog.EntriesAsync(hosts!, cancellationToken);
-            available = await store.ListConfigAvailableAsync(hosts!.Select(h => h.Registration.EnvironmentId).ToArray(), cancellationToken);
+            available = await store.ListConfigAvailableAsync(hosts!.Where(h => h.Publishes("RegistryInventory")).Select(h => h.Registration.EnvironmentId).ToArray(), cancellationToken);
         }
         catch (InvalidOperationException)
         {

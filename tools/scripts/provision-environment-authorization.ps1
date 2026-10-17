@@ -5,7 +5,11 @@ Provisiona autorização UMA de um ambiente Dokpod para um usuário ou grupo.
 .DESCRIPTION
 Cria ou reutiliza o recurso `urn:dokpod:environment:{EnvironmentId}` no
 Authorization Services do client `dokpod-api`, encontra um usuário ou grupo do
-realm `dokpod`, cria uma policy e cria permissions resource por scope.
+realm `dokpod`, cria uma policy e cria uma permission por scope (tipo `scope`,
+decisão afirmativa entre policies). Permissions antigas do tipo `resource`
+são convertidas preservando as policies: nesse tipo o Keycloak avalia todas as
+permissions do recurso em qualquer pedido, e quem não tem todos os scopes é
+negado em tudo (spec 023).
 
 A operação é administrativa e idempotente. O runtime da API somente consulta
 decisões UMA; ele não cria policies nem usa credencial administrativa.
@@ -154,7 +158,7 @@ $provisionerSecret = Get-EnvironmentSecret @('DOKPOD_PROVISIONER_CLIENT_SECRET')
 if ([string]::IsNullOrWhiteSpace($provisionerSecret)) { throw 'Defina DOKPOD_PROVISIONER_CLIENT_SECRET em ambiente seguro.' }
 
 function Invoke-Api {
-    param([ValidateSet('GET','POST','PUT')][string] $Method, [string] $Uri, [object] $Body)
+    param([ValidateSet('GET','POST','PUT','DELETE')][string] $Method, [string] $Uri, [object] $Body)
     $parameters = @{ Method = $Method; Uri = $Uri; Headers = @{ Authorization = "Bearer $script:accessToken" }; ErrorAction = 'Stop' }
     if ($null -ne $Body) { $parameters.ContentType = 'application/json'; $parameters.Body = $Body | ConvertTo-Json -Depth 10 -Compress }
     if ($useNoProxy) { $parameters.NoProxy = $true }
@@ -242,8 +246,10 @@ $permissionName = "environment-$EnvironmentId-$($Scope.Replace(':','-'))"
 $encodedPermissionName = [Uri]::EscapeDataString($permissionName)
 $permissionResponse = @(Invoke-Api GET "$authzBase/permission?name=$encodedPermissionName&exact=true")
 $permissions = @($permissionResponse.Where({ $null -ne $_ -and $_.PSObject.Properties.Name -contains 'name' -and $_.name -eq $permissionName }))
+# Spec 023: permission por scope (só ela é avaliada no pedido daquele scope) e AFFIRMATIVE (basta uma policy conceder;
+# com UNANIMOUS, conceder o mesmo scope a um segundo usuário ou grupo exigiria pertencer a todos).
 $permissionBody = @{
-    name = $permissionName; type = 'resource'; logic = 'POSITIVE'; decisionStrategy = 'UNANIMOUS'
+    name = $permissionName; type = 'scope'; logic = 'POSITIVE'; decisionStrategy = 'AFFIRMATIVE'
     resources = @([string]$resourceId); scopes = @([string]$scopeRecord.id); policies = @([string]$policy.id)
 }
 function Update-Permission {
@@ -261,12 +267,19 @@ function Update-Permission {
     $permissionBody.resources = @($currentResourceIds + @([string]$resourceId) | Select-Object -Unique)
     $permissionBody.scopes = @($currentScopeIds + @([string]$scopeRecord.id) | Select-Object -Unique)
     $permissionBody.policies = @($currentPolicyIds + @([string]$policy.id) | Select-Object -Unique)
-    Invoke-Api PUT "$authzBase/permission/resource/$permissionId" $permissionBody | Out-Null
+    if ($Permission.type -ne 'scope') {
+        # O Keycloak não muda o tipo de uma permission: recria como `scope` com as mesmas policies.
+        Invoke-Api DELETE "$authzBase/permission/$permissionId" | Out-Null
+        Invoke-Api POST "$authzBase/permission/scope" $permissionBody | Out-Null
+        Write-Output "Permission UMA convertida para scope: $permissionName"
+        return
+    }
+    Invoke-Api PUT "$authzBase/permission/scope/$permissionId" $permissionBody | Out-Null
     Write-Output "Permission UMA atualizada: $permissionName"
 }
 if ($permissions.Count -eq 0) {
     try {
-        Invoke-Api POST "$authzBase/permission/resource" $permissionBody | Out-Null
+        Invoke-Api POST "$authzBase/permission/scope" $permissionBody | Out-Null
         Write-Output "Permission UMA criada: $permissionName"
     }
     catch {

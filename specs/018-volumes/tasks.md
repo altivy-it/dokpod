@@ -36,3 +36,7 @@
 ## Achados da validação na stack real
 
 - O gateway local da plataforma de identidade usa `proxy_intercept_errors on` no `server` e troca o corpo de **toda** resposta 4xx da API do Dokpod por uma página HTML; o status chega certo, mas o `code` do problema (`volume_in_use`, `justification_required`...) se perde. Não é código do Dokpod: corrigido em 2026-10-15 com `proxy_intercept_errors off` na rota `/dokpod/(bff|api/v1|hubs...)` de `platforms/identity/gateway/conf.d/identity.conf` (repositório `architecture-knowledge-base`, alteração local ainda sem commit); conferido na stack real: 409 chega como `application/problem+json` com `code` `volume_in_use`.
+
+## Atualização da spec 023 (2026-10-17)
+
+- **Docker real**: volumes iguais ao `docker` CLI; remoção de volume sem uso pelo console e recusa de volume em uso (`volume_in_use`).

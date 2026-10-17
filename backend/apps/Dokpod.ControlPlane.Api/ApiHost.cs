@@ -141,6 +141,11 @@ public static class ApiHost
             client.Timeout = TimeSpan.FromSeconds(
                 provider.GetRequiredService<IOptions<KeycloakAuthorizationOptions>>().Value.DecisionTimeoutSeconds);
         });
+        builder.Services.AddHttpClient<IEnvironmentGrantReader, KeycloakEnvironmentGrantReader>((provider, client) =>
+        {
+            client.Timeout = TimeSpan.FromSeconds(
+                provider.GetRequiredService<IOptions<KeycloakAuthorizationOptions>>().Value.DecisionTimeoutSeconds);
+        });
         builder.Services.AddHttpClient(nameof(KeycloakReadinessHealthCheck), (provider, client) =>
         {
             client.Timeout = TimeSpan.FromSeconds(

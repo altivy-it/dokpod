@@ -136,7 +136,7 @@
               }
             }
             @case ('terminal') {
-              @if (terminalBlocked(); as blocked) {
+              @if (terminalView(); as blocked) {
                 <dok-empty-state kind="forbidden" icon="command" [title]="blocked" detail="O terminal exige a permissão container:exec, agente com suporte e container em execução." [compact]="true" />
               } @else {
                 <app-terminal-tab [environmentId]="environmentId()" [containerId]="containerId()" />

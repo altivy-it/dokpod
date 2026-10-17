@@ -35,13 +35,16 @@ public static class ContainerDetailEndpoints
         IOperationalEventStore events,
         TimeProvider timeProvider,
         Dokpod.ControlPlane.Application.Metrics.MetricsQueryService metrics,
+        IEnvironmentGrantReader grantReader,
         CancellationToken cancellationToken)
     {
         if (!TryAuthenticate(context, out var actor, out var token, out var error)) return error!;
         var access = await insights.AuthorizeAsync(environmentId, containerId, EnvironmentResourceScopes.Read, actor!, token!, CorrelationId(context), cancellationToken);
         if (access.Access != InsightAccess.Allowed) return AccessProblem(context, access);
-        var registration = await registrations.GetAsync(environmentId, cancellationToken);
-        if (registration is null) return NotFound(context);
+        var stored = await registrations.GetAsync(environmentId, cancellationToken);
+        if (stored is null) return NotFound(context);
+        // Spec 023: ações oferecidas no detalhe são as concedidas ao usuário, não as do cadastro.
+        var registration = EnvironmentGrants.Restrict(stored, await grantReader.ReadAsync(actor!, token!, CorrelationId(context), cancellationToken));
         var host = (await hostQuery.DescribeAsync([registration], cancellationToken))[0];
         var restarts = await events.CountRestartsAsync(environmentId, containerId, timeProvider.GetUtcNow().AddHours(-24), cancellationToken);
         var item = HostResponses.ToContainerListItem(new ContainerListItem(host, access.Container!, ContainerSearchService.AllowedActions(host, access.Container!)));

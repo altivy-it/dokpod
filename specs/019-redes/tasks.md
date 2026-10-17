@@ -38,3 +38,7 @@
 - A API compatível do Podman chama a rede padrão de `bridge` (mesmo identificador da `podman` do CLI); o Dokpod mostra o nome da API e a trata como "Do sistema" nos dois casos.
 - Containers rootless em modo `pasta` não usam rede nomeada e não contam como conexão, como no engine.
 - Com o gateway da identidade corrigido (spec 018), as recusas chegam ao console com o código do problema.
+
+## Atualização da spec 023 (2026-10-17)
+
+- **Docker real**: redes iguais ao `docker` CLI e remoção de rede vazia pelo console.
