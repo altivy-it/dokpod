@@ -1,3 +1,4 @@
+using System.Collections.Frozen;
 using Dokpod.Domain.Auditing;
 using Dokpod.Domain.Environments;
 using Dokpod.ControlPlane.Application.Authorization;
@@ -25,7 +26,8 @@ public sealed record EnvironmentCatalogResult(
 public sealed class EnvironmentRegistrationService(
     EnvironmentAccessService accessService,
     IEnvironmentRegistrationStore registrationStore,
-    IEnvironmentAuthorizationDecider authorizationDecider)
+    IEnvironmentAuthorizationDecider authorizationDecider,
+    IEnvironmentGrantReader? grantReader = null)
 {
     private const int MaxAuthorizationDecisions = 500;
 
@@ -80,7 +82,29 @@ public sealed class EnvironmentRegistrationService(
             }
         }
 
-        return new EnvironmentCatalogResult(registrations, cursor, true, null);
+        return new EnvironmentCatalogResult(await RestrictToGrantsAsync(registrations, actor, accessToken, correlationId, cancellationToken).ConfigureAwait(false), cursor, true, null);
+    }
+
+    /// <summary>
+    /// Spec 023: `Scopes` de cada host passa a ser o cadastro ∩ o concedido ao usuário, para o console e as ações permitidas
+    /// (`allowedActions`) refletirem o usuário. Sem resposta do provedor, mantém o cadastro (cada ação segue decidida no envio).
+    /// </summary>
+    private async Task<List<EnvironmentRegistration>> RestrictToGrantsAsync(
+        List<EnvironmentRegistration> registrations,
+        AuthenticatedActor actor,
+        string accessToken,
+        Guid correlationId,
+        CancellationToken cancellationToken)
+    {
+        if (grantReader is null || registrations.Count == 0) return registrations;
+        var grants = await grantReader.ReadAsync(actor, accessToken, correlationId, cancellationToken).ConfigureAwait(false);
+        if (grants is null) return registrations;
+        return registrations.Select(registration => registration with
+        {
+            Scopes = registration.Scopes
+                .Where(scope => grants.TryGetValue(registration.EnvironmentId, out var granted) && granted.Contains(scope))
+                .ToFrozenSet(StringComparer.Ordinal),
+        }).ToList();
     }
 
     public async Task<EnvironmentRegistrationResult> RegisterAsync(

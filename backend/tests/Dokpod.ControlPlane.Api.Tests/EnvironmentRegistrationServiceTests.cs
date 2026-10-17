@@ -35,6 +35,46 @@ public sealed class EnvironmentRegistrationServiceTests
     }
 
     [Fact]
+    public async Task ListAsync_RestrictsScopesToTheGrantsOfTheUserAndKeepsRegistrationWhenGrantsAreUnavailable()
+    {
+        var reader = CreateRegistration();
+        var store = new RecordingEnvironmentRegistrationStore { PageToRead = new EnvironmentRegistrationPage([reader], null) };
+        var decider = new ResourceAuthorizationDecider(reader.EnvironmentId);
+        var granted = new Dictionary<Guid, IReadOnlySet<string>> { [reader.EnvironmentId] = new HashSet<string> { EnvironmentResourceScopes.Read, "container:exec" } };
+        async Task<IReadOnlySet<string>> ScopesWith(IEnvironmentGrantReader grants) =>
+            (await new EnvironmentRegistrationService(new EnvironmentAccessService(new RecordingAuditEventWriter(), decider), store, decider, grants)
+                .ListAsync(null, 20, AuthenticatedActor.FromSubject("leitor"), "access-token", Guid.NewGuid(), TestContext.Current.CancellationToken))
+            .Registrations.Single().Scopes;
+
+        // Spec 023: só leitura concedida; scope concedido mas fora do cadastro não aparece.
+        Assert.Equal([EnvironmentResourceScopes.Read], await ScopesWith(new StaticGrantReader(granted)));
+        Assert.Empty(await ScopesWith(new StaticGrantReader(new Dictionary<Guid, IReadOnlySet<string>>())));
+        Assert.Equal(reader.Scopes.Order(), (await ScopesWith(new StaticGrantReader(null))).Order());
+    }
+
+    [Fact]
+    public void KeycloakGrants_ParsesOnlyDokpodEnvironmentsAndSupportedScopes()
+    {
+        var id = Guid.NewGuid();
+        using var document = System.Text.Json.JsonDocument.Parse($$"""
+            [{"rsid":"1","rsname":"urn:dokpod:environment:{{id}}","scopes":["environment:read","container:stop","admin:all"]},
+             {"rsid":"2","rsname":"outro-recurso","scopes":["environment:read"]},
+             {"rsid":"3","rsname":"urn:dokpod:environment:nao-guid","scopes":["environment:read"]}]
+            """);
+        var grants = Dokpod.ControlPlane.Api.Authorization.KeycloakEnvironmentGrantReader.Parse(document.RootElement)!;
+        Assert.Equal([id], grants.Keys);
+        Assert.Equal(["container:stop", "environment:read"], grants[id].Order());
+        using var invalid = System.Text.Json.JsonDocument.Parse("{\"result\":true}");
+        Assert.Null(Dokpod.ControlPlane.Api.Authorization.KeycloakEnvironmentGrantReader.Parse(invalid.RootElement));
+    }
+
+    private sealed class StaticGrantReader(IReadOnlyDictionary<Guid, IReadOnlySet<string>>? grants) : IEnvironmentGrantReader
+    {
+        public Task<IReadOnlyDictionary<Guid, IReadOnlySet<string>>?> ReadAsync(AuthenticatedActor actor, string accessToken, Guid correlationId, CancellationToken cancellationToken) =>
+            Task.FromResult(grants);
+    }
+
+    [Fact]
     public async Task ListAsync_WhenAuthorizationIsIndeterminate_ReturnsNoPartialPage()
     {
         var store = new RecordingEnvironmentRegistrationStore
