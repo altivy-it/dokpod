@@ -38,3 +38,7 @@
 - **Rotas libpod exigem o prefixo de versão**: `/libpod/...` responde 404 e `/v1.41/libpod/...` responde 200. O inventário de pods saía como "sem pods"; corrigido. O mesmo defeito afetava a leitura de `registries.conf` da spec 020 (já no `main`): o agente nunca chegava ao `/libpod/info` e caía no `/info` compatível, vazio no Podman. A correção vale para as duas specs; os testes passaram a exigir o caminho com versão.
 - **Parar ou pausar pod degradado pela API libpod responde 304 sem agir** (o CLI para normalmente). O agente agora aplica a ação membro a membro quando recebe 304 em parar ou pausar.
 - **Eventos `health_status` contínuos adiavam o envio do inventário de pods** (debounce de 2 s nunca terminava): mudanças externas só apareciam após minutos. O health check deixou de marcar os pods e o envio tem espera máxima de 5 s; medido em cerca de 6 s. O inventário de containers foi conferido no mesmo host (3 a 6 s) e não tem o problema.
+
+## Atualização da spec 023 (2026-10-17)
+
+- **Docker real**: o host Docker aparece como "sem pods"; o agente deixou de anunciar `PodActions` no Docker (só no Podman).

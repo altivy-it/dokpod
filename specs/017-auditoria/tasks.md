@@ -39,3 +39,7 @@
 - O encerramento do terminal é gravado fora da requisição do usuário e saía sem nome: a API passou a usar o último nome visto para o `sub` (cache em memória, limitado).
 - Eventos de comando sem justificativa não tinham o container como alvo, e o filtro "Ver auditoria" não os encontraria: o alvo passou a ser sempre gravado.
 - Um build silencioso (`podman build -q`) não gerou a imagem nova da API; a validação passou a conferir o id da imagem em uso.
+
+## Atualização da spec 023 (2026-10-17)
+
+- Usuário de acesso parcial criado temporariamente no laboratório (só leitura): o menu não mostra Auditoria e as demais telas respeitam a permissão. O conteúdo da consulta de auditoria desse usuário não foi conferido evento a evento — segue coberto em PostgreSQL real e na E2E simulada.

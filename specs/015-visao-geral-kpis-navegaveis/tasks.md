@@ -33,3 +33,8 @@
 - [x] T011 E2E simulado (`frontend/tests/e2e/mock_ui/test_015_overview_kpis.py`): os seis cards por clique e teclado, filtros e ordenação na URL, total da lista igual ao card, axe sem violações sérias/críticas; mock com `sort` por consumo. — `test_015_overview_kpis.py`: 5 testes verdes com axe (situação com totais, consumo, teclado e estágio, nomes acessíveis, estado vazio); suíte simulada completa com 61 verdes; Vitest com 120 verdes.
 - [x] T012 Stack real (Linux, Podman): quickstart completo; SC-002, SC-003 e SC-006 medidos; SC-004 com 2.000 containers `NOT RUN` se não houver laboratório de carga. — Stack real em 2026-10-14 (Linux, Podman 5.7.0 rootless): SC-002 OK (card = lista em Em execução 12, Parados 3, Com falha 1), SC-003 OK (CPU e memória em ordem decrescente, primeiro container igual à primeira linha), SC-006 OK (card de memória 4,9% contra 4,86% da soma da lista, diferença de 0,04 pp). SC-004 medido em PostgreSQL real (T004); laboratório de carga com 2.000 containers reais: **NOT RUN**. Docker real: **NOT RUN**.
 - [x] T013 Documentação: `docs/frontend.md` (cards navegáveis) e evidências nesta lista; estado da spec. — `docs/frontend.md` (cards de KPI navegáveis) e evidências nesta lista.
+
+## Atualização da spec 023 (2026-10-17)
+
+- **Docker real**: visão geral e KPIs com o host Docker 28.5.2 na stack real.
+- Continua `NOT RUN`: laboratório de carga com 2.000 containers reais — frente 2.

@@ -63,13 +63,37 @@ public sealed class AgentSessionNegotiatorTests
             new FakeSessionStore());
         var hello = CreateHello("1");
         hello.Engine = (EngineKind)99;
-        hello.Capabilities.Add((Capability)99);
 
         var exception = await Assert.ThrowsAsync<AgentSessionRejectedException>(() => negotiator.NegotiateAsync(
             certificate,
             hello,
             TestContext.Current.CancellationToken).AsTask());
 
+        Assert.Equal("agent_hello_invalid", exception.FailureCode);
+    }
+
+    [Fact]
+    public async Task NegotiateAsync_IgnoresCapabilitiesUnknownToThisServerAndRejectsWhenNoneIsKnown()
+    {
+        // Spec 023: agente mais novo que o servidor (capability nova) mantém a sessão com o que o servidor conhece.
+        using var certificate = CreateCertificate(includeClientAuthenticationEku: true);
+        var environmentId = Guid.NewGuid();
+        var negotiator = new AgentSessionNegotiator(
+            new FakeIdentityRegistry(new AgentIdentity(environmentId, Convert.ToHexString(SHA256.HashData(certificate.RawData)))),
+            new FakeSessionStore());
+        var hello = CreateHello("1");
+        hello.Capabilities.Add((Capability)999);
+
+        var session = await negotiator.NegotiateAsync(certificate, hello, TestContext.Current.CancellationToken);
+
+        Assert.Equal(environmentId, session.EnvironmentId);
+        Assert.Equal([Capability.Inventory], hello.Capabilities);
+
+        var onlyUnknown = CreateHello("1");
+        onlyUnknown.Capabilities.Clear();
+        onlyUnknown.Capabilities.Add((Capability)999);
+        var exception = await Assert.ThrowsAsync<AgentSessionRejectedException>(() => negotiator.NegotiateAsync(
+            certificate, onlyUnknown, TestContext.Current.CancellationToken).AsTask());
         Assert.Equal("agent_hello_invalid", exception.FailureCode);
     }
 

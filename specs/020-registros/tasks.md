@@ -39,3 +39,7 @@
 - O pipe da varredura gitleaks mascarava o código de saída; a varredura passou a falhar de fato com achado (um nome de variável `secret` num teste foi renomeado antes do push).
 - Restaurar a política de um estágio pelo console grava a lista (mesmo vazia) como definida no console; não há rota para voltar ao "valor da configuração", por desenho (a trilha fica completa).
 - **Correção posterior (spec 021, 2026-10-16)**: a leitura de `registries.conf` pelo `/libpod/info` nunca acontecia na stack real, porque o Podman só atende rotas libpod com prefixo de versão (`/v1.41/libpod/info`) e o agente usava `libpod/info`. O agente caía no `/info` compatível, vazio no Podman, e a validação de SC-001 da spec 020 cobriu só os registros das imagens e da credencial, não espelhos ou inseguros do `registries.conf`. Corrigido no branch `021-pods`.
+
+## Atualização da spec 023 (2026-10-17)
+
+- **Docker real**: registros de imagens do Docker 28.5.2 e registro privado com credencial configurada (aparece com credencial em 1 host).

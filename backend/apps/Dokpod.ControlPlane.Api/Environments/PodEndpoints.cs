@@ -69,10 +69,11 @@ public static class PodEndpoints
 
         PodSearchResult result;
         IReadOnlyList<PodProjectionState> projections;
+        var inventoryHosts = hosts.Values.Where(h => h.Publishes("PodInventory")).Select(h => h.Registration.EnvironmentId).ToArray();
         try
         {
-            result = await store.SearchAsync(new PodSearchQuery(hosts.Keys.ToArray(), statuses, containerId.Length == 0 ? null : containerId.ToLowerInvariant(), text.Length == 0 ? null : text, sort, offset, limit), cancellationToken);
-            projections = await store.ListProjectionsAsync(hosts.Keys.ToArray(), cancellationToken);
+            result = await store.SearchAsync(new PodSearchQuery(inventoryHosts, statuses, containerId.Length == 0 ? null : containerId.ToLowerInvariant(), text.Length == 0 ? null : text, sort, offset, limit), cancellationToken);
+            projections = await store.ListProjectionsAsync(inventoryHosts, cancellationToken);
         }
         catch (InvalidOperationException)
         {

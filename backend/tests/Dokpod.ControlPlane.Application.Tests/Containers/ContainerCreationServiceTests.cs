@@ -70,6 +70,25 @@ public sealed class ContainerCreationServiceTests
     }
 
     [Fact]
+    public async Task Create_MasksSecretsOfTheHealthCheckInTheEquivalentCommandAndAudit()
+    {
+        // Spec 023: o comando de saúde pode carregar segredo; resposta e auditoria saem com o padrão mascarado.
+        var harness = new Harness();
+
+        var result = await harness.CreateAsync(Request(
+            ",\"healthcheck\":{\"test\":[\"CMD-SHELL\",\"curl -H 'Authorization: Bearer canario-saude-023' http://127.0.0.1/\"]," +
+            "\"intervalSeconds\":30,\"timeoutSeconds\":5,\"retries\":3,\"startPeriodSeconds\":0,\"onFailure\":\"none\"}"));
+
+        Assert.Equal(ContainerCreationOutcome.Accepted, result.Outcome);
+        Assert.DoesNotContain("canario-saude-023", result.EquivalentCommand);
+        Assert.Contains("--health-cmd", result.EquivalentCommand);
+        Assert.DoesNotContain("canario-saude-023", JsonSerializer.Serialize(harness.Store.AuditEvent!.Details));
+        // O agente continua recebendo o comando real.
+        var spec = Assert.IsType<CreateContainerParameters>(harness.Store.Command!.Command.Parameters).Spec;
+        Assert.Contains("canario-saude-023", spec.HealthCheck!.Test[1]);
+    }
+
+    [Fact]
     public async Task Create_InvalidSpecReturnsFieldErrorsBeforeAuthorizing()
     {
         var harness = new Harness();

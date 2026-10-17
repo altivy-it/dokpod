@@ -178,6 +178,15 @@ O script cria ou atualiza:
 - grupos `/dokpod/administrators`, `/dokpod/operators`, `/dokpod/auditors` e `/dokpod/readers`;
 - SMTP e provedores sociais quando as variáveis correspondentes existirem.
 
+As permissões de cada ambiente são criadas por
+`tools/scripts/provision-environment-authorization.ps1` como permissões **por scope**
+(tipo `scope`, decisão afirmativa entre policies): cada pedido avalia só a permissão
+daquele scope, o que permite conceder, por exemplo, só `environment:read` a um grupo de
+leitores. Permissões antigas do tipo `resource` (anteriores à spec 023) são convertidas
+pelo próprio script, preservando nomes e policies; nesse tipo o Keycloak avaliava todas
+as permissões do recurso em qualquer pedido e quem não tinha todos os scopes era negado
+em tudo.
+
 Depois de alterar clients ou callbacks, execute a reconciliação novamente. Ela
 preserva o redirect local do `dokpod-lab` e adiciona o callback usado por
 `tools/scripts/get-keycloak-spike-token.ps1`.

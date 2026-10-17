@@ -116,7 +116,10 @@ public sealed class TerminalSessionRegistry(TerminalOptions options)
     }
 }
 
-/// <summary>Mascaramento da justificativa antes da auditoria (FR-004): mesmos padrões do `SecretMasker` do agente.</summary>
+/// <summary>
+/// Mascaramento da justificativa antes da auditoria (FR-004) e do comando de saúde no comando equivalente (spec 023): mesmos
+/// padrões do `SecretMasker` do agente.
+/// </summary>
 public static partial class JustificationMasker
 {
     [GeneratedRegex(@"(?i)\b(bearer)\s+[A-Za-z0-9._~+/=-]{8,}")]

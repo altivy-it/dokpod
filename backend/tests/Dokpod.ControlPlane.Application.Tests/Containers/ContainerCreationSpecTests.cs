@@ -130,6 +130,24 @@ public sealed class ContainerCreationSpecTests
     }
 
     [Fact]
+    public void HealthCheck_IsStoredOnlyAmongProtectedValuesAndUnavailableWithoutThem()
+    {
+        // Spec 023: o comando de saúde segue o caminho dos valores das variáveis (cifrado, apagado ao terminar o comando).
+        var spec = Valid(json => json.Replace("\"environment\":[{\"name\":\"A\",\"value\":\"1\",\"sensitive\":false}]", "\"environment\":[]")
+            .Replace("\"autoRemove\":false", "\"autoRemove\":false,\"healthcheck\":{\"test\":[\"CMD\",\"curl\",\"-u\",\"app:canario-saude\"],\"intervalSeconds\":30,\"timeoutSeconds\":5,\"retries\":3,\"startPeriodSeconds\":0,\"onFailure\":\"none\"}"));
+        var stripped = spec.WithoutValues();
+
+        Assert.Equal(["CMD", "***"], stripped.HealthCheck!.Test);
+        Assert.False(stripped.ValuesAvailable);
+        Assert.Empty(stripped.Validate());
+        var restored = stripped.WithValues(spec.LiteralValues());
+        Assert.True(restored.ValuesAvailable);
+        Assert.Equal(spec.HealthCheck!.Test, restored.HealthCheck!.Test);
+        Assert.Equal(spec.Canonical(), restored.Canonical());
+        Assert.False(stripped.WithValues(new Dictionary<string, string>()).ValuesAvailable);
+    }
+
+    [Fact]
     public void EquivalentCommand_MatchesSharedFixtures()
     {
         var path = FindFixture();
