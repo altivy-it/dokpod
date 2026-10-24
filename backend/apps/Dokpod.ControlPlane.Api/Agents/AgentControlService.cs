@@ -33,7 +33,8 @@ public sealed class AgentControlService(
     Dokpod.ControlPlane.Application.Registries.IRegistryInventoryStore? registryStore = null,
     Dokpod.ControlPlane.Application.Pods.IPodInventoryStore? podStore = null,
     Dokpod.ControlPlane.Application.Terminal.TerminalSessionRegistry? terminals = null,
-    IAgentIdentityRegistry? identities = null) : AgentControl.AgentControlBase
+    IAgentIdentityRegistry? identities = null,
+    Microsoft.Extensions.Hosting.IHostApplicationLifetime? lifetime = null) : AgentControl.AgentControlBase
 {
     private const int MaximumMessageBytes = 1_048_576;
     private static readonly TimeSpan HeartbeatTimeout = TimeSpan.FromSeconds(90);
@@ -155,6 +156,9 @@ public sealed class AgentControlService(
                     context.CancellationToken));
             using var heartbeatTimeout = new CancellationTokenSource(HeartbeatTimeout);
             var heartbeatExpired = Task.Delay(Timeout.InfiniteTimeSpan, heartbeatTimeout.Token);
+            // Spec 005 T016: no desligamento, encerra a sessão em vez de segurar o stream até o SIGKILL; o agente
+            // reconecta à nova instância e as conexões do banco são devolvidas.
+            var stopping = Task.Delay(Timeout.InfiniteTimeSpan, lifetime?.ApplicationStopping ?? CancellationToken.None);
             var nextMessage = requestStream.MoveNext(sessionCancellation.Token);
             Task<PersistedAgentCommand>? nextCommand = null;
             while (true)
@@ -165,7 +169,7 @@ public sealed class AgentControlService(
                         .DequeueAsync(session.EnvironmentId, sessionCancellation.Token)
                         .AsTask();
                 nextOutbound ??= sessionOutbound.Reader.ReadAsync(sessionCancellation.Token).AsTask();
-                var completed = await Task.WhenAny(nextMessage, nextCommand, nextOutbound, invalidated, heartbeatExpired);
+                var completed = await Task.WhenAny(nextMessage, nextCommand, nextOutbound, invalidated, heartbeatExpired, stopping);
                 if (completed == nextOutbound)
                 {
                     var outgoing = await nextOutbound;
@@ -183,6 +187,11 @@ public sealed class AgentControlService(
                 if (completed == heartbeatExpired)
                 {
                     throw new RpcException(new Status(StatusCode.DeadlineExceeded, "agent_heartbeat_timeout"));
+                }
+
+                if (completed == stopping)
+                {
+                    throw new RpcException(new Status(StatusCode.Unavailable, "control_plane_stopping"));
                 }
 
                 if (completed == nextCommand)
