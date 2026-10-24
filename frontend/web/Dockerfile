@@ -29,7 +29,9 @@ LABEL org.opencontainers.image.title="dokpod-web" \
     org.opencontainers.image.url="https://github.com/altivy-it/dokpod"
 COPY deploy/nginx/conf.d/web.conf /etc/nginx/conf.d/default.conf
 COPY --from=publish /src/dist/dokpod-web/browser/ /usr/share/nginx/html/
+# Spec 005 FR-003: aplica as correções de segurança já publicadas pelo Debian sobre a base.
 RUN apt-get update \
+    && apt-get upgrade --yes --no-install-recommends \
     && apt-get install --yes --no-install-recommends curl \
     && rm -rf /var/lib/apt/lists/* \
     && sed -i 's#^[[:space:]]*pid[[:space:]].*#pid /tmp/nginx.pid;#' /etc/nginx/nginx.conf \

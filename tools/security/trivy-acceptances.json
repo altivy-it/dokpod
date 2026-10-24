@@ -289,17 +289,6 @@
     },
     {
       "image": "web",
-      "id": "CVE-2026-77214",
-      "package": "libexpat1",
-      "severity": "HIGH",
-      "status": "affected",
-      "impact": "Parser XML; o nginx do console não habilita módulos XML.",
-      "responsible": "lzocateli (solicitante)",
-      "accepted": "2026-10-17",
-      "expires": "2027-01-15"
-    },
-    {
-      "image": "web",
       "id": "CVE-2025-68431",
       "package": "libheif1",
       "severity": "HIGH",

@@ -14,6 +14,7 @@ Aceites formais de vulnerabilidades HIGH/CRITICAL **sem correção disponível**
 - **Decisão**: manter a base e aceitar formalmente (solicitante, 2026-10-17). Alternativa avaliada e não adotada agora: base nginx sobre Alpine.
 - **Responsável**: lzocateli (solicitante). **Aceite**: 2026-10-17. **Expira**: 2027-01-15.
 - **Varredura**: Trivy, 2026-10-17 — 94 achados (3 CRITICAL e 91 HIGH), todos com estado do Debian *affected*, *fix_deferred* ou *will_not_fix*. API, BFF e agente sem HIGH/CRITICAL.
+- **Revarredura**: Trivy, 2026-10-24 — três HIGH ganharam correção no Debian 12 (`libbrotli1` CVE-2026-111497, `libexpat1` CVE-2025-59375 e CVE-2026-77214). O Dockerfile passou a aplicar `apt-get upgrade` sobre a base, e o aceite da CVE-2026-77214 saiu da lista: restam 93 achados, todos sem correção.
 - **Contexto**: o container web só serve os arquivos estáticos do console em HTTP interno, atrás da borda nginx (TLS termina na borda); não processa imagens, XML nem executa utilitários do sistema em operação.
 - **Observação**: `curl` e `libcurl4` (10 HIGH) são instalados pelo Dockerfile do Dokpod só para o health check local; trocar o health check elimina esses achados.
 
@@ -26,7 +27,6 @@ Aceites formais de vulnerabilidades HIGH/CRITICAL **sem correção disponível**
 | `libaom3` | 2 | Codec AV1 da base de imagem; o console não decodifica mídia no servidor. | CVE-2023-39616 (HIGH), CVE-2023-6879 (CRITICAL) |
 | `libblkid1` | 6 | Biblioteca de util-linux; usada por utilitários de disco, não pelo nginx. | CVE-2026-53613 (HIGH), CVE-2026-53615 (HIGH), CVE-2026-76642 (HIGH), CVE-2026-78408 (HIGH), CVE-2026-78409 (HIGH), CVE-2026-78410 (HIGH) |
 | `libcurl4` | 5 | Dependência do curl do health check local; mesma observação do curl. | CVE-2026-12064 (HIGH), CVE-2026-6276 (HIGH), CVE-2026-8286 (HIGH), CVE-2026-8458 (HIGH), CVE-2026-8927 (HIGH) |
-| `libexpat1` | 1 | Parser XML; o nginx do console não habilita módulos XML. | CVE-2026-77214 (HIGH) |
 | `libheif1` | 8 | Decodificador HEIF da base de imagem; o nginx não processa imagens. | CVE-2025-68431 (HIGH), CVE-2026-32740 (HIGH), CVE-2026-32741 (HIGH), CVE-2026-32882 (HIGH), CVE-2026-41071 (HIGH), CVE-2026-47178 (HIGH), CVE-2026-84450 (HIGH), CVE-2026-84451 (HIGH) |
 | `libldap-2.5-0` | 1 | Cliente LDAP; o container web não acessa LDAP. | CVE-2023-2953 (HIGH) |
 | `libmount1` | 6 | Biblioteca de util-linux; usada por utilitários de disco, não pelo nginx. | CVE-2026-53613 (HIGH), CVE-2026-53615 (HIGH), CVE-2026-76642 (HIGH), CVE-2026-78408 (HIGH), CVE-2026-78409 (HIGH), CVE-2026-78410 (HIGH) |
