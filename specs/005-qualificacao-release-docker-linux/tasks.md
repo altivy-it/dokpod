@@ -43,12 +43,12 @@ T001 -> T002 -> T003 -> T004; T005 exige baseline e laboratório de 004, T006 us
 
 ## Execução de 2026-10-17
 
-- [ ] T010 [US1] CI: SBOM CycloneDX e Trivy por imagem no job Images, com falha em CRITICAL corrigível e em HIGH/CRITICAL sem aceite vigente.
-- [ ] T011 [US1] `docs/seguranca-excecoes.md`: aceite por CVE da imagem web (pacote, severidade, impacto no nginx, responsável, expiração) e verificação de expiração no CI.
-- [ ] T012 [US1] CI: assinatura keyless e attestation de proveniência só em tags `v*`; teste local positivo e negativos (digest alterado, chave errada) com registro descartável.
-- [ ] T013 [US2] Harness `tools/loadtest/`: simulador de agentes e usuários virtuais; validação em pequena escala.
+- [x] T010 [US1] CI: SBOM CycloneDX e Trivy por imagem no job Images, com falha em CRITICAL corrigível e em HIGH/CRITICAL sem aceite vigente. *(13ff9bd, a39c6e5; em 2026-10-24 a política reprovou três HIGH corrigíveis da imagem web, corrigidos com `apt-get upgrade` na base.)*
+- [x] T011 [US1] `docs/seguranca-excecoes.md`: aceite por CVE da imagem web (pacote, severidade, impacto no nginx, responsável, expiração) e verificação de expiração no CI. *(13ff9bd; revarredura de 2026-10-24: 93 aceites vigentes.)*
+- [ ] T012 [US1] CI: assinatura keyless e attestation de proveniência só em tags `v*`; teste local positivo e negativos (digest alterado, chave errada) com registro descartável. *(Parcial: job `release-images` com cosign e verificação de identidade e emissor em 13ff9bd e 6265505. Falta o teste local com registro descartável, que não tem evidência registrada.)*
+- [x] T013 [US2] Harness `tools/loadtest/`: simulador de agentes e usuários virtuais; validação em pequena escala. *(2d674af: 3 hosts e 3 usuários, 0 erros, leituras p95 31,9 ms.)*
 - [ ] T014 [US2] Ambientes e identidades de carga (100 hosts) provisionados e removíveis.
-- [ ] T015 [US2] Carga nominal 56/1.120/30 por 30 min e margem 100/2.000/50, contra os limites aprovados.
-- [ ] T016 [US2] Recuperação: resposta perdida, reconnect storm, comandos concorrentes, restart da API com backlog.
+- [ ] T015 [US2] Carga nominal 56/1.120/30 por 30 min e margem 100/2.000/50, contra os limites aprovados. *(Uma rodada de margem no laboratório local em 2026-10-17 reprovou as leituras (p95 569 ms, limite 500 ms) e motivou ea0653b. Falta repetir a rodada e registrar os resultados.)*
+- [ ] T016 [US2] Recuperação: resposta perdida, reconnect storm, comandos concorrentes, restart da API com backlog. *(Ferramentas prontas em f88d6f9: `recovery.py` e `LOADSIM_EXEC_LOG`. Faltam execução e evidência registradas.)*
 - [ ] T017 [US3] Operação: backup/restore com auditoria íntegra, atualização e rollback, licença e avisos de terceiros.
 - [ ] T018 [US3] Matriz de gates e submissão à decisão GO/NO-GO.
