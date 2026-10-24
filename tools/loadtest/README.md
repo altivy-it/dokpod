@@ -8,6 +8,7 @@ Ferramentas da qualificação de release (spec 005, T013 a T016). Nada aqui faz 
 | `vusers.py` | Usuários virtuais pela borda (nginx + BFF, login real no Keycloak): leituras do console com pesos, comandos periódicos e medição de latência, erros, comando aceito → concluído e convergência do inventário. |
 | `resources.sh` | Amostra CPU e memória de containers a cada 10 s. |
 | `provision-load-hosts.sh` | Emite pela CA de laboratório os certificados de cliente dos ambientes `Carga NNN`, grava os fingerprints em `dokpod.agent_identities` e gera o `agents.json`. |
+| `retire-load-hosts.sh` | Aposenta os ambientes `Carga NNN` ao fim da campanha: revoga as identidades, desabilita os ambientes e remove do Keycloak os recursos e as permissions `carga-*`. Não apaga os ambientes, porque a auditoria é append-only e os comandos referenciam o ambiente. Sem `--apply`, só mostra o estado. Para outra campanha, reabilite os ambientes e refaça a autorização (passo 1 de Preparar). |
 
 ## Preparar
 

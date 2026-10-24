@@ -157,7 +157,7 @@ Candidata: **Docker Linux**, commit `33684ff` (branch `005-qualificacao-release`
 | 1 | CI remoto com PostgreSQL real e imagens | P-01, FR-002 | PASS (decisão) | Run `40123301221` (`33684ff`): Backend, Frontend e Images verdes; 681 testes backend, sem skips (inclui os de PostgreSQL); SBOM e Trivy das quatro imagens. As imagens partem sempre das bases do repositório `containers` (`lzocateli/dotnet-aspnet`, `lzocateli/nginx`, `lzocateli/angular-cli`), onde usuário, portas e hardening são mantidos | Aceito pelo solicitante em 2026-10-24: a inspeção de usuário, portas, mounts e redes fica coberta pelo repositório `containers` |
 | 2 | Vulnerabilidades HIGH/CRITICAL | P-02, FR-003 | PASS | A política do CI reprova HIGH/CRITICAL corrigível ou sem aceite. Web: 0 corrigíveis após `ac985ea`, 93 aceites por CVE vigentes até 2027-01-15. API, BFF e agente sem HIGH/CRITICAL | Renovar ou revisar os aceites antes de 2027-01-15 |
 | 3 | Assinatura e provenance | P-04, FR-006 | PARCIAL | Job `release-images` só em tag `v*`: cosign keyless, attestation e verificação de identidade e emissor (`13ff9bd`, `6265505`) | Nunca executado (não há tag). Faltam o teste local positivo e os negativos (digest alterado, identidade errada) e a revogação (T012). A execução exige autorização própria |
-| 4 | Threat model revisado | P-04, FR-006 | NOT RUN | Consolidação pronta para revisão em [threat-model-consolidado.md](threat-model-consolidado.md): 18 fronteiras, as duas novas da 005 (telemetria OTLP e backup) modeladas, 5 lacunas e 10 riscos residuais para decisão | Revisão humana do documento e preenchimento da decisão do revisor |
+| 4 | Threat model revisado | P-04, FR-006 | PASS (decisão) | [threat-model-consolidado.md](threat-model-consolidado.md): 18 fronteiras, telemetria OTLP e backup modelados. Achado A1 corrigido (o agente não validava o nome do servidor com CA própria). L1 corrigida (bundle de raízes e [runbook de troca da CA](../../docs/runbooks/troca-da-ca-dos-agentes.md)), L5 corrigida (`retire-load-hosts.sh`), L4 confirmada | Aprovado pelo solicitante em 2026-10-24, com R1–R10 aceitos. Revisar de novo a cada fronteira nova |
 | 5 | Carga nominal 56/1.120/30 por ≥ 30 min | P-03, FR-004 | PASS (lab) | Todos os limites atendidos: leituras com p95 de 51,5 ms, comandos com p95 de 310 ms, 0,004% de erros, API com 0,17 vCPU | Repetir em VM isolada (FR-004) |
 | 6 | Carga de margem 100/2.000/50 | P-03, FR-004 | PASS (lab) | Leituras com p95 de 59 ms, comandos com p95 de 324 ms, 0,007% de erros, reconexão em 5,7 s | Repetir em VM isolada |
 | 7 | Recuperação | FR-005 | PASS (lab, com aceite) | Reconnect storm (100 agentes em 5,7 s), restart da API com backlog (após `b4be2b7`, `a86058c` e `4ff3623`) e resposta perdida sem efeito duplicado (`Indeterminate` em `745b2fc`, coberto por teste) | Residual aceito pelo solicitante em 2026-10-24: inventário degradado e comandos concorrentes no mesmo container não executados (a serialização por container é coberta por `AgentCommandProcessorTests`). Repetir em VM isolada |
@@ -173,14 +173,13 @@ Candidata: **Docker Linux**, commit `33684ff` (branch `005-qualificacao-release`
 
 ### Veredito recomendado: **NO-GO**
 
-Pela regra do T009, `NOT RUN` mantém NO-GO. O gate 4 segue `NOT RUN`, e os gates 5, 6, 7, 9, 10 e 11 só têm evidência de laboratório, sem a VM isolada que o FR-004 exige.
+Pela regra do T009, `NOT RUN` mantém NO-GO. Não há mais gate `NOT RUN` desde a aprovação do gate 4, mas os gates 5, 6, 7, 9, 10 e 11 só têm evidência de laboratório, sem a VM isolada que o FR-004 exige, o gate 3 é `PARCIAL` e os gates 15 e 16 aguardam decisão.
 
 Para chegar a GO na candidata Docker Linux:
 
-1. Revisão humana do threat model (gate 4).
-2. Carga nominal, margem, recuperação, restore, rollback e observabilidade repetidos em VM isolada (gates 5, 6, 7, 9, 10 e 11).
-3. Exercício da assinatura, com testes negativos, sob autorização (gate 3).
-4. Decisão formal sobre o adiamento de Windows e Podman (gates 15 e 16).
+1. Carga nominal, margem, recuperação, restore, rollback e observabilidade repetidos em VM isolada (gates 5, 6, 7, 9, 10 e 11).
+2. Exercício da assinatura, com testes negativos, sob autorização (gate 3).
+3. Decisão formal sobre o adiamento de Windows e Podman (gates 15 e 16).
 
 ### Decisão humana
 
@@ -190,7 +189,7 @@ Para chegar a GO na candidata Docker Linux:
 | Responsável | lzocateli (solicitante) |
 | Data | *pendente* |
 | Adiamentos aceitos (gates 15 e 16) | *pendente* |
-| Decisões parciais (2026-10-24) | Gate 1 aceito: as imagens usam sempre as bases do repositório `containers`. Gates 7 e 14 aceitos com o residual registrado nas linhas |
+| Decisões parciais (2026-10-24) | Gate 1 aceito: as imagens usam sempre as bases do repositório `containers`. Gates 7 e 14 aceitos com o residual registrado nas linhas. Gate 4 aprovado, com as recomendações das lacunas e os riscos R1–R10 aceitos |
 | Observações | *pendente* |
 
 ### Observabilidade — laboratório local, 2026-10-24 (gate 11)

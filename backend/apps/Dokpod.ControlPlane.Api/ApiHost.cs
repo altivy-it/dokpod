@@ -323,9 +323,9 @@ public static class ApiHost
         var certificatePassword = Environment.GetEnvironmentVariable("DOKPOD_API_CERTIFICATE_PASSWORD");
         var certificate = X509CertificateLoader.LoadPkcs12FromFile(certificatePath, certificatePassword);
         var clientCaPath = Environment.GetEnvironmentVariable("DOKPOD_API_CLIENT_CA_CERTIFICATE_PATH");
-        var clientCaCertificate = string.IsNullOrWhiteSpace(clientCaPath)
+        var clientCaCertificates = string.IsNullOrWhiteSpace(clientCaPath)
             ? null
-            : X509CertificateLoader.LoadCertificateFromFile(clientCaPath);
+            : LoadTrustedRoots(clientCaPath);
         var port = int.TryParse(Environment.GetEnvironmentVariable("DOKPOD_API_GRPC_PORT"), out var configuredPort)
             ? configuredPort
             : 7443;
@@ -334,9 +334,9 @@ public static class ApiHost
             : 8080;
 
         Func<X509Certificate2, X509Chain?, SslPolicyErrors, bool>? clientValidation =
-            clientCaCertificate is null
+            clientCaCertificates is null
                 ? null
-                : (certificate, chain, errors) => ValidateClientCertificate(certificate, clientCaCertificate);
+                : (certificate, chain, errors) => ValidateClientCertificate(certificate, clientCaCertificates);
 
         return new ApiHostOptions(
             port,
@@ -345,9 +345,25 @@ public static class ApiHost
             clientValidation);
     }
 
-    private static bool ValidateClientCertificate(
+    /// <summary>
+    /// Raízes confiáveis para os agentes: um arquivo PEM pode trazer mais de uma (raiz antiga e nova durante a
+    /// troca da CA, ver docs/runbooks/troca-da-ca-dos-agentes.md); um arquivo DER traz uma só.
+    /// </summary>
+    public static X509Certificate2Collection LoadTrustedRoots(string path)
+    {
+        var roots = new X509Certificate2Collection();
+        roots.ImportFromPemFile(path);
+        if (roots.Count == 0)
+        {
+            roots.Add(X509CertificateLoader.LoadCertificateFromFile(path));
+        }
+
+        return roots;
+    }
+
+    public static bool ValidateClientCertificate(
         X509Certificate2? clientCertificate,
-        X509Certificate2 trustedRoot)
+        X509Certificate2Collection trustedRoots)
     {
         if (clientCertificate is null)
         {
@@ -365,7 +381,7 @@ public static class ApiHost
 
         using var chain = new X509Chain();
         chain.ChainPolicy.TrustMode = X509ChainTrustMode.CustomRootTrust;
-        chain.ChainPolicy.CustomTrustStore.Add(trustedRoot);
+        chain.ChainPolicy.CustomTrustStore.AddRange(trustedRoots);
         chain.ChainPolicy.RevocationMode = X509RevocationMode.NoCheck;
         return chain.Build(clientCertificate);
     }

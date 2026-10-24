@@ -1,7 +1,7 @@
 # Threat model consolidado — candidata Docker Linux (gate 4)
 
 **Spec**: 005, gate 4 (P-04, FR-006) · **Data**: 2026-10-24 · **Candidata**: branch `005-qualificacao-release`, PR #30
-**Estado**: aguardando revisão humana. Este documento junta o que está espalhado em [segurança](../../docs/seguranca.md) para uma revisão única; não substitui aquele documento e não é aprovação.
+**Estado**: **revisado e aprovado** pelo solicitante em 2026-10-24 (ver [decisão](#decisão-do-revisor)). Este documento junta o que está espalhado em [segurança](../../docs/seguranca.md) para uma revisão única; não substitui aquele documento.
 
 ## Como revisar
 
@@ -39,7 +39,7 @@ PostgreSQL ──pg_dump──▶ backup (operação)
 | --- | --- | --- | --- | --- |
 | F1 | Navegador → BFF (sessão, CSRF, Origin, login) | [Identidade](../../docs/seguranca.md#identidade), [BFF](../../docs/bff.md) | Cookie de sessão `__Host-Dokpod.Session` `HttpOnly`/`SameSite=Lax`/`Secure` fora de Development (`ConfigureCookieOptions.cs`), antiforgery `SameSite=Strict`, `OriginValidationMiddleware`, rate limit no login (`BffHost.cs`); readiness gate 13 | Coberto, sem seção STRIDE própria (ver L2) |
 | F2 | BFF → API → Keycloak (PEP, UMA) | [Identidade](../../docs/seguranca.md#identidade), [spec 023](../../docs/seguranca.md#qualificação-na-stack-real-spec-023) | Permissões por scope, leitor sem ações, revogação (gate 13) | Coberto |
-| F3 | Agente ↔ API (mTLS, sessão, fencing, comandos) | [Ameaças prioritárias](../../docs/seguranca.md#ameaças-prioritárias), [Identidade](../../docs/seguranca.md#identidade) | EKU `clientAuth` + cadeia da CA própria + identidade por fingerprint com `revoked_at` (`ApiHost.cs`, `PostgresAgentIdentityRegistry.cs`); journal e `Indeterminate` (gate 7) | Coberto; ver L1 |
+| F3 | Agente ↔ API (mTLS, sessão, fencing, comandos) | [Ameaças prioritárias](../../docs/seguranca.md#ameaças-prioritárias), [Identidade](../../docs/seguranca.md#identidade), [troca da CA](../../docs/runbooks/troca-da-ca-dos-agentes.md) | EKU `clientAuth` + cadeia das raízes configuradas + identidade por fingerprint com `revoked_at` (`ApiHost.cs`, `PostgresAgentIdentityRegistry.cs`); nome do servidor validado pelo agente (`AgentControlClient.cs`); journal e `Indeterminate` (gate 7) | Coberto; L1 e A1 corrigidos |
 | F4 | Agente → engine local | [Engine local](../../docs/seguranca.md#engine-local) | Allowlist de comandos e DTOs; sem proxy genérico | Coberto |
 | F5 | Eventos operacionais (008) | [Eventos](../../docs/seguranca.md#eventos-operacionais-spec-008) | Allowlist de tipos e parâmetros | Coberto |
 | F6 | Métricas de recursos (009) | [plan 009](../009-metricas-recursos/plan.md) | Só `/proc/stat` e `/proc/meminfo` do próprio container | Coberto |
@@ -83,29 +83,37 @@ PostgreSQL ──pg_dump──▶ backup (operação)
 
 ## Lacunas encontradas na consolidação
 
-| # | Lacuna | Recomendação | Decisão do revisor |
+| # | Lacuna | Recomendação | Decisão e resultado (2026-10-24) |
 | --- | --- | --- | --- |
-| L1 | A revogação do agente é feita no cadastro de identidades (`revoked_at` por fingerprint), não por CRL/OCSP: a cadeia é validada com `RevocationMode.NoCheck`. Funciona por certificado, mas um comprometimento da CA exige reemitir todas as identidades e trocar a raiz confiável | Aceitar o modelo atual e acrescentar ao runbook o procedimento de troca da CA antes do GO | |
-| L2 | Specs 001–004, 010 e 015 não têm seção STRIDE própria em `docs/seguranca.md`; estão cobertas pelas seções gerais (ameaças prioritárias, identidade, engine local) e pelos gates 13 e 14 | Aceitar a cobertura geral, ou pedir as seções de BFF (002) e ações em lote (010) antes do GO | |
-| L3 | O agente roda como `0:0` com o socket do engine; posse do socket equivale a root no host | Já é premissa do produto ([Engine local](../../docs/seguranca.md#engine-local)); aceitar | |
-| L4 | O compose de laboratório (`deploy/e2e`) usa `ASPNETCORE_ENVIRONMENT=Development` e publica o gRPC em todas as interfaces | É laboratório, não distribuição; confirmar que o pacote instalável não herda esses valores | |
-| L5 | Os 100 ambientes "Carga NNN" do laboratório continuam no banco de laboratório | Não afeta a distribuição; remover com o script pendente do T014 | |
+| L1 | A revogação do agente é feita no cadastro de identidades (`revoked_at` por fingerprint), não por CRL/OCSP: a cadeia é validada com `RevocationMode.NoCheck`. Funciona por certificado, mas um comprometimento da CA exige reemitir todas as identidades e trocar a raiz confiável | Aceitar o modelo atual e acrescentar ao runbook o procedimento de troca da CA antes do GO | Aceita. **Corrigida**: a API e o agente aceitam bundle PEM de raízes, o que permite trocar a CA com sobreposição, sem queda; procedimento planejado e de comprometimento em [troca da CA](../../docs/runbooks/troca-da-ca-dos-agentes.md); testes `ClientCertificateTrustTests` e `AgentControlClientTrustTests` |
+| L2 | Specs 001–004, 010 e 015 não têm seção STRIDE própria em `docs/seguranca.md`; estão cobertas pelas seções gerais (ameaças prioritárias, identidade, engine local) e pelos gates 13 e 14 | Aceitar a cobertura geral, ou pedir as seções de BFF (002) e ações em lote (010) antes do GO | Aceita a cobertura geral |
+| L3 | O agente roda como `0:0` com o socket do engine; posse do socket equivale a root no host | Já é premissa do produto ([Engine local](../../docs/seguranca.md#engine-local)); aceitar | Aceita |
+| L4 | O compose de laboratório (`deploy/e2e`) usa `ASPNETCORE_ENVIRONMENT=Development` e publica o gRPC em todas as interfaces | É laboratório, não distribuição; confirmar que o pacote instalável não herda esses valores | Aceita. **Confirmada**: `Development` só existe no estágio `dev` do Dockerfile da API; as imagens de API e BFF não definem `ASPNETCORE_ENVIRONMENT` (rodam como `Production`) e não há compose na distribuição. A exceção de certificado do Keycloak no BFF (`DangerousAcceptAnyServerCertificateValidator`) só vale em `Development` |
+| L5 | Os 100 ambientes "Carga NNN" do laboratório continuam no banco de laboratório | Não afeta a distribuição; remover com o script pendente do T014 | Aceita. **Corrigida** com `tools/loadtest/retire-load-hosts.sh`: 100 identidades revogadas, 100 ambientes desabilitados e 100 recursos (com as permissions `carga-*`) removidos do Keycloak. Os ambientes ficam desabilitados, não apagados, porque a auditoria (26.853 eventos) é append-only e os comandos referenciam o ambiente |
+
+### Achado da consolidação
+
+| # | Achado | Correção | Evidência |
+| --- | --- | --- | --- |
+| A1 | Com `DOKPOD_AGENT_SERVER_CA_CERTIFICATE_PATH` definido, o callback de validação do agente descartava os erros de TLS e só refazia a cadeia: um certificado da mesma CA emitido para **outro nome** era aceito. A promessa de [segurança](../../docs/seguranca.md#ameaças-prioritárias) ("valida hostname") não se cumpria | O agente recusa qualquer erro além de cadeia (que ele mesmo refaz com as raízes configuradas), inclusive nome divergente e certificado ausente | `AgentControlClientTrustTests`; laboratório: `https://localhost:17443` (no certificado) abre a sessão, `https://172.16.11.199:17443` (fora dele) é recusado |
 
 ## Registro de riscos residuais
 
 | # | Risco | Origem | Mitigação atual | Aceite |
 | --- | --- | --- | --- | --- |
-| R1 | Segredos sem padrão reconhecível em campos fora da denylist podem aparecer na inspeção | 011 | Mascaramento best-effort com aviso na interface | |
-| R2 | Sem verificação de assinatura de imagens de workload, um registro comprometido entrega imagem maliciosa | 012, 013 | Registros por estágio, digest, auditoria | |
-| R3 | Operador com `container:create` executa qualquer imagem permitida com as permissões não privilegiadas do engine | 013 | Scope dedicado, allowlist fechada, auditoria | |
-| R4 | Processos em segundo plano criados no terminal sobrevivem ao fim da sessão; a revogação leva até 60 s mais a vida do token (≤ 5 min) | 014 | Limites de sessão, alerta de root, auditoria | |
-| R5 | Estado das condições de duração dos alertas fica em memória da réplica única | 016 | Recontagem ao reiniciar | |
-| R6 | A consulta da auditoria não é auditada, só a exportação | 017 | Decisão da spec | |
-| R7 | Pods de infraestrutura que não contêm o agente podem ser parados por quem tem os scopes; janelas de milissegundos em volume e rede | 018, 019, 021 | Proteção do pod do agente; o engine recusa recurso em uso | |
-| R8 | Componente adulterado pode informar versão falsa em Configurações | 022 | Assinatura das imagens (gate 3) | |
-| R9 | Métricas mostram host e usuário do banco; o transporte OTLP depende da operação | T1 | Telemetria desligada por padrão; métricas tratadas como internas | |
-| R10 | O backup não tem cifragem própria | T2 | Acesso restrito pela operação | |
+| R1 | Segredos sem padrão reconhecível em campos fora da denylist podem aparecer na inspeção | 011 | Mascaramento best-effort com aviso na interface | Aceito |
+| R2 | Sem verificação de assinatura de imagens de workload, um registro comprometido entrega imagem maliciosa | 012, 013 | Registros por estágio, digest, auditoria | Aceito |
+| R3 | Operador com `container:create` executa qualquer imagem permitida com as permissões não privilegiadas do engine | 013 | Scope dedicado, allowlist fechada, auditoria | Aceito |
+| R4 | Processos em segundo plano criados no terminal sobrevivem ao fim da sessão; a revogação leva até 60 s mais a vida do token (≤ 5 min) | 014 | Limites de sessão, alerta de root, auditoria | Aceito |
+| R5 | Estado das condições de duração dos alertas fica em memória da réplica única | 016 | Recontagem ao reiniciar | Aceito |
+| R6 | A consulta da auditoria não é auditada, só a exportação | 017 | Decisão da spec | Aceito |
+| R7 | Pods de infraestrutura que não contêm o agente podem ser parados por quem tem os scopes; janelas de milissegundos em volume e rede | 018, 019, 021 | Proteção do pod do agente; o engine recusa recurso em uso | Aceito |
+| R8 | Componente adulterado pode informar versão falsa em Configurações | 022 | Assinatura das imagens (gate 3) | Aceito |
+| R9 | Métricas mostram host e usuário do banco; o transporte OTLP depende da operação | T1 | Telemetria desligada por padrão; métricas tratadas como internas | Aceito |
+| R10 | O backup não tem cifragem própria | T2 | Acesso restrito pela operação | Aceito |
 | R11 | Assinatura e proveniência nunca executadas (sem tag) | Cadeia | Testes negativos locais com chaves de teste em 2026-10-17 | Fica com o gate 3, não com este |
+
+R1 a R10: aceitos pelo solicitante com a decisão do gate (2026-10-24).
 
 ## Controles transversais verificados
 
@@ -119,9 +127,10 @@ PostgreSQL ──pg_dump──▶ backup (operação)
 
 | Campo | Valor |
 | --- | --- |
-| Revisor | *pendente* |
-| Data | *pendente* |
-| Lacunas L1–L5 | *pendente* |
-| Riscos R1–R10 aceitos | *pendente* |
-| Condições para o GO | *pendente* |
-| Resultado do gate 4 | *pendente* (`PASS` ou `FAIL`) |
+| Revisor | lzocateli (solicitante) |
+| Data | 2026-10-24 |
+| Lacunas L1–L5 | Recomendações aceitas; L1 e L5 corrigidas, L4 confirmada, L2 e L3 aceitas |
+| Achado A1 | Corrigido antes da decisão |
+| Riscos R1–R10 aceitos | Sim |
+| Condições para o GO | As dos demais gates (VM isolada, assinatura no gate 3, decisão de Windows e Podman); nenhuma condição nova deste gate |
+| Resultado do gate 4 | **PASS** |
