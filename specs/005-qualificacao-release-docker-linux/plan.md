@@ -126,3 +126,22 @@ Mesmo assim, nenhum comando foi perdido ou duplicado: 68 aceitos, 68 `succeeded`
 - **Segunda e terceira** (agente corrigido): 100/100 `succeeded` = 100 execuções. 88 e 100 comandos executados antes do kill; os restantes foram retomados pelo journal. Nenhuma das duas acertou a janela entre a execução e a gravação do resultado, então o novo `Indeterminate` está comprovado por teste, não no laboratório.
 
 Ainda não executados: inventário degradado e comandos concorrentes no mesmo container.
+
+## Evidências de operação
+
+### Backup, restore, atualização e rollback — laboratório local, 2026-10-24 (T017)
+
+Procedimento e comandos em [backup, restore e atualização](../../docs/runbooks/backup-restore-e-atualizacao.md).
+
+| Verificação | Resultado |
+| --- | --- |
+| Backup completo (`pg_dump -Fc`, 4,5 GB → 325 MB), com API e BFF parados por 31 s | PASS (27 s) |
+| Restore numa database temporária (`pg_restore --exit-on-error`) | PASS (80 s) |
+| Impressão digital origem × cópia: 31 tabelas e 125.193 linhas do schema `dokpod`; 27.200 eventos de auditoria com o mesmo SHA-256; 133 partições; 27 migrations; trigger append-only; grants de `dokpod_runtime`; 2 realms e 4 usuários do Keycloak | PASS (41/41 itens iguais) |
+| `UPDATE` e `DELETE` na auditoria da cópia | PASS (bloqueados pelo trigger) |
+| API sobre a cópia: `/health/ready`, `/ready/database` e `/ready/keycloak` | PASS (200) |
+| Rollback N (`dd9a645`) → N-1 (`cd674fc`) com o agente Podman real em N | PASS: stack em 33 s, agente reconectado em 36 s, leituras sem erro, auditoria idêntica, ambientes e identidade preservados |
+| Atualização N-1 → N | PASS: mesmos tempos e verificações |
+| Licença e avisos de terceiros nas imagens e no console | PASS (1de46ef) |
+
+Ressalvas: não há migration entre N-1 e N, então o rollback com migration nova não foi exercitado (o runbook manda restaurar o backup nesse caso). A stack tem uma instância só, então o console fica indisponível cerca de 33 s em cada troca. A cópia de exercício, o dump e os arquivos com credenciais foram removidos.
