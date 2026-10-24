@@ -21,7 +21,7 @@
 
 - [ ] T003 [US1] Após autorização externa específica, verificar execução remota do CI existente e artifacts de backend/migrations/PostgreSQL sem skips, frontend, quatro imagens, SBOM/scan e inspeções de usuário/portas/mounts/redes; registrar URL/ID/commit em [plan.md](plan.md), referenciando `deploy/` e `backend/tests/` sem criar workflow concorrente.
 - [ ] T004 [US1] Avaliar os 34 HIGH históricos e scans atuais das quatro imagens em `artifacts/`; registrar correções/re-scan ou classificação/aceite humano com responsável, impacto e expiração em [plan.md](plan.md). Adicionar somente residual demonstrado para autorização; não liberar HIGH por ausência de CRITICAL.
-- [ ] T007 [US1] Confrontar threat model, licenças e artefatos identificados de `deploy/` com [segurança](../../docs/seguranca.md); verificar assinatura/provenance/emissor/digest/revogação em ambiente limpo, incluindo testes negativos. Obter autorização separada se geração/assinatura for necessária; não publicar.
+- [ ] T007 [US1] Confrontar threat model, licenças e artefatos identificados de `deploy/` com [segurança](../../docs/seguranca.md); verificar assinatura/provenance/emissor/digest/revogação em ambiente limpo, incluindo testes negativos. Obter autorização separada se geração/assinatura for necessária; não publicar. *Parcial (2026-10-24)*: threat model consolidado em [threat-model-consolidado.md](threat-model-consolidado.md), aguardando revisão humana (gate 4); licenças PASS (gate 12); assinatura segue no gate 3.
 
 ## Fase 3: Carga e Recuperação (US2)
 
