@@ -22,13 +22,15 @@ public sealed class AgentHostActivity(
     IControlPlaneNotifier notifier,
     EngineSupportOptions engineSupport,
     TimeProvider timeProvider,
-    ILogger<AgentHostActivity> logger)
+    ILogger<AgentHostActivity> logger,
+    ControlPlaneMetrics? metrics = null)
 {
     public const int MaxEventsPerBatch = 100;
 
     // Registro do início da sessão que falhou (por exemplo, banco sem conexões livres no restart da API);
     // refeito a cada heartbeat até gravar, para o host não ficar desconectado com a sessão ativa (spec 005 T016).
     private Func<CancellationToken, Task>? pendingSessionStart;
+    private (string Engine, string Version)? connectedAgent;
 
     /// <summary>Capabilities do Hello que este servidor processa (008 D-009).</summary>
     public static IReadOnlyList<Capability> ServerCapabilities { get; } =
@@ -79,6 +81,9 @@ public sealed class AgentHostActivity(
             hello.CpuCount == 0 ? null : checked((int)Math.Min(hello.CpuCount, int.MaxValue)),
             hello.MemoryBytes == 0 ? null : checked((long)Math.Min(hello.MemoryBytes, long.MaxValue)),
             now);
+        connectedAgent = (engine, hello.AgentVersion);
+        metrics?.AgentConnected(engine, hello.AgentVersion);
+
         async Task RegisterAsync(CancellationToken cancellationToken)
         {
             await hostStore.UpsertDescriptorAsync(descriptor, cancellationToken);
@@ -203,8 +208,16 @@ public sealed class AgentHostActivity(
 
     public async Task OnSessionEndedAsync(AgentSession session, bool stillActiveElsewhere)
     {
+        // Cada sessão desconta a si mesma, inclusive a substituída por outra (a nova sessão já se contou).
+        if (connectedAgent is { } agent)
+        {
+            metrics?.AgentDisconnected(agent.Engine, agent.Version);
+            connectedAgent = null;
+        }
+
         if (stillActiveElsewhere) return;
         liveness.Forget(session.EnvironmentId);
+
         await Guard(async () =>
         {
             var now = timeProvider.GetUtcNow();

@@ -53,7 +53,33 @@ public sealed class AgentHostActivityTests
         Assert.Equal(1, store.DescriptorWrites);
     }
 
-    private static AgentHostActivity Create(FlakyHostStore store, RecordingEventStore events)
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Ended_session_leaves_the_connected_agents_metric_even_when_replaced(bool replaced)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var liveness = new AgentLivenessTracker(TimeProvider.System);
+        using var metrics = new ControlPlaneMetrics(liveness);
+        long connected = 0;
+        using var listener = new System.Diagnostics.Metrics.MeterListener();
+        listener.InstrumentPublished = (instrument, l) =>
+        {
+            if (ReferenceEquals(instrument.Meter, metrics.Meter) && instrument.Name == "dokpod.agents.connected") l.EnableMeasurementEvents(instrument);
+        };
+        listener.SetMeasurementEventCallback<long>((_, value, _, _) => Interlocked.Add(ref connected, value));
+        listener.Start();
+        var session = new AgentSession(Guid.NewGuid(), Guid.NewGuid(), 1);
+        var activity = Create(new FlakyHostStore(failuresLeft: 0), new RecordingEventStore(), metrics);
+
+        await activity.OnSessionStartedAsync(session, Hello(), ct);
+        Assert.Equal(1, Interlocked.Read(ref connected));
+
+        await activity.OnSessionEndedAsync(session, replaced);
+        Assert.Equal(0, Interlocked.Read(ref connected));
+    }
+
+    private static AgentHostActivity Create(FlakyHostStore store, RecordingEventStore events, ControlPlaneMetrics? metrics = null)
     {
         var notifier = new NullControlPlaneNotifier();
         return new AgentHostActivity(
@@ -64,7 +90,8 @@ public sealed class AgentHostActivityTests
             notifier,
             new EngineSupportOptions(),
             TimeProvider.System,
-            NullLogger<AgentHostActivity>.Instance);
+            NullLogger<AgentHostActivity>.Instance,
+            metrics);
     }
 
     private static AgentHello Hello() => new()

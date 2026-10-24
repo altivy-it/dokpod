@@ -52,6 +52,7 @@ public static class ApiHost
         // apareceriam em "Request starting ..." e no log do HttpClient em nível Information.
         builder.Logging.AddFilter("Microsoft.AspNetCore.Hosting.Diagnostics", LogLevel.Warning);
         builder.Logging.AddFilter("System.Net.Http.HttpClient", LogLevel.Warning);
+        builder.AddDokpodTelemetry();
         options ??= LoadOptionsFromEnvironment();
         ArgumentNullException.ThrowIfNull(
             options.ServerCertificate,
@@ -195,6 +196,7 @@ public static class ApiHost
         if (!engineSupport.IsValid()) throw new InvalidOperationException("EngineSupport minimum versions are invalid.");
         builder.Services.AddSingleton(engineSupport);
         builder.Services.AddSingleton<AgentLivenessTracker>();
+        builder.Services.AddSingleton<ControlPlaneMetrics>();
         builder.Services.AddSingleton<IControlPlaneNotifier, SignalRControlPlaneNotifier>();
         builder.Services.AddScoped<UnavailableAgentHostStore>();
         builder.Services.AddScoped<IAgentHostStore>(provider => provider.GetRequiredService<UnavailableAgentHostStore>());

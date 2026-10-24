@@ -34,7 +34,8 @@ public sealed class AgentControlService(
     Dokpod.ControlPlane.Application.Pods.IPodInventoryStore? podStore = null,
     Dokpod.ControlPlane.Application.Terminal.TerminalSessionRegistry? terminals = null,
     IAgentIdentityRegistry? identities = null,
-    Microsoft.Extensions.Hosting.IHostApplicationLifetime? lifetime = null) : AgentControl.AgentControlBase
+    Microsoft.Extensions.Hosting.IHostApplicationLifetime? lifetime = null,
+    Dokpod.ControlPlane.Application.Hosts.ControlPlaneMetrics? metrics = null) : AgentControl.AgentControlBase
 {
     private const int MaximumMessageBytes = 1_048_576;
     private static readonly TimeSpan HeartbeatTimeout = TimeSpan.FromSeconds(90);
@@ -161,6 +162,8 @@ public sealed class AgentControlService(
             var stopping = Task.Delay(Timeout.InfiniteTimeSpan, lifetime?.ApplicationStopping ?? CancellationToken.None);
             var nextMessage = requestStream.MoveNext(sessionCancellation.Token);
             Task<PersistedAgentCommand>? nextCommand = null;
+            // Despacho por comando desta sessão, para `dokpod.command.duration` (gate de observabilidade da spec 005).
+            var dispatched = new Dictionary<Guid, (string Kind, long Timestamp)>();
             while (true)
             {
                 nextCommand ??= recoveredCommands.TryDequeue(out var recoveredCommand)
@@ -252,6 +255,11 @@ public sealed class AgentControlService(
                         Metadata = CreateServerMetadata(session, ++serverSequence),
                         Command = MapCommand(command.Command),
                     });
+                    if (dispatched.Count < 1_000)
+                    {
+                        dispatched[command.Command.CommandId] = (command.Command.Kind.ToString(), System.Diagnostics.Stopwatch.GetTimestamp());
+                    }
+
                     continue;
                 }
 
@@ -521,6 +529,12 @@ public sealed class AgentControlService(
                             context.CancellationToken);
                         if (Guid.TryParse(requestStream.Current.CommandResult.CommandId, out var completedCommandId))
                         {
+                            var known = dispatched.Remove(completedCommandId, out var sent);
+                            metrics?.CommandCompleted(
+                                known ? sent.Kind : "unknown",
+                                requestStream.Current.CommandResult.State.ToString().ToLowerInvariant(),
+                                requestStream.Current.CommandResult.FailureCode is { Length: > 0 and <= 64 } code ? code : null,
+                                known ? System.Diagnostics.Stopwatch.GetElapsedTime(sent.Timestamp) : null);
                             await hostActivity.OnCommandResultAsync(
                                 session.EnvironmentId,
                                 completedCommandId,
