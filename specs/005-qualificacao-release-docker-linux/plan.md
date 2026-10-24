@@ -145,3 +145,52 @@ Procedimento e comandos em [backup, restore e atualização](../../docs/runbooks
 | Licença e avisos de terceiros nas imagens e no console | PASS (1de46ef) |
 
 Ressalvas: não há migration entre N-1 e N, então o rollback com migration nova não foi exercitado (o runbook manda restaurar o backup nesse caso). A stack tem uma instância só, então o console fica indisponível cerca de 33 s em cada troca. A cópia de exercício, o dump e os arquivos com credenciais foram removidos.
+
+## Matriz de gates (T018) — 2026-10-24
+
+Candidata: **Docker Linux**, commit `33684ff` (branch `005-qualificacao-release`, PR #30), CI remoto `40123301221` verde. Esta matriz não altera `docs/release-readiness.md` (FR-001) e não autoriza publicação nem deploy (FR-009).
+
+**Legenda**: **PASS** = comprovado; **PASS (lab)** = comprovado no laboratório local (estação compartilhada, não VM isolada); **PARCIAL** = parte comprovada, com o restante indicado; **NOT RUN** = sem evidência; **ADIAMENTO PROPOSTO** = depende de decisão humana.
+
+| # | Gate | Origem | Estado | Evidência | Pendência e destino |
+| --- | --- | --- | --- | --- | --- |
+| 1 | CI remoto com PostgreSQL real e imagens | P-01, FR-002 | PARCIAL | Run `40123301221` (`33684ff`): Backend, Frontend e Images verdes; 681 testes backend, sem skips (inclui os de PostgreSQL); SBOM e Trivy das quatro imagens | Automatizar a inspeção de usuário, portas, mounts e redes das imagens (FR-002) — 005 |
+| 2 | Vulnerabilidades HIGH/CRITICAL | P-02, FR-003 | PASS | A política do CI reprova HIGH/CRITICAL corrigível ou sem aceite. Web: 0 corrigíveis após `ac985ea`, 93 aceites por CVE vigentes até 2027-01-15. API, BFF e agente sem HIGH/CRITICAL | Renovar ou revisar os aceites antes de 2027-01-15 |
+| 3 | Assinatura e provenance | P-04, FR-006 | PARCIAL | Job `release-images` só em tag `v*`: cosign keyless, attestation e verificação de identidade e emissor (`13ff9bd`, `6265505`) | Nunca executado (não há tag). Faltam o teste local positivo e os negativos (digest alterado, identidade errada) e a revogação (T012). A execução exige autorização própria |
+| 4 | Threat model revisado | P-04, FR-006 | NOT RUN | Threat models por funcionalidade em `docs/seguranca.md` (specs 011–018) | Revisão humana consolidada do conjunto — revisor a definir |
+| 5 | Carga nominal 56/1.120/30 por ≥ 30 min | P-03, FR-004 | PASS (lab) | Todos os limites atendidos: leituras com p95 de 51,5 ms, comandos com p95 de 310 ms, 0,004% de erros, API com 0,17 vCPU | Repetir em VM isolada (FR-004) |
+| 6 | Carga de margem 100/2.000/50 | P-03, FR-004 | PASS (lab) | Leituras com p95 de 59 ms, comandos com p95 de 324 ms, 0,007% de erros, reconexão em 5,7 s | Repetir em VM isolada |
+| 7 | Recuperação | FR-005 | PARCIAL | PASS (lab): reconnect storm (100 agentes em 5,7 s), restart da API com backlog (após `b4be2b7`, `a86058c` e `4ff3623`) e resposta perdida sem efeito duplicado (`Indeterminate` em `745b2fc`, coberto por teste) | NOT RUN: inventário degradado e comandos concorrentes no mesmo container (T016); depois, repetir em VM isolada |
+| 8 | Compatibilidade N/N-1 | FR-007 | PASS | Spec 023 T003: agente N-1 ↔ servidor N por 10 min, sem erros; o sentido inverso falhou e foi corrigido para versões futuras. Em 2026-10-24, o agente N (`dd9a645`) operou com o servidor N-1 (`cd674fc`) | Repetir com as versões efetivamente publicadas |
+| 9 | Backup e restore com auditoria íntegra | FR-007 | PASS (lab) | 41/41 itens idênticos à origem, incluindo o SHA-256 dos 27.200 eventos; trigger append-only ativo e API pronta sobre a cópia | Repetir em VM isolada |
+| 10 | Atualização e rollback | FR-007 | PASS (lab) | N → N-1 e N-1 → N com o agente Podman real: 33 s de indisponibilidade, auditoria, ambientes e identidades preservados; runbook `docs/runbooks/backup-restore-e-atualizacao.md` | Rollback com migration nova não exercitado (o runbook manda restaurar o backup) |
+| 11 | Observabilidade de release | FR-007 | NOT RUN | Health checks `/health/live` e `/health/ready/*`; não há métricas, traces nem OpenTelemetry no backend | Definir e comprovar métricas, alertas e diagnóstico operacional — 005 |
+| 12 | Licença, avisos e código-fonte | FR-008 | PASS | `1de46ef`: LICENSE e avisos de terceiros nas quatro imagens, rótulo OCI `AGPL-3.0-only`, oferta do código-fonte no console. Nenhuma chave, serviço de licenciamento ou telemetria comercial no código | — |
+| 13 | Autenticação, autorização e revogação | readiness | PASS | Autorização horizontal e revogação PASS (`docs/release-readiness.md`); permissões do Keycloak por scope (spec 023) | — |
+| 14 | E2E com dependências indisponíveis | readiness | PARCIAL | Jornada autenticada, inventário, lifecycle e revogação PASS | Sessão expirada e indisponibilidade do Keycloak e do PostgreSQL com recuperação da UI — 005 |
+| 15 | Windows (Service real, ACL, atualização e rollback) | P-05, 006 | ADIAMENTO PROPOSTO | Script e DryRun existem; spec 006 não iniciada | Decisão humana: Docker Windows/Desktop **experimental** fora da candidata |
+| 16 | Podman Linux rootless/rootful | P-05, 006 | ADIAMENTO PROPOSTO | Stack completa já validada com Podman rootless (specs 008 e 023), sem qualificação formal | Decisão humana: Podman Linux **adiado** ou **experimental** fora da candidata |
+
+### Veredito recomendado: **NO-GO**
+
+Pela regra do T009, `NOT RUN` mantém NO-GO. Os gates 4 e 11 seguem `NOT RUN`, e os gates 5, 6, 9 e 10 só têm evidência de laboratório, sem a VM isolada que o FR-004 exige.
+
+Para chegar a GO na candidata Docker Linux:
+
+1. Revisão humana do threat model (gate 4).
+2. Observabilidade de release definida e comprovada (gate 11).
+3. Carga nominal, margem, recuperação, restore e rollback repetidos em VM isolada (gates 5, 6, 7, 9 e 10).
+4. Cenários restantes de recuperação e E2E com dependências indisponíveis (gates 7 e 14).
+5. Inspeção automática das imagens no CI (gate 1).
+6. Exercício da assinatura, com testes negativos, sob autorização (gate 3).
+7. Decisão formal sobre o adiamento de Windows e Podman (gates 15 e 16).
+
+### Decisão humana
+
+| Campo | Valor |
+| --- | --- |
+| Decisão | *pendente* |
+| Responsável | lzocateli (solicitante) |
+| Data | *pendente* |
+| Adiamentos aceitos (gates 15 e 16) | *pendente* |
+| Observações | *pendente* |
