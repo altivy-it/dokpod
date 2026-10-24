@@ -7,12 +7,15 @@ Ferramentas da qualificação de release (spec 005, T013 a T016). Nada aqui faz 
 | `Dokpod.LoadSim/` | Simulador de agentes: N instâncias do `AgentControlWorker` real (mesmo protocolo, mTLS, journal, inventário, eventos, métricas e comandos), cada uma com um engine em memória (`FakeEngine`) de 20 containers e reinícios aleatórios. |
 | `vusers.py` | Usuários virtuais pela borda (nginx + BFF, login real no Keycloak): leituras do console com pesos, comandos periódicos e medição de latência, erros, comando aceito → concluído e convergência do inventário. |
 | `resources.sh` | Amostra CPU e memória de containers a cada 10 s. |
+| `provision-load-hosts.sh` | Emite pela CA de laboratório os certificados de cliente dos ambientes `Carga NNN`, grava os fingerprints em `dokpod.agent_identities` e gera o `agents.json`. |
 
 ## Preparar
 
-1. Hosts de carga: cada agente simulado precisa de um ambiente cadastrado, um certificado de cliente emitido pela CA do ambiente, a identidade (fingerprint SHA-256) em `dokpod.agent_identities` e o recurso `urn:dokpod:environment:{id}` com as permissões por scope no Keycloak. No laboratório isso é feito por um script local (fora do repositório, porque escreve direto no banco e no Keycloak).
-2. `agents.json`: `[{ "environmentId": "...", "pfx": "/load/certs/carga-001.pfx" }]`.
-3. Publicar o simulador: `dotnet publish tools/loadtest/Dokpod.LoadSim -c Release -o tools/loadtest/Dokpod.LoadSim/out`.
+1. Hosts de carga: cada agente simulado precisa de um ambiente `Carga NNN` cadastrado e do recurso `urn:dokpod:environment:{id}` com as permissões por scope no Keycloak (`provision-environment-authorization.ps1`).
+2. Certificados, identidades e `agents.json` (`[{ "environmentId": "...", "pfx": "/load/certs/carga-001.pfx" }]`): `tools/loadtest/provision-load-hosts.sh 100 ~/.microsoft/usersecrets/Dokpod/load`. A pasta guarda chaves privadas e fica fora do repositório. Para a carga nominal, use os 56 primeiros hosts do arquivo.
+3. Publicar o simulador: `dotnet publish tools/loadtest/Dokpod.LoadSim -c Release -o tools/loadtest/Dokpod.LoadSim/out`. Com mais de uma origem NuGet configurada no usuário, o gerenciamento central de pacotes falha (NU1507): passe `-p:RestoreConfigFile=<nuget.config só com nuget.org>`.
+
+No Podman rootless, rode o simulador e os usuários virtuais com `--userns keep-id --user $(id -u):$(id -g)`, para que leiam os arquivos privados da pasta de carga.
 
 ## Executar
 
