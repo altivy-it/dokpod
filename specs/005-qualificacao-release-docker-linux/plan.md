@@ -71,3 +71,23 @@ Revisão formal pendente, sem aprovação declarada. [Arquitetura](../../docs/ar
 3. **Recuperação (T006)**: resposta perdida, reconnect storm, comandos concorrentes em ambientes distintos, restart da API com comandos não terminais e verificação de dedup/fencing (sem efeito duplicado).
 4. **Operação (T008)**: N/N-1 (evidência da 023), backup/restore com integridade da auditoria, atualização e rollback da stack, licença e avisos de terceiros.
 5. **Matriz e decisão (T009)**: matriz de gates com evidência, `NOT RUN` explícitos e destino; decisão GO/NO-GO pelo solicitante.
+
+## Evidências de carga
+
+### Carga nominal — laboratório local, 2026-10-24 (T015)
+
+**Cenário**: 56 agentes simulados (`Dokpod.LoadSim`, protocolo e mTLS reais) × 20 containers = 1.120 containers, com reinícios espontâneos (média de 120 s por host); 30 usuários virtuais pela borda (gateway + BFF, login real no Keycloak) por 31 min (16:11:54Z–16:42:59Z). Stack no commit `2af719f`: API, BFF e web reconstruídas do HEAD; Podman 5.7.0 rootless; estação de trabalho com 12 vCPU e 30 GB compartilhada com Keycloak e PostgreSQL. **Não é VM isolada**: vale como evidência de laboratório. O FR-004 continua pedindo repetição em VM isolada.
+
+| Limite aprovado | Medido | Resultado |
+| --- | --- | --- |
+| Leituras p95 ≤ 500 ms / p99 ≤ 1,5 s | p95 51,5 ms / p99 63,3 ms (27.363 leituras; máx. 475,9 ms) | PASS |
+| Comando aceito → concluído p95 ≤ 3 s | p95 310,1 ms (916 comandos; máx. 568,5 ms) | PASS |
+| Convergência do inventário ≤ 30 s | p95 32,6 ms / p99 44,8 ms / máx. 551,8 ms | PASS |
+| Erros < 0,1% | 0,004% (1 de 27.363): um comando `stale_target`, porque um reinício espontâneo mudou a revisão antes da execução, e a rejeição esperada pela concorrência otimista | PASS |
+| API ≤ 2 vCPU e 1,5 GB | CPU média 0,17 vCPU (máx. 0,19); memória máx. 345 MiB | PASS |
+| Sem perda nem efeito duplicado | 915 comandos `succeeded` = 915 execuções registradas no engine simulado (`LOADSIM_EXEC_LOG`) | PASS |
+| Reconexão de todos os agentes ≤ 60 s | fora do perfil nominal; medir na margem e na recuperação (T016) | NOT RUN |
+
+Demais componentes: BFF 0,04 vCPU / 108 MiB; Keycloak 0,41 vCPU / 1.024 MiB; PostgreSQL 0,14 vCPU / 957 MiB; web 13 MiB. Os 56 agentes ficaram conectados durante toda a rodada.
+
+Reprodução: `tools/loadtest/README.md`, com `provision-load-hosts.sh 100 <pasta>` e os 56 primeiros hosts. Os resultados brutos (`nominal.json` e `nominal-recursos.csv`) ficam na pasta de carga, fora do repositório.
