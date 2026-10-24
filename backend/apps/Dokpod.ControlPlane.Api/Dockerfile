@@ -28,15 +28,18 @@ RUN dotnet publish backend/apps/Dokpod.ControlPlane.Api/Dokpod.ControlPlane.Api.
 FROM lzocateli/dotnet-aspnet:10.0.13-noble-v1 AS runtime
 LABEL org.opencontainers.image.title="dokpod-api" \
     org.opencontainers.image.description="API do plano de controle Dokpod para protocolo de agentes e health do laboratório." \
-    org.opencontainers.image.source="https://github.com/lzocateli/dokpod" \
-    org.opencontainers.image.documentation="https://github.com/lzocateli/dokpod/tree/main/deploy/e2e" \
-    org.opencontainers.image.url="https://github.com/lzocateli/dokpod"
+    org.opencontainers.image.source="https://github.com/altivy-it/dokpod" \
+    org.opencontainers.image.documentation="https://github.com/altivy-it/dokpod/tree/main/deploy/e2e" \
+    org.opencontainers.image.url="https://github.com/altivy-it/dokpod"
 WORKDIR /app
 USER root
 RUN apt-get update \
     && apt-get install --yes --no-install-recommends curl \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=publish /app/publish ./
+# Spec 005 FR-008: licença do Dokpod dentro da imagem e no rótulo OCI.
+LABEL org.opencontainers.image.licenses="AGPL-3.0-only"
+COPY LICENSE /usr/share/licenses/dokpod/LICENSE
 USER $APP_UID
 EXPOSE 7443 8080
 HEALTHCHECK --interval=10s --timeout=3s --start-period=10s --retries=6 CMD curl --fail --silent http://127.0.0.1:8080/health/live || exit 1

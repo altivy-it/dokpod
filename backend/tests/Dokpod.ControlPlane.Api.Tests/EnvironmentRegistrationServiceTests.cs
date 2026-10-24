@@ -41,15 +41,18 @@ public sealed class EnvironmentRegistrationServiceTests
         var store = new RecordingEnvironmentRegistrationStore { PageToRead = new EnvironmentRegistrationPage([reader], null) };
         var decider = new ResourceAuthorizationDecider(reader.EnvironmentId);
         var granted = new Dictionary<Guid, IReadOnlySet<string>> { [reader.EnvironmentId] = new HashSet<string> { EnvironmentResourceScopes.Read, "container:exec" } };
-        async Task<IReadOnlySet<string>> ScopesWith(IEnvironmentGrantReader grants) =>
-            (await new EnvironmentRegistrationService(new EnvironmentAccessService(new RecordingAuditEventWriter(), decider), store, decider, grants)
+        async Task<IReadOnlyList<EnvironmentRegistration>> ListWith(IEnvironmentGrantReader grants, IEnvironmentAuthorizationDecider? perHost = null) =>
+            (await new EnvironmentRegistrationService(new EnvironmentAccessService(new RecordingAuditEventWriter(), perHost ?? decider), store, perHost ?? decider, grants)
                 .ListAsync(null, 20, AuthenticatedActor.FromSubject("leitor"), "access-token", Guid.NewGuid(), TestContext.Current.CancellationToken))
-            .Registrations.Single().Scopes;
+            .Registrations;
 
         // Spec 023: só leitura concedida; scope concedido mas fora do cadastro não aparece.
-        Assert.Equal([EnvironmentResourceScopes.Read], await ScopesWith(new StaticGrantReader(granted)));
-        Assert.Empty(await ScopesWith(new StaticGrantReader(new Dictionary<Guid, IReadOnlySet<string>>())));
-        Assert.Equal(reader.Scopes.Order(), (await ScopesWith(new StaticGrantReader(null))).Order());
+        Assert.Equal([EnvironmentResourceScopes.Read], (await ListWith(new StaticGrantReader(granted))).Single().Scopes);
+        // Spec 005: sem environment:read nas permissões lidas, o host não é listado, e nenhuma decisão por host é feita.
+        Assert.Empty(await ListWith(new StaticGrantReader(new Dictionary<Guid, IReadOnlySet<string>>()), new ThrowingDecider()));
+        Assert.Single(await ListWith(new StaticGrantReader(granted), new ThrowingDecider()));
+        // Sem resposta do provedor: volta à decisão por host e mantém o cadastro.
+        Assert.Equal(reader.Scopes.Order(), (await ListWith(new StaticGrantReader(null))).Single().Scopes.Order());
     }
 
     [Fact]
@@ -66,6 +69,12 @@ public sealed class EnvironmentRegistrationServiceTests
         Assert.Equal(["container:stop", "environment:read"], grants[id].Order());
         using var invalid = System.Text.Json.JsonDocument.Parse("{\"result\":true}");
         Assert.Null(Dokpod.ControlPlane.Api.Authorization.KeycloakEnvironmentGrantReader.Parse(invalid.RootElement));
+    }
+
+    private sealed class ThrowingDecider : IEnvironmentAuthorizationDecider
+    {
+        public Task<EnvironmentAuthorizationDecision> DecideAsync(string resource, string scope, AuthenticatedActor actor, string accessToken, Guid correlationId, CancellationToken cancellationToken) =>
+            throw new InvalidOperationException("decisão por host não deveria ser chamada com as permissões já lidas");
     }
 
     private sealed class StaticGrantReader(IReadOnlyDictionary<Guid, IReadOnlySet<string>>? grants) : IEnvironmentGrantReader

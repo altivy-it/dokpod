@@ -4,7 +4,8 @@ Constrói e valida as imagens Linux publicáveis do Dokpod.
 
 .DESCRIPTION
 Constrói API, BFF, web e agente, gera relatório Trivy HIGH/CRITICAL, SBOM
-CycloneDX e falha quando houver vulnerabilidade CRITICAL com correção disponível.
+CycloneDX e falha quando houver vulnerabilidade HIGH/CRITICAL com correção
+disponível ou sem correção e sem aceite vigente em tools/security/trivy-acceptances.json.
 Todos os artifacts ficam em artifacts/security-local.
 
 .PARAMETER Image
@@ -120,6 +121,33 @@ $definitions = [ordered]@{
     }
 }
 
+# Spec 005 FR-003: HIGH/CRITICAL com correção disponível reprova; sem correção, só passa com aceite vigente em
+# tools/security/trivy-acceptances.json (imagem, CVE e pacote; vencido reprova).
+function Test-VulnerabilityPolicy {
+    param([Parameter(Mandatory)][string] $ImageId, [Parameter(Mandatory)][string] $ReportPath)
+    $acceptancesPath = Join-Path $repositoryRoot 'tools' 'security' 'trivy-acceptances.json'
+    $acceptances = if (Test-Path $acceptancesPath) { @((Get-Content -Raw $acceptancesPath | ConvertFrom-Json).acceptances) } else { @() }
+    $today = [DateTime]::UtcNow.Date
+    $report = Get-Content -Raw $ReportPath | ConvertFrom-Json
+    # Modo estrito: relatórios sem achados não trazem `Results`/`Vulnerabilities`, e achados sem correção não trazem `FixedVersion`.
+    $results = if ($report.PSObject.Properties['Results']) { @($report.Results) } else { @() }
+    foreach ($result in $results) {
+        $vulnerabilities = if ($null -ne $result -and $result.PSObject.Properties['Vulnerabilities']) { @($result.Vulnerabilities) } else { @() }
+        foreach ($vulnerability in $vulnerabilities) {
+            if ($null -eq $vulnerability) { continue }
+            $label = "$ImageId $($vulnerability.VulnerabilityID) $($vulnerability.PkgName) $($vulnerability.Severity)"
+            $fixedVersion = if ($vulnerability.PSObject.Properties['FixedVersion']) { [string]$vulnerability.FixedVersion } else { '' }
+            if (-not [string]::IsNullOrWhiteSpace($fixedVersion)) {
+                "${label}: correção disponível ($fixedVersion)"
+                continue
+            }
+            $acceptance = $acceptances | Where-Object { $_.image -eq $ImageId -and $_.id -eq $vulnerability.VulnerabilityID -and $_.package -eq $vulnerability.PkgName } | Select-Object -First 1
+            if ($null -eq $acceptance) { "${label}: sem aceite"; continue }
+            if ([DateTime]::Parse($acceptance.expires, [Globalization.CultureInfo]::InvariantCulture).Date -lt $today) { "${label}: aceite vencido em $($acceptance.expires)" }
+        }
+    }
+}
+
 $selected = if ($Image -eq 'all') { @($definitions.Keys) } else { @($Image) }
 $artifactMount = "${artifactDirectory}:/artifacts"
 $cacheMount = "${cacheDirectory}:/root/.cache/trivy"
@@ -155,10 +183,10 @@ try {
             '--skip-version-check'
         ) + $packageArguments
 
+        # Spec 005 FR-003: o relatório inclui os achados sem correção; a política abaixo decide.
         Invoke-Docker ($commonArguments + @(
             '--scanners', 'vuln',
             '--severity', 'HIGH,CRITICAL',
-            '--ignore-unfixed',
             '--format', 'json',
             '--output', "/artifacts/trivy-$imageId.json",
             $imageReference
@@ -168,14 +196,11 @@ try {
             '--output', "/artifacts/sbom-$imageId.cdx.json",
             $imageReference
         ))
-        Invoke-Docker ($commonArguments + @(
-            '--scanners', 'vuln',
-            '--severity', 'CRITICAL',
-            '--ignore-unfixed',
-            '--exit-code', '1',
-            '--quiet',
-            $imageReference
-        ))
+        $violations = @(Test-VulnerabilityPolicy -ImageId $imageId -ReportPath (Join-Path $artifactDirectory "trivy-$imageId.json"))
+        if ($violations.Count -gt 0) {
+            $violations | ForEach-Object { Write-Error $_ -ErrorAction Continue }
+            throw "Imagem $imageReference reprovada: $($violations.Count) vulnerabilidade(s) HIGH/CRITICAL sem correção aplicada nem aceite vigente."
+        }
 
         Write-Output "Imagem validada: $imageReference"
     }
