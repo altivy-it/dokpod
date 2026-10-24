@@ -1,0 +1,135 @@
+# Regras de alerta do Dokpod (spec 005, gate de observabilidade). Métricas OTLP da API (`job="dokpod-api"`)
+# e do BFF (`job="dokpod-bff"`) recebidas pelo Prometheus. Os limites seguem os aprovados na spec 005
+# (leituras p95 ≤ 500 ms, comando p95 ≤ 3 s, erros < 0,1%, convergência ≤ 30 s). Diagnóstico de cada alerta:
+# docs/runbooks/observabilidade.md. Testes: deploy/observability/dokpod-alerts.test.yml (promtool test rules).
+groups:
+  - name: dokpod-disponibilidade
+    rules:
+      - alert: DokpodApiSemTelemetria
+        expr: absent_over_time(target_info{job="dokpod-api"}[2m])
+        labels:
+          severity: critical
+        annotations:
+          summary: A API do Dokpod parou de enviar métricas há 2 minutos.
+          runbook: docs/runbooks/observabilidade.md#dokpodapisemtelemetria
+
+      - alert: DokpodBffSemTelemetria
+        expr: absent_over_time(target_info{job="dokpod-bff"}[2m])
+        labels:
+          severity: critical
+        annotations:
+          summary: O BFF do Dokpod parou de enviar métricas há 2 minutos.
+          runbook: docs/runbooks/observabilidade.md#dokpodbffsemtelemetria
+
+      - alert: DokpodKeycloakIndisponivel
+        expr: sum(rate(dokpod_authorization_decisions_total{authorization_outcome="indeterminate"}[5m])) > 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: Decisões de autorização indeterminadas; o Keycloak não está respondendo à API.
+          runbook: docs/runbooks/observabilidade.md#dokpodkeycloakindisponivel
+
+      - alert: DokpodPoolDoBancoEsgotando
+        expr: |
+          sum by (job) (db_client_connection_count{db_client_connection_state="used"})
+            / sum by (job) (db_client_connection_max) > 0.9
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.job }} usa mais de 90% do pool de conexões do PostgreSQL."
+          runbook: docs/runbooks/observabilidade.md#dokpodpooldobancoesgotando
+
+  - name: dokpod-agentes
+    rules:
+      - alert: DokpodAgentesDesconectando
+        expr: |
+          sum(dokpod_agents_connected) < 0.9 * max_over_time(sum(dokpod_agents_connected)[30m:1m])
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: Mais de 10% dos agentes conectados nos últimos 30 minutos caíram.
+          runbook: docs/runbooks/observabilidade.md#dokpodagentesdesconectando
+
+      - alert: DokpodHeartbeatAtrasado
+        expr: max(dokpod_agents_heartbeat_age_seconds) > 60
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: Um agente conectado está há mais de 60 s sem heartbeat (padrão 15 s).
+          runbook: docs/runbooks/observabilidade.md#dokpodheartbeatatrasado
+
+      - alert: DokpodInventarioDesatualizado
+        expr: max(dokpod_inventory_lag_seconds) > 120
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: O inventário de um agente está sem projeção há mais de 2 minutos.
+          runbook: docs/runbooks/observabilidade.md#dokpodinventariodesatualizado
+
+  - name: dokpod-comandos-e-leituras
+    rules:
+      - alert: DokpodComandosLentos
+        expr: |
+          histogram_quantile(0.95, sum by (le) (rate(dokpod_command_duration_seconds_bucket[10m]))) > 3
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: O p95 de despacho → resultado dos comandos passou de 3 s.
+          runbook: docs/runbooks/observabilidade.md#dokpodcomandoslentos
+
+      - alert: DokpodComandosFalhando
+        expr: |
+          sum(rate(dokpod_commands_completed_total{command_state="failed", command_failure_code!="stale_target"}[15m]))
+            / sum(rate(dokpod_commands_completed_total[15m])) > 0.05
+          and sum(increase(dokpod_commands_completed_total[15m])) >= 20
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: Mais de 5% dos comandos falharam nos últimos 15 minutos (sem contar alvo desatualizado).
+          runbook: docs/runbooks/observabilidade.md#dokpodcomandosfalhando
+
+      - alert: DokpodComandosIndeterminados
+        expr: sum(increase(dokpod_commands_completed_total{command_state="indeterminate"}[15m])) > 0
+        labels:
+          severity: warning
+        annotations:
+          summary: Há comandos com resultado indeterminado; reconcilie o estado no host.
+          runbook: docs/runbooks/observabilidade.md#dokpodcomandosindeterminados
+
+      - alert: DokpodLeiturasLentas
+        expr: |
+          histogram_quantile(0.95, sum by (le) (rate(http_server_request_duration_seconds_bucket{job="dokpod-bff", http_route="/api/v1/{**path}", http_request_method="GET"}[10m]))) > 0.5
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: O p95 das leituras do console pelo BFF passou de 500 ms.
+          runbook: docs/runbooks/observabilidade.md#dokpodleituraslentas
+
+      - alert: DokpodErrosDoServidor
+        expr: |
+          sum(rate(http_server_request_duration_seconds_count{job="dokpod-bff", http_route="/api/v1/{**path}", http_response_status_code=~"5.."}[10m]))
+            / sum(rate(http_server_request_duration_seconds_count{job="dokpod-bff", http_route="/api/v1/{**path}"}[10m])) > 0.001
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: Mais de 0,1% das chamadas do console à API terminaram em 5xx.
+          runbook: docs/runbooks/observabilidade.md#dokpoderrosdoservidor
+
+  - name: dokpod-auditoria
+    rules:
+      - alert: DokpodAuditoriaFalhando
+        expr: sum(increase(dokpod_audit_append_failures_total[5m])) > 0
+        labels:
+          severity: critical
+        annotations:
+          summary: Falha ao gravar eventos de auditoria; ações auditadas podem estar sendo recusadas.
+          runbook: docs/runbooks/observabilidade.md#dokpodauditoriafalhando
