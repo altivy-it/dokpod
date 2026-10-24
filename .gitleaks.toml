@@ -19,6 +19,10 @@ regexes = [
 	'''^\s*['"]<[A-Za-z][A-Za-z0-9_-]*>['"]\s*$''',
 	'''^\s*\$(?:(?:env|script):)?[A-Za-z_][A-Za-z0-9_]*\s*\}?\s*$''',
 	'''^\s*['"]?\$\{[A-Za-z_][A-Za-z0-9_]*\}['"]?\s*$''',
+	# Shell: padrão vazio (`${VAR:-}`), leitura de `.env` por nome (`$(sed -n 's/^NOME=//p' ...)`) e variável em argumento entre aspas (`"chave=$var"`).
+	'''^\s*\$\{[A-Za-z_][A-Za-z0-9_]*:-\}\s*$''',
+	'''^\$\(sed -n 's/\^[A-Z][A-Z0-9_]*=//p' ''',
+	'''^\$[A-Za-z_][A-Za-z0-9_]*"(?:\s|$)''',
 	'''^\s*\$\(ConvertTo-NpgsqlValue \$[A-Za-z_][A-Za-z0-9_]*\)\s*$''',
 	'''^\s*Get-EnvironmentSecret @\((?:['"][A-Z][A-Z0-9_]*['"]|\$[A-Za-z_][A-Za-z0-9_]*)\)\s*$''',
 	'''^\s*Get-EnvironmentSecret @\("DOKPOD_IDP_\$\(\$Provider\.prefix\)_CLIENT_SECRET"\)\s*$''',
