@@ -168,18 +168,17 @@ Candidata: **Docker Linux**, commit `33684ff` (branch `005-qualificacao-release`
 | 12 | Licença, avisos e código-fonte | FR-008 | PASS | `1de46ef`: LICENSE e avisos de terceiros nas quatro imagens, rótulo OCI `AGPL-3.0-only`, oferta do código-fonte no console. Nenhuma chave, serviço de licenciamento ou telemetria comercial no código | — |
 | 13 | Autenticação, autorização e revogação | readiness | PASS | Autorização horizontal e revogação PASS (`docs/release-readiness.md`); permissões do Keycloak por scope (spec 023) | — |
 | 14 | E2E com dependências indisponíveis | readiness | PASS (com aceite) | Jornada autenticada, inventário, lifecycle e revogação PASS | Residual aceito pelo solicitante em 2026-10-24: sessão expirada e indisponibilidade do Keycloak e do PostgreSQL com recuperação da UI ficam sem E2E dedicado |
-| 15 | Windows (Service real, ACL, atualização e rollback) | P-05, 006 | ADIAMENTO PROPOSTO | Script e DryRun existem; spec 006 não iniciada | Decisão humana: Docker Windows/Desktop **experimental** fora da candidata |
-| 16 | Podman Linux rootless/rootful | P-05, 006 | ADIAMENTO PROPOSTO | Stack completa já validada com Podman rootless (specs 008 e 023), sem qualificação formal | Decisão humana: Podman Linux **adiado** ou **experimental** fora da candidata |
+| 15 | Windows (Service real, ACL, atualização e rollback) | P-05, 006 | PASS (decisão); Podman Windows ADIADO | Docker no Windows com Docker Desktop testado manualmente pelo solicitante em 2026-10-24, que declarou o funcionamento. Script do Windows Service e DryRun no repositório | Decisão do solicitante em 2026-10-24: Docker Windows (Docker Desktop) aprovado; Podman Windows **adiado**. O teste manual não tem evidência registrada aqui, e Service real, ACL, atualização e rollback do agente Windows seguem sem prova no repositório (spec 006) |
+| 16 | Podman Linux rootless/rootful | P-05, 006 | PASS (decisão) | Teste manual do solicitante (2026-10-24), que declarou o funcionamento. Laboratório: stack completa com agente Podman rootless (specs 008 e 023) e rollback N ↔ N-1 com o agente Podman real (gate 10) | Decisão do solicitante em 2026-10-24: Podman Linux aprovado. O modo rootful não tem evidência registrada no repositório |
 
 ### Veredito recomendado: **NO-GO**
 
-Pela regra do T009, `NOT RUN` mantém NO-GO. Não há mais gate `NOT RUN` desde a aprovação do gate 4, mas os gates 5, 6, 7, 9, 10 e 11 só têm evidência de laboratório, sem a VM isolada que o FR-004 exige, o gate 3 é `PARCIAL` e os gates 15 e 16 aguardam decisão.
+Pela regra do T009, `NOT RUN` mantém NO-GO. Não há mais gate `NOT RUN` desde a aprovação do gate 4, mas os gates 5, 6, 7, 9, 10 e 11 só têm evidência de laboratório, sem a VM isolada que o FR-004 exige, e o gate 3 é `PARCIAL`. Os gates 15 e 16 foram decididos pelo solicitante, com o Podman Windows adiado.
 
 Para chegar a GO na candidata Docker Linux:
 
 1. Carga nominal, margem, recuperação, restore, rollback e observabilidade repetidos em VM isolada (gates 5, 6, 7, 9, 10 e 11).
 2. Exercício da assinatura, com testes negativos, sob autorização (gate 3).
-3. Decisão formal sobre o adiamento de Windows e Podman (gates 15 e 16).
 
 ### Decisão humana
 
@@ -188,7 +187,7 @@ Para chegar a GO na candidata Docker Linux:
 | Decisão | *pendente* |
 | Responsável | lzocateli (solicitante) |
 | Data | *pendente* |
-| Adiamentos aceitos (gates 15 e 16) | *pendente* |
+| Adiamentos aceitos (gates 15 e 16) | Podman Windows adiado (2026-10-24). Docker Windows (Docker Desktop) e Podman Linux aprovados por teste manual do solicitante |
 | Decisões parciais (2026-10-24) | Gate 1 aceito: as imagens usam sempre as bases do repositório `containers`. Gates 7 e 14 aceitos com o residual registrado nas linhas. Gate 4 aprovado, com as recomendações das lacunas e os riscos R1–R10 aceitos |
 | Observações | *pendente* |
 

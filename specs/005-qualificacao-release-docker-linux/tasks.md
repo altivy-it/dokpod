@@ -34,7 +34,7 @@
 
 **Teste independente**: Matriz obrigatória sem NOT RUN nem exceção vencida.
 
-- [ ] T008 [US3] Confrontar evidências de N/N-1 do [003](../003-inventario-lifecycle-reconciliacao/tasks.md), backup/restore/auditoria, atualização/rollback, observabilidade/alertas, runbooks em `docs/runbooks/`, licença/avisos/código correspondente e CE sem chave/licenciamento externo; registrar matriz Docker Linux e decisões de adiamento do [006](../006-qualificacao-windows-podman/tasks.md) em [plan.md](plan.md).
+- [ ] T008 [US3] Confrontar evidências de N/N-1 do [003](../003-inventario-lifecycle-reconciliacao/tasks.md), backup/restore/auditoria, atualização/rollback, observabilidade/alertas, runbooks em `docs/runbooks/`, licença/avisos/código correspondente e CE sem chave/licenciamento externo; registrar matriz Docker Linux e decisões de adiamento do [006](../006-qualificacao-windows-podman/tasks.md) em [plan.md](plan.md). *Decisões de 2026-10-24 registradas nos gates 15 e 16: Podman Windows adiado; Docker Windows (Docker Desktop) e Podman Linux aprovados por teste manual do solicitante.*
 - [ ] T009 [US3] Registrar gaps específicos restantes em [tasks.md](tasks.md), obter revisão para concluir/revalidar somente residual e submeter matriz a decisão humana GO/NO-GO referenciada em [plan.md](plan.md); obrigatório NOT RUN ou HIGH/CRITICAL sem tratamento mantém NO-GO. Não alterar `docs/release-readiness.md`, publicar, fazer deploy, commit ou push sob esta migração.
 
 ## Dependências e Ordem de Execução
