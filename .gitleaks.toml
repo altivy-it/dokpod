@@ -22,7 +22,9 @@ regexes = [
 	# Shell: padrão vazio (`${VAR:-}`), leitura de `.env` por nome (`$(sed -n 's/^NOME=//p' ...)`) e variável em argumento entre aspas (`"chave=$var"`).
 	'''^\s*\$\{[A-Za-z_][A-Za-z0-9_]*:-\}\s*$''',
 	'''^\$\(sed -n 's/\^[A-Z][A-Z0-9_]*=//p' ''',
-	'''^\$[A-Za-z_][A-Za-z0-9_]*"(?:\s|$)''',
+	# Resto da mesma substituição quando o próprio nome da variável casa com a regra (sufixo SECRET seguido do sinal de igual).
+	'''^//p'{1,2}\s''',
+	'''^\$[A-Za-z_][A-Za-z0-9_]*"(?:[\s`]|$)''',
 	'''^\s*\$\(ConvertTo-NpgsqlValue \$[A-Za-z_][A-Za-z0-9_]*\)\s*$''',
 	'''^\s*Get-EnvironmentSecret @\((?:['"][A-Z][A-Z0-9_]*['"]|\$[A-Za-z_][A-Za-z0-9_]*)\)\s*$''',
 	'''^\s*Get-EnvironmentSecret @\("DOKPOD_IDP_\$\(\$Provider\.prefix\)_CLIENT_SECRET"\)\s*$''',

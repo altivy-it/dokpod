@@ -88,7 +88,9 @@ $cases = @(
     @{ Name = 'documented key list'; Text = 'Mascaramento (`password=`, `secret=`, `token=`)'; Rule = $null }
     @{ Name = 'synthetic canary'; Text = '"DATABASE_PASSWORD={{Canary}}-env"'; Rule = $null }
     @{ Name = 'shell empty default'; Text = New-CredentialAssignment 'secret' '${DOKPOD_PROVISIONER_CLIENT_SECRET:-}'; Rule = $null }
-    @{ Name = 'shell env file lookup'; Text = New-CredentialAssignment '  secret' ('$(sed -n ''s/^DOKPOD_PROVISIONER_CLIENT_SECRET=//p'' "$HOME/.env" | tr -d ''\r'')'); Rule = $null }
+    @{ Name = 'shell env file lookup'; Text = New-CredentialAssignment '  secret' ("`$(sed -n 's/^" + (New-CredentialAssignment 'DOKPOD_PROVISIONER_CLIENT_SECRET' "//p' `"`$HOME/.env`" | tr -d '\r')")); Rule = $null }
+    @{ Name = 'sed substitution remainder'; Text = "  tok=`$(sed -n 's/^DOKPOD_X_" + (New-CredentialAssignment 'SECRET' "//p' `"`$HOME/.env`")"); Rule = $null }
+    @{ Name = 'shell variable quoted in markdown'; Text = 'e `"' + (New-CredentialAssignment 'client_secret' '$secret"` no texto'); Rule = $null }
     @{ Name = 'shell quoted variable'; Text = '  --data-urlencode "' + (New-CredentialAssignment 'client_secret' '$secret" | jq -r .access_token)'); Rule = $null }
     @{ Name = 'shell literal default'; Text = New-CredentialAssignment 'secret' ('${DOKPOD_SECRET:-' + $credential + '}'); Rule = $connectionRule }
     @{ Name = 'literal with parenthesis'; Text = New-CredentialAssignment 'Password' ('Ab' + $credential + '(1'); Rule = $connectionRule }
