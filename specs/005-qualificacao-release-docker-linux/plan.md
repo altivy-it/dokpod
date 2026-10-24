@@ -91,3 +91,38 @@ Revisão formal pendente, sem aprovação declarada. [Arquitetura](../../docs/ar
 Demais componentes: BFF 0,04 vCPU / 108 MiB; Keycloak 0,41 vCPU / 1.024 MiB; PostgreSQL 0,14 vCPU / 957 MiB; web 13 MiB. Os 56 agentes ficaram conectados durante toda a rodada.
 
 Reprodução: `tools/loadtest/README.md`, com `provision-load-hosts.sh 100 <pasta>` e os 56 primeiros hosts. Os resultados brutos (`nominal.json` e `nominal-recursos.csv`) ficam na pasta de carga, fora do repositório.
+
+### Carga de margem — laboratório local, 2026-10-24 (T015)
+
+**Cenário**: 100 agentes simulados × 20 containers = 2.000 containers; 50 usuários virtuais por 30 min (16:50:30Z–17:20:35Z). A stack, o host e a ressalva de VM isolada são os mesmos da nominal.
+
+| Limite aprovado | Medido | Resultado |
+| --- | --- | --- |
+| Leituras p95 ≤ 500 ms / p99 ≤ 1,5 s | p95 59,0 ms / p99 82,9 ms (44.024 leituras; máx. 601 ms). Em 2026-10-17 o p95 foi 569 ms, antes de ea0653b | PASS |
+| Comando aceito → concluído p95 ≤ 3 s | p95 323,9 ms (1.466 comandos) | PASS |
+| Convergência do inventário ≤ 30 s | p95 46,9 ms / p99 59,1 ms | PASS |
+| Erros < 0,1% | 0,007% (3 comandos `stale_target` por reinício espontâneo concorrente) | PASS |
+| API ≤ 2 vCPU e 1,5 GB | CPU média 0,20 vCPU (máx. 0,23); memória máx. 381 MiB | PASS |
+| Sem perda nem efeito duplicado | 1.463 `succeeded` = 1.463 execuções no engine | PASS |
+| Reconexão de todos os agentes ≤ 60 s | partida simultânea dos 100 agentes: todos conectados em 5,7 s | PASS |
+
+### Recuperação — laboratório local, 2026-10-24 (T016)
+
+Cada cenário envia um restart por host de carga, os 100 em paralelo (`recovery.py`), e confere o log de execuções do engine.
+
+**Restart da API com backlog**, primeira execução (`2af719f`): **reprovado**. Três defeitos:
+
+1. A API não encerrava os streams dos agentes no SIGTERM e só saía por SIGKILL após 20 s. Correção: as sessões terminam em `ApplicationStopping` com `Unavailable`, e o agente reconecta à nova instância.
+2. O pool padrão do Npgsql (100) esgotou o `max_connections = 100` do PostgreSQL compartilhado (`53300 too many clients`) com 100 reconexões simultâneas: 32 de 100 comandos foram recusados no envio (500/503). Correção no laboratório: `Maximum Pool Size=40` no `manage-e2e-stack.ps1`, com orientação de dimensionamento em `deploy/e2e/README.md`.
+3. O registro de início de sessão que falhou nesse momento foi engolido, e 9 hosts ficaram **desconectados no console com o agente ativo** até a próxima reconexão. Correção: o registro falho é refeito a cada heartbeat até gravar, e o contexto descarta as entidades pendentes da gravação que falhou.
+
+Mesmo assim, nenhum comando foi perdido ou duplicado: 68 aceitos, 68 `succeeded` e 68 execuções.
+
+**Restart da API com backlog**, depois das correções: **PASS**. 100/100 aceitos; parada e partida em 3,6 s, sem SIGKILL; as 100 sessões foram restabelecidas em até 4,7 s após a partida; 99 `succeeded` = 99 execuções, 1 `stale_target` por reinício espontâneo, nenhuma duplicada; 0 `too many clients`; 100 hosts conectados no console.
+
+**Resposta perdida** (SIGKILL no simulador logo após o envio, com nova subida usando o mesmo journal), três execuções. Nenhuma teve efeito duplicado:
+
+- **Primeira**: 97 executados antes do kill; 96 `succeeded`; reconexão em 5,2 s. Um comando foi executado 66 ms antes do kill, sem resultado gravado, e na reentrega foi reportado como `failed/stale_target`. Isso viola a spec 003 SC-003, porque o efeito ocorreu. Correção no agente: um comando reentregue (`Duplicate`) sem resultado no journal, com alvo mudado ou removido, passa a `Indeterminate` (`engine_result_unknown`). Coberto por `AgentCommandProcessorTests`.
+- **Segunda e terceira** (agente corrigido): 100/100 `succeeded` = 100 execuções. 88 e 100 comandos executados antes do kill; os restantes foram retomados pelo journal. Nenhuma das duas acertou a janela entre a execução e a gravação do resultado, então o novo `Indeterminate` está comprovado por teste, não no laboratório.
+
+Ainda não executados: inventário degradado e comandos concorrentes no mesmo container.
