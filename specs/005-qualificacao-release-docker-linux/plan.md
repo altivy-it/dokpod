@@ -164,7 +164,7 @@ Candidata: **Docker Linux**, commit `33684ff` (branch `005-qualificacao-release`
 | 8 | Compatibilidade N/N-1 | FR-007 | PASS | Spec 023 T003: agente N-1 ↔ servidor N por 10 min, sem erros; o sentido inverso falhou e foi corrigido para versões futuras. Em 2026-10-24, o agente N (`dd9a645`) operou com o servidor N-1 (`cd674fc`) | Repetir com as versões efetivamente publicadas |
 | 9 | Backup e restore com auditoria íntegra | FR-007 | PASS (lab) | 41/41 itens idênticos à origem, incluindo o SHA-256 dos 27.200 eventos; trigger append-only ativo e API pronta sobre a cópia | Repetir em VM isolada |
 | 10 | Atualização e rollback | FR-007 | PASS (lab) | N → N-1 e N-1 → N com o agente Podman real: 33 s de indisponibilidade, auditoria, ambientes e identidades preservados; runbook `docs/runbooks/backup-restore-e-atualizacao.md` | Rollback com migration nova não exercitado (o runbook manda restaurar o backup) |
-| 11 | Observabilidade de release | FR-007 | NOT RUN | Health checks `/health/live` e `/health/ready/*`; não há métricas, traces nem OpenTelemetry no backend | Definir e comprovar métricas, alertas e diagnóstico operacional — 005 |
+| 11 | Observabilidade de release | FR-007 | PASS (lab) | OpenTelemetry (OTLP) na API e no BFF, com métricas dos ADRs 0001, 0002 e 0004, traces BFF → API → Keycloak → PostgreSQL e 13 regras de alerta testadas com `promtool`. Três falhas reais dispararam os alertas certos. Runbook `docs/runbooks/observabilidade.md` | Repetir em VM isolada; ligar ao Prometheus e ao destino de alertas da operação |
 | 12 | Licença, avisos e código-fonte | FR-008 | PASS | `1de46ef`: LICENSE e avisos de terceiros nas quatro imagens, rótulo OCI `AGPL-3.0-only`, oferta do código-fonte no console. Nenhuma chave, serviço de licenciamento ou telemetria comercial no código | — |
 | 13 | Autenticação, autorização e revogação | readiness | PASS | Autorização horizontal e revogação PASS (`docs/release-readiness.md`); permissões do Keycloak por scope (spec 023) | — |
 | 14 | E2E com dependências indisponíveis | readiness | PASS (com aceite) | Jornada autenticada, inventário, lifecycle e revogação PASS | Residual aceito pelo solicitante em 2026-10-24: sessão expirada e indisponibilidade do Keycloak e do PostgreSQL com recuperação da UI ficam sem E2E dedicado |
@@ -173,15 +173,14 @@ Candidata: **Docker Linux**, commit `33684ff` (branch `005-qualificacao-release`
 
 ### Veredito recomendado: **NO-GO**
 
-Pela regra do T009, `NOT RUN` mantém NO-GO. Os gates 4 e 11 seguem `NOT RUN`, e os gates 5, 6, 7, 9 e 10 só têm evidência de laboratório, sem a VM isolada que o FR-004 exige.
+Pela regra do T009, `NOT RUN` mantém NO-GO. O gate 4 segue `NOT RUN`, e os gates 5, 6, 7, 9, 10 e 11 só têm evidência de laboratório, sem a VM isolada que o FR-004 exige.
 
 Para chegar a GO na candidata Docker Linux:
 
 1. Revisão humana do threat model (gate 4).
-2. Observabilidade de release definida e comprovada (gate 11).
-3. Carga nominal, margem, recuperação, restore e rollback repetidos em VM isolada (gates 5, 6, 7, 9 e 10).
-4. Exercício da assinatura, com testes negativos, sob autorização (gate 3).
-5. Decisão formal sobre o adiamento de Windows e Podman (gates 15 e 16).
+2. Carga nominal, margem, recuperação, restore, rollback e observabilidade repetidos em VM isolada (gates 5, 6, 7, 9, 10 e 11).
+3. Exercício da assinatura, com testes negativos, sob autorização (gate 3).
+4. Decisão formal sobre o adiamento de Windows e Podman (gates 15 e 16).
 
 ### Decisão humana
 
@@ -193,3 +192,24 @@ Para chegar a GO na candidata Docker Linux:
 | Adiamentos aceitos (gates 15 e 16) | *pendente* |
 | Decisões parciais (2026-10-24) | Gate 1 aceito: as imagens usam sempre as bases do repositório `containers`. Gates 7 e 14 aceitos com o residual registrado nas linhas |
 | Observações | *pendente* |
+
+### Observabilidade — laboratório local, 2026-10-24 (gate 11)
+
+Stack N com exportação OTLP para Prometheus 3.5.0 (receptor OTLP) e Jaeger 2.5.0, do perfil `observability`. Carga: 10 agentes simulados e 5 usuários virtuais.
+
+| Verificação | Resultado |
+| --- | --- |
+| Métricas recebidas da API e do BFF (`job` = `dokpod-api` / `dokpod-bff`) | PASS: agentes por engine e versão, idade do heartbeat e do inventário, comandos e duração, decisões do Keycloak, auditoria, HTTP por rota, pool e operações do Npgsql e runtime |
+| Valores conferidos com a medição externa | PASS: comando p95 de 0,375 s no Prometheus contra 343 ms nos usuários virtuais; leituras p95 de 62 ms contra 68 ms |
+| Trace ponta a ponta | PASS: BFF → API → Keycloak → PostgreSQL num trace só, pelo `traceparent` |
+| Dados sensíveis | PASS: valores de query string redigidos, SQL parametrizado, sem tokens, cookies ou senhas nos spans |
+| Regras de alerta | PASS: 13 regras, `promtool check rules` e 8 grupos de `promtool test rules` |
+| Falhas reais | PASS: Keycloak parado → `DokpodKeycloakIndisponivel` em 2,5 min (e `DokpodErrosDoServidor` pendente); agentes derrubados → `DokpodAgentesDesconectando` em 5 min; API parada → `DokpodApiSemTelemetria` em 2,5 min, apagando na volta |
+
+Três defeitos foram achados e corrigidos durante a prova:
+
+1. O `AddOtlpExporter` por sinal ignorava o endpoint e o protocolo específicos do sinal e caía em gRPC em `localhost:4317`; agora eles são aplicados explicitamente.
+2. Os buckets padrão dos histogramas são de milissegundos, e com unidade em segundos o p95 dos comandos saía como 4,75 s; agora há buckets em segundos.
+3. `DokpodAgentesDesconectando` somava as séries de instâncias antigas da API depois de um restart; agora a regra usa uma subconsulta do total, e há teste com troca de instância.
+
+Limitação: `DokpodKeycloakIndisponivel` depende de tráfego; sem nenhum uso, a queda aparece só no `/health/ready/keycloak`.
