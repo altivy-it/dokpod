@@ -18,7 +18,7 @@ describe('App', () => {
     expect(app).toBeTruthy();
   });
 
-  it('should sign out through the BFF with antiforgery validation', async () => {
+  it('should sign out through a top-level form POST to the BFF with the antiforgery token', async () => {
     const httpMock = TestBed.inject(HttpTestingController);
 
     const fixture = TestBed.createComponent(App);
@@ -27,8 +27,7 @@ describe('App', () => {
 
     httpMock.expectOne('bff/session').flush({ authenticated: true, subject: 'user-1', name: 'User' });
 
-    const assignSpy = vi.fn();
-    vi.stubGlobal('location', { ...window.location, assign: assignSpy });
+    const submitSpy = vi.spyOn(HTMLFormElement.prototype, 'submit').mockImplementation(() => undefined);
 
     const logoutPromise = (app as any).logout();
 
@@ -36,18 +35,18 @@ describe('App', () => {
     expect(antiforgeryRequest.request.method).toBe('GET');
     antiforgeryRequest.flush({ requestToken: 'csrf-token' });
 
-    for (let i = 0; i < 5; i++) await Promise.resolve();
-
-    const logoutRequest = httpMock.expectOne('bff/logout');
-    expect(logoutRequest.request.method).toBe('POST');
-    expect(logoutRequest.request.headers.get('X-Dokpod-Antiforgery')).toBe('csrf-token');
-    logoutRequest.flush(null);
-
     await logoutPromise;
 
-    expect(assignSpy).toHaveBeenCalledWith('/');
+    expect(submitSpy).toHaveBeenCalledTimes(1);
+    const form = submitSpy.mock.contexts[0] as HTMLFormElement;
+    expect(form.method).toBe('post');
+    expect(form.getAttribute('action')).toBe('bff/logout');
+    const token = form.querySelector<HTMLInputElement>('input[name="__RequestVerificationToken"]');
+    expect(token?.value).toBe('csrf-token');
 
-    vi.unstubAllGlobals();
+    httpMock.expectNone('bff/logout');
+    submitSpy.mockRestore();
+    form.remove();
     httpMock.verify();
   });
 });
