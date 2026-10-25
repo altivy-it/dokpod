@@ -1,0 +1,75 @@
+{
+  "schemaVersion": 1,
+  "toolVersion": "0.5.0",
+  "catalogVersion": "0.5.0",
+  "parameters": {
+    "auto_deploy_environment": "",
+    "commit_scopes": "docs,tooling,deps,actions,repo",
+    "default_branch": "main",
+    "dependabot_ecosystems": "github-actions,nuget:/backend,npm:/frontend/web,docker:/frontend/web;/backend/apps/Dokpod.Bff;/backend/apps/Dokpod.ControlPlane.Api;/deploy/agent",
+    "deploy_environments": "",
+    "deploy_reviewers": "lzocateli",
+    "dotnet_sdk_image": "lzocateli/dotnet-sdk:10.0.402-noble-v1",
+    "dotnet_solution": "Dokpod.slnx",
+    "github_owner": "altivy-it",
+    "github_repo": "dokpod",
+    "initial_version": "0.1.0",
+    "issue_areas": "Arquitetura,Backend,Frontend,Banco de dados,Segurança,DevOps,Documentação,Testes",
+    "legacy_rulesets": "Protecao exclusiva da main",
+    "license": "AGPL-3.0-only",
+    "project_description": "",
+    "project_name": "Dokpod",
+    "project_slug": "dokpod",
+    "publish_snapshots": "false",
+    "release_app_id": "5441343",
+    "release_reviewers": "lzocateli",
+    "release_type": "simple",
+    "require_signed_commits": "true",
+    "required_approvals": "1",
+    "secrets_dir_name": "Dokpod",
+    "version_files": "backend/Directory.Build.props,frontend/web/package.json"
+  },
+  "components": [
+    "ci",
+    "dependency-updates",
+    "repository-policy"
+  ],
+  "files": {
+    ".github/CI-CD.md": {
+      "component": "ci",
+      "sha256": "bea5c9516ffdd09fae59d69c228fd92701c6ddb896a5bc507fb613d22ed3bb58"
+    },
+    ".github/REPOSITORY-POLICY.md": {
+      "component": "repository-policy",
+      "sha256": "e2e8141460a064ba45f84ec01284dfb63d9603021c365fdc86c076c52b3396b3"
+    },
+    ".github/repository-policy.json": {
+      "component": "repository-policy",
+      "sha256": "bdbd480f5edad98a0caf02843f45290dd87078365ee587c4e4275bc4df42d382"
+    },
+    ".github/workflows/gw-dotnet.yml": {
+      "component": "ci",
+      "sha256": "78bd46ca2ef0bccbac37549e1167b34512e4117f3e4cfcd89a47714d9c5c8aa0"
+    },
+    ".github/workflows/gw-gitleaks.yml": {
+      "component": "ci",
+      "sha256": "4a1cf6b0ca1225468c58ec1f555eb2d3a60ab1d62a081b305a33331d44418047"
+    },
+    ".github/workflows/gw-node.yml": {
+      "component": "ci",
+      "sha256": "d1dd2d5eb4b5997fd92d77056ba6355b413717a05c2d693c5d1e1c8f89297546"
+    },
+    ".github/workflows/gw-pr-hygiene.yml": {
+      "component": "ci",
+      "sha256": "b884f9ddac4a9ea19006c06269c76e3032572c30a4b17e630543fe13cbb88ca9"
+    },
+    "tools/scripts/ci/Test-ManagedFiles.ps1": {
+      "component": "ci",
+      "sha256": "55516208cd8ea7d550fecde7d0a4891d9f550e18f96d7a28a4e3e39776f0efc5"
+    },
+    "tools/scripts/ci/Test-PullRequestTitle.ps1": {
+      "component": "ci",
+      "sha256": "bc0273227b343cfa1089a945d4f4ed38963d76e5a99f637b923d9d339bc8f7fa"
+    }
+  }
+}
