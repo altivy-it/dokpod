@@ -4,11 +4,11 @@
 
 **Criada em**: 2026-10-24
 
-**Status**: Rascunho
+**Status**: Aprovada (histórias 1 a 3) - execução autorizada pelo solicitante em 2026-10-25 ("Groundwork já é um projeto em produção, então precisa terminar o que for preciso no dokpod"). A história 4 segue bloqueada pelo GO da spec 005 (FR-011).
 
 **Origem**: IA assistida, a pedido do mantenedor para executar a fase 6 do plano de CI/CD.
 
-**Revisor humano**: A confirmar. Este rascunho não autoriza implementação, publicação nem deploy.
+**Revisor humano**: lzocateli (solicitante). A aprovação não autoriza publicação nem deploy (FR-011).
 
 **Entrada**: Descrição fornecida: "Adotar no Dokpod o processo único de CI/CD distribuído pelo
 Altivy.Groundwork (fase 6 do plano `altivy-groundwork/docs/ci-cd/plano-ci-cd-via-groundwork.md`):
