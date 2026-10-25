@@ -35,8 +35,7 @@
 
 ## Evidências
 
-- [ ] `CI / Result`
-- [ ] `Gitleaks / Full History`
+- [ ] `Result` (inclui higiene do PR e `Gitleaks / Full History`)
 - [ ] Formatação e análise estática
 - [ ] Build de produção
 - [ ] Testes unitários
