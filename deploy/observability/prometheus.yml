@@ -1,0 +1,13 @@
+# Prometheus de laboratório do Dokpod (spec 005, gate de observabilidade): recebe métricas OTLP da API e do
+# BFF e avalia as regras de alerta. Em produção, use o Prometheus da operação com as mesmas regras.
+global:
+  evaluation_interval: 15s
+
+otlp:
+  # `service.name` vira o label `job`; versão e instância ajudam no diagnóstico de rollout.
+  promote_resource_attributes:
+    - service.version
+    - service.instance.id
+
+rule_files:
+  - /etc/prometheus/dokpod-alerts.yml

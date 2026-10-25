@@ -28,6 +28,7 @@ public static class BffHost
         // apareceriam em "Request starting ..." e no log do HttpClient em nível Information.
         builder.Logging.AddFilter("Microsoft.AspNetCore.Hosting.Diagnostics", LogLevel.Warning);
         builder.Logging.AddFilter("System.Net.Http.HttpClient", LogLevel.Warning);
+        builder.AddDokpodTelemetry();
 
         builder.Services.AddOptions<KeycloakOptions>().BindConfiguration(KeycloakOptions.SectionName).ValidateOnStart();
         builder.Services.AddOptions<BffSecurityOptions>().BindConfiguration(BffSecurityOptions.SectionName).ValidateOnStart();
