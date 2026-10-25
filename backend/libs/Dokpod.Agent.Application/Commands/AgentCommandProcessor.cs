@@ -278,12 +278,21 @@ public sealed class AgentCommandProcessor(
             }
 
             var container = await engine.InspectContainerAsync(command.ContainerId, cancellationToken);
+            var stale = container is null ||
+                !string.Equals(container.Revision, command.ExpectedContainerRevision, StringComparison.Ordinal);
+            if (stale && admission == CommandAdmission.Duplicate)
+            {
+                // Spec 003 SC-003 (resposta perdida): o comando já estava no journal sem resultado, então o processo
+                // caiu durante a execução; alvo mudado ou removido pode ser o próprio efeito, não uma falha.
+                return await SaveAsync(CreateResult(command, CommandExecutionState.Indeterminate, "engine_result_unknown", container?.Revision));
+            }
+
             if (container is null)
             {
                 return await SaveAsync(CreateResult(command, CommandExecutionState.Failed, "target_not_found", null));
             }
 
-            if (!string.Equals(container.Revision, command.ExpectedContainerRevision, StringComparison.Ordinal))
+            if (stale)
             {
                 return await SaveAsync(CreateResult(command, CommandExecutionState.Failed, "stale_target", container.Revision));
             }

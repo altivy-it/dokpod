@@ -51,10 +51,10 @@ public sealed class AgentControlWorker(
             System.OperatingSystem.IsWindows()
                 ? X509KeyStorageFlags.MachineKeySet | X509KeyStorageFlags.PersistKeySet
                 : X509KeyStorageFlags.EphemeralKeySet);
-        using var serverCaCertificate = options.ServerCaCertificatePath is null
+        var serverCaCertificates = options.ServerCaCertificatePath is null
             ? null
-            : X509CertificateLoader.LoadCertificateFromFile(options.ServerCaCertificatePath);
-        await using var client = AgentGrpcClient.Create(endpoint, certificate, serverCaCertificate);
+            : AgentGrpcClient.LoadTrustedRoots(options.ServerCaCertificatePath);
+        await using var client = AgentGrpcClient.Create(endpoint, certificate, serverCaCertificates);
 
         while (!stoppingToken.IsCancellationRequested)
         {

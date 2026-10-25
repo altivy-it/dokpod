@@ -46,6 +46,9 @@ public sealed class EnvironmentRegistrationService(
         var registrations = new List<EnvironmentRegistration>(limit);
         var cursor = afterEnvironmentId;
         var decisions = 0;
+        // Spec 005: uma única consulta das permissões do usuário decide a leitura de todos os hosts (antes, uma decisão por
+        // host, em sequência, fazia a latência crescer com o número de hosts). Sem resposta, volta à decisão por host.
+        var grants = grantReader is null ? null : await grantReader.ReadAsync(actor, accessToken, correlationId, cancellationToken).ConfigureAwait(false);
 
         while (registrations.Count < limit && decisions < MaxAuthorizationDecisions)
         {
@@ -57,6 +60,16 @@ public sealed class EnvironmentRegistrationService(
             foreach (var registration in page.Registrations)
             {
                 decisions++;
+                if (grants is not null)
+                {
+                    if (grants.TryGetValue(registration.EnvironmentId, out var granted) && granted.Contains(EnvironmentResourceScopes.Read))
+                    {
+                        registrations.Add(EnvironmentGrants.Restrict(registration, grants));
+                    }
+
+                    continue;
+                }
+
                 var authorization = await AuthorizeReadAsync(
                     registration.EnvironmentId,
                     actor,
@@ -81,23 +94,7 @@ public sealed class EnvironmentRegistrationService(
             }
         }
 
-        return new EnvironmentCatalogResult(await RestrictToGrantsAsync(registrations, actor, accessToken, correlationId, cancellationToken).ConfigureAwait(false), cursor, true, null);
-    }
-
-    /// <summary>
-    /// Spec 023: `Scopes` de cada host passa a ser o cadastro ∩ o concedido ao usuário, para o console e as ações permitidas
-    /// (`allowedActions`) refletirem o usuário. Sem resposta do provedor, mantém o cadastro (cada ação segue decidida no envio).
-    /// </summary>
-    private async Task<List<EnvironmentRegistration>> RestrictToGrantsAsync(
-        List<EnvironmentRegistration> registrations,
-        AuthenticatedActor actor,
-        string accessToken,
-        Guid correlationId,
-        CancellationToken cancellationToken)
-    {
-        if (grantReader is null || registrations.Count == 0) return registrations;
-        var grants = await grantReader.ReadAsync(actor, accessToken, correlationId, cancellationToken).ConfigureAwait(false);
-        return registrations.Select(registration => EnvironmentGrants.Restrict(registration, grants)).ToList();
+        return new EnvironmentCatalogResult(registrations, cursor, true, null);
     }
 
     public async Task<EnvironmentRegistrationResult> RegisterAsync(

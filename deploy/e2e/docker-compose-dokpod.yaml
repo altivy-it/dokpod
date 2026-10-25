@@ -39,6 +39,12 @@ services:
       ConnectionStrings__ControlPlane: ${DOKPOD_CONTROLPLANE_CONNECTION:?Defina DOKPOD_CONTROLPLANE_CONNECTION no secret externo}
       # Spec 013 D-006: key ring próprio da API (valores de criação de container), separado do BFF.
       DataProtection__KeysPath: /var/lib/dokpod-api/keys
+      # Spec 005 (observabilidade): exportação OTLP só com endpoint definido; ver perfil `observability`.
+      OTEL_EXPORTER_OTLP_METRICS_ENDPOINT: ${DOKPOD_E2E_OTEL_METRICS_ENDPOINT:-}
+      OTEL_EXPORTER_OTLP_METRICS_PROTOCOL: http/protobuf
+      OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: ${DOKPOD_E2E_OTEL_TRACES_ENDPOINT:-}
+      OTEL_EXPORTER_OTLP_TRACES_PROTOCOL: http/protobuf
+      OTEL_METRIC_EXPORT_INTERVAL: "15000"
     volumes:
       - dokpod-api-keys:/var/lib/dokpod-api
       - ${DOKPOD_E2E_API_CERTIFICATE_PATH:?Defina o caminho absoluto do certificado PFX da API}:/certs/api.pfx:ro
@@ -69,6 +75,11 @@ services:
       # Sub-rede da identity-global (Docker Desktop: 10.200.7.0/24; no Podman, a sub-rede criada pela plataforma).
       Security__TrustedNetworks__0: ${DOKPOD_E2E_TRUSTED_NETWORK:-10.200.7.0/24}
       Downstream__Api__BaseUrl: http://api:8080
+      OTEL_EXPORTER_OTLP_METRICS_ENDPOINT: ${DOKPOD_E2E_OTEL_METRICS_ENDPOINT:-}
+      OTEL_EXPORTER_OTLP_METRICS_PROTOCOL: http/protobuf
+      OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: ${DOKPOD_E2E_OTEL_TRACES_ENDPOINT:-}
+      OTEL_EXPORTER_OTLP_TRACES_PROTOCOL: http/protobuf
+      OTEL_METRIC_EXPORT_INTERVAL: "15000"
     # Docker Desktop alcança o gateway de identidade pelo host; no Podman rootless, a porta publicada só em
     # 127.0.0.1 não é alcançável por host-gateway e o BFF usa o IP fixo do gateway na identity-global.
     extra_hosts:
@@ -203,6 +214,37 @@ services:
         condition: service_started
       docker-engine:
         condition: service_started
+    networks:
+      dokpod:
+
+  # Observabilidade de laboratório (spec 005): Prometheus recebe métricas OTLP e avalia as regras de
+  # `deploy/observability`; Jaeger recebe traces. Ferramentas de teste, fora da distribuição do Dokpod.
+  # Uso: DOKPOD_E2E_OTEL_METRICS_ENDPOINT=http://prometheus:9090/api/v1/otlp/v1/metrics
+  #      DOKPOD_E2E_OTEL_TRACES_ENDPOINT=http://jaeger:4318/v1/traces
+  prometheus:
+    image: docker.io/prom/prometheus:v3.5.0
+    profiles:
+      - observability
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --web.enable-otlp-receiver
+      - --storage.tsdb.retention.time=2d
+    ports:
+      - "127.0.0.1:19090:9090"
+    volumes:
+      - ../observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro,z
+      - ../observability/dokpod-alerts.yml:/etc/prometheus/dokpod-alerts.yml:ro,z
+    restart: "no"
+    networks:
+      dokpod:
+
+  jaeger:
+    image: docker.io/jaegertracing/jaeger:2.5.0
+    profiles:
+      - observability
+    ports:
+      - "127.0.0.1:16686:16686"
+    restart: "no"
     networks:
       dokpod:
 

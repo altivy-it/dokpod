@@ -91,6 +91,7 @@ O stream operacional com o plano de controle é habilitado quando estas variáve
 | `DOKPOD_AGENT_ENVIRONMENT_ID` | com endpoint configurado | UUID do ambiente associado ao certificado |
 | `DOKPOD_AGENT_CLIENT_CERTIFICATE_PATH` | com endpoint configurado | caminho absoluto do PFX; padrão `identity/agent.pfx` sob o diretório de dados |
 | `DOKPOD_AGENT_CLIENT_CERTIFICATE_PASSWORD` | quando o PFX exigir | senha injetada pelo mecanismo externo de secrets, nunca por argumento ou arquivo versionado |
+| `DOKPOD_AGENT_SERVER_CA_CERTIFICATE_PATH` | não | raízes confiáveis para o certificado da API (PEM, uma ou mais, ou DER com uma); sem ela, vale a confiança do sistema operacional. Em ambos os casos o nome do endpoint precisa estar no certificado da API |
 
 | `DOKPOD_AGENT_REGISTRY_AUTH_FILE` | não | caminho absoluto de um `config.json` no formato Docker (`auths`) com credenciais de registros privados para o pull (spec 012) |
 
@@ -196,7 +197,7 @@ reinicia indefinidamente o processo.
 
 Configuração não secreta pode vir de arquivo montado no Linux ou arquivo protegido no Windows. Secrets e chaves privadas usam arquivos com permissões mínimas ou provider seguro. Variáveis de ambiente são aceitas somente quando o ambiente operacional impedir exposição por inspeção de processo e houver justificativa.
 
-O endpoint gRPC do plano de controle exige um certificado de servidor explícito em `DOKPOD_API_CERTIFICATE_PATH`; a senha opcional do PFX vem de `DOKPOD_API_CERTIFICATE_PASSWORD`. Em produção, use certificado emitido pela PKI da organização ou por uma autoridade confiável, montado como arquivo somente leitura. Não gere certificado autoassinado no startup e não dependa do certificado de desenvolvimento do SDK. Em testes automatizados, certificados autoassinados efêmeros e restritos ao processo são aceitáveis. Em laboratório, uma CA local controlada pode emitir os certificados de servidor e agente, desde que sua raiz seja distribuída explicitamente aos participantes e nunca seja desabilitada a validação da cadeia.
+O endpoint gRPC do plano de controle exige um certificado de servidor explícito em `DOKPOD_API_CERTIFICATE_PATH`; a senha opcional do PFX vem de `DOKPOD_API_CERTIFICATE_PASSWORD`. Em produção, use certificado emitido pela PKI da organização ou por uma autoridade confiável, montado como arquivo somente leitura. Não gere certificado autoassinado no startup e não dependa do certificado de desenvolvimento do SDK. Em testes automatizados, certificados autoassinados efêmeros e restritos ao processo são aceitáveis. Em laboratório, uma CA local controlada pode emitir os certificados de servidor e agente, desde que sua raiz seja distribuída explicitamente aos participantes e nunca seja desabilitada a validação da cadeia. As raízes aceitas para os agentes ficam em `DOKPOD_API_CLIENT_CA_CERTIFICATE_PATH`; esse arquivo e o `DOKPOD_AGENT_SERVER_CA_CERTIFICATE_PATH` aceitam um bundle PEM com a raiz antiga e a nova durante a [troca da CA](runbooks/troca-da-ca-dos-agentes.md).
 
 Campos mínimos:
 
