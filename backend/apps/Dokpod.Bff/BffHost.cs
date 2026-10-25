@@ -200,7 +200,8 @@ public static class BffHost
         endpoints.MapPost("/bff/logout", async (IAntiforgery antiforgery, HttpContext context) =>
         {
             await antiforgery.ValidateRequestAsync(context);
-            return Results.SignOut(new AuthenticationProperties { RedirectUri = "/" },
+            // Volta para a raiz do console; atrás do gateway o PathBase vem do X-Forwarded-Prefix (/dokpod).
+            return Results.SignOut(new AuthenticationProperties { RedirectUri = $"{context.Request.PathBase}/" },
                 [CookieAuthenticationDefaults.AuthenticationScheme, OpenIdConnectDefaults.AuthenticationScheme]);
         }).RequireAuthorization();
     }

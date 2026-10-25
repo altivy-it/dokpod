@@ -2,6 +2,9 @@ import { HttpClient } from '@angular/common/http';
 import { computed, inject, Injectable, signal } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 
+/** Campo de formulário que o antiforgery do ASP.NET Core lê quando o cabeçalho não vem (padrão do framework). */
+export const ANTIFORGERY_FORM_FIELD = '__RequestVerificationToken';
+
 interface AntiforgeryResponse {
   requestToken: string;
 }
@@ -64,13 +67,23 @@ export class SessionService {
     return requestToken;
   }
 
+  /**
+   * Sai por um POST de formulário, que navega a página: o BFF responde com o redirecionamento para o encerramento
+   * da sessão no Keycloak, que volta ao console. Por XHR o navegador seguiria os redirecionamentos dentro da
+   * chamada e a página ficaria parada.
+   */
   async logout(): Promise<void> {
     const requestToken = await this.antiforgeryToken();
-    await firstValueFrom(
-      this.http.post<void>('bff/logout', null, { headers: { 'X-Dokpod-Antiforgery': requestToken } }),
-    );
-    this.session.set(null);
-    this.state.set('anonymous');
-    window.location.assign('/');
+    const form = document.createElement('form');
+    form.method = 'post';
+    form.action = 'bff/logout';
+    form.hidden = true;
+    const token = document.createElement('input');
+    token.type = 'hidden';
+    token.name = ANTIFORGERY_FORM_FIELD;
+    token.value = requestToken;
+    form.append(token);
+    document.body.append(form);
+    form.submit();
   }
 }
