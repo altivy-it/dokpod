@@ -606,6 +606,7 @@ if ($Bootstrap) {
 
     $realmSettings = @{
         displayName = 'Dokpod'; enabled = $true; sslRequired = 'external'; loginTheme = 'dokpod'
+        internationalizationEnabled = $true; supportedLocales = @('pt-BR'); defaultLocale = 'pt-BR'
         registrationAllowed = $false; rememberMe = $false; verifyEmail = [bool]$smtpHost
         loginWithEmailAllowed = $true; duplicateEmailsAllowed = $false; resetPasswordAllowed = [bool]$smtpHost
         editUsernameAllowed = $false; bruteForceProtected = $true; permanentLockout = $false
