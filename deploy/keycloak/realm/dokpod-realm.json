@@ -38,6 +38,9 @@
   "adminEventsEnabled": true,
   "adminEventsDetailsEnabled": false,
   "loginTheme": "dokpod",
+  "internationalizationEnabled": true,
+  "supportedLocales": ["pt-BR"],
+  "defaultLocale": "pt-BR",
   "roles": {
     "client": {
       "dokpod-api": [
