@@ -9,11 +9,11 @@
 - [X] T001 [US1] Aplicar o Groundwork 0.5.0 com `ci`, `dependency-updates` e `repository-policy` e registrar os parâmetros no manifesto. *(2026-10-25: 9 arquivos gerenciados íntegros, `groundwork status` código 0.)*
 - [X] T002 [US1] Integrar os jobs locais ao `ci.yml` semente: `Hygiene` e `Gitleaks` gerenciados, `Result` com `toJSON(needs)` falhando fechado, gatilho `development` removido, concorrência sem cancelar PR em andamento. *(actionlint sem achados.)*
 - [X] T003 [US1] Remover `gitleaks.yml`, preservando `.gitleaks.toml` e `tools/scripts/test-gitleaks.ps1`, executados pelo `gw-gitleaks.yml`.
-- [ ] T004 [US1] Comprovar o `Result` verde no PR desta mudança e conferir que um título fora de Conventional Commits reprova o `Hygiene`.
+- [X] T004 [US1] Comprovar o `Result` verde no PR desta mudança e conferir que um título fora de Conventional Commits reprova o `Hygiene`. *(2026-10-25: PR #40, run `40242666302`, com `Result` verde incluindo `Hygiene / Conventional title`, `Hygiene / Actionlint`, `Hygiene / Managed files` e `Gitleaks / Full History`. Caso negativo no PR descartável #44 (run `40243848863`): título "Teste de título inválido" reprovou `Hygiene / Conventional title` e o `Result`; fechado sem merge.)*
 
 ## Fase 2: Políticas (US2)
 
-- [ ] T005 [US2] `groundwork github --sync --dry-run`, `--sync` e, com T004 comprovado, `--sync --replace-legacy`; registrar o resultado e confirmar `groundwork github` com código 0.
+- [ ] T005 [US2] `groundwork github --sync --dry-run`, `--sync` e, com T004 comprovado, `--sync --replace-legacy`; registrar o resultado e confirmar `groundwork github` com código 0. *(2026-10-25: `--sync` aplicado; rulesets `gw-main-integrity` e `gw-main-review`, secret scanning, push protection, `allow_rebase_merge=false` e `allow_update_branch=true` conformes. Falta `--sync --replace-legacy`, executado pelo mantenedor: remove a proteção clássica e o ruleset `Protecao exclusiva da main`.)*
 - [ ] T006 [US2] Confirmar que o merge com `Result` vermelho é recusado e que o PR verde do admin é integrado por squash sem aprovação de terceiros.
 
 ## Fase 3: Dependências (US3)
