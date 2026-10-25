@@ -22,9 +22,15 @@ public sealed class AgentHostActivity(
     IControlPlaneNotifier notifier,
     EngineSupportOptions engineSupport,
     TimeProvider timeProvider,
-    ILogger<AgentHostActivity> logger)
+    ILogger<AgentHostActivity> logger,
+    ControlPlaneMetrics? metrics = null)
 {
     public const int MaxEventsPerBatch = 100;
+
+    // Registro do início da sessão que falhou (por exemplo, banco sem conexões livres no restart da API);
+    // refeito a cada heartbeat até gravar, para o host não ficar desconectado com a sessão ativa (spec 005 T016).
+    private Func<CancellationToken, Task>? pendingSessionStart;
+    private (string Engine, string Version)? connectedAgent;
 
     /// <summary>Capabilities do Hello que este servidor processa (008 D-009).</summary>
     public static IReadOnlyList<Capability> ServerCapabilities { get; } =
@@ -75,7 +81,10 @@ public sealed class AgentHostActivity(
             hello.CpuCount == 0 ? null : checked((int)Math.Min(hello.CpuCount, int.MaxValue)),
             hello.MemoryBytes == 0 ? null : checked((long)Math.Min(hello.MemoryBytes, long.MaxValue)),
             now);
-        await Guard(async () =>
+        connectedAgent = (engine, hello.AgentVersion);
+        metrics?.AgentConnected(engine, hello.AgentVersion);
+
+        async Task RegisterAsync(CancellationToken cancellationToken)
         {
             await hostStore.UpsertDescriptorAsync(descriptor, cancellationToken);
             await hostStore.SetConnectionAsync(session.EnvironmentId, true, now, cancellationToken);
@@ -106,11 +115,21 @@ public sealed class AgentHostActivity(
             }
 
             await notifier.NotifyAsync(session.EnvironmentId, InvalidationKinds.Host, cancellationToken);
-        }, "session_started");
+        }
+
+        if (!await Guard(() => RegisterAsync(cancellationToken), "session_started"))
+        {
+            pendingSessionStart = RegisterAsync;
+        }
     }
 
     public async Task OnHeartbeatAsync(Guid environmentId, ulong inventoryRevision, CancellationToken cancellationToken)
     {
+        if (pendingSessionStart is { } register && await Guard(() => register(cancellationToken), "session_started_retry"))
+        {
+            pendingSessionStart = null;
+        }
+
         if (liveness.RecordHeartbeat(environmentId, inventoryRevision))
         {
             await Guard(() => hostStore.TouchLastSeenAsync(environmentId, timeProvider.GetUtcNow(), cancellationToken), "heartbeat");
@@ -189,8 +208,16 @@ public sealed class AgentHostActivity(
 
     public async Task OnSessionEndedAsync(AgentSession session, bool stillActiveElsewhere)
     {
+        // Cada sessão desconta a si mesma, inclusive a substituída por outra (a nova sessão já se contou).
+        if (connectedAgent is { } agent)
+        {
+            metrics?.AgentDisconnected(agent.Engine, agent.Version);
+            connectedAgent = null;
+        }
+
         if (stillActiveElsewhere) return;
         liveness.Forget(session.EnvironmentId);
+
         await Guard(async () =>
         {
             var now = timeProvider.GetUtcNow();
@@ -226,11 +253,12 @@ public sealed class AgentHostActivity(
         : type.StartsWith("volume.", StringComparison.Ordinal) ? "volume"
         : "host";
 
-    private async Task Guard(Func<Task> action, string stage)
+    private async Task<bool> Guard(Func<Task> action, string stage)
     {
         try
         {
             await action();
+            return true;
         }
         catch (OperationCanceledException)
         {
@@ -239,6 +267,7 @@ public sealed class AgentHostActivity(
         catch (Exception exception)
         {
             logger.LogWarning(exception, "Agent host activity failed at {Stage}", stage);
+            return false;
         }
     }
 }

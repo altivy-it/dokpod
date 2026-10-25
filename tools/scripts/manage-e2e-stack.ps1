@@ -224,7 +224,7 @@ if ([string]::IsNullOrWhiteSpace($postgresUsername) -or [string]::IsNullOrWhiteS
 }
 
 $previousControlPlaneConnection = [Environment]::GetEnvironmentVariable('DOKPOD_CONTROLPLANE_CONNECTION', 'Process')
-$env:DOKPOD_CONTROLPLANE_CONNECTION = "Host=postgres;Port=5432;Database=keycloak;Username=$(ConvertTo-NpgsqlValue $postgresUsername);Password=$(ConvertTo-NpgsqlValue $postgresPassword);Search Path=dokpod"
+$env:DOKPOD_CONTROLPLANE_CONNECTION = "Host=postgres;Port=5432;Database=keycloak;Username=$(ConvertTo-NpgsqlValue $postgresUsername);Password=$(ConvertTo-NpgsqlValue $postgresPassword);Search Path=dokpod;Maximum Pool Size=40"
 
 $services = @($Service | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
 $profiles = @($ComposeProfile | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })

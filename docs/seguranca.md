@@ -27,7 +27,7 @@ O BFF usa OIDC/OAuth 2.0 Authorization Code com PKCE como cliente confidencial. 
 
 Cada ambiente usa recurso opaco no Keycloak e scopes explícitos como `environment:read`, `container:start`, `container:stop`, `container:restart`, `container:delete` e `audit:read`. A integração que registra recursos é idempotente, reconciliável, auditável e usa credencial de serviço com menor privilégio. Decisão ausente, inválida, expirada ou indisponível falha fechada; memberships e políticas não são copiadas para o PostgreSQL do Dokpod.
 
-Agentes não usam identidade de usuário. Cada ambiente possui certificado próprio, revogável e rotacionável, persistido em volume protegido. O servidor deriva o ambiente do certificado e valida cadeia, EKU, expiração e revogação com falha fechada. Tokens de bootstrap são aleatórios, armazenados como hash, vinculados ao ambiente e à chave pública, consumidos transacionalmente e nunca aparecem em argumentos ou logs. A aprovação mostra o fingerprint; revogação encerra streams ativos.
+Agentes não usam identidade de usuário. Cada ambiente possui certificado próprio, revogável e rotacionável, persistido em volume protegido. O servidor deriva o ambiente do certificado e valida cadeia, EKU, expiração e revogação com falha fechada. A revogação é pelo cadastro de identidades (fingerprint com `revoked_at_utc`), não por CRL/OCSP; a troca da CA, planejada ou por comprometimento, segue o [runbook](runbooks/troca-da-ca-dos-agentes.md), com bundle de raízes para sobreposição. O agente valida a cadeia do servidor contra as raízes configuradas **e** o nome do endpoint no certificado da API. Tokens de bootstrap são aleatórios, armazenados como hash, vinculados ao ambiente e à chave pública, consumidos transacionalmente e nunca aparecem em argumentos ou logs. A aprovação mostra o fingerprint; revogação encerra streams ativos.
 
 ## Engine local
 
@@ -269,6 +269,15 @@ Canários desta qualificação: variável de ambiente, label com senha em URL, c
 | Alterar política sem permissão pela tela nova | Mesmas rotas e regras das specs 016 e 020 (administração de todos os hosts do estágio), com `canEdit` vindo da API; auditoria `container.justification_policy_changed` | `AlertGovernanceServiceTests` (`canEdit` e recusa) |
 
 **Risco residual**: as versões mostradas vêm dos próprios componentes; um componente adulterado pode informar versão falsa (a verificação de integridade continua sendo a assinatura das imagens).
+
+## Cadeia de fornecimento (spec 005)
+
+- **Vulnerabilidades**: o job Images do CI gera SBOM CycloneDX e relatório Trivy HIGH/CRITICAL por imagem e reprova HIGH/CRITICAL com correção disponível ou sem aceite vigente; aceites em [seguranca-excecoes.md](seguranca-excecoes.md).
+- **Assinatura e proveniência**: só em tag `v*` (job `release-images`): publicação no GHCR por digest, assinatura cosign sem chave com a identidade OIDC do workflow, atestado de proveniência e verificação que exige a identidade `…/.github/workflows/ci.yml@refs/tags/<tag>` e o emissor `https://token.actions.githubusercontent.com`.
+- **Verificação por quem instala**: `cosign verify ghcr.io/<owner>/dokpod-<imagem>@<digest> --certificate-identity https://github.com/<owner>/dokpod/.github/workflows/ci.yml@refs/tags/<tag> --certificate-oidc-issuer https://token.actions.githubusercontent.com`; usar sempre o digest.
+- **Threat model consolidado (gate 4)**: [revisão do conjunto](../specs/005-qualificacao-release-docker-linux/threat-model-consolidado.md) com as fronteiras novas da 005 (telemetria OTLP e backup), aprovada em 2026-10-24. A consolidação achou e corrigiu a falta de validação do nome do servidor no agente quando há CA própria configurada.
+- **Testes negativos (2026-10-17, registro local descartável, chaves de teste)**: assinatura válida aceita; chave errada, digest trocado sob a mesma tag e imagem não assinada rejeitados. Repetidos em 2026-10-24 com `tools/security/exercise-signing-local.sh` (cosign 3.1.3, rede interna, sem Rekor), acrescentando o atestado de proveniência, o atestado de outro tipo, a chave retirada da confiança e a assinatura de outro digest copiada: 11/11 casos conferem. A verificação sem chave foi exercitada em 2026-10-25 na tag `v0.1.0-rc.1`, fora do workflow: as 4 imagens e os atestados de proveniência (`gh attestation verify --repo … --source-ref … --signer-workflow …`) aceitos pelo digest; identidade de outra tag, da branch `main`, de outro repositório e de outro workflow, outro emissor, outro tipo de predicado e a assinatura de uma imagem copiada para o digest de outra recusados.
+- **Pacotes privados**: enquanto os pacotes do GHCR forem privados, quem instala precisa de credencial com `read:packages` para baixar a imagem e verificar a assinatura.
 
 ## Desenvolvimento e release
 

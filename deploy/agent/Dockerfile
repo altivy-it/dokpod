@@ -43,9 +43,9 @@ ARG IMAGE_VERSION=0.1.0-dev
 
 LABEL org.opencontainers.image.title="Dokpod Agent" \
     org.opencontainers.image.description="Agente Dokpod para inventário e operações permitidas em containers locais." \
-    org.opencontainers.image.source="https://github.com/lzocateli/dokpod" \
-    org.opencontainers.image.documentation="https://github.com/lzocateli/dokpod/blob/main/docs/distribuicao.md" \
-    org.opencontainers.image.url="https://github.com/lzocateli/dokpod" \
+    org.opencontainers.image.source="https://github.com/altivy-it/dokpod" \
+    org.opencontainers.image.documentation="https://github.com/altivy-it/dokpod/blob/main/docs/distribuicao.md" \
+    org.opencontainers.image.url="https://github.com/altivy-it/dokpod" \
     org.opencontainers.image.version="${IMAGE_VERSION}"
 
 USER root
@@ -53,6 +53,9 @@ RUN install --directory --owner="${APP_UID}" --group="${APP_UID}" --mode=0700 /v
 
 COPY --from=publish --chown=${APP_UID}:${APP_UID} /src/out/ /app/
 
+# Spec 005 FR-008: licença do Dokpod dentro da imagem e no rótulo OCI.
+LABEL org.opencontainers.image.licenses="AGPL-3.0-only"
+COPY LICENSE /usr/share/licenses/dokpod/LICENSE
 USER ${APP_UID}:${APP_UID}
 
 VOLUME ["/var/lib/dokpod-agent"]

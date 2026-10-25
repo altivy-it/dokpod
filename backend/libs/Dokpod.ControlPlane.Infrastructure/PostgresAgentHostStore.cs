@@ -33,7 +33,7 @@ public sealed class PostgresAgentHostStore(ControlPlaneDbContext dbContext)
         entity.CpuCount = descriptor.CpuCount is > 0 ? descriptor.CpuCount : null;
         entity.MemoryBytes = descriptor.MemoryBytes is >= 0 ? descriptor.MemoryBytes : null;
         entity.UpdatedAtUtc = descriptor.UpdatedAtUtc;
-        await dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        await SaveOrDiscardAsync(cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<bool?> SetConnectionAsync(Guid environmentId, bool connected, DateTimeOffset atUtc, CancellationToken cancellationToken)
@@ -59,8 +59,23 @@ public sealed class PostgresAgentHostStore(ControlPlaneDbContext dbContext)
             entity.DisconnectedAtUtc = atUtc;
         }
 
-        await dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        await SaveOrDiscardAsync(cancellationToken).ConfigureAwait(false);
         return previous;
+    }
+
+    // Spec 005 T016: uma gravação que falhou não deixa entidades pendentes no contexto da sessão do agente,
+    // para que a nova tentativa do registro da sessão parta do estado do banco.
+    private async Task SaveOrDiscardAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch
+        {
+            dbContext.ChangeTracker.Clear();
+            throw;
+        }
     }
 
     public async Task TouchLastSeenAsync(Guid environmentId, DateTimeOffset atUtc, CancellationToken cancellationToken)

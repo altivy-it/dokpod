@@ -1,12 +1,19 @@
 # Especificação da Feature: Qualificação de Release Docker Linux
 
-**Branch da migração**: `chore/adotar-spec-kit`; branch de execução a definir após autorização.
+**Branch da migração**: `chore/adotar-spec-kit`; branch de execução: `005-qualificacao-release` (2026-10-17).
 
 **Criada em**: 2026-10-06
 
-**Estado**: `draft` - rascunho de migração, aguardando revisão humana.
+**Estado**: `approved` - execução autorizada pelo solicitante em 2026-10-17 ("siga para a próxima frente"), com as decisões abaixo. O veredito continua **NO-GO** até a decisão humana final (FR-001).
 
 **Entrada**: [Desbloqueio de release](../../docs/plan/desbloqueio-release.md), MVP P-06 e gates da [avaliação de release](../../docs/release-readiness.md), somente consultada.
+
+## Decisões de execução (2026-10-17, solicitante)
+
+- **Imagem web**: manter a base nginx Debian bookworm e registrar **aceite formal por CVE** (responsável, impacto e expiração) para os achados sem correção disponível (3 CRITICAL e 91 HIGH na varredura de 2026-10-17; API, BFF e agente sem HIGH/CRITICAL).
+- **Ambiente de carga**: esta máquina de desenvolvimento, com simulador de agentes construído para isso. A evidência é classificada como **laboratório não isolado**; a VM isolada exigida por FR-004 continua pendente para o GO.
+- **Assinatura e proveniência**: preparar no CI (assinatura keyless e attestation só em tag de release) e testar cenários positivos e negativos localmente; **nenhuma publicação** nesta etapa.
+- **Limites da carga (aprovados antes da medição)**: leituras do console p95 ≤ 500 ms e p99 ≤ 1,5 s; comando aceito → concluído p95 ≤ 3 s; convergência do inventário ≤ 30 s; erros < 0,1%; reconexão de todos os agentes ≤ 60 s; API ≤ 2 vCPU e 1,5 GB; nenhuma perda, duplicidade ou acesso indevido.
 
 ## Cenários do Usuário e Testes (obrigatório)
 

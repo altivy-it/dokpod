@@ -66,6 +66,39 @@ public sealed class AgentLivenessTracker(TimeProvider timeProvider)
     public DateTimeOffset? LastHeartbeat(Guid environmentId) =>
         entries.TryGetValue(environmentId, out var entry) ? entry.LastHeartbeatUtc : null;
 
+    /// <summary>Maior tempo de divergência entre revisão relatada e projetada (métrica `dokpod.inventory.lag`).</summary>
+    public TimeSpan MaxDivergence()
+    {
+        var now = timeProvider.GetUtcNow();
+        var max = TimeSpan.Zero;
+        foreach (var entry in entries.Values)
+        {
+            lock (entry)
+            {
+                UpdateDivergence(entry, now);
+                if (entry.DivergingSinceUtc is { } since && now - since > max) max = now - since;
+            }
+        }
+
+        return max;
+    }
+
+    /// <summary>Maior idade do último heartbeat (métrica `dokpod.agents.heartbeat.age`).</summary>
+    public TimeSpan MaxHeartbeatAge()
+    {
+        var now = timeProvider.GetUtcNow();
+        var max = TimeSpan.Zero;
+        foreach (var entry in entries.Values)
+        {
+            lock (entry)
+            {
+                if (entry.LastHeartbeatUtc != default && now - entry.LastHeartbeatUtc > max) max = now - entry.LastHeartbeatUtc;
+            }
+        }
+
+        return max;
+    }
+
     private static void UpdateDivergence(Entry entry, DateTimeOffset now)
     {
         if (entry.ReportedRevision == entry.ProjectedRevision || entry.ProjectedRevision == 0 && entry.ReportedRevision == 0)

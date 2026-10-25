@@ -86,3 +86,5 @@ Desktop.ini
 *.swp
 *.tmp
 *~
+# Simulador de carga publicado localmente (spec 005)
+tools/loadtest/**/out*/
