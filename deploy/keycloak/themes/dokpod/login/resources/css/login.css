@@ -1,40 +1,53 @@
+/*
+ * Tema de login do Dokpod no design system Altivy (docs/design/app/project/ds/altivy).
+ * Cores, raios, sombras e tipografia vêm de tokens.css e fonts.css, copiados do console pelo build-theme.ps1.
+ * A única cor fora dos tokens é a do símbolo D (img/dokpod-mark.svg), exceção de marca aprovada pelo solicitante.
+ */
 :root {
-    --dokpod-font-display: Georgia, "Times New Roman", serif;
-    --dokpod-font-body: Consolas, "Courier New", monospace;
-    --dokpod-ink: #0b1210;
-    --dokpod-panel: #ffffff;
-    --dokpod-surface: #eef3ef;
-    --dokpod-border: #52635f;
-    --dokpod-muted: #52635f;
-    --dokpod-accent: #2f780f;
-    --dokpod-accent-hover: #235b0b;
-    --dokpod-error: #b42318;
-    --dokpod-focus: #2f780f;
-    --dokpod-shadow: 0 4px 0 rgba(11, 18, 16, 0.22);
+    --pf-v5-global--FontFamily--text: var(--font-sans);
+    --pf-v5-global--FontFamily--heading: var(--font-sans);
+    --pf-v5-global--FontFamily--monospace: var(--font-mono);
+    --pf-v5-global--Color--100: var(--foreground);
+    --pf-v5-global--Color--200: var(--muted);
+    --pf-v5-global--link--Color: var(--teal-light);
+    --pf-v5-global--link--Color--hover: var(--teal-light);
+    --pf-v5-global--primary-color--100: var(--teal-light);
+    --pf-v5-global--BackgroundColor--100: transparent;
 }
 
 * {
     box-sizing: border-box;
 }
 
-html,
-body {
+html {
     min-height: 100%;
+    background: var(--surface-base);
 }
 
 body {
+    min-height: 100vh;
+}
+
+body,
+#keycloak-bg {
+    margin: 0;
     background:
-        linear-gradient(90deg, rgba(82, 99, 95, 0.14) 1px, transparent 1px) 0 0 / 2.5rem 2.5rem,
-        linear-gradient(rgba(82, 99, 95, 0.14) 1px, transparent 1px) 0 0 / 2.5rem 2.5rem,
-        var(--dokpod-surface);
-    color: var(--dokpod-ink);
-    font-family: var(--dokpod-font-body);
-    letter-spacing: 0;
+        radial-gradient(900px 620px at 88% -8%, var(--veil-teal), rgba(94, 234, 212, 0) 62%),
+        radial-gradient(760px 560px at -6% 96%, var(--veil-teal-deep), rgba(15, 118, 110, 0) 62%),
+        radial-gradient(640px 460px at 52% 48%, var(--veil-blue), rgba(37, 99, 235, 0) 70%),
+        var(--surface-base);
+    background-attachment: fixed;
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    font-size: 14px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
 }
 
 .login-pf-page,
 .pf-v5-c-login {
     min-height: 100vh;
+    padding: 0;
     background: transparent;
 }
 
@@ -43,239 +56,374 @@ body {
     grid-template-areas:
         "header"
         "main";
-    grid-template-columns: minmax(0, 31.25rem);
-    align-items: center;
+    grid-template-columns: minmax(0, 480px);
     align-content: center;
     justify-content: center;
-    gap: 1.25rem;
-    width: min(100%, 33.25rem);
+    gap: var(--space-24);
+    width: 100%;
+    max-width: none;
     min-height: 100vh;
     margin: 0 auto;
-    padding: 2rem 1rem;
+    padding: var(--space-32) var(--space-16);
 }
 
+/* Marca: símbolo D, nome e tagline. O texto do nome é o displayName do realm. */
 #kc-header {
     grid-area: header;
-    width: 18rem;
-    margin: 0 auto;
+    margin: 0;
+    padding: 0;
 }
 
 #kc-header-wrapper {
-    width: 100%;
-    min-height: 5.25rem;
+    display: grid;
+    grid-template-columns: 44px auto;
+    column-gap: var(--space-14);
+    align-items: center;
+    justify-content: center;
     margin: 0;
-    padding: 5.25rem 0 0;
-    color: transparent;
-    background: url("../img/logo.svg") center top / contain no-repeat;
+    padding: 0;
+    color: var(--text-strong);
+    font-family: var(--font-sans);
+    font-size: 26px;
+    font-weight: 600;
+    line-height: 1.1;
+    letter-spacing: 0.02em;
+    text-transform: none;
 }
 
-.pf-v5-c-login__main,
-.card-pf,
-#kc-content {
-    grid-area: main;
-    align-self: center;
-    width: 100%;
-    max-width: 31.25rem;
-    margin: 0 auto;
+#kc-header-wrapper::before {
+    content: "";
+    grid-row: span 2;
+    width: 44px;
+    height: 44px;
+    background: url("../img/dokpod-mark.svg") center / contain no-repeat;
 }
 
+#kc-header-wrapper::after {
+    content: "Governe cada engine. Visualize toda a operação.";
+    color: var(--teal-light);
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 1.4;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+}
+
+/* Cartão de vidro (glass-raised). */
 .pf-v5-c-login__main,
 .card-pf {
-    padding: 2rem;
-    border: 1px solid var(--dokpod-border);
-    border-radius: 4px;
-    background: var(--dokpod-panel);
-    box-shadow: var(--dokpod-shadow);
+    grid-area: main;
+    width: 100%;
+    margin: 0;
+    padding: var(--space-32);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-card);
+    background: linear-gradient(145deg, var(--glass-fill-top) 0%, var(--glass-fill-mid) 42%, var(--glass-fill-bottom) 100%);
+    -webkit-backdrop-filter: var(--backdrop-raised);
+    backdrop-filter: var(--backdrop-raised);
+    box-shadow: var(--shadow-glass);
+    color: var(--foreground);
+}
+
+.pf-v5-c-login__main-header,
+.pf-v5-c-login__main-body,
+.pf-v5-c-login__main-footer {
+    padding: 0;
+    background: transparent;
+}
+
+.pf-v5-c-login__main-header {
+    margin-bottom: var(--space-24);
+}
+
+.pf-v5-c-login__main-footer:has(*) {
+    margin-top: var(--space-20);
 }
 
 #kc-page-title {
-    color: var(--dokpod-ink);
-    font-family: var(--dokpod-font-display);
-    font-size: 1.875rem;
-    font-weight: 700;
-    letter-spacing: 0;
-    line-height: 1.1;
+    margin: 0;
+    color: var(--text-strong);
+    font-family: var(--font-sans);
+    font-size: 26px;
+    font-weight: 600;
+    line-height: 1.2;
+    letter-spacing: -0.02em;
 }
 
-.form-group {
-    margin-bottom: 1.25rem;
+.pf-v5-c-form {
+    gap: var(--space-18);
 }
 
-.pf-c-form-control,
-input[type="text"],
-input[type="password"],
-input[type="email"] {
-    min-height: 2.75rem;
-    border: 1px solid var(--dokpod-border);
-    border-radius: 2px;
-    color: var(--dokpod-ink);
-    background: var(--dokpod-panel);
+.pf-v5-c-form__group-label {
+    padding-bottom: var(--space-6);
+}
+
+.pf-v5-c-form__label,
+.pf-v5-c-form__label-text {
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.3;
+    letter-spacing: 0.02em;
+}
+
+.pf-v5-c-form__label-required {
+    color: var(--signal-error);
+}
+
+/* Campos (alt-ctl). */
+.pf-v5-c-form-control {
+    min-height: 40px;
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-control);
+    background: var(--input-fill);
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.25);
+    color: var(--foreground);
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.pf-v5-c-form-control::before,
+.pf-v5-c-form-control::after,
+.pf-v5-c-button.pf-m-control::after {
+    display: none;
+}
+
+.pf-v5-c-form-control > input,
+.pf-v5-c-form-control > select,
+.pf-v5-c-form-control > textarea {
+    height: 38px;
+    padding: 0 var(--space-12);
+    border: 0;
+    outline: 0;
+    background: transparent;
+    color: var(--foreground);
     font: inherit;
+    font-size: 14px;
 }
 
-.pf-c-form-control:focus,
-input[type="text"]:focus,
-input[type="password"]:focus,
-input[type="email"]:focus,
-a:focus,
-button:focus {
-    border-color: var(--dokpod-focus);
-    outline: 2px solid var(--dokpod-focus);
-    outline-offset: 2px;
+.pf-v5-c-form-control > input::placeholder {
+    color: var(--muted);
 }
 
-.pf-c-button.pf-m-primary,
+.pf-v5-c-form-control:focus-within {
+    border-color: var(--teal-light);
+    box-shadow: 0 0 0 4px rgba(94, 234, 212, 0.16);
+}
+
+.pf-v5-c-form-control__icon.pf-m-status,
+.pf-v5-c-form-control.pf-m-error .pf-v5-c-form-control__icon {
+    color: var(--signal-error);
+}
+
+.pf-v5-c-form-control.pf-m-error,
+.pf-v5-c-form-control:has(input[aria-invalid="true"]) {
+    border-color: var(--signal-error);
+}
+
+/* Senha: o grupo inteiro é um campo só, com o botão de mostrar dentro. */
+.pf-v5-c-input-group {
+    align-items: stretch;
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-control);
+    background: var(--input-fill);
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.25);
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.pf-v5-c-input-group:focus-within {
+    border-color: var(--teal-light);
+    box-shadow: 0 0 0 4px rgba(94, 234, 212, 0.16);
+}
+
+.pf-v5-c-input-group:has(input[aria-invalid="true"]) {
+    border-color: var(--signal-error);
+}
+
+.pf-v5-c-input-group .pf-v5-c-form-control,
+.pf-v5-c-input-group .pf-v5-c-form-control:focus-within {
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+}
+
+.pf-v5-c-button.pf-m-control {
+    min-width: 40px;
+    margin: 0;
+    border: 0;
+    border-radius: var(--radius-control);
+    background: transparent;
+    color: var(--muted);
+}
+
+.pf-v5-c-button.pf-m-control:hover {
+    background: var(--hover-wash);
+    color: var(--foreground);
+}
+
+/* Botões: primário (CTA teal) e secundário de vidro, em pílula. */
+.pf-v5-c-button {
+    font-family: var(--font-sans);
+}
+
+.pf-v5-c-button.pf-m-primary,
+.pf-v5-c-button.pf-m-secondary,
 input[type="submit"] {
-    min-height: 2.75rem;
-    border: 1px solid var(--dokpod-accent);
-    border-radius: 2px;
-    background: var(--dokpod-accent);
-    color: #ffffff;
-    font-weight: 700;
+    min-height: 46px;
+    padding: 14px 24px;
+    border: 0;
+    border-radius: var(--radius-pill);
+    font-size: 15px;
+    font-weight: 600;
+    line-height: 1.2;
+    transition: filter 0.15s ease;
 }
 
-.pf-c-button.pf-m-primary:hover,
+.pf-v5-c-button.pf-m-primary,
+input[type="submit"] {
+    background: linear-gradient(180deg, var(--cta-top) 0%, var(--teal-light) 52%, var(--cta-bottom) 100%);
+    box-shadow: var(--shadow-cta);
+    color: var(--ink);
+}
+
+.pf-v5-c-button.pf-m-primary:hover,
 input[type="submit"]:hover {
-    border-color: var(--dokpod-accent-hover);
-    background: var(--dokpod-accent-hover);
+    filter: brightness(1.05);
 }
 
+.pf-v5-c-button.pf-m-primary:disabled,
+input[type="submit"]:disabled {
+    background: rgba(255, 255, 255, 0.08);
+    box-shadow: none;
+    color: rgba(255, 255, 255, 0.4);
+}
+
+.pf-v5-c-button.pf-m-secondary {
+    border: 1px solid var(--glass-border-button);
+    background: linear-gradient(145deg, var(--glass-fill-top) 0%, var(--glass-fill-mid) 42%, var(--glass-fill-bottom) 100%);
+    box-shadow: var(--shadow-cta-secondary);
+    color: var(--foreground);
+}
+
+.pf-v5-c-button.pf-m-secondary::after {
+    display: none;
+}
+
+.pf-v5-c-button.pf-m-secondary:hover {
+    background: linear-gradient(145deg, var(--overlay-fill-top) 0%, var(--overlay-fill-mid) 42%, var(--overlay-fill-bottom) 100%);
+}
+
+.pf-v5-c-button.pf-m-link,
 a {
-    color: var(--dokpod-accent-hover);
-    font-weight: 700;
+    color: var(--teal-light);
+    font-weight: 500;
+    text-decoration: none;
 }
 
-.alert-error,
-.pf-m-danger {
-    border-left: 4px solid var(--dokpod-error);
+.pf-v5-c-button.pf-m-link:hover,
+a:hover {
+    color: var(--teal-light);
+    text-decoration: underline;
+}
+
+/* Foco visível em todo elemento interativo. */
+a:focus-visible,
+button:focus-visible,
+input[type="submit"]:focus-visible,
+input[type="checkbox"]:focus-visible,
+.pf-v5-c-button:focus-visible {
+    outline: 2px solid var(--teal-light);
+    outline-offset: 3px;
+}
+
+/* Mensagens: status sempre com ícone e texto, fundo soft, sem faixa colorida na borda. */
+.pf-v5-c-helper-text__item.pf-m-error,
+.pf-v5-c-helper-text__item.pf-m-error .pf-v5-c-helper-text__item-text,
+[id^="input-error"] {
+    color: var(--signal-error);
+    font-size: 12px;
+}
+
+.pf-v5-c-alert {
+    margin-bottom: var(--space-20);
+    padding: var(--space-12) var(--space-14);
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-md);
+    background: var(--info-tint);
+    box-shadow: none;
+    color: var(--foreground);
+    font-size: 13px;
+}
+
+.pf-v5-c-alert::before {
+    display: none;
+}
+
+.pf-v5-c-alert__title {
+    color: var(--foreground);
+    font-weight: 500;
+}
+
+.pf-v5-c-alert__icon {
+    color: var(--signal-info);
+}
+
+.pf-v5-c-alert.pf-m-danger {
+    background: var(--error-tint-strong);
+}
+
+.pf-v5-c-alert.pf-m-danger .pf-v5-c-alert__icon {
+    color: var(--signal-error);
+}
+
+.pf-v5-c-alert.pf-m-warning {
+    background: var(--warning-tint);
+}
+
+.pf-v5-c-alert.pf-m-warning .pf-v5-c-alert__icon {
+    color: var(--signal-warning);
+}
+
+.pf-v5-c-alert.pf-m-success {
+    background: var(--success-tint);
+}
+
+.pf-v5-c-alert.pf-m-success .pf-v5-c-alert__icon {
+    color: var(--signal-success);
+}
+
+/* Vidro opaco quando o sistema pede menos transparência. */
+@media (prefers-reduced-transparency: reduce) {
+    .pf-v5-c-login__main,
+    .card-pf {
+        background: var(--surface-panel);
+        -webkit-backdrop-filter: none;
+        backdrop-filter: none;
+    }
 }
 
 @media (max-width: 48rem) {
-    .login-pf-page {
-        padding: 1rem 0.75rem;
-    }
-
     .pf-v5-c-login__container {
-        padding: 1rem 0.75rem;
-    }
-
-    #kc-header {
-        width: 15rem;
-        margin: 0 auto;
+        padding: var(--space-24) var(--space-16);
     }
 
     .pf-v5-c-login__main,
     .card-pf {
-        padding: 1.25rem;
-    }
-}
-
-@media (prefers-color-scheme: dark) {
-    :root {
-        --dokpod-ink: #f4f7f5;
-        --dokpod-panel: #15201d;
-        --dokpod-surface: #0b1210;
-        --dokpod-border: #52635f;
-        --dokpod-muted: #a9b5b1;
-        --dokpod-accent: #b7f34a;
-        --dokpod-accent-hover: #d7ff86;
-        --dokpod-focus: #b7f34a;
-        --dokpod-shadow: 0 4px 0 rgba(0, 0, 0, 1);
+        padding: var(--space-24);
     }
 
     #kc-header-wrapper {
-        background-image: url("../img/logo-dark.svg");
+        grid-template-columns: 36px auto;
+        column-gap: var(--space-10);
+        font-size: 22px;
     }
 
-    .pf-c-form-control,
-    input[type="text"],
-    input[type="password"],
-    input[type="email"] {
-        color: var(--dokpod-ink);
-        background: #23312d;
+    #kc-header-wrapper::before {
+        width: 36px;
+        height: 36px;
     }
 
-    .pf-c-button.pf-m-primary,
-    input[type="submit"] {
-        color: #0b1210;
+    #kc-header-wrapper::after {
+        font-size: 10px;
+        letter-spacing: 0.02em;
     }
-}
-
-html[data-dokpod-theme="dark"] {
-    --dokpod-ink: #f4f7f5;
-    --dokpod-panel: #15201d;
-    --dokpod-surface: #0b1210;
-    --dokpod-border: #52635f;
-    --dokpod-muted: #a9b5b1;
-    --dokpod-accent: #b7f34a;
-    --dokpod-accent-hover: #d7ff86;
-    --dokpod-focus: #b7f34a;
-    --dokpod-shadow: 0 4px 0 rgba(0, 0, 0, 1);
-}
-
-html[data-dokpod-theme="dark"] #kc-header-wrapper {
-    background-image: url("../img/logo-dark.svg");
-}
-
-html[data-dokpod-theme="dark"] .pf-c-form-control,
-html[data-dokpod-theme="dark"] input[type="text"],
-html[data-dokpod-theme="dark"] input[type="password"],
-html[data-dokpod-theme="dark"] input[type="email"] {
-    color: var(--dokpod-ink);
-    background: #23312d;
-}
-
-html[data-dokpod-theme="dark"] .pf-c-button.pf-m-primary,
-html[data-dokpod-theme="dark"] input[type="submit"] {
-    color: #0b1210;
-}
-
-html[data-dokpod-theme="light"] {
-    --dokpod-ink: #0b1210;
-    --dokpod-panel: #ffffff;
-    --dokpod-surface: #eef3ef;
-    --dokpod-border: #52635f;
-    --dokpod-muted: #52635f;
-    --dokpod-accent: #2f780f;
-    --dokpod-accent-hover: #235b0b;
-    --dokpod-focus: #2f780f;
-    --dokpod-shadow: 0 4px 0 rgba(11, 18, 16, 0.22);
-}
-
-html[data-dokpod-theme="light"] #kc-header-wrapper {
-    background-image: url("../img/logo.svg");
-}
-
-html[data-dokpod-theme="light"] .pf-c-form-control,
-html[data-dokpod-theme="light"] input[type="text"],
-html[data-dokpod-theme="light"] input[type="password"],
-html[data-dokpod-theme="light"] input[type="email"] {
-    color: var(--dokpod-ink);
-    background: var(--dokpod-panel);
-}
-
-html[data-dokpod-theme="light"] .pf-c-button.pf-m-primary,
-html[data-dokpod-theme="light"] input[type="submit"] {
-    color: #ffffff;
-}
-
-.dokpod-theme-toggle {
-    display: block;
-    min-height: 2.25rem;
-    margin: 0 auto 1rem;
-    padding: 0 0.875rem;
-    border: 1px solid var(--dokpod-border);
-    border-radius: 2px;
-    background: var(--dokpod-panel);
-    color: var(--dokpod-ink);
-    font: inherit;
-    font-size: 0.875rem;
-    font-weight: 700;
-    cursor: pointer;
-}
-
-.dokpod-theme-toggle:focus {
-    border-color: var(--dokpod-focus);
-    outline: 2px solid var(--dokpod-focus);
-    outline-offset: 2px;
 }
