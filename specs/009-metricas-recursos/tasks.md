@@ -40,7 +40,7 @@
 
 ## Fase 6: Encerramento
 
-- [ ] T018 Teste de carga (56 hosts/1.120 containers) e de margem (2.000 containers) para SC-003, precisão SC-001 e tempo de reflexo da mudança de carga SC-002, com evidência registrada para o [005](../005-qualificacao-release-docker-linux/tasks.md). — **NOT RUN**: exige laboratório com 56 hosts/1.120 containers reais e baseline de latência de comandos; precisão (SC-001) e reflexo de carga (SC-002) dependem do mesmo laboratório.
+- [ ] T018 Teste de carga (56 hosts/1.120 containers) e de margem (2.000 containers) para SC-003, precisão SC-001 e tempo de reflexo da mudança de carga SC-002, com evidência registrada para o [005](../005-qualificacao-release-docker-linux/tasks.md). — **NOT RUN**: exige hosts reais sob carga conhecida. A carga da 005 (gates 5 e 6) não cobre este item: o simulador de `tools/loadtest/` não publica amostras de recursos, então o custo da coleta (SC-003), a precisão (SC-001) e o reflexo da mudança de carga (SC-002) seguem sem medição.
 
 ## Dependências e Ordem de Execução
 

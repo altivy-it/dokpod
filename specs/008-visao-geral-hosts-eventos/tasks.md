@@ -57,7 +57,7 @@
 ## Fase 6: Encerramento
 
 - [x] T025 Documentar versão mínima homologada e eventos em `docs/distribuicao.md`, `docs/arquitetura.md` (fluxo de eventos) e `docs/seguranca.md` (sanitização de eventos); atualizar runbook de partições com `environment_events`. — `docs/distribuicao.md` (engines e versões mínimas), `docs/arquitetura.md` (fluxo de eventos), `docs/seguranca.md` (sanitização e retenção restrita) e `docs/runbooks/operacao-eventos-postgresql.md`.
-- [ ] T026 Validar agente N-1 contra servidor N (inventário e comandos) e agente N contra servidor N-1 (sessão mantida, nenhum payload novo enviado; SC-005) e registrar evidência para [005](../005-qualificacao-release-docker-linux/tasks.md); Podman para [006](../006-qualificacao-windows-podman/tasks.md). — compatibilidade N/N-1 no nível do protocolo (`ProtocolCompatibilityTests`); validação com binários N-1 reais e evidência para 005/006: **NOT RUN**.
+- [X] T026 Validar agente N-1 contra servidor N (inventário e comandos) e agente N contra servidor N-1 (sessão mantida, nenhum payload novo enviado; SC-005) e registrar evidência para [005](../005-qualificacao-release-docker-linux/tasks.md); Podman para [006](../006-qualificacao-windows-podman/tasks.md). — compatibilidade N/N-1 no nível do protocolo (`ProtocolCompatibilityTests`); validação com binários N-1 reais: spec [023 T003](../023-qualificacao-stack-real/tasks.md) (agente N-1 ↔ servidor N por 10 min sem erros; o sentido inverso falhou e foi corrigido) e [005 gate 8](../005-qualificacao-release-docker-linux/plan.md#matriz-de-gates-t018--2026-10-24) (agente N com servidor N-1 em 2026-10-24); com o agente Podman real, N → N-1 → N no gate 10 da 005.
 
 ## Dependências e Ordem de Execução
 

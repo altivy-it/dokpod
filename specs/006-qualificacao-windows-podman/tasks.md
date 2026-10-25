@@ -12,7 +12,7 @@
 
 ## Fase 1: Avaliação
 
-- [ ] T001 Submeter os três artefatos deste diretório à revisão humana e decidir quais capabilities qualificar/adiar, sem promover status de suporte.
+- [ ] T001 Submeter os três artefatos deste diretório à revisão humana e decidir quais capabilities qualificar/adiar, sem promover status de suporte. *(Decisões do solicitante em 2026-10-24, registradas nos gates 15 e 16 da [005](../005-qualificacao-release-docker-linux/plan.md#matriz-de-gates-t018--2026-10-24): Docker no Windows com Docker Desktop e Podman Linux aprovados por teste manual; Podman Windows adiado. Os artefatos desta spec seguem em rascunho: Windows Service real, ACL, atualização e rollback no Windows (T003) e o journal Windows (T004) não têm evidência no repositório.)*
 - [ ] T002 Confrontar MVP P-01/P-02/P-05/P-06/P-07 e desbloqueio P-05 com `backend/apps/Dokpod.Agent/`, `deploy/agent/` e `backend/tests/`; registrar em [plan.md](plan.md) evidências de console/DryRun/publish separadas das lacunas de serviço real e Podman.
 
 ## Fase 2: Windows Service (US1)

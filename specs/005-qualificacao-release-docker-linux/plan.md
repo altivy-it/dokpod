@@ -171,6 +171,19 @@ Candidata: **Docker Linux**, commit `33684ff` (branch `005-qualificacao-release`
 | 15 | Windows (Service real, ACL, atualização e rollback) | P-05, 006 | PASS (decisão); Podman Windows ADIADO | Docker no Windows com Docker Desktop testado manualmente pelo solicitante em 2026-10-24, que declarou o funcionamento. Script do Windows Service e DryRun no repositório | Decisão do solicitante em 2026-10-24: Docker Windows (Docker Desktop) aprovado; Podman Windows **adiado**. O teste manual não tem evidência registrada aqui, e Service real, ACL, atualização e rollback do agente Windows seguem sem prova no repositório (spec 006) |
 | 16 | Podman Linux rootless/rootful | P-05, 006 | PASS (decisão) | Teste manual do solicitante (2026-10-24), que declarou o funcionamento. Laboratório: stack completa com agente Podman rootless (specs 008 e 023) e rollback N ↔ N-1 com o agente Podman real (gate 10) | Decisão do solicitante em 2026-10-24: Podman Linux aprovado. O modo rootful não tem evidência registrada no repositório |
 
+### Atualização de 2026-10-25
+
+O PR #30 entrou na `main` em andamento (`966a4ae`). Depois dele, a `main` recebeu mudanças que afetam a candidata, todas com CI e Gitleaks verdes (`e5b7eba`):
+
+| PR | Mudança | Efeito na matriz |
+| --- | --- | --- |
+| #32 | Alertas do Dependabot do frontend (`vite` 8.3.5, `vitest` 4.1.12, `undici` 7.30.1) e imagem de build `lzocateli/angular-cli:22.2.4-node24.22.1-bookworm-v1`, sobre a base `lzocateli/node:24.22.1-bookworm-v1` (containers #142 e #143) | Gates 1 e 2: imagens reconstruídas sobre as bases novas, Trivy sem HIGH/CRITICAL corrigível; 0 alertas abertos no Dependabot |
+| #36 | Tema de login do Keycloak no design system do console e realm em pt-BR | Gate 13: login validado com axe (WCAG 2.2 AA) no laboratório |
+| #37 | **Defeito**: o Sair do console não navegava (logout por XHR seguia os redirecionamentos dentro da chamada). Corrigido com POST de formulário e retorno a `/dokpod/` | Gate 14: o E2E não cobria o Sair pela interface; validado no laboratório com usuário temporário. Fica como lacuna de E2E |
+| #38 | Símbolo D na cor da marca no console | Sem efeito em gate |
+
+Consequência para a repetição em VM: a candidata passa a ser a `main` atual, não `33684ff`. A assinatura do gate 3 vale para os digests da `v0.1.0-rc.1` (`e528b71`); a VM deve usar uma tag nova (`v0.1.0-rc.2` ou posterior), para que as imagens testadas sejam as mesmas assinadas pelo job `release-images`.
+
 ### Veredito recomendado: **NO-GO**
 
 Pela regra do T009, `NOT RUN` mantém NO-GO. Não há mais gate `NOT RUN` desde a aprovação do gate 4, mas os gates 5, 6, 7, 9, 10 e 11 só têm evidência de laboratório, sem a VM isolada que o FR-004 exige. O gate 3 passou com a verificação keyless da `v0.1.0-rc.1`. Os gates 15 e 16 foram decididos pelo solicitante, com o Podman Windows adiado.
@@ -178,6 +191,7 @@ Pela regra do T009, `NOT RUN` mantém NO-GO. Não há mais gate `NOT RUN` desde 
 Para chegar a GO na candidata Docker Linux:
 
 1. Carga nominal, margem, recuperação, restore, rollback e observabilidade repetidos em VM isolada (gates 5, 6, 7, 9, 10 e 11).
+2. A VM com as imagens de uma tag nova (`v0.1.0-rc.2` ou posterior), verificadas pela assinatura antes do teste.
 
 ### Decisão humana
 
