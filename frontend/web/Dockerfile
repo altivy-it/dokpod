@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-FROM lzocateli/angular-cli:22.1.0-node24.15.0-bookworm AS build
+FROM lzocateli/angular-cli:22.2.4-node24.22.1-bookworm-v1 AS build
 WORKDIR /src
 
 COPY --chown=node:node frontend/web/package.json frontend/web/package-lock.json ./
