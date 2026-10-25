@@ -2,7 +2,7 @@
 
 **Data**: 2026-10-06 | **Branch da migração**: `chore/adotar-spec-kit`
 
-**Estado**: `draft` - seis conjuntos em rascunho, aguardando revisão humana.
+**Estado** (2026-10-25): 001 a 004 `superseded`, encerradas por substituição pelas specs 005 a 023 (referência em cada tarefa); 005 `in-progress`, aguardando a repetição em VM isolada e a decisão GO/NO-GO; 006 `draft`, aguardando a máquina Windows de testes; 024 `in-progress` (histórias 1 a 3; a 4 depende do GO da 005).
 
 **Origem**: IA assistida, migração documental autorizada pelo solicitante nesta sessão.
 
