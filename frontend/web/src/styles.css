@@ -3,6 +3,11 @@
 @import "./styles/app-text.css";
 @import "./styles/altivy-kit.css";
 
+/* Cor do símbolo D: exceção de marca fora dos tokens Altivy, a mesma do login do Keycloak (img/dokpod-mark.svg). */
+:root {
+  --brand-mark: #b7f34a;
+}
+
 /* Base global do console (spec 007): tema único escuro, densidade de app. */
 *,
 *::before,
