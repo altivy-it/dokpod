@@ -1,7 +1,7 @@
 # Detecção de secrets
 
 O Dokpod bloqueia secrets em duas camadas complementares: um hook local para o
-diff staged e o check obrigatório `Gitleaks / Full History` para todo o histórico
+diff staged e o job `Gitleaks / Full History` (workflow gerenciado `gw-gitleaks.yml`, parte do check obrigatório `Result`) para todo o histórico
 Git alcançável no runner. Ambos executam exclusivamente a imagem fixada
 `lzocateli/gitleaks:8.30.1` por Docker.
 
@@ -77,7 +77,7 @@ arquivo no commit atual não elimina um secret já presente no histórico.
 
 ## Checklist administrativo
 
-- [ ] Exigir `Gitleaks / Full History` nos rulesets de `main` e `development`.
+- [ ] Exigir `Result`, que agrega `Gitleaks / Full History`, pelo contrato `repository-policy.json` (`groundwork github`).
 - [ ] Habilitar secret scanning e push protection nativos do GitHub quando disponíveis.
 - [ ] Confirmar `core.hooksPath=.githooks` nos clones administrativos.
 - [ ] Revisar e registrar qualquer exceção antes de alterar a configuração do scanner.

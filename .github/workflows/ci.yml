@@ -1,23 +1,40 @@
+# Semente do Altivy.Groundwork (componente ci): pertence ao projeto.
+# Cada job do projeto entra em "needs" do job Result, o ÚNICO check obrigatório da main (ver .github/CI-CD.md).
 name: CI
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, edited]
   push:
     branches:
       - main
-      - development
-    # Spec 005 T012: publicação assinada só em tag de release criada por um humano.
+    # Spec 005 T012: publicação assinada só em tag de release. Fica aqui até a história 4 da spec 024 (gw-release):
+    # a identidade da assinatura é `.github/workflows/ci.yml@refs/tags/<tag>`, verificada por quem instala.
     tags:
       - 'v*'
   workflow_dispatch:
 
 permissions: {}
 
+# Em PRs, uma execução nova espera a anterior: cancelar uma execução em andamento deixa um check
+# Result com falha no mesmo commit, e o ruleset considera todas as execuções do check, bloqueando o merge.
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name != 'pull_request' }}
 
 jobs:
+  hygiene:
+    name: Hygiene
+    uses: ./.github/workflows/gw-pr-hygiene.yml
+    permissions:
+      contents: read
+
+  gitleaks:
+    name: Gitleaks
+    uses: ./.github/workflows/gw-gitleaks.yml
+    permissions:
+      contents: read
+
   backend:
     name: Backend
     runs-on: ubuntu-24.04
@@ -209,6 +226,8 @@ jobs:
     name: Result
     if: ${{ always() }}
     needs:
+      - hygiene
+      - gitleaks
       - backend
       - frontend
       - images
@@ -217,21 +236,14 @@ jobs:
     permissions: {}
     steps:
       - name: Evaluate required jobs
-        env:
-          BACKEND_RESULT: ${{ needs.backend.result }}
-          FRONTEND_RESULT: ${{ needs.frontend.result }}
-          IMAGES_RESULT: ${{ needs.images.result }}
         shell: bash
+        env:
+          NEEDS: ${{ toJSON(needs) }}
         run: |
-          if [[ "$BACKEND_RESULT" != "success" ]]; then
-            echo "Backend terminou com: $BACKEND_RESULT"
+          set -euo pipefail
+          failed=$(jq -r 'to_entries[] | select(.value.result != "success") | "\(.key)=\(.value.result)"' <<<"$NEEDS")
+          if [[ -n "$failed" ]]; then
+            echo "::error::Jobs obrigatórios sem sucesso: ${failed//$'\n'/, }"
             exit 1
           fi
-          if [[ "$IMAGES_RESULT" != "success" ]]; then
-            echo "Images terminou com: $IMAGES_RESULT"
-            exit 1
-          fi
-          if [[ "$FRONTEND_RESULT" != "success" ]]; then
-            echo "Frontend terminou com: $FRONTEND_RESULT"
-            exit 1
-          fi
+          echo "Todos os jobs obrigatórios terminaram com sucesso."

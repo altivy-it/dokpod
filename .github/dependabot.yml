@@ -1,41 +1,82 @@
+# Semente do Altivy.Groundwork (componente dependency-updates): pertence ao projeto.
+# Mensagens compatíveis com o título de PR e com o release-please:
+# runtime = fix(deps) (gera release patch); desenvolvimento = build(deps-dev);
+# actions = ci(actions); imagens e devcontainers = build(deps) (não geram release).
+# Workflows gw-*.yml são atualizados somente no catálogo do Groundwork (groundwork update).
 version: 2
-
 updates:
+
   - package-ecosystem: github-actions
-    directory: /
+    directories:
+      - "/"
+    exclude-paths:
+      - ".github/workflows/gw-*.yml"
     schedule:
       interval: weekly
       day: monday
       time: "09:00"
       timezone: America/Sao_Paulo
     open-pull-requests-limit: 5
+    commit-message:
+      prefix: "ci(actions)"
     groups:
       github-actions:
         patterns:
           - "*"
 
   - package-ecosystem: nuget
-    directory: /backend
+    directories:
+      - "/backend"
     schedule:
       interval: weekly
       day: monday
       time: "09:00"
       timezone: America/Sao_Paulo
     open-pull-requests-limit: 5
+    commit-message:
+      prefix: "fix"
+      prefix-development: "build"
+      include: "scope"
     groups:
-      nuget:
-        patterns:
-          - "*"
+      nuget-production:
+        dependency-type: production
+      nuget-development:
+        dependency-type: development
+
+  - package-ecosystem: npm
+    directories:
+      - "/frontend/web"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: America/Sao_Paulo
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "fix"
+      prefix-development: "build"
+      include: "scope"
+    groups:
+      npm-production:
+        dependency-type: production
+      npm-development:
+        dependency-type: development
 
   - package-ecosystem: docker
-    directory: /deploy/agent
+    directories:
+      - "/frontend/web"
+      - "/backend/apps/Dokpod.Bff"
+      - "/backend/apps/Dokpod.ControlPlane.Api"
+      - "/deploy/agent"
     schedule:
       interval: weekly
       day: monday
       time: "09:00"
       timezone: America/Sao_Paulo
     open-pull-requests-limit: 5
+    commit-message:
+      prefix: "build(deps)"
     groups:
-      agent-image:
+      docker:
         patterns:
           - "*"

@@ -49,7 +49,7 @@ legadas de execução por plano não autorizam trabalho fora do Spec Kit.
 - `SECURITY.md`: política de divulgação responsável;
 - `PULL_REQUEST_TEMPLATE.md`: evidências exigidas em revisão;
 - `ISSUE_TEMPLATE/`: intake e vínculo com tarefas/remediações Spec Kit.
-- `workflows/`: checks obrigatórios de CI e detecção de secrets.
+- `workflows/`: CI com o check agregado `Result`; os `gw-*.yml` são gerenciados pelo Altivy.Groundwork e mudam só pelo catálogo ([CI-CD.md](CI-CD.md)).
 
 O CI backend e a detecção de secrets existem desde o baseline executável do
 repositório. Novos gates são adicionados com os manifests correspondentes e após
@@ -58,7 +58,7 @@ decorativa.
 
 ## Configuração administrativa
 
-- exija `CI / Result` e `Gitleaks / Full History` no ruleset de `main`;
+- mantenha as regras da `main` pelo contrato [repository-policy.json](repository-policy.json), aplicado e conferido com `groundwork github` ([REPOSITORY-POLICY.md](REPOSITORY-POLICY.md)): `Result` obrigatório sem bypass, squash, histórico linear e commits assinados;
 - habilite revisão de Code Owner quando houver revisor independente;
 - habilite Dependency Graph, Dependabot Alerts e security updates;
 - habilite Private Vulnerability Reporting, secret scanning e push protection;
