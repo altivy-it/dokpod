@@ -128,7 +128,7 @@ O frontend não implementa tela de senha, cadastro, recuperação, MFA, grupos o
 ## Testes
 
 - Vitest para componentes, estado e data access;
-- `lzocateli/angular-cli:22.1.0-node24.15.0-bookworm` para install, lint, typecheck, testes e build;
+- `lzocateli/angular-cli:22.2.4-node24.22.1-bookworm-v1` para install, lint, typecheck, testes e build;
 - `lzocateli/playwright-e2e:0.1.0` para testes black-box de cadastro de ambiente, inventário e ciclo de vida do container;
 - testes de acessibilidade dos fluxos críticos;
 - screenshots desktop/mobile para mudanças visuais;
