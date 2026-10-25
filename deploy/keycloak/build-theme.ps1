@@ -4,7 +4,8 @@ Gera o tema de login do Keycloak do Dokpod a partir da fonte versionada.
 
 .DESCRIPTION
 Empacota o tema de Keycloak versionado em deploy/keycloak em um diretório de
-saída limpo. O diretório canônico da marca é opcional e serve apenas para
+saída limpo, junto com os tokens e as fontes do design system do console
+(frontend/web/src/styles). O diretório canônico da marca é opcional e serve apenas para
 verificar os assets versionados. Não são necessários rede, credenciais,
 usuários, exports de realm ou secrets.
 
@@ -66,15 +67,31 @@ $themeOutput = Join-Path $outputRoot 'dokpod/login'
 $themeFiles = @(
     'theme.properties',
     'resources/css/login.css',
-    'resources/img/logo.svg',
-    'resources/img/logo-dark.svg',
-    'resources/js/theme-toggle.js'
+    'resources/img/dokpod-mark.svg'
+)
+
+# Tokens e fontes do design system do console: o tema não mantém cópia própria.
+$designSystemSource = Join-Path $repositoryRoot 'frontend/web/src/styles'
+$designSystemFiles = @(
+    'tokens.css',
+    'fonts.css',
+    'fonts/outfit-latin-400-normal.woff2',
+    'fonts/outfit-latin-500-normal.woff2',
+    'fonts/outfit-latin-600-normal.woff2',
+    'fonts/OFL-Outfit.txt'
 )
 
 foreach ($themeFile in $themeFiles) {
     $sourceFile = Join-Path $themeSource $themeFile
     if (-not (Test-Path -LiteralPath $sourceFile -PathType Leaf)) {
         throw "Arquivo versionado do tema não encontrado: $sourceFile"
+    }
+}
+
+foreach ($designSystemFile in $designSystemFiles) {
+    $sourceFile = Join-Path $designSystemSource $designSystemFile
+    if (-not (Test-Path -LiteralPath $sourceFile -PathType Leaf)) {
+        throw "Arquivo do design system não encontrado: $sourceFile"
     }
 }
 
@@ -99,6 +116,13 @@ if (Test-Path -LiteralPath $outputRoot) {
 
 New-Item -ItemType Directory -Path $themeOutput -Force | Out-Null
 Get-ChildItem -LiteralPath $themeSource -Force | Copy-Item -Destination $themeOutput -Recurse -Force
+
+# fonts.css referencia ./fonts/ e também declara a JetBrains Mono, que o login não usa nem baixa.
+foreach ($designSystemFile in $designSystemFiles) {
+    $destinationFile = Join-Path $themeOutput "resources/css/$designSystemFile"
+    New-Item -ItemType Directory -Path (Split-Path $destinationFile) -Force | Out-Null
+    Copy-Item -LiteralPath (Join-Path $designSystemSource $designSystemFile) -Destination $destinationFile -Force
+}
 
 $checksums = @()
 foreach ($file in Get-ChildItem -LiteralPath $themeOutput -File -Recurse | Sort-Object FullName) {

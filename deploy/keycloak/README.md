@@ -118,8 +118,19 @@ Resultado esperado:
 
 ```text
 Artefato do tema criado em .../deploy/keycloak/.build/keycloak-theme
-Arquivos: 5
+Arquivos: 9
 ```
+
+O tema segue o design system do console (Altivy, ADR 2026-0005): tema único
+escuro, fonte Outfit, cartão de vidro, campos e CTA teal. Ele não mantém cópia
+dos tokens: o script copia `tokens.css`, `fonts.css` e as fontes Outfit (OFL 1.1)
+de `frontend/web/src/styles` para `resources/css/` do artefato. Por isso o tema
+só funciona a partir do artefato gerado, nunca da pasta `themes/` direto.
+
+A única cor fora dos tokens é a do símbolo D (`#b7f34a`, em
+`resources/img/dokpod-mark.svg`), exceção de marca aprovada pelo solicitante. O
+nome ao lado do símbolo é o `displayName` do realm, e a tagline vem do CSS. O
+realm usa pt-BR como idioma único (`supportedLocales` e `defaultLocale`).
 
 Para confirmar que o asset canônico do Dokpod existe:
 
