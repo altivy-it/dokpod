@@ -112,6 +112,31 @@ public sealed class AgentCommandProcessorTests
         Assert.Equal(1, engine.ExecutionCount);
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task ProcessAsync_WhenAcceptedJournalHasNoResultAndTargetChanged_ReportsIndeterminate(bool removed)
+    {
+        // Spec 005 T016 (resposta perdida): o agente caiu depois de executar e antes de gravar o resultado.
+        var journal = new MemoryCommandJournal();
+        var engine = new FakeEngine { Container = removed ? null : CreateContainer("revision-02") };
+        var processor = CreateProcessor(journal, engine);
+        var command = CreateCommand();
+        await journal.AppendIfAbsentAsync(
+            new JournaledCommand(
+                command.EnvironmentId,
+                command.CommandId,
+                command.PayloadHash,
+                CommandAdmission.Accepted),
+            TestContext.Current.CancellationToken);
+
+        var result = await processor.ProcessAsync(command, 8, TestContext.Current.CancellationToken);
+
+        Assert.Equal(CommandExecutionState.Indeterminate, result.State);
+        Assert.Equal("engine_result_unknown", result.FailureCode);
+        Assert.Equal(0, engine.ExecutionCount);
+    }
+
     [Fact]
     public async Task ProcessAsync_WhenExpiredCommandIsReplayed_ReturnsPersistedRejection()
     {

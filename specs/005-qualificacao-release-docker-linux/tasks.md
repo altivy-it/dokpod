@@ -2,13 +2,13 @@
 
 **Entrada**: [spec.md](spec.md) e [plan.md](plan.md).
 
-**Estado**: `draft` - rascunho de migração, aguardando revisão humana.
+**Estado**: `in-progress` - execução iniciada em 2026-10-17 (decisões na [spec](spec.md#decisões-de-execução-2026-10-17-solicitante)).
 
 **Pré-requisitos**: Revisão humana, autorização específica por gate, build identificado e ambiente isolado.
 
 **Testes**: Obrigatórios; resultados históricos não são reexecuções desta branch.
 
-**Organização**: IDs locais e jornadas `[US1]` a `[US3]`; todos os checkboxes permanecem desmarcados.
+**Organização**: IDs locais e jornadas `[US1]` a `[US3]`; T010+ detalham a execução de 2026-10-17.
 
 ## Fase 1: Inventário de Gates
 
@@ -21,7 +21,7 @@
 
 - [ ] T003 [US1] Após autorização externa específica, verificar execução remota do CI existente e artifacts de backend/migrations/PostgreSQL sem skips, frontend, quatro imagens, SBOM/scan e inspeções de usuário/portas/mounts/redes; registrar URL/ID/commit em [plan.md](plan.md), referenciando `deploy/` e `backend/tests/` sem criar workflow concorrente.
 - [ ] T004 [US1] Avaliar os 34 HIGH históricos e scans atuais das quatro imagens em `artifacts/`; registrar correções/re-scan ou classificação/aceite humano com responsável, impacto e expiração em [plan.md](plan.md). Adicionar somente residual demonstrado para autorização; não liberar HIGH por ausência de CRITICAL.
-- [ ] T007 [US1] Confrontar threat model, licenças e artefatos identificados de `deploy/` com [segurança](../../docs/seguranca.md); verificar assinatura/provenance/emissor/digest/revogação em ambiente limpo, incluindo testes negativos. Obter autorização separada se geração/assinatura for necessária; não publicar.
+- [X] T007 [US1] Confrontar threat model, licenças e artefatos identificados de `deploy/` com [segurança](../../docs/seguranca.md); verificar assinatura/provenance/emissor/digest/revogação em ambiente limpo, incluindo testes negativos. Obter autorização separada se geração/assinatura for necessária; não publicar. *Parcial (2026-10-24)*: threat model consolidado em [threat-model-consolidado.md](threat-model-consolidado.md) e aprovado (gate 4 PASS); licenças PASS (gate 12); assinatura PASS no gate 3 (2026-10-25).
 
 ## Fase 3: Carga e Recuperação (US2)
 
@@ -34,9 +34,21 @@
 
 **Teste independente**: Matriz obrigatória sem NOT RUN nem exceção vencida.
 
-- [ ] T008 [US3] Confrontar evidências de N/N-1 do [003](../003-inventario-lifecycle-reconciliacao/tasks.md), backup/restore/auditoria, atualização/rollback, observabilidade/alertas, runbooks em `docs/runbooks/`, licença/avisos/código correspondente e CE sem chave/licenciamento externo; registrar matriz Docker Linux e decisões de adiamento do [006](../006-qualificacao-windows-podman/tasks.md) em [plan.md](plan.md).
+- [ ] T008 [US3] Confrontar evidências de N/N-1 do [003](../003-inventario-lifecycle-reconciliacao/tasks.md), backup/restore/auditoria, atualização/rollback, observabilidade/alertas, runbooks em `docs/runbooks/`, licença/avisos/código correspondente e CE sem chave/licenciamento externo; registrar matriz Docker Linux e decisões de adiamento do [006](../006-qualificacao-windows-podman/tasks.md) em [plan.md](plan.md). *Decisões de 2026-10-24 registradas nos gates 15 e 16: Podman Windows adiado; Docker Windows (Docker Desktop) e Podman Linux aprovados por teste manual do solicitante.*
 - [ ] T009 [US3] Registrar gaps específicos restantes em [tasks.md](tasks.md), obter revisão para concluir/revalidar somente residual e submeter matriz a decisão humana GO/NO-GO referenciada em [plan.md](plan.md); obrigatório NOT RUN ou HIGH/CRITICAL sem tratamento mantém NO-GO. Não alterar `docs/release-readiness.md`, publicar, fazer deploy, commit ou push sob esta migração.
 
 ## Dependências e Ordem de Execução
 
 T001 -> T002 -> T003 -> T004; T005 exige baseline e laboratório de 004, T006 usa 003 e T005; T007 usa artifacts finais de T004; T008 agrega T003-T007 e decisões de 006; T009 depende de todos. A posição numérica de T007 não implica execução antes da carga: os gates podem ser agendados somente por autorização explícita. Sem evidência, registrar bloqueio, não PASS.
+
+## Execução de 2026-10-17
+
+- [x] T010 [US1] CI: SBOM CycloneDX e Trivy por imagem no job Images, com falha em CRITICAL corrigível e em HIGH/CRITICAL sem aceite vigente. *(13ff9bd, a39c6e5; em 2026-10-24 a política reprovou três HIGH corrigíveis da imagem web, corrigidos com `apt-get upgrade` na base.)*
+- [x] T011 [US1] `docs/seguranca-excecoes.md`: aceite por CVE da imagem web (pacote, severidade, impacto no nginx, responsável, expiração) e verificação de expiração no CI. *(13ff9bd; revarredura de 2026-10-24: 93 aceites vigentes.)*
+- [X] T012 [US1] CI: assinatura keyless e attestation de proveniência só em tags `v*`; teste local positivo e negativos (digest alterado, chave errada) com registro descartável. *(Parcial: job `release-images` com cosign e verificação de identidade e emissor em 13ff9bd e 6265505. Teste local em 2026-10-24 com `tools/security/exercise-signing-local.sh` (registro descartável em rede interna, sem Rekor): 11/11 casos conferem — assinatura e atestado aceitos pelo digest; chave errada, chave retirada da confiança, atestado de outro tipo, tag movida, imagem sem assinatura e assinatura de outro digest recusados. Keyless em 2026-10-25 na tag `v0.1.0-rc.1` (run 40138370444): as 4 imagens e os atestados aceitos pelo digest com a identidade do workflow e o emissor do GitHub Actions; outra tag, `main`, outro repositório, outro workflow, outro emissor, outro tipo de predicado e assinatura copiada para outro digest recusados. Gate 3 PASS.)*
+- [x] T013 [US2] Harness `tools/loadtest/`: simulador de agentes e usuários virtuais; validação em pequena escala. *(2d674af: 3 hosts e 3 usuários, 0 erros, leituras p95 31,9 ms.)*
+- [X] T014 [US2] Ambientes e identidades de carga (100 hosts) provisionados e removíveis. *(100 ambientes `Carga NNN`; certificados e identidades por `tools/loadtest/provision-load-hosts.sh`; aposentados por `tools/loadtest/retire-load-hosts.sh` em 2026-10-24: identidades revogadas, ambientes desabilitados e autorização removida do Keycloak. Os registros ficam, porque a auditoria é append-only.)*
+- [ ] T015 [US2] Carga nominal 56/1.120/30 por 30 min e margem 100/2.000/50, contra os limites aprovados. *(Nominal: PASS no laboratório local em 2026-10-24, com todos os limites atendidos (ver [plan.md](plan.md#evidências-de-carga)); falta repetir em VM isolada. Margem: PASS no laboratório local em 2026-10-24 (p95 59 ms; em 2026-10-17 tinha sido 569 ms, antes de ea0653b). Nominal e margem ainda precisam ser repetidas em VM isolada.)*
+- [ ] T016 [US2] Recuperação: resposta perdida, reconnect storm, comandos concorrentes, restart da API com backlog. *(Executado no laboratório local em 2026-10-24 ([plan.md](plan.md#recuperação--laboratório-local-2026-10-24-t016)). Reconnect storm e restart da API com backlog: PASS depois de três correções. Resposta perdida: sem efeito duplicado; o `Indeterminate` corrigido está coberto por teste. Faltam inventário degradado, comandos concorrentes no mesmo container e a repetição em VM isolada.)*
+- [x] T017 [US3] Operação: backup/restore com auditoria íntegra, atualização e rollback, licença e avisos de terceiros. *(Laboratório local em 2026-10-24: restore com 41/41 itens idênticos à origem, incluindo o SHA-256 da auditoria; rollback N → N-1 e atualização N-1 → N com o agente Podman real; runbook em `docs/runbooks/backup-restore-e-atualizacao.md`. Falta repetir em VM isolada e exercitar um rollback com migration nova.)*
+- [ ] T018 [US3] Matriz de gates e submissão à decisão GO/NO-GO. *(Matriz montada em 2026-10-24 ([plan.md](plan.md#matriz-de-gates-t018--2026-10-24)), com veredito recomendado NO-GO. Aguarda a decisão humana.)*

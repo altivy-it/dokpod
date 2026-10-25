@@ -43,13 +43,20 @@ identidade correspondente em `dokpod.agent_identities`.
 O script recomendado também lê `POSTGRES_ADMIN_USERNAME` e
 `POSTGRES_ADMIN_PASSWORD` do arquivo externo
 `$env:APPDATA\Microsoft\UserSecrets\Altivy.Identity\.env`. Ele deriva somente
-em memória a conexão da API com `postgres:5432` e `Search Path=dokpod`, sem
+em memória a conexão da API com `postgres:5432`, `Search Path=dokpod` e `Maximum Pool Size=40`, sem
 copiar ou exibir credenciais. O uso da role administrativa é uma compatibilidade
 transitória exclusiva do laboratório; ambientes promovidos devem usar database
 e role de runtime próprios, provisionados antes da migration.
 
 Ao invocar o Compose diretamente, sem o script, defina também
 `DOKPOD_CONTROLPLANE_CONNECTION` no processo por um mecanismo seguro.
+
+O pool da API precisa caber no `max_connections` do PostgreSQL, junto com o Keycloak e
+as conexões administrativas. O padrão do Npgsql (100) esgota a instância compartilhada
+do laboratório (`max_connections = 100`) quando 100 agentes reconectam juntos depois de
+um restart da API (spec 005 T016). Por isso o script limita o pool a 40. Em produção,
+dimensione `Maximum Pool Size` por instância da API abaixo do `max_connections`
+reservado ao Dokpod.
 
 Nunca versione certificados privados, senhas ou `.env` dentro do repositório.
 

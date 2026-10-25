@@ -10,7 +10,8 @@ namespace Dokpod.ControlPlane.Api.Authorization;
 public sealed class KeycloakAuthorizationDecisionService(
     HttpClient httpClient,
     IOptions<KeycloakAuthorizationOptions> options,
-    ILogger<KeycloakAuthorizationDecisionService> logger) : IEnvironmentAuthorizationDecider
+    ILogger<KeycloakAuthorizationDecisionService> logger,
+    Dokpod.ControlPlane.Application.Hosts.ControlPlaneMetrics? metrics = null) : IEnvironmentAuthorizationDecider
 {
     public async Task<EnvironmentAuthorizationDecision> DecideAsync(
         string resource,
@@ -143,6 +144,7 @@ public sealed class KeycloakAuthorizationDecisionService(
         Stopwatch stopwatch)
     {
         stopwatch.Stop();
+        metrics?.AuthorizationDecided(decision.Outcome, decision.FailureCode, stopwatch.Elapsed);
         logger.LogInformation(
             "Keycloak authorization decision outcome={Outcome} available={Available} resource={Resource} scope={Scope} correlation_id={CorrelationId} duration_ms={DurationMs}",
             decision.Outcome,
