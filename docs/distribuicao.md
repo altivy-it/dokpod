@@ -154,6 +154,10 @@ O mecanismo exato de empacotamento será escolhido após o spike, mas deve cumpr
 
 Desinstalação remove serviço e binários. Dados e identidade só são removidos por opção explícita, pois sua exclusão exige novo enrollment.
 
+### Pacote e qualificação
+
+`deploy/agent/publish-windows-agent.sh` gera o pacote self-contained `win-x64` em container, a partir de um `git archive` do commit, com SHA-256 e manifesto de versão e commit. A qualificação na máquina Windows segue o [runbook](runbooks/qualificacao-windows.md) (spec 006).
+
 ### Script de gerenciamento do Windows Service
 
 O script `deploy/agent/manage-windows-service.ps1` recebe os dados da
