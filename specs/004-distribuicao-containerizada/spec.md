@@ -4,7 +4,7 @@
 
 **Criada em**: 2026-10-06
 
-**Estado**: `draft` - rascunho de migração, aguardando revisão humana.
+**Estado**: `superseded` - encerrada em 2026-10-25 por substituição: o conteúdo foi validado pelas specs 005 a 023, conforme a referência em cada tarefa. Nenhuma tarefa foi executada por este conjunto.
 
 **Entrada**: [P04](../../docs/plan/p04-padronizacao-dockerfiles-compose.md), distribuição do [MVP](../../docs/plan/mvp.md) e borda de P05-07.
 
