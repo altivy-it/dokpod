@@ -19,13 +19,13 @@
 
 **Teste independente**: Ciclo de serviço em host limpo sem runtime .NET.
 
-- [ ] T003 [US1] Avaliar e validar publish self-contained por RID, pacote/script existente `deploy/agent/manage-windows-service.ps1`, conta dedicada, named pipe/ACL, diretório de dados, startup atrasado, recuperação limitada, instalação/update atômico/rollback/remoção preservando identidade/journal em host limpo autorizado; complementar somente diferenças comprovadas, sem refazer script.
+- [ ] T003 [US1] Avaliar e validar publish self-contained por RID, pacote/script existente `deploy/agent/manage-windows-service.ps1`, conta dedicada, named pipe/ACL, diretório de dados, startup atrasado, recuperação limitada, instalação/update atômico/rollback/remoção preservando identidade/journal em host limpo autorizado; complementar somente diferenças comprovadas, sem refazer script. *(Kit de 2026-10-25 para a máquina Windows: pacote self-contained `win-x64` por `deploy/agent/publish-windows-agent.sh`, identidade de laboratório por `tools/windows/provision-windows-agent.sh` e checklist W1-W10 no [runbook de qualificação](../../docs/runbooks/qualificacao-windows.md). Execução pendente da máquina.)*
 
 ## Fase 3: Durabilidade Windows (US2)
 
 **Teste independente**: Crash antes/depois do ACK e resultado com replay seguro.
 
-- [ ] T004 [US2] Confrontar journal Windows em `backend/libs/` com garantias do [003](../003-inventario-lifecycle-reconciliacao/spec.md) e complementar provas de `backend/tests/` para flush/publicação durável antes de ACK/resultado, falha de disco/crash/restart, ID/hash, fencing, prazo, N/N-1 e reconciliação com engine real; rejeitar equivalência baseada só em console.
+- [ ] T004 [US2] Confrontar journal Windows em `backend/libs/` com garantias do [003](../003-inventario-lifecycle-reconciliacao/spec.md) e complementar provas de `backend/tests/` para flush/publicação durável antes de ACK/resultado, falha de disco/crash/restart, ID/hash, fencing, prazo, N/N-1 e reconciliação com engine real; rejeitar equivalência baseada só em console. *(Prova em engine real: item W9 do [runbook](../../docs/runbooks/qualificacao-windows.md).)*
 
 ## Fase 4: Podman (US3)
 
