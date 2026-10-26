@@ -750,8 +750,19 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/bff/antiforgery":
             return self.send_json(200, {"requestToken": "mock-antiforgery"})
         if path == "/bff/logout" and method == "POST":
+            # Como o BFF real: POST de formulário com o token antiforgery no campo padrão do ASP.NET Core e
+            # redirecionamento de página (o encerramento no Keycloak volta ao console). Sem o token, 400.
+            length = int(self.headers.get("Content-Length") or 0)
+            form = parse_qs(self.rfile.read(length).decode("utf-8")) if length else {}
+            if "application/x-www-form-urlencoded" not in (self.headers.get("Content-Type") or "") or form.get("__RequestVerificationToken") != ["mock-antiforgery"]:
+                return self.send_json(400, problem(400, "Token antiforgery ausente ou inválido"), "application/problem+json")
             STATE["scenario"] = "anonymous"
-            return self.send_json(204, None)
+            STATE.setdefault("submitted", []).append(("logout",))
+            self.send_response(302)
+            self.send_header("Location", "/")
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return None
         if path.startswith("/hubs/"):
             return self.send_json(404, problem(404, "Tempo real indisponível no mock"))
 
