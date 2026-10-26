@@ -90,8 +90,8 @@ globais no fluxo oficial.
 - contratos e clientes gerados sincronizados;
 - segurança, acessibilidade, concorrência e desempenho considerados;
 - logs e métricas não expõem conteúdo sensível;
-- hook Gitleaks instalado e `Gitleaks / Full History` aprovado;
-- `CI / Result` aprovado;
+- hook Gitleaks instalado;
+- título do PR em Conventional Commits e `Result` aprovado (é o único check obrigatório; agrega higiene do PR, Gitleaks no histórico completo, backend, frontend e imagens, ver [CI-CD.md](CI-CD.md));
 - rollout, rollback e compatibilidade documentados;
 - nenhum achado crítico ou alto aberto sem aceitação formal.
 
