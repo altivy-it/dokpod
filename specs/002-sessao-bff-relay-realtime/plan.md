@@ -2,7 +2,7 @@
 
 **Branch**: `chore/adotar-spec-kit` (migração) | **Data**: 2026-10-06 | **Spec**: [spec.md](spec.md)
 
-**Estado**: `draft` - rascunho de migração, aguardando revisão humana.
+**Estado**: `superseded` - encerrada em 2026-10-25 por substituição: o conteúdo foi validado pelas specs 005 a 023, conforme a referência em cada tarefa. Nenhuma tarefa foi executada por este conjunto.
 
 **Entrada**: [P05](../../docs/plan/p05-bff-keycloak-relay.md) e recortes de P04/P03/MVP.
 
