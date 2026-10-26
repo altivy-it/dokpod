@@ -5,7 +5,7 @@ import re
 import pytest
 from playwright.sync_api import Page, expect
 
-from conftest import axe_violations, goto, no_horizontal_scroll, screenshot
+from conftest import BASE_URL, axe_violations, goto, no_horizontal_scroll, screenshot
 
 
 def test_sign_in_screen_for_anonymous_session(page: Page, scenario) -> None:
@@ -15,6 +15,16 @@ def test_sign_in_screen_for_anonymous_session(page: Page, scenario) -> None:
     expect(page.get_by_role("button", name="Entrar com Keycloak")).to_be_visible()
     assert axe_violations(page) == []
     screenshot(page, "007-entrada-1440")
+
+
+def test_sign_out_returns_to_sign_in_screen(page: Page) -> None:
+    """O Sair navega a página pelo BFF (POST de formulário com antiforgery) e volta à tela de entrada."""
+    goto(page)
+    page.get_by_role("button", name=re.compile("menu do usuário")).click()
+    page.get_by_role("menuitem", name="Sair").click()
+    expect(page.get_by_role("button", name="Entrar com Keycloak")).to_be_visible()
+    expect(page).to_have_url(re.compile(r"/$"))
+    assert page.request.get(f"{BASE_URL}__mock/submitted").json() == [["logout"]]
 
 
 def test_menu_is_keyboard_navigable_and_marks_current_page(page: Page) -> None:
