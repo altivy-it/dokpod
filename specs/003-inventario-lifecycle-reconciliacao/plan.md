@@ -2,7 +2,7 @@
 
 **Branch**: `chore/adotar-spec-kit` (migração) | **Data**: 2026-10-06 | **Spec**: [spec.md](spec.md)
 
-**Estado**: `draft` - rascunho de migração, aguardando revisão humana.
+**Estado**: `superseded` - encerrada em 2026-10-25 por substituição: o conteúdo foi validado pelas specs 005 a 023, conforme a referência em cada tarefa. Nenhuma tarefa foi executada por este conjunto.
 
 **Entrada**: [MVP](../../docs/plan/mvp.md) P-01/P-02/P-04/P-05 e [arquitetura](../../docs/arquitetura.md).
 
