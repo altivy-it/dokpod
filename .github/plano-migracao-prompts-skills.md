@@ -100,7 +100,7 @@ skills `speckit-*`, fontes de extensões ou hashes.
 | quatro prompts da tabela | preservar durante a transição; remover após aceite, ou reduzir a pontes Local explicitamente aprovadas |
 | três novos destinos da tabela | `name` igual ao diretório, descrição pt-BR, entradas e procedimento sem duplicação |
 | `.github/skills/pull-request-review/SKILL.md` | receber diferenças necessárias e referências do fluxo de revisão |
-| `.github/README.md` | atualizar inventário e links para prompts |
+| `.github/ENGENHARIA_ASSISTIDA.md` (antigo `.github/README.md`) | atualizar inventário e links para prompts |
 | `.github/COPILOT_GUIDE.md` | atualizar seleção de fluxos, exemplos e nomes de comandos |
 | `.github/copilot-instructions.md` | substituir referência ao prompt de localização pela skill local equivalente |
 | `.github/GOVERNANCE.md` | revisar descrição de `prompts/` e `skills/`, sem alterar autoridade ou aprovação |
