@@ -206,7 +206,7 @@ public sealed class PodmanEngineCompatibilityTests : IAsyncLifetime
         Assert.NotNull(stats);
         Assert.True(stats.MemoryUsedBytes > 0);
         Assert.True(stats.OnlineCpus > 0);
-        Assert.True(stats.SystemCpuNanos > 0);
+        Assert.NotNull(stats.ReadAt);
 
         var sampler = new Dokpod.Agent.Application.Metrics.ResourceSampler(
             Engine, new Dokpod.Agent.Infrastructure.Metrics.ProcHostProbe(), TimeProvider.System)

@@ -3,8 +3,9 @@
 ## D-001 Fonte e fórmulas das métricas de container
 
 - **Fonte**: `GET /containers/{id}/stats?stream=false&one-shot=true` (Docker e API compatível Podman), com concorrência limitada.
-- **CPU % do host** (0-100): `Δcpu_usage.total_usage / Δsystem_cpu_usage × 100`.
-- **CPU % do limite**: `Δcpu_usage.total_usage / Δsystem_cpu_usage × online_cpus ÷ limite_em_núcleos × 100`, com `limite_em_núcleos = NanoCpus / 1e9` (ou `CpuQuota / CpuPeriod`). Sem limite, a referência é o host e a resposta indica `cpuLimitCores = null`. Pode exceder 100 por instantes; a exibição limita a 100 com indicação.
+- **Núcleos usados**: `Δcpu_usage.total_usage / Δt`, com `Δt` entre os campos `read` das duas leituras (ou o relógio do agente, se faltar). Revisto em 2026-10-28: a fórmula original dividia por `Δsystem_cpu_usage`, que na API compatível do Podman não segue a base do Docker e inflava a CPU várias vezes (bug `agent-cpu-podman-system-usage`).
+- **CPU % do host** (0-100): `núcleos / online_cpus × 100`.
+- **CPU % do limite**: `núcleos ÷ limite_em_núcleos × 100`, com `limite_em_núcleos = NanoCpus / 1e9` (ou `CpuQuota / CpuPeriod`). Sem limite, a referência é o host e a resposta indica `cpuLimitCores = null`. Pode exceder 100 por instantes; a exibição limita a 100 com indicação.
 - **Memória usada**: `usage - inactive_file` (cgroup v2) ou `usage - cache` (v1).
 - **Contadores reiniciados**: delta negativo descarta a amostra (lacuna), nunca gera valor negativo ou pico.
 - **Alternativa**: stream contínuo de stats (uma conexão por container; rejeitado pelo custo).
