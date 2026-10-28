@@ -57,7 +57,7 @@ A telemetria usa allowlist de campos, limites e normalização de caracteres de 
 - Somente tipos da allowlist (`OperationalEventTypes`) são aceitos; tipo desconhecido é descartado. Parâmetros seguem allowlist por nome, com caracteres de controle removidos, valores limitados a 256 caracteres e o conjunto a 2 KiB; labels, variáveis de ambiente e comandos dos containers nunca são copiados.
 - Horário informado pelo agente é preservado, mas divergência acima de 5 minutos do recebimento é sinalizada e não altera a ordenação de auditoria.
 - `dokpod_apply_temporal_retention` é `SECURITY DEFINER`; desde a migration `202610130004_RestrictTemporalRetention` aceita apenas `environment_events`, `host_resource_samples`, `agent_commands` e `agent_command_parameters` e as colunas temporais previstas. Auditoria nunca é purgada por essa função.
-- Gravação de inventário usa transação `SERIALIZABLE` repetida em `40001`/`40P01`, evitando perda de snapshot quando vários agentes publicam ao mesmo tempo.
+- Gravação de inventário usa transação com lock consultivo por ambiente (`pg_advisory_xact_lock`): publicações do mesmo host são serializadas pela revisão e hosts diferentes não colidem. A transação continua repetível em `40001`/`40P01`. A versão anterior, em `SERIALIZABLE`, gerava conflitos de predicado entre hosts diferentes na reconexão em massa (spec 005, achado A2).
 
 ## Threat model: inspeção e logs sob demanda (spec 011)
 

@@ -73,6 +73,13 @@ public sealed class PostgresAuditEventWriter(
 
             await dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            // Chamador desistiu (agente caiu, API parando): a transação dele é desfeita inteira e o resultado é
+            // reentregue; não é falha do armazenamento de auditoria (spec 005, achado A2).
+            metrics.RecordCanceled();
+            throw;
+        }
         catch
         {
             metrics.RecordFailure();

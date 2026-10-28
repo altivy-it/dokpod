@@ -52,6 +52,8 @@ public static class ApiHost
         // apareceriam em "Request starting ..." e no log do HttpClient em nível Information.
         builder.Logging.AddFilter("Microsoft.AspNetCore.Hosting.Diagnostics", LogLevel.Warning);
         builder.Logging.AddFilter("System.Net.Http.HttpClient", LogLevel.Warning);
+        // Cada SQL executado ia ao log em Information (milhares por minuto com 100 agentes); falhas seguem em Error.
+        builder.Logging.AddFilter("Microsoft.EntityFrameworkCore.Database.Command", LogLevel.Warning);
         builder.AddDokpodTelemetry();
         options ??= LoadOptionsFromEnvironment();
         ArgumentNullException.ThrowIfNull(
