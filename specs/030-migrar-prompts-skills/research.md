@@ -51,7 +51,7 @@
 
 **Decisão**: recalcular links da nova profundidade, atualizar guias ativos após criar destinos e excluir os quatro prompts somente após os gates. Preservar menções históricas em artefatos de origem, sem transformá-las em orientação atual.
 
-**Justificativa**: a partir de `.github/skills/<nome>/SKILL.md`, os alvos são `../../ADR_TEMPLATE.md`, `../../instructions/`, `../../agents/` e `../../../.specify/`, `../../../docs/` ou `../../../specs/`. Não se deve reutilizar `../` da pasta de prompts. Os documentos operacionais conhecidos são `.github/README.md`, `.github/COPILOT_GUIDE.md`, `.github/copilot-instructions.md` e `.github/GOVERNANCE.md`; as referências dos agentes também serão verificadas.
+**Justificativa**: a partir de `.github/skills/<nome>/SKILL.md`, os alvos são `../../ADR_TEMPLATE.md`, `../../instructions/`, `../../agents/` e `../../../.specify/`, `../../../docs/` ou `../../../specs/`. Não se deve reutilizar `../` da pasta de prompts. Os documentos operacionais conhecidos são `.github/ENGENHARIA_ASSISTIDA.md` (antigo `.github/README.md`), `.github/COPILOT_GUIDE.md`, `.github/copilot-instructions.md` e `.github/GOVERNANCE.md`; as referências dos agentes também serão verificadas.
 
 **Alternativas consideradas**: manter prompts como pontes contraria FR-013 e não ajuda o Copilot; apagar fontes antes de testar rompe a recuperação; atualizar retrospectivamente todos os documentos históricos destrói a rastreabilidade. Recuperar somente o diff desta migração se necessário, sem reset, recheckout indiscriminado ou regeneração.
 

@@ -70,7 +70,7 @@ Os comandos compartilham o `slug`, que também identifica o diretório dos relat
 
 ## Instalação e ativação
 
-Na raiz do Dokpod, use o CLI em container conforme o [guia de extensões](../../../.github/README.md#spec-kit-e-extensões). Dentro do container, instale a extensão empacotada pelo Spec Kit:
+Na raiz do Dokpod, use o CLI em container conforme o [guia de extensões](../../../.github/ENGENHARIA_ASSISTIDA.md#spec-kit-e-extensões). Dentro do container, instale a extensão empacotada pelo Spec Kit:
 
 ```powershell
 specify extension add bug

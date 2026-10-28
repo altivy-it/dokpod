@@ -122,7 +122,7 @@ Cada linha é uma obrigação ou grupo indivisível de obrigações da origem re
 
 ### Consumidores Ativos e Histórico
 
-- `.github/README.md`: inventário de prompts, uso de ADR/revisão e seção de localização com link e exemplos antigos.
+- `.github/ENGENHARIA_ASSISTIDA.md` (antigo `.github/README.md`): inventário de prompts, uso de ADR/revisão e seção de localização com link e exemplos antigos.
 - `.github/COPILOT_GUIDE.md`: tabela dos três prompts de engenharia e tabela das skills técnicas; instruir seleção de agente antes da skill.
 - `.github/copilot-instructions.md`: link e orientação de localização ainda dirigidos ao prompt original.
 - `.github/GOVERNANCE.md`: inventário de `prompts/` e `skills/`.
