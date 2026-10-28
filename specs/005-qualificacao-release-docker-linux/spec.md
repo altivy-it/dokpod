@@ -4,7 +4,7 @@
 
 **Criada em**: 2026-10-06
 
-**Estado**: `approved` - execução autorizada pelo solicitante em 2026-10-17 ("siga para a próxima frente"), com as decisões abaixo. O veredito continua **NO-GO** até a decisão humana final (FR-001).
+**Estado**: `implemented` - execução autorizada pelo solicitante em 2026-10-17 ("siga para a próxima frente"), com as decisões abaixo. Decisão humana final em 2026-10-28: **GO** na `v0.1.0-rc.3` (ver [plan.md](plan.md#decisão-humana)).
 
 **Entrada**: [Desbloqueio de release](../../docs/plan/desbloqueio-release.md), MVP P-06 e gates da [avaliação de release](../../docs/release-readiness.md), somente consultada.
 

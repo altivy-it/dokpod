@@ -4,7 +4,7 @@
 - **Testado em**: 2026-10-28
 - **Avaliação**: ./assessment.md
 - **Correção**: ./fix.md
-- **Resultado**: verified (imagem local); rc.3 assinada pendente
+- **Resultado**: verified (imagem local e `v0.1.0-rc.3` assinada)
 
 ## Resumo
 
@@ -25,7 +25,18 @@ A imagem da API construída da branch de correção substituiu só a API `v0.1.0
 | Testes do backend | `dotnet test Dokpod.slnx` com PostgreSQL efêmero | pass | 700 testes |
 | Regras | `promtool test rules` / `check rules` | pass | 13 regras |
 
+## Verificação na `v0.1.0-rc.3` assinada
+
+Tag `v0.1.0-rc.3` (`6c84722`), pipeline `40768626305`; assinaturas das quatro imagens verificadas com `cosign verify` v3.1.3 e IDs de imagem iguais na VM.
+
+| Verificação | Comando / Ação | Resultado | Notas |
+| --- | --- | --- | --- |
+| Gate 10, atualização rc.2 → rc.3 | `vm-gate10.sh v0.1.0-rc.3` | pass | item 7: **0** `fail`/`crit` (rc.1 → rc.2: 17); auditoria idêntica, 101 ambientes |
+| Gate 10, rollback rc.3 → rc.2 e volta | `vm-gate10.sh v0.1.0-rc.2`, depois `v0.1.0-rc.3` | pass | itens 1 a 6 aprovados; a rc.2 volta a gerar `fail` (307, 552 `40001`); de novo na rc.3, 0 |
+| Restart e resposta perdida | `vm-recovery.sh api` e `perdida` (13 rodadas) | pass | 0 duplicados, 0 `fail`/`crit`, 0 `40001`; 1 `stale_target` sem execução |
+| Alertas | regras e séries no Prometheus | pass | `DokpodAuditoriaFalhando` inativo, 0 falhas e 39 cancelamentos; nenhum `indeterminate` espontâneo, então o disparo ao vivo fica com a prova da imagem de pré-teste |
+
 ## Riscos Residuais
 
 - Erros reais de transação ficam em `warn` na categoria do EF; o `fail` vem de quem trata a exceção.
-- A prova formal é na `v0.1.0-rc.3` assinada, repetindo o gate 10 e a prova de alerta do gate 11.
+- O disparo ao vivo de `DokpodComandosIndeterminados` foi provado na imagem de pré-teste do mesmo código; a `v0.1.0-rc.3` não teve `indeterminate` espontâneo em 13 rodadas.

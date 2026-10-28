@@ -210,7 +210,25 @@ Consequência para a repetição em VM: a candidata passa a ser a `main` atual, 
 | **A3** Contadores criados só no primeiro incremento: a série nasce com o valor do primeiro lote e o `increase()` não o enxerga; alertas de evento raro perdem as primeiras ocorrências | Média (observabilidade de evento crítico) | 2 `indeterminate` sem `DokpodComandosIndeterminados` | `/speckit-bug-assess`: inicializar as séries com zero e teste de regra com série nascendo em valor |
 | **A4** Leitura do console faz uma decisão UMA por ambiente (103 chamadas ao Keycloak num trace com 101 ambientes) | Baixa (dentro dos limites; custo cresce com o número de ambientes) | Trace `8c931ccb…` | Avaliar decisão em lote antes de matrizes maiores |
 
-### Veredito recomendado: **NO-GO** (atualizado em 2026-10-28)
+### Repetição dos gates 10 e 11 com a `v0.1.0-rc.3` — 2026-10-28
+
+**Candidata**: tag `v0.1.0-rc.3` (`6c84722`, correção de A2 e A3 do PR #53, bug `.specify/bugs/spec005-a2-a3-log-alertas`), pipeline `40768626305` verde. As quatro imagens tiveram a assinatura verificada por digest com `cosign verify` v3.1.3 (identidade `ci.yml@refs/tags/v0.1.0-rc.3`, emissor do GitHub Actions); api, bff e web foram transferidas para a VM com o mesmo ID de imagem (3/3). Mesma VM, mesmos 100 agentes simulados e o agente Podman real em rc.2.
+
+| Verificação | Resultado |
+| --- | --- |
+| Gate 10 — atualização rc.2 → rc.3 | **PASS**: 37,4 s de indisponibilidade, 100 agentes de volta em 13,3 s, 136 leituras sem erro, auditoria até a troca idêntica (13.826 eventos), 101 ambientes e identidades preservados; **item 7: 0 linhas `fail`/`crit`** (rc.1 → rc.2: 17) |
+| Gate 10 — rollback rc.3 → rc.2 | **PASS** nos itens 1 a 6 (35,5 s, agentes em 7,5 s, 16.644 eventos idênticos). As 307 linhas `fail` do item 7 são da própria rc.2 (552 `40001`), o defeito que a rc.3 corrige |
+| Gate 10 — nova atualização rc.2 → rc.3 | **PASS**: 34,9 s, agentes em 7,5 s, 16.663 eventos idênticos, item 7 com 0 linhas |
+| Gate 7 com rc.3 | Restart da API com 100 comandos em voo: 100/100 `succeeded` = 100 execuções. Resposta perdida, 13 rodadas: 0 execução duplicada; 1 `stale_target` (recusa correta do agente por revisão divergente, sem execução, como nos gates 5 e 6 da rc.2). Em toda a instância: 0 `fail`/`crit` e 0 `40001` |
+| Gate 11 — alertas | Regras novas carregadas e saudáveis; `DokpodAuditoriaFalhando` inativo, com 0 falhas de auditoria e 39 cancelamentos em `dokpod_audit_append_canceled_total`. Nenhum `indeterminate` nas 13 rodadas da rc.3, então `DokpodComandosIndeterminados` não teve evento para disparar; a prova ao vivo da regra nova foi feita com a imagem de pré-teste do mesmo código (disparo às 11:09:57) e nos dados reais da rc.2 (05:20 a 05:28), registrada no bug |
+
+**Efeito nos achados**: A2 resolvido (item 7 do gate 10 aprovado, 0 `40001`, auditoria sem falha falsa). A3 resolvido nas regras de alerta, com prova ao vivo na imagem de pré-teste e `promtool test rules`; sem nova ocorrência espontânea na rc.3.
+
+### Veredito recomendado: **GO** (atualizado em 2026-10-28, rc.3)
+
+Com a `v0.1.0-rc.3`, os dois achados que sustentavam o NO-GO estão corrigidos e verificados na VM. Fica como residual: A1 (ferramenta de operação), A4 (dentro dos limites), rollback com migration nova sem exercício e a prova ao vivo do alerta de `indeterminate` feita em imagem de pré-teste do mesmo código, não na imagem assinada. A decisão continua sendo do solicitante.
+
+#### Veredito anterior: **NO-GO** (2026-10-28, rc.2)
 
 Não há gate `NOT RUN`. A repetição em VM isolada (FR-004) comprovou carga nominal, margem, recuperação, restore e observabilidade com as imagens assinadas da `v0.1.0-rc.2`. O NO-GO recomendado se deve aos achados da VM, não a falta de evidência:
 
@@ -228,12 +246,12 @@ A1 e A4 não bloqueiam: A1 é ferramenta de operação, e A4 está dentro dos li
 
 | Campo | Valor |
 | --- | --- |
-| Decisão | *pendente* |
+| Decisão | **GO** na `v0.1.0-rc.3` |
 | Responsável | lzocateli (solicitante) |
-| Data | *pendente* |
+| Data | 2026-10-28 |
 | Adiamentos aceitos (gates 15 e 16) | Podman Windows adiado (2026-10-24). Docker Windows (Docker Desktop) e Podman Linux aprovados por teste manual do solicitante |
 | Decisões parciais (2026-10-24) | Gate 1 aceito: as imagens usam sempre as bases do repositório `containers`. Gates 7 e 14 aceitos com o residual registrado nas linhas. Gate 4 aprovado, com as recomendações das lacunas e os riscos R1–R10 aceitos |
-| Observações | *pendente* |
+| Observações | Decisão do solicitante em 2026-10-28 ("GO"), depois da repetição dos gates 10 e 11 com a `v0.1.0-rc.3` na VM isolada. Residuais aceitos com o GO: A1 (script de autorização sem paginação), A4 (decisão UMA por ambiente), rollback com migration nova sem exercício e disparo ao vivo de `DokpodComandosIndeterminados` provado só na imagem de pré-teste do mesmo código. `docs/release-readiness.md` não foi alterado (FR-001) |
 
 ### Observabilidade — laboratório local, 2026-10-24 (gate 11)
 

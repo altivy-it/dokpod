@@ -2,7 +2,7 @@
 
 **Data**: 2026-10-06 | **Branch da migração**: `chore/adotar-spec-kit`
 
-**Estado** (2026-10-28): 001 a 004 `superseded`, encerradas por substituição pelas specs 005 a 023 (referência em cada tarefa); 005 `in-progress`, com a repetição em VM isolada feita em 2026-10-28 (achados A1 a A4) e aguardando a decisão GO/NO-GO; 006 `draft`, aguardando a máquina Windows de testes; 007 a 023 `implemented` (016 e 017 com revisão do solicitante pendente); 024 `in-progress` (histórias 1 a 3; a 4 depende do GO da 005). 025 a 029 `draft` (roteiro da edição comercial), aguardando revisão humana.
+**Estado** (2026-10-28): 001 a 004 `superseded`, encerradas por substituição pelas specs 005 a 023 (referência em cada tarefa); 005 `implemented`, com **GO** do solicitante em 2026-10-28 na `v0.1.0-rc.3` (A2 e A3 corrigidos; A1 e A4 residuais); 006 `draft`, aguardando a máquina Windows de testes; 007 a 023 `implemented` (016 e 017 com revisão do solicitante pendente); 024 `in-progress` (histórias 1 a 3; a 4, que dependia do GO da 005, está liberada). 025 a 029 `draft` (roteiro da edição comercial), aguardando revisão humana.
 
 **Origem**: IA assistida, migração documental autorizada pelo solicitante nesta sessão.
 
