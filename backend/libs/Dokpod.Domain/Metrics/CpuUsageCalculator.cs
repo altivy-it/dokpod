@@ -1,30 +1,34 @@
 namespace Dokpod.Domain.Metrics;
 
 /// <summary>Contadores brutos de CPU de um container em um instante (`/containers/{id}/stats`).</summary>
-public readonly record struct ContainerCpuCounters(ulong ContainerTotalNanos, ulong SystemNanos, int OnlineCpus);
+public readonly record struct ContainerCpuCounters(ulong ContainerTotalNanos, int OnlineCpus);
 
 /// <summary>Uso de CPU de um container: % do host (0-100) e % do limite (pode exceder 100 por instantes).</summary>
 public readonly record struct ContainerCpuUsage(double PercentOfHost, double PercentOfLimit);
 
 /// <summary>
-/// Fórmulas de CPU e taxas (spec 009 D-001). Delta negativo ou nulo do sistema indica contadores
-/// reiniciados ou amostra repetida: o resultado é ausência (lacuna), nunca zero nem pico.
+/// Fórmulas de CPU e taxas (spec 009 D-001). Contador do container que volta ou intervalo nulo indica
+/// contadores reiniciados ou amostra repetida: o resultado é ausência (lacuna), nunca zero nem pico.
 /// </summary>
 public static class CpuUsageCalculator
 {
-    public static ContainerCpuUsage? Container(ContainerCpuCounters previous, ContainerCpuCounters current, double? limitCores)
+    /// <summary>
+    /// Núcleos usados no intervalo pelo tempo de parede entre as leituras. Não usa `system_cpu_usage`: no Podman
+    /// a API compatível usa outra base nesse campo, e a fórmula do Docker inflava o uso várias vezes.
+    /// </summary>
+    public static ContainerCpuUsage? Container(ContainerCpuCounters previous, ContainerCpuCounters current, TimeSpan elapsed, double? limitCores)
     {
-        if (current.ContainerTotalNanos < previous.ContainerTotalNanos || current.SystemNanos <= previous.SystemNanos)
+        if (current.ContainerTotalNanos < previous.ContainerTotalNanos || elapsed <= TimeSpan.Zero)
         {
             return null;
         }
 
         var cpus = current.OnlineCpus > 0 ? current.OnlineCpus : previous.OnlineCpus;
         if (cpus <= 0) return null;
-        var share = (double)(current.ContainerTotalNanos - previous.ContainerTotalNanos) / (current.SystemNanos - previous.SystemNanos);
-        var percentOfHost = Math.Clamp(share * 100, 0, 100);
+        var cores = (current.ContainerTotalNanos - previous.ContainerTotalNanos) / (elapsed.TotalSeconds * 1_000_000_000d);
+        var percentOfHost = Math.Clamp(cores / cpus * 100, 0, 100);
         var reference = limitCores is > 0 ? limitCores.Value : cpus;
-        var percentOfLimit = Math.Max(0, share * cpus / reference * 100);
+        var percentOfLimit = Math.Max(0, cores / reference * 100);
         return new ContainerCpuUsage(Round(percentOfHost), Round(percentOfLimit));
     }
 
