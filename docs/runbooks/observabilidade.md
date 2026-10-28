@@ -41,7 +41,7 @@ O Prometheus fica em `http://127.0.0.1:19090` e o Jaeger em `http://127.0.0.1:16
 | `dokpod_command_duration_seconds` (histograma) | API | Do despacho ao agente até o resultado |
 | `dokpod_authorization_decisions_total{authorization_outcome, authorization_failure_code}` | API | Decisões UMA do Keycloak |
 | `dokpod_authorization_duration_seconds` (histograma) | API | Duração das decisões |
-| `dokpod_audit_append_attempts_total`, `dokpod_audit_append_failures_total`, `dokpod_audit_idempotency_conflicts_total`, `dokpod_audit_append_duration_milliseconds` | API | Gravação da auditoria (ADR 2026-0004) |
+| `dokpod_audit_append_attempts_total`, `dokpod_audit_append_failures_total`, `dokpod_audit_append_canceled_total`, `dokpod_audit_idempotency_conflicts_total`, `dokpod_audit_append_duration_milliseconds` | API | Gravação da auditoria (ADR 2026-0004). Gravação cancelada pelo chamador (agente que caiu, API parando) conta em `canceled`, não em `failures`: a transação é desfeita inteira e o resultado é reentregue |
 | `http_server_request_duration_seconds{http_route, http_response_status_code}` | API e BFF | Latência e status por rota; no BFF, `/api/v1/{**path}` é o relay do console, e `/bff/*` são login, callback, logout e antiforgery |
 | `db_client_connection_count{db_client_connection_state}`, `db_client_connection_max`, `db_client_operation_duration_seconds` | API | Pool e operações do Npgsql |
 | Runtime .NET (GC, threads, memória) | API e BFF | Diagnóstico de processo |
@@ -99,6 +99,8 @@ Mais de 5% dos comandos falharam em 15 minutos, sem contar `stale_target`, que �
 
 Há comandos com resultado `indeterminate` (o efeito pode ter ocorrido, ver spec 003 SC-003). Reconcilie o estado do container no host antes de repetir o comando.
 
+A regra também dispara quando a série de indeterminados nasce na janela: cada combinação de tags só existe a partir do primeiro incremento, já com valor, e `increase()` não vê esse salto (spec 005, achado A3). Depois de reiniciar o Prometheus, séries antigas com valor podem disparar o alerta uma vez, por até 15 minutos.
+
 ### DokpodLeiturasLentas
 
 O p95 das leituras do console pelo BFF passou de 500 ms, o limite aprovado. Use o Jaeger para separar o tempo do BFF, da API, do Keycloak e do PostgreSQL no trace.
@@ -110,3 +112,5 @@ Mais de 0,1% das chamadas do console à API terminaram em 5xx. Cruze com `Dokpod
 ### DokpodAuditoriaFalhando
 
 Falha ao gravar a auditoria; as ações auditadas são recusadas. Veja o log da API (`dokpod_append_audit_event`), as partições (`dokpod_ensure_monthly_partitions`) e o [runbook da auditoria](operacao-auditoria-postgresql.md).
+
+Cancelamentos (agente que caiu no meio da gravação) não disparam este alerta; ficam em `dokpod_audit_append_canceled_total`. Como na regra de indeterminados, a primeira falha de uma instância também dispara, mesmo com a série nascendo já com valor.

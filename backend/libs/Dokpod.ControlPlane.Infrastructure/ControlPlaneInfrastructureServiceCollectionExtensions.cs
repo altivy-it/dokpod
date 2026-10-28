@@ -6,7 +6,9 @@ using Dokpod.ControlPlane.Application.Events;
 using Dokpod.ControlPlane.Application.Hosts;
 using Dokpod.ControlPlane.Application.Inventory;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace Dokpod.ControlPlane.Infrastructure;
 
@@ -22,9 +24,14 @@ public static class ControlPlaneInfrastructureServiceCollectionExtensions
         }
 
         var normalizedConnectionString = ControlPlaneConnectionString.Normalize(connectionString);
-        void ConfigureNpgsql(DbContextOptionsBuilder options) => options.UseNpgsql(
-            normalizedConnectionString,
-            npgsql => npgsql.MigrationsHistoryTable("__EFMigrationsHistory", ControlPlaneSchema.Name));
+        void ConfigureNpgsql(DbContextOptionsBuilder options) => options
+            .UseNpgsql(
+                normalizedConnectionString,
+                npgsql => npgsql.MigrationsHistoryTable("__EFMigrationsHistory", ControlPlaneSchema.Name))
+            // O EF não separa transação cancelada de transação com erro (para comandos, separa): agente que cai
+            // no meio do BeginTransaction virava `fail` no log. A exceção sempre sobe e é registrada por quem a
+            // trata; aqui fica como aviso (spec 005, achado A2).
+            .ConfigureWarnings(warnings => warnings.Log((RelationalEventId.TransactionError, LogLevel.Warning)));
 
         services.AddDbContext<ControlPlaneDbContext>(ConfigureNpgsql);
         services.AddSingleton<AuditEventMetrics>();
