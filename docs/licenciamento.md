@@ -10,7 +10,7 @@ Esta é a política operacional derivada do [ADR 2026-0003](adr/2026-0003-licenc
 
 O Dokpod terá duas edições: a Community Edition gratuita e a edição comercial (Business), vendida em três planos anuais. Os planos abaixo seguem o [ADR 2026-0007](adr/2026-0007-precificacao-por-node-e-faixa-de-vcpu.md), em `proposed`; preços e nome dos planos são decisão do solicitante, e nodes, faixas de vCPU e contagem aguardam aceite.
 
-| Aspecto | Community Edition | Times (Teams) | Business | Enterprise |
+| Aspecto | Community Edition | Teams | Business | Enterprise |
 | --- | --- | --- | --- | --- |
 | Licença | `AGPL-3.0-only` | comercial proprietária | comercial proprietária | comercial proprietária |
 | Preço | gratuito | US$ 900/ano | US$ 1.500/ano | sob medida |

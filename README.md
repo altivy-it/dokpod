@@ -8,7 +8,7 @@ O produto é concorrente e funcionalmente inspirado no Portainer, com arquitetur
 
 ## Edições e licenciamento
 
-A primeira entrega será o **Dokpod Community Edition**, sem chave ou limites artificiais de nodes e usuários, sob `AGPL-3.0-only`. A edição comercial terá três planos anuais, cobrados por node com faixa de vCPU por node: **Times** (Teams, US$ 900/ano), **Business** (US$ 1.500/ano) e **Enterprise** (sob medida), conforme o [ADR 2026-0007](docs/adr/2026-0007-precificacao-por-node-e-faixa-de-vcpu.md) (`proposed`).
+A primeira entrega será o **Dokpod Community Edition**, sem chave ou limites artificiais de nodes e usuários, sob `AGPL-3.0-only`. A edição comercial terá três planos anuais (nomes iguais em todos os idiomas), cobrados por node com faixa de vCPU por node: **Teams** (US$ 900/ano), **Business** (US$ 1.500/ano) e **Enterprise** (sob medida), conforme o [ADR 2026-0007](docs/adr/2026-0007-precificacao-por-node-e-faixa-de-vcpu.md) (`proposed`).
 
 Segurança essencial, autenticação, autorização por ambiente e por ação, mTLS, correções de segurança e auditoria permanecem na CE. Os recursos exclusivos da edição comercial ainda não estão implementados. Consulte a [licença](LICENSE), a [política de licenciamento e comercialização](docs/licenciamento.md) e os ADRs [2026-0003](docs/adr/2026-0003-licenciamento-e-edicoes.md) e [2026-0007](docs/adr/2026-0007-precificacao-por-node-e-faixa-de-vcpu.md).
 

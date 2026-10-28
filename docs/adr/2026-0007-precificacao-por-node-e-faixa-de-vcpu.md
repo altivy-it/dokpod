@@ -5,7 +5,7 @@
 - **Origem:** IA assistida, a pedido do solicitante
 - **Revisor humano:** zocatel (solicitante e responsável pelo produto)
 - **Revisa:** a seção de preço e de métricas comerciais do [ADR 2026-0003](2026-0003-licenciamento-e-edicoes.md); licença, edições e regras de enforcement daquele ADR permanecem.
-- **Decisões do solicitante (2026-10-27):** três planos pagos, de US$ 900/ano, US$ 1.500/ano e sob medida; o plano de entrada se chama **Times** (EN Teams, ES Equipos). Quantidades de nodes, faixas de vCPU e regra de contagem abaixo são proposta e aguardam aceite.
+- **Decisões do solicitante (2026-10-27):** três planos pagos, de US$ 900/ano, US$ 1.500/ano e sob medida; o plano de entrada se chama **Teams**, sem tradução em nenhum idioma. Quantidades de nodes, faixas de vCPU e regra de contagem abaixo são proposta e aguardam aceite.
 
 ## Contexto
 
@@ -17,7 +17,7 @@ O ADR 2026-0003 previu uma única oferta Business por US$ 99/mês ou US$ 990/ano
 
    | Plano | Preço | Nodes | vCPUs por node | Suporte |
    | --- | --- | --- | --- | --- |
-   | Times | US$ 900/ano | até 5 | até 16 | comunidade e documentação; uma licença Times por organização |
+   | Teams | US$ 900/ano | até 5 | até 16 | comunidade e documentação; uma licença Teams por organização |
    | Business | US$ 1.500/ano | 5, expansível em pacotes de 5 até 25 | até 32 | e-mail em horário comercial, resposta no próximo dia útil; onboarding remoto |
    | Enterprise | sob medida | sem teto | acima de 32 | SLA e contrato personalizados, nodes de produção e não produção, builds com suporte estendido |
 
@@ -45,4 +45,4 @@ O ADR 2026-0003 previu uma única oferta Business por US$ 99/mês ou US$ 990/ano
 1. Preço do pacote adicional de 5 nodes no Business.
 2. Tolerância de excedente e regra de arredondamento no contrato.
 3. Moeda, meio de cobrança e tributação no Brasil.
-4. Se o plano Times inclui todos os recursos comerciais ou um subconjunto.
+4. Se o plano Teams inclui todos os recursos comerciais ou um subconjunto.
