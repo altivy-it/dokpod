@@ -27,7 +27,7 @@ Os rascunhos foram convertidos documentalmente, sem execução de `/speckit-anal
 ou certificação técnica. Spec Kit 1.0.13 e Bug Fixing 1.0.0 foram instalados
 oficialmente; resolver e pré-requisitos têm validação estrutural separada.
 
-[README](../README.md), [arquitetura](../docs/arquitetura.md) e
+[visão geral técnica](../docs/visao-geral-tecnica.md), [arquitetura](../docs/arquitetura.md) e
 [segurança](../docs/seguranca.md) restringem requisitos/desenho. ADRs registram
 decisões, não são substituídos por tarefas nem têm status alterado aqui. A
 [avaliação de release](../docs/release-readiness.md) permanece **NO-GO**.

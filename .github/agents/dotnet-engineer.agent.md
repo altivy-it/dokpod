@@ -12,7 +12,7 @@ Atue somente em tarefa de `specs/<feature>/tasks.md` autorizada via `/speckit-im
 
 ## Procedimento
 
-1. Confirme a tarefa/remediação e seus limites, leia seus artefatos Spec Kit, o [plano mestre](../../README.md) e o [backend](../../docs/backend.md).
+1. Confirme a tarefa/remediação e seus limites, leia seus artefatos Spec Kit, o [plano mestre](../../docs/visao-geral-tecnica.md) e o [backend](../../docs/backend.md).
 2. Encontre o caso de uso, regra de domínio, adapter e teste proprietários.
 3. Declare hipótese, invariantes e verificação discriminante.
 4. Implemente do domínio para fora, mantendo API, BFF e agente como composition roots.

@@ -1,227 +1,133 @@
-# Dokpod
+<p align="center">
+  <img src="docs/assets/brand/dokpod-banner.svg" alt="Dokpod: controle local, visão total. Docker e Podman, Linux e Windows, self-hosted." width="100%">
+</p>
 
-![Dokpod — governe cada engine, visualize toda operação](docs/assets/brand/dokpod-banner.svg)
+<p align="center">
+  <a href="LICENSE"><img alt="Licença AGPL-3.0-only" src="https://img.shields.io/badge/licen%C3%A7a-AGPL--3.0--only-b8f24a?style=flat-square&labelColor=0d1110"></a>
+  <img alt="Engines: Docker e Podman" src="https://img.shields.io/badge/engines-Docker%20%7C%20Podman-b8f24a?style=flat-square&labelColor=0d1110">
+  <img alt="Hosts: Linux e Windows" src="https://img.shields.io/badge/hosts-Linux%20%7C%20Windows-b8f24a?style=flat-square&labelColor=0d1110">
+  <a href="docs/release-readiness.md"><img alt="Estado: prévia, sem release estável" src="https://img.shields.io/badge/estado-pr%C3%A9via-f2c94a?style=flat-square&labelColor=0d1110"></a>
+</p>
 
-Dokpod é uma plataforma web self-hosted para descobrir, observar e operar containers Docker e Podman em múltiplos servidores Linux e Windows. Em Linux, cada servidor executa o agente .NET em container. Em Windows, o agente é um Worker Service self-contained, instalado como Windows Service e sem dependência de runtime .NET no host. Em ambos os casos, o agente acessa apenas o engine local e inicia uma conexão autenticada com o plano de controle.
+**Dokpod** é um console web self-hosted para descobrir, observar e operar containers **Docker** e **Podman** em vários servidores **Linux** e **Windows**, sem Kubernetes e sem nuvem do fornecedor. Um agente leve em cada servidor fala só com o engine local e abre uma conexão mTLS de saída com o plano de controle; nenhuma porta do Docker ou do Podman fica exposta na rede.
 
-O produto é concorrente e funcionalmente inspirado no Portainer, com arquitetura, contratos, código e identidade próprios.
+**Dokpod Community Edition** é gratuita e de código aberto, sob `AGPL-3.0-only`: sem chave de licença e sem limite artificial de servidores, usuários ou containers. Segurança, mTLS, autorização por ambiente e por ação e auditoria ficam sempre na Community Edition.
 
-## Edições e licenciamento
+**A edição comercial do Dokpod** soma governança, automação e suporte, em três planos anuais cobrados por node com faixa de vCPU: **Teams** (US$ 900/ano), **Business** (US$ 1.500/ano) e **Enterprise** (sob medida). Ela ainda não está à venda; os planos estão em [`docs/licenciamento.md`](docs/licenciamento.md) e no [ADR 2026-0007](docs/adr/2026-0007-precificacao-por-node-e-faixa-de-vcpu.md) (`proposed`).
 
-A primeira entrega será o **Dokpod Community Edition**, sem chave ou limites artificiais de nodes e usuários, sob `AGPL-3.0-only`. A edição comercial terá três planos anuais (nomes iguais em todos os idiomas), cobrados por node com faixa de vCPU por node: **Teams** (US$ 900/ano), **Business** (US$ 1.500/ano) e **Enterprise** (sob medida), conforme o [ADR 2026-0007](docs/adr/2026-0007-precificacao-por-node-e-faixa-de-vcpu.md) (`proposed`).
+- [Conheça o Dokpod no site da Altivy](https://altivy.it/produtos/dokpod/)
+- [Compare o Dokpod com outras plataformas de containers](https://altivy.it/produtos/dokpod/comparativo/)
 
-Segurança essencial, autenticação, autorização por ambiente e por ação, mTLS, correções de segurança e auditoria permanecem na CE. Os recursos exclusivos da edição comercial ainda não estão implementados. Consulte a [licença](LICENSE), a [política de licenciamento e comercialização](docs/licenciamento.md) e os ADRs [2026-0003](docs/adr/2026-0003-licenciamento-e-edicoes.md) e [2026-0007](docs/adr/2026-0007-precificacao-por-node-e-faixa-de-vcpu.md).
+## Por dentro do console
 
-## Estado
+![Visão geral do console Dokpod: hosts, containers, CPU, memória e eventos dos engines em uma tela](docs/assets/screens/visao-geral.webp)
 
-A arquitetura inicial foi aceita em 2026-09-06. O console operacional das
-specs 007 a 022 está implementado: visão geral com KPIs e métricas, lista unificada
-com ações em lote, detalhe com inspeção, logs e terminal interativo, imagens e
-pull, criação de containers, alertas, auditoria, volumes, redes, registros, pods
-e configurações. A [spec 023](specs/023-qualificacao-stack-real/spec.md) validou
-tudo ponta a ponta na stack real com **Docker** (28.5.2, aninhado no Podman) e
-**Podman rootless** (5.7), inclusive compatibilidade N-1 entre agente e servidor,
-usuário só de leitura, registro privado e terminal pelo navegador.
+| Containers de todos os hosts, com ações em lote | Detalhe com terminal interativo auditado |
+| --- | --- |
+| ![Lista unificada de containers Docker e Podman de vários hosts](docs/assets/screens/containers.webp) | ![Detalhe de um container com o terminal aberto no navegador](docs/assets/screens/container-terminal.webp) |
+| **Políticas por estágio** | **Trilha de auditoria** |
+| ![Configurações com justificativa obrigatória e registros permitidos por estágio](docs/assets/screens/configuracoes.webp) | ![Auditoria com quem executou cada comando, onde e com qual resultado](docs/assets/screens/auditoria.webp) |
 
-O projeto ainda não declara compatibilidade de produção. Carga nominal/margem,
-assinatura e provenance, qualificação do Windows Service em host limpo, Podman
-rootful e revisão humana final permanecem gates bloqueantes. Consulte a
-[prontidão para release](docs/release-readiness.md) para o veredito atual.
+Telas reais da stack de validação com Docker e Podman; endereços internos tarjados.
 
-## Objetivos do MVP
+## O que o Dokpod faz
 
-- cadastrar e aprovar ambientes gerenciados;
-- inventariar containers e saúde do engine;
-- iniciar, parar, reiniciar e excluir containers;
-- suportar Docker e Podman rootless em Linux (validados na stack real pela spec 023);
-- validar Docker em Windows, com o agente como Windows Service, antes de declará-lo estável;
-- manter auditoria, autorização e comunicação agente-servidor seguras;
-- preservar os workloads quando plano de controle ou agente estiver indisponível.
+**Operação de containers**
 
-## Não objetivos iniciais
+- Iniciar, parar, pausar, reiniciar e remover, inclusive em lote, com justificativa obrigatória nas ações destrutivas onde o estágio exigir.
+- Inspeção, logs ao vivo com segredos mascarados no agente e terminal interativo no navegador, com a sessão auditada.
+- Criação guiada de containers e pull de imagens de registros permitidos.
+- Volumes, redes e pods do Podman, com verificação de uso antes de qualquer remoção.
+- Métricas de CPU e memória por host e por container, e eventos dos engines em tempo real.
 
-- Kubernetes, Swarm e Nomad;
-- stacks e Compose (previstos no roteiro da edição comercial);
-- plugins executáveis no servidor ou no agente;
-- proxy genérico da API Docker/Podman;
-- suporte nativo a Windows containers por Podman.
+**Governança e segurança**
 
-## Stack definida
+- Permissões por ambiente e por ação, decididas pelo Keycloak a cada requisição; quem não tem permissão nem enxerga o ambiente.
+- Login com LDAP, Active Directory ou OIDC pela federação do Keycloak; o Dokpod não guarda senhas.
+- Políticas por estágio (Produção, Homologação, Desenvolvimento): justificativa obrigatória e registros de imagens permitidos.
+- Alertas por consumo e estado, com silenciamento, e trilha de auditoria filtrável e exportável em CSV.
+- Agente com identidade mTLS individual, revogação imediata e journal local; os containers seguem rodando se o plano de controle ou o agente cair, e o estado é reconciliado na volta.
 
-- backend, API e agente: C# com .NET 10 LTS;
-- frontend: Angular 22 com TypeScript estrito;
-- identidade e autorização: Keycloak, com BFF confidencial e API como Policy Enforcement Point;
-- contratos: OpenAPI 3.1 para browser/API e Protocol Buffers para agente/API;
-- persistência: PostgreSQL;
-- observabilidade: OpenTelemetry, logs estruturados, métricas e health checks;
-- distribuição: backend, BFF e frontend sempre em containers; agente Linux em container; agente Windows como Worker Service self-contained.
-- toolchains e bases OCI: imagens versionadas do projeto [`lzocateli/containers`](https://github.com/lzocateli/containers), conforme a [matriz de distribuição](docs/distribuicao.md#imagens-base-e-toolchains).
-
-## Arquitetura resumida
+## Como funciona
 
 ```mermaid
 flowchart LR
-  Usuario[Usuário] --> Browser[Browser]
-
-  subgraph PlanoControle[Plano de controle em containers]
-    Web[Web Angular]
-    BFF[BFF ASP.NET Core<br/>sessão e antiforgery]
-    API[API ASP.NET Core<br/>REST, SignalR e sessões gRPC]
-    Aplicacao[Aplicação<br/>casos de uso e coordenação]
-    Dominio[Domínio<br/>invariantes e capabilities]
-    Infra[Infraestrutura<br/>persistência e transporte]
-
-    Web <-->|HTTPS| BFF
-    BFF <-->|REST / OpenAPI| API
-    API --> Aplicacao
-    Aplicacao --> Dominio
-    Aplicacao --> Infra
-    API -.->|SignalR: invalidações| BFF
-  end
-
-  Browser <-->|sessão segura| Web
-  BFF <-->|OIDC| Keycloak[Keycloak<br/>identidade e sessões]
-  API -->|decisão de autorização| Keycloak
-  Infra <-->|inventário, comandos e auditoria| PostgreSQL[(PostgreSQL)]
-
-  subgraph HostLinux[Host Linux gerenciado]
-    AgenteLinux[Agente .NET em container]
-    JournalLinux[(Journal persistente)]
-    DockerAdapter[Adapter Docker]
-    PodmanAdapter[Adapter Podman]
-    DockerEngine[Docker Engine]
-    PodmanEngine[Podman Engine rootless]
-
-    AgenteLinux --> JournalLinux
-    AgenteLinux --> DockerAdapter -->|Unix socket local| DockerEngine
-    AgenteLinux --> PodmanAdapter -->|Unix socket local| PodmanEngine
-  end
-
-  subgraph HostWindows[Host Windows gerenciado]
-    AgenteWindows[Agente .NET self-contained<br/>Windows Service]
-    JournalWindows[(Journal persistente)]
-    DockerWindowsAdapter[Adapter Docker]
-    DockerWindows[Docker Engine]
-
-    AgenteWindows --> JournalWindows
-    AgenteWindows --> DockerWindowsAdapter -->|pipe local| DockerWindows
-  end
-
-  API <-->|gRPC bidirecional + mTLS<br/>comandos, deltas e snapshots| AgenteLinux
-  API <-->|gRPC bidirecional + mTLS<br/>comandos, deltas e snapshots| AgenteWindows
-
-  OpenAPI[Contrato OpenAPI 3.1] -.->|gera cliente| Web
-  Protobuf[Contrato Protocol Buffers<br/>compatibilidade N/N-1] -.-> API
-  Protobuf -.-> AgenteLinux
-  Protobuf -.-> AgenteWindows
+  Browser[Navegador] -->|HTTPS| Web[Console Angular]
+  Web --> BFF[BFF<br/>sessão segura]
+  BFF --> API[API do plano de controle]
+  BFF <-->|OIDC| Keycloak[Keycloak<br/>identidade e autorização]
+  API --> PG[(PostgreSQL<br/>inventário e auditoria)]
+  AgenteL[Agente Linux<br/>em container] -->|gRPC + mTLS<br/>conexão de saída| API
+  AgenteW[Agente Windows<br/>Windows Service] -->|gRPC + mTLS<br/>conexão de saída| API
+  AgenteL -->|socket local| Engines[Docker / Podman]
+  AgenteW -->|pipe local| Docker[Docker]
 ```
 
-O inventário persistido é uma projeção reconstruível. O engine local é a fonte de verdade do estado dos containers. O servidor envia comandos de domínio versionados; o agente não expõe um proxy irrestrito do socket.
+O plano de controle (console, BFF, API, PostgreSQL e Keycloak) roda em containers no seu ambiente. Em Linux, o agente roda em container; em Windows, como Windows Service self-contained, sem runtime .NET no host. O plano de controle nunca acessa o engine de um host remoto: só o agente fala com o engine local, por comandos de domínio versionados, nunca por um proxy genérico da API. Detalhes em [arquitetura](docs/arquitetura.md) e [segurança](docs/seguranca.md).
 
-## Estrutura do monorepo
+## Estado do projeto
 
-```text
-backend/
-  apps/Dokpod.ControlPlane.Api/ # plano de controle HTTP, gRPC e SignalR
-  apps/Dokpod.Bff/              # sessão OIDC confidencial e proteção de tokens
-  apps/Dokpod.Agent/            # host comum do agente Linux/Windows
-  libs/                         # domínio, aplicação, contratos e infraestrutura
-  tests/
-frontend/
-  web/                       # aplicação Angular 22
-  tests/
-contracts/
-  openapi/                   # API pública do plano de controle
-  agent/                     # protocolo versionado agente-servidor
-deploy/                      # imagens, pacote Windows, Keycloak, Compose e operação
-docs/
-  adr/                       # decisões arquiteturais
-  plan/                      # planos legados congelados, somente histórico
-specs/                       # requisitos, desenho e tarefas Spec Kit
-tools/scripts/               # automação global de infraestrutura e manutenção
-```
+O Dokpod está em **prévia**. O console está implementado e foi validado ponta a ponta na stack real com **Docker** e **Podman rootless** em Linux ([spec 023](specs/023-qualificacao-stack-real/spec.md)), inclusive com agente e servidor de versões consecutivas, usuário só de leitura e registro privado.
 
-## Processo Spec Kit e fontes de verdade
+Ainda não há versão estável. Antes dela, continuam abertos: carga nominal com margem, assinatura e proveniência das imagens, o agente Windows em host limpo, o Podman rootful e a decisão humana de release. O veredito atual é **NO-GO**, mantido em [`docs/release-readiness.md`](docs/release-readiness.md).
 
-O Spec Kit organiza requisitos em `specs/<feature>/spec.md`, desenho em
-`plan.md` e tarefas em `tasks.md`. Os [seis conjuntos migrados](specs/README.md)
-estão em **rascunho, aguardando revisão humana**; a migração documental não
-autoriza implementação, testes de aplicação, CI remoto ou publicação.
+| Alvo | Situação |
+| --- | --- |
+| Docker em Linux | validado na stack real; aguardando os gates de release |
+| Podman rootless em Linux | validado na stack real; aguardando os gates de release |
+| Docker em Windows (agente como Windows Service) | em qualificação |
+| Podman rootful | não qualificado |
+| Kubernetes, Swarm e Nomad | fora do escopo |
 
-O fluxo é especificar, esclarecer, planejar, gerar tarefas, analisar coerência
-e implementar somente o recorte revisado e autorizado; a convergência compara
-o código/evidências com esses artefatos e registra apenas trabalho residual.
-Entregas já implementadas não viram novas features por haver pendência antiga
-no plano. Checkboxes registram execução validada, não aprovação humana.
+## Primeiros passos
 
-Este README define visão, escopo e princípios; [arquitetura](docs/arquitetura.md)
-e [segurança](docs/seguranca.md) restringem as specs. ADRs em `docs/adr/` registram
-decisões e não são substituídos por tarefas. A
-[avaliação de release](docs/release-readiness.md) mantém o veredito **NO-GO** e
-seus gates, inclusive HIGH, carga nominal e margem, N/N-1 e supply chain.
+Ainda não há pacote de instalação para produção. Para avaliar a prévia em laboratório:
 
-Os cinco documentos de `docs/plan/` estão congelados. Seu conteúdo, histórico,
-evidências e status foram preservados, inclusive inconsistências; status antigos
-não autorizam retomar planos nem aprovar/concluir os rascunhos novos. A
-[matriz de rastreabilidade](specs/README.md) cobre todas as etapas e seus destinos.
-Issues/Project fazem intake e acompanhamento conforme a
-[gestão do projeto](docs/github-projeto-gestao.md), sem processo concorrente às specs.
+1. Suba a plataforma de identidade e a stack local conforme [`deploy/e2e/README.md`](deploy/e2e/README.md), que traz Compose, certificados de laboratório e o agente opcional.
+2. Siga a [distribuição e operação](docs/distribuicao.md) para engines homologados, agente Linux e Windows e ordem de atualização.
+3. Configure realm, clients e permissões pelo guia de [configuração do Keycloak](docs/configuracao-keycloak.md).
 
-## Documentação
-
-- [Viabilidade técnica](docs/viabilidade.md)
-- [Arquitetura](docs/arquitetura.md)
-- [Backend e agente](docs/backend.md)
-- [Backend-For-Frontend](docs/bff.md)
-- [Frontend](docs/frontend.md)
-- [Segurança](docs/seguranca.md)
-- [Configuração do Keycloak](docs/configuracao-keycloak.md)
-- [Distribuição e operação](docs/distribuicao.md)
-- [Licenciamento e comercialização](docs/licenciamento.md)
-- [Governança do repositório](.github/GOVERNANCE.md)
-- [Política de segurança](.github/SECURITY.md)
-- [Critérios de carga e desempenho](.github/PERFORMANCE_TESTING_CRITERIA.md)
-- [Scripts e automação](.github/SCRIPTING.md)
-- [ADR da arquitetura inicial](docs/adr/2026-0001-arquitetura-inicial.md)
-- [ADR de distribuição e identidade](docs/adr/2026-0002-distribuicao-e-identidade.md)
-- [ADR de licenciamento e edições](docs/adr/2026-0003-licenciamento-e-edicoes.md)
-- [Conjuntos Spec Kit e rastreabilidade](specs/README.md)
-- [Plano legado congelado do MVP](docs/plan/mvp.md)
-- [Guia de contribuição](.github/CONTRIBUTING.md)
-
-## Princípios
-
-1. O plano de controle nunca acessa diretamente o socket de um host remoto.
-2. A comunicação do agente parte do host gerenciado e usa identidade por ambiente.
-3. Keycloak é a autoridade externa de identidade e autorização; o Dokpod não mantém senhas nem políticas próprias.
-4. Operações mutáveis são autorizadas, auditáveis, deduplicadas e reconciliáveis.
-5. Docker e Podman são capacidades distintas sob um contrato comum, não engines presumidos como idênticos.
-6. Secrets, conteúdo de logs de containers e credenciais nunca entram em telemetria por padrão.
-7. Dependências externas exigem licença permissiva, manutenção ativa e versão fixada.
+Certificados, senhas e arquivos `.env` ficam sempre fora do repositório.
 
 ## Roteiro
 
-Itens planejados em ordem, como rascunhos Spec Kit aguardando revisão humana:
-[025 aviso de nova versão de imagem](specs/025-aviso-nova-versao-imagem/spec.md),
-[026 janelas de mudança por estágio](specs/026-janelas-de-mudanca/spec.md),
-[027 exportação de auditoria para SIEM](specs/027-exportacao-auditoria-siem/spec.md),
-[028 implantação somente por código](specs/028-implantacao-somente-por-codigo/spec.md) e
-[029 modelos de SSO prontos](specs/029-modelos-sso/spec.md). A edição comercial
-também prevê permissões por equipe e por recurso no console, detecção de divergência
-de políticas, stacks e Compose, GitOps, operações agendadas e atualização coordenada
-de agentes ([licenciamento](docs/licenciamento.md#business)).
+Planejados para a edição comercial, como especificações Spec Kit aguardando revisão humana, em ordem:
 
-## Próxima etapa
+1. [Aviso de nova versão das imagens em uso](specs/025-aviso-nova-versao-imagem/spec.md)
+2. [Janelas de mudança por estágio](specs/026-janelas-de-mudanca/spec.md)
+3. [Exportação de auditoria para SIEM, por syslog e OpenTelemetry](specs/027-exportacao-auditoria-siem/spec.md)
+4. [Implantação somente por código em produção](specs/028-implantacao-somente-por-codigo/spec.md)
+5. [Modelos de SSO prontos para Microsoft Entra ID, Google e GitHub](specs/029-modelos-sso/spec.md)
 
-Revisar humanamente os [seis rascunhos](specs/README.md), resolver divergências
-de evidência/status e autorizar tarefas específicas antes de qualquer execução.
-Depois dessa autorização, avaliar a diferença frente ao comportamento já
-implementado, validar e concluir apenas o residual correspondente.
+Também previstos: permissões por equipe e por recurso no console, detecção de divergência de políticas, stacks e Docker Compose, GitOps, operações agendadas e atualização coordenada de agentes ([licenciamento](docs/licenciamento.md#business)).
 
-A qualificação [Docker Linux](specs/005-qualificacao-release-docker-linux/spec.md)
-preserva CI remoto, triagem HIGH, carga nominal 56/1.120/30 por pelo menos
-30 minutos, margem >=100/2.000/50, N/N-1, assinatura/provenance, recuperação e
-decisão humana GO/NO-GO. [Windows e Podman](specs/006-qualificacao-windows-podman/spec.md)
-exigem qualificação própria ou adiamento humano formal na matriz inicial.
-Sem essas decisões, permanece NO-GO; suporte publicado, assinatura, publicação
-e deploy exigem suas autorizações específicas e não decorrem desta migração.
+## Documentação
+
+| Para | Leia |
+| --- | --- |
+| Entender escopo, princípios, stack e processo | [Visão geral técnica](docs/visao-geral-tecnica.md) |
+| Arquitetura e fronteiras de segurança | [Arquitetura](docs/arquitetura.md), [Segurança](docs/seguranca.md) |
+| Backend, agente, BFF e console | [Backend e agente](docs/backend.md), [BFF](docs/bff.md), [Frontend](docs/frontend.md) |
+| Identidade e permissões | [Configuração do Keycloak](docs/configuracao-keycloak.md) |
+| Instalar, operar e atualizar | [Distribuição](docs/distribuicao.md), [runbooks](docs/runbooks/) |
+| Edições, preços e licença | [Licenciamento](docs/licenciamento.md), [ADRs](docs/adr/) |
+| Prontidão de release | [Release readiness](docs/release-readiness.md) |
+| Requisitos e roteiro | [Specs e rastreabilidade](specs/README.md) |
+
+## Ajuda e suporte
+
+A Community Edition tem suporte da comunidade: relate falhas e proponha melhorias nas [Issues](https://github.com/altivy-it/dokpod/issues). O suporte comercial, com SLA, chega com a edição comercial. Para conversar sobre a operação de containers da sua empresa, fale com a [Altivy](https://altivy.it/).
+
+## Segurança
+
+Não abra issue pública para vulnerabilidades. Use **Report a vulnerability** na aba **Security** do repositório, conforme a [política de segurança](.github/SECURITY.md).
+
+## Contribuindo
+
+Issues, relatos de falha e discussões são bem-vindos. Até a publicação de um acordo de contribuição (CLA), contribuições externas de código não são incorporadas, para preservar o licenciamento duplo. O desenvolvimento segue o processo Spec Kit descrito no [guia de contribuição](.github/CONTRIBUTING.md) e na [governança](.github/GOVERNANCE.md).
+
+## Licença
+
+O código da Community Edition é distribuído sob [`AGPL-3.0-only`](LICENSE). O nome, o logotipo e a identidade visual do Dokpod não estão cobertos pela licença do código.
+
+<p align="center"><sub>Dokpod é um produto <a href="https://altivy.it/">Altivy</a>.</sub></p>

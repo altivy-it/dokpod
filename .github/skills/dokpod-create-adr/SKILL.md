@@ -32,6 +32,6 @@ Não implemente código nem marque a decisão como `accepted`.
 
 - [Modelo de ADR](../../ADR_TEMPLATE.md), sem copiar seu conteúdo para esta skill.
 - [Regras de arquitetura](../../instructions/architecture.instructions.md) e [documentação](../../instructions/documentation.instructions.md).
-- [Constituição](../../../.specify/memory/constitution.md), [README](../../../README.md), [arquitetura](../../../docs/arquitetura.md) e [segurança](../../../docs/seguranca.md).
+- [Constituição](../../../.specify/memory/constitution.md), [visão geral técnica](../../../docs/visao-geral-tecnica.md), [arquitetura](../../../docs/arquitetura.md) e [segurança](../../../docs/seguranca.md).
 
 Os caminhos do procedimento são relativos à raiz do Dokpod. Preserve alterações locais e a sequência anual; não sobrescreva ADR existente. Relate a referência de origem, alternativas, recomendação falsificável e proposta produzida, ou o bloqueio e as informações ausentes, sem apresentar revisão pendente como aceite humano.
