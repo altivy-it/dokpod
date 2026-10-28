@@ -230,13 +230,15 @@ else {
     $policyBody = @{ name = $policyName; type = 'group'; logic = 'POSITIVE'; decisionStrategy = 'UNANIMOUS'; groupsClaim = 'groups'; groups = @(@{ id = $parent.id; path = $GroupPath }) }
 }
 
-$policyResponse = @(Invoke-Api GET "$authzBase/policy")
+# Spec 005, achado A1: sem filtro o Keycloak devolve só a primeira página (100 policies); buscar pelo nome exato.
+$policyQuery = "$authzBase/policy?name=$([Uri]::EscapeDataString($policyName))&exact=true"
+$policyResponse = @(Invoke-Api GET $policyQuery)
 $policies = @($policyResponse.Where({ $null -ne $_ -and $_.PSObject.Properties.Name -contains 'name' -and $_.name -eq $policyName }))
 if ($policies.Count -eq 0) {
     try { $policy = Invoke-Api POST "$authzBase/policy/$policyType" $policyBody; Write-Output "Policy UMA criada: $policyName" }
     catch {
         if ($_.Exception.Message -notmatch '409') { throw }
-        $policy = Find-One @((Invoke-Api GET "$authzBase/policy").Where({ $_.name -eq $policyName })) "policy $policyName"
+        $policy = Find-One @(@(Invoke-Api GET $policyQuery).Where({ $null -ne $_ -and $_.name -eq $policyName })) "policy $policyName"
         Write-Output "Policy UMA já existe: $policyName"
     }
 }
