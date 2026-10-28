@@ -2,6 +2,8 @@
   <img src="docs/assets/brand/dokpod-banner.svg" alt="Dokpod: controle local, visão total. Docker e Podman, Linux e Windows, self-hosted." width="100%">
 </p>
 
+<h1 align="center">Dokpod: gestão self-hosted de containers Docker e Podman</h1>
+
 <p align="center">
   <a href="LICENSE"><img alt="Licença AGPL-3.0-only" src="https://img.shields.io/badge/licen%C3%A7a-AGPL--3.0--only-b8f24a?style=flat-square&labelColor=0d1110"></a>
   <img alt="Engines: Docker e Podman" src="https://img.shields.io/badge/engines-Docker%20%7C%20Podman-b8f24a?style=flat-square&labelColor=0d1110">
