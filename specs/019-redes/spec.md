@@ -4,7 +4,7 @@
 
 **Criada em**: 2026-10-15
 
-**Estado**: `approved` - aprovada pelo solicitante em 2026-10-15 ("Siga com sua decisão e jornadas").
+**Estado**: `implemented` - aprovada pelo solicitante em 2026-10-15 ("Siga com sua decisão e jornadas"); implementada e integrada em 2026-10-15 (PR #24); evidências e itens `NOT RUN` em [tasks.md](tasks.md).
 
 **Entrada**: Pedido do solicitante em 2026-10-15: "siga para próxima etapa de desenvolvimento", após a spec 018. Próximo item "Em breve" da seção Operação do menu: "Redes" ("Redes bridge, overlay e macvlan por host").
 

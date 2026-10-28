@@ -4,7 +4,7 @@
 
 **Criada em**: 2026-10-15
 
-**Estado**: `approved` - aprovada pelo solicitante em 2026-10-15 ("spec aprovada, siga com o plano e implemente").
+**Estado**: `implemented` - aprovada pelo solicitante em 2026-10-15 ("spec aprovada, siga com o plano e implemente"); implementada e integrada em 2026-10-15 (PR #22); evidências e itens `NOT RUN` em [tasks.md](tasks.md); revisão do solicitante ainda pendente em [tasks.md](tasks.md).
 
 **Entrada**: Pedido do solicitante em 2026-10-15: "siga para a spec 017 de Auditoria", item "Auditoria" da seção Governança do menu, hoje uma página "Em breve" ("Consulta da trilha de auditoria por ambiente").
 

@@ -2,7 +2,7 @@
 
 **Branch**: `023-qualificacao-stack-real` | **Data**: 2026-10-17 | **Spec**: [spec.md](spec.md)
 
-**Estado**: `approved` - plano derivado da spec aprovada em 2026-10-17.
+**Estado**: `implemented` - plano derivado da spec aprovada em 2026-10-17; executado e integrado em 2026-10-17 (PR #29).
 
 ## Resumo
 

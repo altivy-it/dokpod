@@ -4,7 +4,7 @@
 
 **Criada em**: 2026-10-17
 
-**Estado**: `approved` - aprovada pelo solicitante em 2026-10-17 ("Sim, siga com o plano").
+**Estado**: `implemented` - aprovada pelo solicitante em 2026-10-17 ("Sim, siga com o plano"); implementada e integrada em 2026-10-17 (PR #29); evidências e itens `NOT RUN` em [tasks.md](tasks.md).
 
 **Entrada**: Pedido do solicitante em 2026-10-17 ("Siga com a recomendação"): frente 1, fechar as verificações `NOT RUN` das specs 007 a 022 antes da qualificação de release ([005](../005-qualificacao-release-docker-linux/spec.md)).
 

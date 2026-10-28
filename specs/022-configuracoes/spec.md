@@ -4,7 +4,7 @@
 
 **Criada em**: 2026-10-16
 
-**Estado**: `approved` - aprovada pelo solicitante em 2026-10-16 ("Continue a implementação").
+**Estado**: `implemented` - aprovada pelo solicitante em 2026-10-16 ("Continue a implementação"); implementada e integrada em 2026-10-16 (PR #27); evidências em [tasks.md](tasks.md).
 
 **Entrada**: Pedido do solicitante em 2026-10-16: "pode seguir", após a spec 021. Último item "Em breve" do menu: Governança → Configurações ("Preferências da instalação Dokpod").
 
