@@ -2,7 +2,7 @@
 
 **Entrada**: [spec.md](spec.md), [plan.md](plan.md), [research.md](research.md), [data-model.md](data-model.md), [contracts/](contracts/audit-api.md), [quickstart.md](quickstart.md).
 
-**Estado**: `implemented` - implementada e validada na stack local em 2026-10-15; aguarda revisão do solicitante.
+**Estado**: `implemented` - implementada e validada na stack local em 2026-10-15; integrada à `main` em 2026-10-15 (PR #22); aguarda revisão do solicitante.
 
 ## Fase 1: Fundação
 
