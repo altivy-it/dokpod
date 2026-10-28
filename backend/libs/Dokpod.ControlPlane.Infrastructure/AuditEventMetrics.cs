@@ -9,13 +9,18 @@ public sealed class AuditEventMetrics : IDisposable
     private readonly Meter meter = new(MeterName, "1.0.0");
     private readonly Counter<long> appendAttempts;
     private readonly Counter<long> appendFailures;
+    private readonly Counter<long> appendCanceled;
     private readonly Counter<long> idempotencyConflicts;
     private readonly Histogram<double> appendDuration;
+
+    /// <summary>Meter desta instância (o listener de teste filtra por ela).</summary>
+    public Meter Meter => meter;
 
     public AuditEventMetrics()
     {
         appendAttempts = meter.CreateCounter<long>("dokpod.audit.append.attempts");
         appendFailures = meter.CreateCounter<long>("dokpod.audit.append.failures");
+        appendCanceled = meter.CreateCounter<long>("dokpod.audit.append.canceled");
         idempotencyConflicts = meter.CreateCounter<long>("dokpod.audit.idempotency.conflicts");
         appendDuration = meter.CreateHistogram<double>("dokpod.audit.append.duration", "ms");
     }
@@ -23,6 +28,8 @@ public sealed class AuditEventMetrics : IDisposable
     public void RecordAttempt() => appendAttempts.Add(1);
 
     public void RecordFailure() => appendFailures.Add(1);
+
+    public void RecordCanceled() => appendCanceled.Add(1);
 
     public void RecordConflict() => idempotencyConflicts.Add(1);
 

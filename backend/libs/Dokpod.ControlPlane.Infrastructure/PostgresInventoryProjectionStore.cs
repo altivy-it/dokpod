@@ -9,6 +9,9 @@ namespace Dokpod.ControlPlane.Infrastructure;
 public sealed class PostgresInventoryProjectionStore(ControlPlaneDbContext dbContext)
     : IInventoryProjectionStore
 {
+    // Semente do hash do lock consultivo, para não colidir com outros usos de pg_advisory_xact_lock.
+    private const long InventoryLockSeed = 0x646F6B696E76; // "dokinv"
+
     public async Task<InventoryProjectionPage?> GetPageAsync(
         Guid environmentId,
         string? afterContainerId,
@@ -63,8 +66,8 @@ public sealed class PostgresInventoryProjectionStore(ControlPlaneDbContext dbCon
         RetrySerializableAsync(() => ReplaceSnapshotOnceAsync(snapshot, cancellationToken), cancellationToken);
 
     /// <summary>
-    /// Transações SERIALIZABLE de agentes diferentes podem falhar por conflito de predicado (40001/40P01)
-    /// mesmo sem tocar as mesmas linhas; a transação inteira é repetida com recuo curto (spec 008 T016).
+    /// Rede de segurança para 40001/40P01: com o lock por ambiente (<see cref="LockEnvironmentAsync"/>) agentes
+    /// diferentes não colidem mais, mas a transação inteira continua repetível com recuo curto (spec 008 T016).
     /// </summary>
     private async Task<T> RetrySerializableAsync<T>(Func<Task<T>> operation, CancellationToken cancellationToken)
     {
@@ -95,14 +98,24 @@ public sealed class PostgresInventoryProjectionStore(ControlPlaneDbContext dbCon
         return false;
     }
 
+    /// <summary>
+    /// Serializa só os escritores do mesmo ambiente, até o fim da transação. Com SERIALIZABLE, a reconexão de
+    /// muitos agentes gerava 40001 por conflito de predicado entre ambientes diferentes (spec 005, achado A2).
+    /// </summary>
+    private Task LockEnvironmentAsync(Guid environmentId, CancellationToken cancellationToken) =>
+        dbContext.Database.ExecuteSqlInterpolatedAsync(
+            $"SELECT pg_advisory_xact_lock(hashtextextended({environmentId.ToString("D")}, {InventoryLockSeed}))",
+            cancellationToken);
+
     private async Task<InventoryReconciliationResult> ApplyDeltaOnceAsync(
         Guid environmentId,
         InventoryDelta delta,
         CancellationToken cancellationToken)
     {
         await using var transaction = await dbContext.Database
-            .BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken)
+            .BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken)
             .ConfigureAwait(false);
+        await LockEnvironmentAsync(environmentId, cancellationToken).ConfigureAwait(false);
 
         var projection = await dbContext.InventoryProjections
             .Include(item => item.Containers)
@@ -174,8 +187,9 @@ public sealed class PostgresInventoryProjectionStore(ControlPlaneDbContext dbCon
         ArgumentNullException.ThrowIfNull(snapshot);
 
         await using var transaction = await dbContext.Database
-            .BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken)
+            .BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken)
             .ConfigureAwait(false);
+        await LockEnvironmentAsync(snapshot.EnvironmentId, cancellationToken).ConfigureAwait(false);
         var projection = await dbContext.InventoryProjections
             .Include(item => item.Containers)
             .SingleOrDefaultAsync(item => item.EnvironmentId == snapshot.EnvironmentId, cancellationToken)

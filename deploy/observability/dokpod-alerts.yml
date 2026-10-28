@@ -96,7 +96,14 @@ groups:
           runbook: docs/runbooks/observabilidade.md#dokpodcomandosfalhando
 
       - alert: DokpodComandosIndeterminados
-        expr: sum(increase(dokpod_commands_completed_total{command_state="indeterminate"}[15m])) > 0
+        # A série de cada combinação de tags nasce no primeiro incremento, já com valor; `increase()` não vê esse
+        # primeiro salto, então a segunda parte pega séries que não existiam 15 minutos antes (spec 005, achado A3).
+        expr: |
+          sum(increase(dokpod_commands_completed_total{command_state="indeterminate"}[15m])) > 0
+            or count(
+              dokpod_commands_completed_total{command_state="indeterminate"} > 0
+                unless dokpod_commands_completed_total{command_state="indeterminate"} offset 15m
+            ) > 0
         labels:
           severity: warning
         annotations:
@@ -127,7 +134,10 @@ groups:
   - name: dokpod-auditoria
     rules:
       - alert: DokpodAuditoriaFalhando
-        expr: sum(increase(dokpod_audit_append_failures_total[5m])) > 0
+        # Mesma proteção da regra de indeterminados: a série nasce com a primeira falha.
+        expr: |
+          sum(increase(dokpod_audit_append_failures_total[5m])) > 0
+            or count(dokpod_audit_append_failures_total > 0 unless dokpod_audit_append_failures_total offset 5m) > 0
         labels:
           severity: critical
         annotations:

@@ -98,6 +98,32 @@ public sealed class AuditEventWriterTests
             writer.AppendAsync(CreateAuditEvent(), cancellation.Token));
     }
 
+    [Fact]
+    public async Task AppendAsync_WhenCallerCancels_CountsCancellationNotFailure()
+    {
+        // Spec 005, achado A2: agente que cai no meio da gravação não é falha de auditoria (o alerta é crítico).
+        await using var context = CreateContext();
+        using var metrics = new AuditEventMetrics();
+        var counts = new Dictionary<string, long>();
+        using var listener = new System.Diagnostics.Metrics.MeterListener();
+        listener.InstrumentPublished = (instrument, l) =>
+        {
+            if (ReferenceEquals(instrument.Meter, metrics.Meter)) l.EnableMeasurementEvents(instrument);
+        };
+        listener.SetMeasurementEventCallback<long>((instrument, value, _, _) =>
+            counts[instrument.Name] = counts.GetValueOrDefault(instrument.Name) + value);
+        listener.Start();
+        var writer = new PostgresAuditEventWriter(context, metrics);
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            writer.AppendAsync(CreateAuditEvent(), cancellation.Token));
+
+        Assert.Equal(1, counts.GetValueOrDefault("dokpod.audit.append.canceled"));
+        Assert.Equal(0, counts.GetValueOrDefault("dokpod.audit.append.failures"));
+    }
+
     private static ControlPlaneDbContext CreateContext()
     {
         var options = new DbContextOptionsBuilder<ControlPlaneDbContext>()

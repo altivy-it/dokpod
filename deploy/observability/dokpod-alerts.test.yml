@@ -151,6 +151,65 @@ tests:
               summary: Mais de 5% dos comandos falharam nos últimos 15 minutos (sem contar alvo desatualizado).
               runbook: docs/runbooks/observabilidade.md#dokpodcomandosfalhando
 
+  - name: Indeterminado em série que nasce com valor alerta (achado A3)
+    interval: 1m
+    input_series:
+      - series: 'dokpod_commands_completed_total{command_kind="restart", command_state="succeeded", command_failure_code=""}'
+        values: '0+5x40'
+      - series: 'dokpod_commands_completed_total{command_kind="restart", command_state="indeterminate", command_failure_code="engine_result_unknown"}'
+        values: '_x10 2x30'
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: DokpodComandosIndeterminados
+        exp_alerts: []
+      - eval_time: 12m
+        alertname: DokpodComandosIndeterminados
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+            exp_annotations:
+              summary: Há comandos com resultado indeterminado; reconcilie o estado no host.
+              runbook: docs/runbooks/observabilidade.md#dokpodcomandosindeterminados
+      - eval_time: 35m
+        alertname: DokpodComandosIndeterminados
+        exp_alerts: []
+
+  - name: Indeterminado que cresce em série existente alerta
+    interval: 1m
+    input_series:
+      - series: 'dokpod_commands_completed_total{command_kind="restart", command_state="indeterminate", command_failure_code="engine_result_unknown"}'
+        values: '1x30 2x10'
+    alert_rule_test:
+      - eval_time: 25m
+        alertname: DokpodComandosIndeterminados
+        exp_alerts: []
+      - eval_time: 33m
+        alertname: DokpodComandosIndeterminados
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+            exp_annotations:
+              summary: Há comandos com resultado indeterminado; reconcilie o estado no host.
+              runbook: docs/runbooks/observabilidade.md#dokpodcomandosindeterminados
+
+  - name: Falha de auditoria em série que nasce com valor alerta (achado A3)
+    interval: 1m
+    input_series:
+      - series: 'dokpod_audit_append_failures_total'
+        values: '_x5 1x10'
+    alert_rule_test:
+      - eval_time: 3m
+        alertname: DokpodAuditoriaFalhando
+        exp_alerts: []
+      - eval_time: 7m
+        alertname: DokpodAuditoriaFalhando
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+            exp_annotations:
+              summary: Falha ao gravar eventos de auditoria; ações auditadas podem estar sendo recusadas.
+              runbook: docs/runbooks/observabilidade.md#dokpodauditoriafalhando
+
   - name: Falha de auditoria alerta imediatamente
     interval: 1m
     input_series:
