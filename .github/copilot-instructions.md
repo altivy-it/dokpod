@@ -72,7 +72,7 @@ ou da remediação autorizada de Bug Fixing; não cria processo independente.
 - Use as mesmas configurações Spec Kit do Inventory360Api: `auto_execute_hooks: true`, todos os 18 hooks Git com `enabled: true` e `git-config.yml` igual ao da referência. Os commits por evento continuam desativados nessa configuração.
 - A invocação de um fluxo Spec Kit autoriza os hooks nele configurados; não autoriza push, publicação, deploy ou implementação de produto fora das tarefas aprovadas.
 - Após instalar, atualizar ou reconciliar componentes, use [localize-speckit](prompts/localize-speckit.prompt.md) para auditar ou traduzir textos humanos em pt-BR sem alterar comandos, IDs, placeholders ou contratos de leitura. Sem modo explícito, somente audite; não invente configuração de idioma ou hooks de instalação.
-- Consulte [o guia de extensões](README.md#spec-kit-e-extensões) para versões e validação. Preserve constituição, specs, relatórios, overrides e personalizações locais.
+- Consulte [o guia de extensões](ENGENHARIA_ASSISTIDA.md#spec-kit-e-extensões) para versões e validação. Preserve constituição, specs, relatórios, overrides e personalizações locais.
 
 ## Commits
 

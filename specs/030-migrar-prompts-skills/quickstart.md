@@ -66,7 +66,7 @@ A cópia descartável criada em T004 não recebe automaticamente as edições fe
 | T016, após T015 | `.github/skills/dokpod-generate-tests/SKILL.md` e `.github/agents/quality-engineer.agent.md` |
 | T020, após T019 | `.github/skills/dokpod-localize-speckit/SKILL.md` |
 | T025, após T024 | `.github/skills/pull-request-review/SKILL.md` e `.github/agents/code-reviewer.agent.md` |
-| T030, após T029 | As quatro skills e três agentes acima, `.github/README.md`, `.github/COPILOT_GUIDE.md`, `.github/copilot-instructions.md` e `.github/GOVERNANCE.md`; refletir apenas as quatro exclusões de prompts descritas abaixo |
+| T030, após T029 | As quatro skills e três agentes acima, `.github/ENGENHARIA_ASSISTIDA.md` (antigo `.github/README.md`), `.github/COPILOT_GUIDE.md`, `.github/copilot-instructions.md` e `.github/GOVERNANCE.md`; refletir apenas as quatro exclusões de prompts descritas abaixo |
 
 Para cada sincronização, a partir do PowerShell de orquestração:
 

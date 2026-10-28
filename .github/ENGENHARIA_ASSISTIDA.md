@@ -1,5 +1,7 @@
 # Engenharia assistida por GitHub Copilot
 
+> Este guia fica fora de `.github/README.md` porque o GitHub exibe na página do repositório o primeiro README que encontrar em `.github/`, antes do [README do produto](../README.md).
+
 Este diretório define procedimentos que apoiam o Spec Kit, único processo
 autorizado para desenvolver e manter a aplicação Dokpod. Issues são intake;
 requisitos, desenho e tarefas pertencem aos artefatos oficiais.
