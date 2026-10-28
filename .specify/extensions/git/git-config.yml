@@ -15,35 +15,31 @@ branch_template: ""
 branch_prefix: ""
 
 # Mensagem usada por `git commit` durante a inicialização do repositório
-init_commit_message: "[Spec Kit] Commit inicial"
+init_commit_message: "chore: inicializar repositório"
 
 # Estilo de mensagem usado pelos hooks de commit automático (speckit.git.commit):
-# "fixed"        - padrão; usa as mensagens configuradas/estáticas abaixo.
+# "fixed"        - usa as mensagens configuradas/estáticas abaixo.
 # "conventional" - pede ao agente que inspecione o diff e gere uma mensagem
-#                  Conventional Commit (por exemplo, "feat: add OAuth spec")
-#                  em vez de usar as mensagens configuradas abaixo.
-commit_style: fixed
+#                  Conventional Commit conforme as instruções do repositório.
+commit_style: conventional
 
-# Commit automático antes/depois dos comandos centrais.
-# Defina "default" para habilitar em todos os comandos; depois, sobrescreva por comando.
-# Cada chave aceita true/false. A mensagem pode ser personalizada por comando.
+# Commit somente nas transições principais do fluxo Spec Kit.
+# Os hooks permanecem opcionais; revise as alterações e o título antes de confirmar.
+# Não há push automático.
+# `git add .` inclui todas as alterações pendentes após a confirmação.
 auto_commit:
   default: false
   before_clarify:
-    enabled: false
-    message: "[Spec Kit] Salvar progresso antes do esclarecimento"
+    enabled: true
   before_plan:
-    enabled: false
-    message: "[Spec Kit] Salvar progresso antes do planejamento"
+    enabled: true
   before_tasks:
-    enabled: false
-    message: "[Spec Kit] Salvar progresso antes de gerar as tarefas"
+    enabled: true
   before_implement:
-    enabled: false
-    message: "[Spec Kit] Salvar progresso antes da implementação"
+    enabled: true
   before_checklist:
     enabled: false
-    message: "[Spec Kit] Salvar progresso antes da checklist"
+    message: "[Spec Kit] Salvar progresso antes da implementação"
   before_analyze:
     enabled: false
     message: "[Spec Kit] Salvar progresso antes da análise"

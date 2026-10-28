@@ -9,6 +9,8 @@
 
 **Atualização desta avaliação:** 2026-09-25, após lifecycle e autorização horizontal E2E.
 
+**Nota de 2026-10-27 (sem alterar o veredito):** a [spec 023](../specs/023-qualificacao-stack-real/spec.md) validou o console das specs 007 a 022 ponta a ponta na stack real com Docker 28.5.2 (aninhado no Podman) e Podman rootless 5.7, e executou a compatibilidade N-1 entre agente e servidor por 10 minutos em cada sentido. Isso muda as linhas "Podman Linux" e "Compatibilidade N/N-1" abaixo para PASS PARCIAL. O veredito continua **NO-GO**: carga nominal e margem, assinatura e provenance, Windows Service em host limpo, Podman rootful e a decisão humana GO/NO-GO da [spec 005](../specs/005-qualificacao-release-docker-linux/spec.md) seguem pendentes.
+
 ## Resumo executivo
 
 O núcleo técnico do Dokpod está funcional em laboratório. A stack de controle sobe com web, BFF, API, PostgreSQL e Keycloak; o agente Linux em container e o agente Windows self-contained conseguem acessar Docker Desktop, negociar mTLS e abrir sessão gRPC.
@@ -77,8 +79,8 @@ Resumo de maturidade:
 | Assinatura e provenance | NOT RUN | Imagens e pacote Windows ainda não possuem gate de assinatura/proveniência validado. |
 | Backup e restore | PASS | Dump completo restaurado e verificado em database temporária; cleanup concluído. |
 | Windows Service real | NOT RUN | Script e DryRun existem; instalação elevada, conta dedicada, ACL, update e rollback não foram executados. |
-| Podman Linux | NOT RUN | Rootless/rootful e diferenças Libpod não qualificados. |
-| Compatibilidade N/N-1 | NOT RUN | Falta teste com servidor/agente de versões consecutivas. |
+| Podman Linux | PASS PARCIAL | Rootless validado ponta a ponta na stack real (spec 023, 2026-10-17); rootful e carga em Podman não qualificados. |
+| Compatibilidade N/N-1 | PASS PARCIAL | Agente N-1 ↔ servidor N e agente N ↔ servidor N-1 por 10 minutos cada, com inventário e comandos (spec 023); gate formal da spec 005 pendente. |
 | Observabilidade de release | NOT RUN | Métricas, traces, alertas e diagnóstico operacional ainda não têm evidência de release. |
 
 ## Bloqueadores para entregar a stack
@@ -140,7 +142,7 @@ Publicar inicialmente somente a combinação comprovada. A recomendação atual 
 
 - Docker Linux: candidato a suportado após fechar os gates de release;
 - Docker Windows/Desktop: experimental até concluir Windows Service e ACL;
-- Podman Linux: adiado até testes rootless/rootful;
+- Podman Linux: rootless validado funcionalmente (spec 023); candidato junto com Docker Linux após carga e rootful;
 - Podman Windows: fora do escopo inicial, tratado como engine Linux dentro de VM quando aplicável.
 
 ## Sequência mínima recomendada

@@ -12,7 +12,7 @@ Atue somente em tarefa de `specs/<feature>/tasks.md` autorizada via `/speckit-im
 
 ## Procedimento
 
-1. Confirme a tarefa/remediação e seus limites, leia seus artefatos Spec Kit, o [plano mestre](../../README.md) e o [frontend](../../docs/frontend.md).
+1. Confirme a tarefa/remediação e seus limites, leia seus artefatos Spec Kit, o [plano mestre](../../docs/visao-geral-tecnica.md) e o [frontend](../../docs/frontend.md).
 2. Localize feature, contrato gerado, estado e teste proprietários.
 3. Antes de desenhar qualquer tela ou componente, abra o board correspondente em `docs/design/app` e localize os componentes `dok-*` existentes em `frontend/web/src/app/design-system/`.
 4. Declare uma hipótese local e uma verificação capaz de refutá-la.
