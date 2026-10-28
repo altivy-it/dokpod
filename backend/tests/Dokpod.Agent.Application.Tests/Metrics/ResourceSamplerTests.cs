@@ -16,7 +16,7 @@ public sealed class ResourceSamplerTests
     {
         var clock = new Clock(Start);
         var engine = new StatsEngine();
-        engine.Stats["a"] = new EngineContainerStats(1_000, 100_000, 4, 50 << 20, 512 << 20, 0, 0, 0, 0);
+        engine.Stats["a"] = new EngineContainerStats(1_000, 4, 50 << 20, 512 << 20, 0, 0, 0, 0);
         var sampler = new ResourceSampler(engine, new Probe(), clock);
 
         var first = (await sampler.SampleAsync([new SampleTarget("a", 2)], TestContext.Current.CancellationToken)).Single().Containers.Single();
@@ -26,9 +26,9 @@ public sealed class ResourceSamplerTests
         Assert.False(first.HasNetRxBps);
 
         clock.Advance(TimeSpan.FromSeconds(15));
-        engine.Stats["a"] = new EngineContainerStats(4_000, 112_000, 4, 60 << 20, 512 << 20, 15_360, 30_720, 0, 1_500);
+        engine.Stats["a"] = new EngineContainerStats(1_000 + 15_000_000_000, 4, 60 << 20, 512 << 20, 15_360, 30_720, 0, 1_500);
         var second = (await sampler.SampleAsync([new SampleTarget("a", 2)], TestContext.Current.CancellationToken)).Single().Containers.Single();
-        Assert.Equal(25, second.CpuPercentOfHost);   // 3.000 / 12.000
+        Assert.Equal(25, second.CpuPercentOfHost);   // 1 núcleo em 15 s, de 4
         Assert.Equal(50, second.CpuPercentOfLimit);  // 1 núcleo de 2
         Assert.Equal(2, second.CpuLimitCores);
         Assert.Equal(1_024UL, second.NetRxBps);
@@ -37,11 +37,29 @@ public sealed class ResourceSamplerTests
     }
 
     [Fact]
+    public async Task CpuUsesTheEngineReadInstantWhenAvailable()
+    {
+        // O ciclo do agente anda 15 s, mas o engine leu os contadores com 10 s de diferença: 10 s de CPU = 1 núcleo.
+        var clock = new Clock(Start);
+        var engine = new StatsEngine();
+        engine.Stats["a"] = new EngineContainerStats(0, 8, 1, null, 0, 0, 0, 0, Start.AddSeconds(2));
+        var sampler = new ResourceSampler(engine, new Probe(), clock);
+        await sampler.SampleAsync([new SampleTarget("a", 2)], TestContext.Current.CancellationToken);
+
+        clock.Advance(TimeSpan.FromSeconds(15));
+        engine.Stats["a"] = new EngineContainerStats(10_000_000_000, 8, 1, null, 0, 0, 0, 0, Start.AddSeconds(12));
+        var second = (await sampler.SampleAsync([new SampleTarget("a", 2)], TestContext.Current.CancellationToken)).Single().Containers.Single();
+
+        Assert.Equal(50, second.CpuPercentOfLimit);
+        Assert.Equal(12.5, second.CpuPercentOfHost);
+    }
+
+    [Fact]
     public async Task ContainersAboveCapacityRotateAndAreCountedAsDropped()
     {
         var engine = new StatsEngine();
         var targets = Enumerable.Range(0, 7).Select(i => new SampleTarget($"c{i}", null)).ToArray();
-        foreach (var t in targets) engine.Stats[t.ContainerId] = new EngineContainerStats(1, 1, 1, 1, null, 0, 0, 0, 0);
+        foreach (var t in targets) engine.Stats[t.ContainerId] = new EngineContainerStats(1, 1, 1, null, 0, 0, 0, 0);
         var sampler = new ResourceSampler(engine, new Probe(), new Clock(Start), maxContainersPerMessage: 2, maxMessagesPerInterval: 2);
 
         var cycle1 = await sampler.SampleAsync(targets, TestContext.Current.CancellationToken);
@@ -79,7 +97,7 @@ public sealed class ResourceSamplerTests
     public async Task StatsFailureSkipsOnlyThatContainerAndStoppedContainersArePruned()
     {
         var engine = new StatsEngine();
-        engine.Stats["ok"] = new EngineContainerStats(1, 1, 1, 1, null, 0, 0, 0, 0);
+        engine.Stats["ok"] = new EngineContainerStats(1, 1, 1, null, 0, 0, 0, 0);
         var sampler = new ResourceSampler(engine, new Probe(), new Clock(Start));
 
         var batch = (await sampler.SampleAsync([new SampleTarget("ok", null), new SampleTarget("gone", null)], TestContext.Current.CancellationToken)).Single();
@@ -102,7 +120,7 @@ public sealed class ResourceSamplerTests
             clock.Advance(TimeSpan.FromSeconds(15));
             foreach (var target in targets)
             {
-                engine.Stats[target.ContainerId] = new EngineContainerStats((ulong)(1_000 + (round * 3_000)), (ulong)(100_000 + (round * 12_000)), 4, 50 << 20, 512 << 20, 0, 0, 0, 0);
+                engine.Stats[target.ContainerId] = new EngineContainerStats((ulong)(1_000 + (round * 3_000)), 4, 50 << 20, 512 << 20, 0, 0, 0, 0);
             }
 
             var batch = (await sampler.SampleAsync(targets, TestContext.Current.CancellationToken)).Single();

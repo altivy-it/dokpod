@@ -123,9 +123,12 @@ public sealed class ResourceSampler(
         if (previous.TryGetValue(target.ContainerId, out var last))
         {
             var elapsed = now - last.At;
+            // Preferir o instante de leitura do engine: as leituras são paralelas e não coincidem com `now`.
+            var cpuElapsed = stats.ReadAt is { } readAt && last.Stats.ReadAt is { } lastReadAt && readAt > lastReadAt ? readAt - lastReadAt : elapsed;
             var cpu = CpuUsageCalculator.Container(
-                new ContainerCpuCounters(last.Stats.CpuTotalNanos, last.Stats.SystemCpuNanos, last.Stats.OnlineCpus),
-                new ContainerCpuCounters(stats.CpuTotalNanos, stats.SystemCpuNanos, stats.OnlineCpus),
+                new ContainerCpuCounters(last.Stats.CpuTotalNanos, last.Stats.OnlineCpus),
+                new ContainerCpuCounters(stats.CpuTotalNanos, stats.OnlineCpus),
+                cpuElapsed,
                 target.CpuLimitCores);
             if (cpu is { } usage)
             {
