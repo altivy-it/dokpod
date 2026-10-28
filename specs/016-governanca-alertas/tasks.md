@@ -2,7 +2,7 @@
 
 **Entrada**: [spec.md](spec.md), [plan.md](plan.md), [research.md](research.md), [data-model.md](data-model.md), [contracts/](contracts/alerts-api.md), [quickstart.md](quickstart.md).
 
-**Estado**: `implemented` - implementada e validada na stack local em 2026-10-14; aguarda revisão do solicitante.
+**Estado**: `implemented` - implementada e validada na stack local em 2026-10-14; integrada à `main` em 2026-10-15 (PR #21); aguarda revisão do solicitante.
 
 **Pré-requisitos**: spec aprovada (2026-10-14); 015, correção de métricas (#18) e correção do sino (#20) incorporadas à branch.
 

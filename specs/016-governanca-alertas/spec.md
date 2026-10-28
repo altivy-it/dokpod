@@ -4,7 +4,7 @@
 
 **Criada em**: 2026-10-14
 
-**Estado**: `approved` - aprovada pelo solicitante em 2026-10-14 com ajuste: a justificativa vale para parar, pausar e remover ("o restante está ok").
+**Estado**: `implemented` - aprovada pelo solicitante em 2026-10-14 com ajuste: a justificativa vale para parar, pausar e remover ("o restante está ok"); implementada e integrada em 2026-10-15 (PR #21); evidências em [tasks.md](tasks.md); revisão do solicitante ainda pendente em [tasks.md](tasks.md).
 
 **Entrada**: Pedido do solicitante em 2026-10-14: "Comece pelos Alertas, inclusive o sininho [...] o menu Governança → Alertas precisa ser construído com todos os detalhes referentes à governança de alertas" e "Quando um usuário for parar um container, se configurado pelo administrador, uma tela deverá ser exibida para que uma justificativa seja informada [...] da conotação que o container foi parado intencionalmente, e não por problema", com persistência em banco e recuperação por API. O defeito visual do sino (painel por baixo dos cards) foi corrigido à parte (PR #20).
 

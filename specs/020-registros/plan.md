@@ -2,7 +2,7 @@
 
 **Branch**: `020-registros` | **Data**: 2026-10-15 | **Spec**: [spec.md](spec.md)
 
-**Estado**: `approved` - plano derivado da spec aprovada em 2026-10-15.
+**Estado**: `implemented` - plano derivado da spec aprovada em 2026-10-15; executado e integrado em 2026-10-15 (PR #25).
 
 ## Resumo
 

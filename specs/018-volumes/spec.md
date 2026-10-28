@@ -4,7 +4,7 @@
 
 **Criada em**: 2026-10-15
 
-**Estado**: `approved` - aprovada pelo solicitante em 2026-10-15 ("Aprovado, siga com o plano").
+**Estado**: `implemented` - aprovada pelo solicitante em 2026-10-15 ("Aprovado, siga com o plano"); implementada e integrada em 2026-10-15 (PR #23); evidências e itens `NOT RUN` em [tasks.md](tasks.md).
 
 **Entrada**: Pedido do solicitante em 2026-10-15: "Siga com os Volumes", item "Volumes" da seção Operação do menu, hoje uma página "Em breve" ("Inventário e limpeza de volumes por host").
 
