@@ -2,7 +2,7 @@
 
 **Data**: 2026-10-06 | **Branch da migração**: `chore/adotar-spec-kit`
 
-**Estado** (2026-10-25): 001 a 004 `superseded`, encerradas por substituição pelas specs 005 a 023 (referência em cada tarefa); 005 `in-progress`, aguardando a repetição em VM isolada e a decisão GO/NO-GO; 006 `draft`, aguardando a máquina Windows de testes; 024 `in-progress` (histórias 1 a 3; a 4 depende do GO da 005).
+**Estado** (2026-10-27): 001 a 004 `superseded`, encerradas por substituição pelas specs 005 a 023 (referência em cada tarefa); 005 `in-progress`, aguardando a repetição em VM isolada e a decisão GO/NO-GO; 006 `draft`, aguardando a máquina Windows de testes; 024 `in-progress` (histórias 1 a 3; a 4 depende do GO da 005). 025 a 029 `draft` (roteiro da edição comercial), aguardando revisão humana.
 
 **Origem**: IA assistida, migração documental autorizada pelo solicitante nesta sessão.
 
@@ -137,6 +137,22 @@ conclusão de tarefas ou dispensa implícita de gate obrigatório da matriz decl
 | 17 | [023 - Qualificação na stack real](023-qualificacao-stack-real/spec.md) | Docker real, N-1, permissões e canários | aprovação da spec; Docker real aninhado no Podman; alimenta a 005 |
 
 Dependências: 007 → 008 → {009, 010, 012} → 011 → 013 → 014 (013 usa 011 para consultas ao host; 014 usa a página e o hub de 011). Todos os itens do menu têm spec.
+
+### Roteiro da edição comercial (025-029)
+
+**Data**: 2026-10-27 | **Branch**: `025-029-roteiro-recursos` | **Estado**: `draft`, aguardando revisão humana; nenhuma implementação autorizada.
+
+**Origem**: pedido do solicitante em 2026-10-27 ("Itens de referência que ainda não estão no dokpod, inclua todos no roadmap"), a partir da análise de recursos de mercado para gestão de containers. A ordem abaixo é a ordem do pedido. A edição de cada item é revista no plano ([licenciamento](../docs/licenciamento.md#business)).
+
+| Ordem | Conjunto | Onde aparece | Gates humanos antes de implementar |
+| --- | --- | --- | --- |
+| 1 | [025 - Aviso de nova versão de imagem](025-aviso-nova-versao-imagem/spec.md) | Imagens, Containers, detalhe e alertas | aprovação da spec; capability de verificação no agente |
+| 2 | [026 - Janelas de mudança por estágio](026-janelas-de-mudanca/spec.md) | Configurações → Políticas e ações controladas | aprovação da spec; scope `change:override` |
+| 3 | [027 - Exportação de auditoria para SIEM](027-exportacao-auditoria-siem/spec.md) | Configurações e Auditoria | aprovação da spec; threat model do canal de saída |
+| 4 | [028 - Implantação somente por código](028-implantacao-somente-por-codigo/spec.md) | Configurações → Políticas, Novo container e pull | aprovação da spec; 026 (exceção); jornada 2 depende de spec futura de stacks e GitOps |
+| 5 | [029 - Modelos de SSO prontos](029-modelos-sso/spec.md) | Login e Configurações → Instalação | aprovação da spec; aplicativos de teste no Entra ID, Google e GitHub |
+
+Dependências: 026 → 028 (exceção de emergência compartilhada). 025, 027 e 029 são independentes entre si. Itens da edição comercial ainda sem spec: permissões por equipe e por recurso no console, detecção de divergência de políticas, stacks e Compose, GitOps, operações agendadas e atualização coordenada de agentes.
 
 ### Registro de alocação de contratos
 
