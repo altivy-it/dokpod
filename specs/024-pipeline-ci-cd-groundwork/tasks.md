@@ -14,12 +14,12 @@
 ## Fase 2: Políticas (US2)
 
 - [ ] T005 [US2] `groundwork github --sync --dry-run`, `--sync` e, com T004 comprovado, `--sync --replace-legacy`; registrar o resultado e confirmar `groundwork github` com código 0. *(2026-10-25: `--sync` aplicado; rulesets `gw-main-integrity` e `gw-main-review`, secret scanning, push protection, `allow_rebase_merge=false` e `allow_update_branch=true` conformes. Falta `--sync --replace-legacy`, executado pelo mantenedor: remove a proteção clássica e o ruleset `Protecao exclusiva da main`.)*
-- [ ] T006 [US2] Confirmar que o merge com `Result` vermelho é recusado e que o PR verde do admin é integrado por squash sem aprovação de terceiros.
+- [ ] T006 [US2] Confirmar que o merge com `Result` vermelho é recusado e que o PR verde do admin é integrado por squash sem aprovação de terceiros. *(2026-10-28: caso positivo nos PRs #53 e #54, integrados por squash pelo admin com 0 revisões; no #54 o `Result` ficou verde às 21:36:27Z e o merge entrou às 21:37:55Z, 88 s depois (SC-003), com o commit assinado pelo GitHub. Caso negativo no PR descartável #55 (título fora de Conventional Commits): `Hygiene / Conventional title` e `Result` vermelhos, `mergeStateStatus` `BLOCKED` e `viewerCanMergeAsAdmin` `false` para o admin. Falta a tentativa de `gh pr merge --admin` pelo mantenedor.)*
 
 ## Fase 3: Dependências (US3)
 
 - [X] T007 [US3] Semente `dependabot.yml` do catálogo: actions, NuGet, npm e os quatro Dockerfiles, prefixos compatíveis com o release-please e `exclude-paths` dos `gw-*.yml`.
-- [ ] T008 [US3] Conferir o primeiro lote de PRs do Dependabot depois do merge: títulos aceitos pelo `Hygiene` e nenhum arquivo gerenciado alterado (SC-004).
+- [x] T008 [US3] Conferir o primeiro lote de PRs do Dependabot depois do merge: títulos aceitos pelo `Hygiene` e nenhum arquivo gerenciado alterado (SC-004). *(2026-10-28: primeiro lote, todos de npm: #45 `fix(deps)` e #48 `build(deps-dev)` integrados e #46 `build(deps-dev)` fechado pelo próprio Dependabot depois de `Result` vermelho por build, substituído pelo #48. Os três títulos passaram em `Hygiene / Conventional title`, e `Hygiene / Managed files` passou em todos. Nenhum dos 9 arquivos do `.groundwork/manifest.json` foi alterado: o #45 e o #46 mudam só `frontend/web/package*.json`, e o #48 também tem o cliente gerado, regerado pelo mantenedor (`f84a40e`). Os ecossistemas NuGet, GitHub Actions e Docker ainda não abriram PR.)*
 
 ## Fase 4: Documentação
 
