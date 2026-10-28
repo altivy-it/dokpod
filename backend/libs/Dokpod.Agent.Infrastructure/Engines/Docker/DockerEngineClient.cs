@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net;
 using System.Net.Sockets;
 using System.IO.Pipes;
@@ -1377,16 +1378,21 @@ public sealed class DockerEngineClient(HttpClient httpClient, RegistryCredential
             online = percpu.GetArrayLength();
         }
 
+        // `read` dá o intervalo real entre leituras; o ano 1 é o valor vazio do Go.
+        DateTimeOffset? readAt = root.TryGetProperty("read", out var readElement) && readElement.ValueKind == JsonValueKind.String &&
+            DateTimeOffset.TryParse(readElement.GetString(), CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var parsedRead) &&
+            parsedRead.Year > 1 ? parsedRead : null;
+
         return new EngineContainerStats(
             U(cpu, "cpu_usage", "total_usage"),
-            U(cpu, "system_cpu_usage"),
             Math.Max(1, online),
             usage > inactive ? usage - inactive : usage,
             limit is > 0 and < 1UL << 60 ? limit : null,
             rx,
             tx,
             read,
-            write);
+            write,
+            readAt);
     }
 
     private static string? ParseHealthFromStatus(string? status)
