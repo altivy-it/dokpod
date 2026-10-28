@@ -2,7 +2,7 @@
 
 **Branch**: `021-pods` | **Data**: 2026-10-16 | **Spec**: [spec.md](spec.md)
 
-**Estado**: `approved` - plano derivado da spec aprovada em 2026-10-16.
+**Estado**: `implemented` - plano derivado da spec aprovada em 2026-10-16; executado e integrado em 2026-10-16 (PR #26).
 
 ## Resumo
 

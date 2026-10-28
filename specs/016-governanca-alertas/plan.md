@@ -2,7 +2,7 @@
 
 **Branch**: `016-governanca-alertas` | **Data**: 2026-10-14 | **Spec**: [spec.md](spec.md)
 
-**Estado**: `approved` - plano derivado da spec aprovada em 2026-10-14 (ajuste: justificativa para parar, pausar e remover).
+**Estado**: `implemented` - plano derivado da spec aprovada em 2026-10-14 (ajuste: justificativa para parar, pausar e remover); executado e integrado em 2026-10-15 (PR #21).
 
 ## Resumo
 
