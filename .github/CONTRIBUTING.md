@@ -2,7 +2,7 @@
 
 ## Antes de começar
 
-1. Leia o [README](../README.md) e os documentos da área afetada.
+1. Leia o [README](../README.md), a [visão geral técnica](../docs/visao-geral-tecnica.md) e os documentos da área afetada.
 2. Procure os artefatos Spec Kit, tarefa/remediação, Issue e ADR relacionados.
 3. Confirme autorização humana explícita e limites da tarefa/remediação antes de executar; Issues são intake, não autorização.
 4. Nunca inclua secrets em nenhuma parte do código ou configuração, inclusive

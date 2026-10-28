@@ -7,7 +7,7 @@ permanecem literais.
 
 ## Comece aqui
 
-1. Leia [README](../README.md), [arquitetura](../docs/arquitetura.md),
+1. Leia [visão geral técnica](../docs/visao-geral-tecnica.md), [arquitetura](../docs/arquitetura.md),
 [segurança](../docs/seguranca.md) e [constituição](../.specify/memory/constitution.md).
 2. Para retomar iniciativa antiga, consulte [migração e cobertura](../specs/README.md).
 Os seis conjuntos estão em `draft`; sua existência não autoriza execução.

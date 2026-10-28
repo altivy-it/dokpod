@@ -12,7 +12,7 @@ Atue somente em tarefa de `specs/<feature>/tasks.md` autorizada via `/speckit-im
 
 ## Procedimento
 
-1. Leia o requisito, o [plano mestre](../../README.md), a [arquitetura](../../docs/arquitetura.md) e a [segurança](../../docs/seguranca.md).
+1. Leia o requisito, o [plano mestre](../../docs/visao-geral-tecnica.md), a [arquitetura](../../docs/arquitetura.md) e a [segurança](../../docs/seguranca.md).
 2. Localize o contrato, capability, adapter, journal e teste de engine envolvidos.
 3. Declare a hipótese local, os invariantes e a validação capaz de refutá-la.
 4. Modele Docker e Podman por capabilities explícitas; não presuma equivalência entre engines ou plataformas.
