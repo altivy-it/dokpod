@@ -1,24 +1,27 @@
 # Licenciamento e comercialização
 
-**Status da política:** decisão aceita  
-**Data:** 2026-09-06  
+**Status da política:** decisão aceita (2026-09-06); revisão de preços e métrica em `proposed` ([ADR 2026-0007](adr/2026-0007-precificacao-por-node-e-faixa-de-vcpu.md), 2026-10-27)  
+**Data:** 2026-09-06, revisada em 2026-10-27  
 **Implementação atual:** nenhuma edição publicada; CE é a primeira entrega planejada
 
 Esta é a política operacional derivada do [ADR 2026-0003](adr/2026-0003-licenciamento-e-edicoes.md). O ADR registra contexto e decisão; este documento é a referência para escopo das edições, comercialização e gates de release.
 
 ## Modelo
 
-O Dokpod terá duas edições e uma única oferta comercial:
+O Dokpod terá duas edições: a Community Edition gratuita e a edição comercial (Business), vendida em três planos anuais. Os planos abaixo seguem o [ADR 2026-0007](adr/2026-0007-precificacao-por-node-e-faixa-de-vcpu.md), em `proposed`; preços e nome dos planos são decisão do solicitante, e nodes, faixas de vCPU e contagem aguardam aceite.
 
-| Aspecto | Dokpod Community Edition | Dokpod Business |
-| --- | --- | --- |
-| Licença | `AGPL-3.0-only` | licença comercial proprietária |
-| Preço | gratuito | US$ 99/mês ou US$ 990/ano por organização |
-| Nodes gerenciados | sem limite artificial | até 100 na matriz inicialmente suportada |
-| Usuários | sem limite artificial | sem cobrança ou limite artificial |
-| Instalações | sem limite imposto pelo Dokpod | uma de produção e uma de homologação |
-| Chave de licença | não exige | arquivo assinado, verificável offline |
-| Suporte | comunidade | e-mail em horário comercial, sujeito ao SLA contratual |
+| Aspecto | Community Edition | Teams | Business | Enterprise |
+| --- | --- | --- | --- | --- |
+| Licença | `AGPL-3.0-only` | comercial proprietária | comercial proprietária | comercial proprietária |
+| Preço | gratuito | US$ 900/ano | US$ 1.500/ano | sob medida |
+| Nodes | sem limite artificial | até 5 | 5, em pacotes de 5 até 25 | sem teto |
+| vCPUs por node | sem limite | até 16 | até 32 | acima de 32 |
+| Usuários | sem limite artificial | sem cobrança ou limite | sem cobrança ou limite | sem cobrança ou limite |
+| Instalações | sem limite imposto | uma de produção e uma de homologação | uma de produção e uma de homologação | conforme contrato |
+| Chave de licença | não exige | arquivo assinado, verificável offline | arquivo assinado, verificável offline | arquivo assinado, verificável offline |
+| Suporte | comunidade | comunidade e documentação | e-mail em horário comercial, próximo dia útil | SLA contratual |
+
+A política anterior (US$ 99/mês ou US$ 990/ano por organização, até 100 nodes) permanece registrada no [ADR 2026-0003](adr/2026-0003-licenciamento-e-edicoes.md) e vale até o aceite do ADR 2026-0007.
 
 A CE será implementada e estabilizada antes do início da Business. Os preços são uma decisão de produto; impostos, moeda de cobrança, meios de pagamento, SLA e contrato comercial precisam de validação jurídica e financeira antes da primeira venda.
 
@@ -31,9 +34,9 @@ A CE será um produto self-hosted funcional, sem chave, telemetria comercial obr
 - inventário, saúde e sincronização de containers;
 - iniciar, parar, reiniciar e excluir containers;
 - autenticação pelo Keycloak;
-- autorização administrativa, operacional e somente leitura;
-- identidade mTLS dos agentes;
-- auditoria básica de comandos e resultados;
+- autorização por ambiente e por ação no Keycloak (scopes de `docs/configuracao-keycloak.md`), com papéis de administração, operação e leitura;
+- identidade mTLS dos agentes, com revogação;
+- auditoria persistente de comandos e resultados, filtrável e exportável em CSV;
 - API e protocolos públicos necessários à interoperabilidade;
 - backup, restauração e atualização manuais;
 - correções de segurança para versões suportadas.
@@ -44,9 +47,13 @@ A CE não terá limites artificiais de nodes, usuários ou containers. Limites t
 
 **A Business é uma edição futura e nenhuma das funcionalidades exclusivas abaixo foi iniciada.** Quando implementada, incluirá todo o baseline da CE e concentrará valor em governança, automação e suporte:
 
-- RBAC granular por ambiente, equipe, recurso e ação;
-- retenção configurável e exportação de auditoria;
+- permissões por equipe e por recurso individual, geridas no console (a CE já autoriza por ambiente e por ação);
+- retenção configurável de auditoria e exportação para SIEM por syslog e OpenTelemetry ([spec 027](../specs/027-exportacao-auditoria-siem/spec.md));
 - políticas centralizadas e detecção de divergência;
+- janelas de mudança por estágio ([spec 026](../specs/026-janelas-de-mudanca/spec.md));
+- aviso de nova versão das imagens em uso ([spec 025](../specs/025-aviso-nova-versao-imagem/spec.md));
+- implantação somente por código em produção ([spec 028](../specs/028-implantacao-somente-por-codigo/spec.md));
+- modelos de SSO prontos para Microsoft Entra ID, Google e GitHub ([spec 029](../specs/029-modelos-sso/spec.md));
 - ações em lote e operações agendadas;
 - alertas e integrações operacionais;
 - GitOps, stacks e Compose quando essas capacidades forem implementadas;
@@ -66,9 +73,11 @@ Uma organização é a pessoa jurídica ou unidade contratante identificada no c
 
 ### Node
 
-Um node é um host físico, máquina virtual ou dispositivo com engine Docker ou Podman gerenciado pelo Dokpod. A quantidade de containers, CPUs e usuários não altera a contagem. Um host com mais de um engine conta uma vez enquanto representar o mesmo ambiente computacional gerenciado.
+Um node é um host físico, máquina virtual ou dispositivo com engine Docker ou Podman gerenciado pelo Dokpod. A quantidade de containers e usuários não altera a contagem. Um host com mais de um engine conta uma vez enquanto representar o mesmo ambiente computacional gerenciado.
 
-A CE mede nodes apenas para capacidade e observabilidade local. A Business usa a contagem para validar a matriz suportada de até 100 nodes, sem transmitir inventário ao fornecedor.
+Pelo ADR 2026-0007 (`proposed`), cada node conta como `teto(vCPUs / faixa do plano)` nodes equivalentes, com os vCPUs lógicos informados pelo agente (`cpu_count` no `Hello`). A apuração usa o maior total dos últimos 30 dias, calculado localmente.
+
+A CE mede nodes apenas para capacidade e observabilidade local. A edição comercial usa a contagem para validar o plano contratado, sem transmitir inventário ao fornecedor.
 
 ## Licença da CE
 
@@ -104,7 +113,7 @@ A Business usará um arquivo de licença assinado digitalmente. O payload mínim
 - identificador da licença e da organização;
 - edição e versão do schema;
 - datas de emissão, início e expiração;
-- limite de 100 nodes;
+- limite de nodes e faixa de vCPUs por node do plano;
 - uma instalação de produção e uma de homologação;
 - capacidades licenciadas;
 - assinatura digital.
