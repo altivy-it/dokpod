@@ -8,21 +8,24 @@ O produto é concorrente e funcionalmente inspirado no Portainer, com arquitetur
 
 ## Edições e licenciamento
 
-A primeira entrega será o **Dokpod Community Edition**, sem chave ou limites artificiais de nodes e usuários, sob `AGPL-3.0-only`. Uma edição **Dokpod Business** poderá ser oferecida posteriormente por US$ 99/mês ou US$ 990/ano por organização, com governança, automação e suporte comercial para até 100 nodes na matriz inicialmente suportada.
+A primeira entrega será o **Dokpod Community Edition**, sem chave ou limites artificiais de nodes e usuários, sob `AGPL-3.0-only`. A edição comercial terá três planos anuais, cobrados por node com faixa de vCPU por node: **Times** (Teams, US$ 900/ano), **Business** (US$ 1.500/ano) e **Enterprise** (sob medida), conforme o [ADR 2026-0007](docs/adr/2026-0007-precificacao-por-node-e-faixa-de-vcpu.md) (`proposed`).
 
-Segurança essencial, autenticação, autorização básica, mTLS, correções de segurança e auditoria mínima permanecem na CE. A Business ainda não está implementada. Consulte a [licença](LICENSE), a [política de licenciamento e comercialização](docs/licenciamento.md) e o [ADR 2026-0003](docs/adr/2026-0003-licenciamento-e-edicoes.md).
+Segurança essencial, autenticação, autorização por ambiente e por ação, mTLS, correções de segurança e auditoria permanecem na CE. Os recursos exclusivos da edição comercial ainda não estão implementados. Consulte a [licença](LICENSE), a [política de licenciamento e comercialização](docs/licenciamento.md) e os ADRs [2026-0003](docs/adr/2026-0003-licenciamento-e-edicoes.md) e [2026-0007](docs/adr/2026-0007-precificacao-por-node-e-faixa-de-vcpu.md).
 
 ## Estado
 
-A arquitetura inicial foi aceita em 2026-09-06. Existe uma candidata de MVP
-executável em laboratório com web Angular, BFF, API, PostgreSQL, Keycloak e
-agente Docker Linux. Inventário, autorização por ambiente, realtime, start,
-restart, stop, delete, auditoria, revogação e reconciliação foram validados ponta
-a ponta com dados sintéticos.
+A arquitetura inicial foi aceita em 2026-09-06. O console operacional das
+specs 007 a 022 está implementado: visão geral com KPIs e métricas, lista unificada
+com ações em lote, detalhe com inspeção, logs e terminal interativo, imagens e
+pull, criação de containers, alertas, auditoria, volumes, redes, registros, pods
+e configurações. A [spec 023](specs/023-qualificacao-stack-real/spec.md) validou
+tudo ponta a ponta na stack real com **Docker** (28.5.2, aninhado no Podman) e
+**Podman rootless** (5.7), inclusive compatibilidade N-1 entre agente e servidor,
+usuário só de leitura, registro privado e terminal pelo navegador.
 
 O projeto ainda não declara compatibilidade de produção. Carga nominal/margem,
-assinatura e provenance, qualificação do Windows Service em host limpo, Podman e
-revisão humana final permanecem gates bloqueantes. Consulte a
+assinatura e provenance, qualificação do Windows Service em host limpo, Podman
+rootful e revisão humana final permanecem gates bloqueantes. Consulte a
 [prontidão para release](docs/release-readiness.md) para o veredito atual.
 
 ## Objetivos do MVP
@@ -30,17 +33,15 @@ revisão humana final permanecem gates bloqueantes. Consulte a
 - cadastrar e aprovar ambientes gerenciados;
 - inventariar containers e saúde do engine;
 - iniciar, parar, reiniciar e excluir containers;
-- suportar Docker em Linux como primeiro alvo;
-- validar Podman rootless em Linux e Docker em Windows antes de declará-los estáveis;
+- suportar Docker e Podman rootless em Linux (validados na stack real pela spec 023);
+- validar Docker em Windows, com o agente como Windows Service, antes de declará-lo estável;
 - manter auditoria, autorização e comunicação agente-servidor seguras;
 - preservar os workloads quando plano de controle ou agente estiver indisponível.
 
 ## Não objetivos iniciais
 
 - Kubernetes, Swarm e Nomad;
-- criação de containers, stacks e Compose;
-- terminal interativo dentro de containers;
-- gerenciamento de registries, volumes, redes ou imagens;
+- stacks e Compose (previstos no roteiro da edição comercial);
 - plugins executáveis no servidor ou no agente;
 - proxy genérico da API Docker/Podman;
 - suporte nativo a Windows containers por Podman.
@@ -197,6 +198,18 @@ Issues/Project fazem intake e acompanhamento conforme a
 5. Docker e Podman são capacidades distintas sob um contrato comum, não engines presumidos como idênticos.
 6. Secrets, conteúdo de logs de containers e credenciais nunca entram em telemetria por padrão.
 7. Dependências externas exigem licença permissiva, manutenção ativa e versão fixada.
+
+## Roteiro
+
+Itens planejados em ordem, como rascunhos Spec Kit aguardando revisão humana:
+[025 aviso de nova versão de imagem](specs/025-aviso-nova-versao-imagem/spec.md),
+[026 janelas de mudança por estágio](specs/026-janelas-de-mudanca/spec.md),
+[027 exportação de auditoria para SIEM](specs/027-exportacao-auditoria-siem/spec.md),
+[028 implantação somente por código](specs/028-implantacao-somente-por-codigo/spec.md) e
+[029 modelos de SSO prontos](specs/029-modelos-sso/spec.md). A edição comercial
+também prevê permissões por equipe e por recurso no console, detecção de divergência
+de políticas, stacks e Compose, GitOps, operações agendadas e atualização coordenada
+de agentes ([licenciamento](docs/licenciamento.md#business)).
 
 ## Próxima etapa
 
