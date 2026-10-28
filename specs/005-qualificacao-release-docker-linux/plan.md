@@ -150,7 +150,7 @@ Ressalvas: não há migration entre N-1 e N, então o rollback com migration nov
 
 Candidata: **Docker Linux**, commit `33684ff` (branch `005-qualificacao-release`, PR #30), CI remoto `40123301221` verde. Esta matriz não altera `docs/release-readiness.md` (FR-001) e não autoriza publicação nem deploy (FR-009).
 
-**Legenda**: **PASS** = comprovado; **PASS (decisão)** / **(com aceite)** = aceito pelo solicitante, com o residual registrado na linha; **PASS (lab)** = comprovado no laboratório local (estação compartilhada, não VM isolada); **PARCIAL** = parte comprovada, com o restante indicado; **NOT RUN** = sem evidência; **ADIAMENTO PROPOSTO** = depende de decisão humana.
+**Legenda**: **PASS** = comprovado; **PASS (decisão)** / **(com aceite)** = aceito pelo solicitante, com o residual registrado na linha; **PASS (lab)** = comprovado no laboratório local (estação compartilhada, não VM isolada); **PARCIAL** = parte comprovada, com o restante indicado; **NOT RUN** = sem evidência; **ADIAMENTO PROPOSTO** = depende de decisão humana. **PASS (VM)** = comprovado na VM isolada de 2026-10-28, com as imagens assinadas da `v0.1.0-rc.2`.
 
 | # | Gate | Origem | Estado | Evidência | Pendência e destino |
 | --- | --- | --- | --- | --- | --- |
@@ -158,13 +158,13 @@ Candidata: **Docker Linux**, commit `33684ff` (branch `005-qualificacao-release`
 | 2 | Vulnerabilidades HIGH/CRITICAL | P-02, FR-003 | PASS | A política do CI reprova HIGH/CRITICAL corrigível ou sem aceite. Web: 0 corrigíveis após `ac985ea`, 93 aceites por CVE vigentes até 2027-01-15. API, BFF e agente sem HIGH/CRITICAL | Renovar ou revisar os aceites antes de 2027-01-15 |
 | 3 | Assinatura e provenance | P-04, FR-006 | PASS | Job `release-images` só em tag `v*`: cosign keyless, attestation e verificação de identidade e emissor (`13ff9bd`, `6265505`); tag `v0.1.0-rc.1` (`e528b71`, run 40138370444) | Exercício autorizado em 2026-10-24. Local: 11/11 casos com `tools/security/exercise-signing-local.sh` (chave errada, chave retirada da confiança, atestado de outro tipo, tag movida, imagem sem assinatura e assinatura de outro digest recusados). Keyless, verificado fora do workflow em 2026-10-25 (cosign 3.1.3 e `gh attestation verify`): as 4 imagens do GHCR aceitas pelo digest com a identidade `…/ci.yml@refs/tags/v0.1.0-rc.1` e o emissor do GitHub Actions, e os atestados de proveniência aceitos com repositório, ref e workflow do signatário. Recusados: identidade de outra tag, da branch `main`, de outro repositório e de outro workflow; outro emissor; outro tipo de predicado; e a assinatura da API copiada para o digest do agente num registro local descartável (`provided artifact digest does not match any digest in statement`) |
 | 4 | Threat model revisado | P-04, FR-006 | PASS (decisão) | [threat-model-consolidado.md](threat-model-consolidado.md): 18 fronteiras, telemetria OTLP e backup modelados. Achado A1 corrigido (o agente não validava o nome do servidor com CA própria). L1 corrigida (bundle de raízes e [runbook de troca da CA](../../docs/runbooks/troca-da-ca-dos-agentes.md)), L5 corrigida (`retire-load-hosts.sh`), L4 confirmada | Aprovado pelo solicitante em 2026-10-24, com R1–R10 aceitos. Revisar de novo a cada fronteira nova |
-| 5 | Carga nominal 56/1.120/30 por ≥ 30 min | P-03, FR-004 | PASS (lab) | Todos os limites atendidos: leituras com p95 de 51,5 ms, comandos com p95 de 310 ms, 0,004% de erros, API com 0,17 vCPU | Repetir em VM isolada (FR-004) |
-| 6 | Carga de margem 100/2.000/50 | P-03, FR-004 | PASS (lab) | Leituras com p95 de 59 ms, comandos com p95 de 324 ms, 0,007% de erros, reconexão em 5,7 s | Repetir em VM isolada |
-| 7 | Recuperação | FR-005 | PASS (lab, com aceite) | Reconnect storm (100 agentes em 5,7 s), restart da API com backlog (após `b4be2b7`, `a86058c` e `4ff3623`) e resposta perdida sem efeito duplicado (`Indeterminate` em `745b2fc`, coberto por teste) | Residual aceito pelo solicitante em 2026-10-24: inventário degradado e comandos concorrentes no mesmo container não executados (a serialização por container é coberta por `AgentCommandProcessorTests`). Repetir em VM isolada |
-| 8 | Compatibilidade N/N-1 | FR-007 | PASS | Spec 023 T003: agente N-1 ↔ servidor N por 10 min, sem erros; o sentido inverso falhou e foi corrigido para versões futuras. Em 2026-10-24, o agente N (`dd9a645`) operou com o servidor N-1 (`cd674fc`) | Repetir com as versões efetivamente publicadas |
-| 9 | Backup e restore com auditoria íntegra | FR-007 | PASS (lab) | 41/41 itens idênticos à origem, incluindo o SHA-256 dos 27.200 eventos; trigger append-only ativo e API pronta sobre a cópia | Repetir em VM isolada |
-| 10 | Atualização e rollback | FR-007 | PASS (lab) | N → N-1 e N-1 → N com o agente Podman real: 33 s de indisponibilidade, auditoria, ambientes e identidades preservados; runbook `docs/runbooks/backup-restore-e-atualizacao.md` | Rollback com migration nova não exercitado (o runbook manda restaurar o backup) |
-| 11 | Observabilidade de release | FR-007 | PASS (lab) | OpenTelemetry (OTLP) na API e no BFF, com métricas dos ADRs 0001, 0002 e 0004, traces BFF → API → Keycloak → PostgreSQL e 13 regras de alerta testadas com `promtool`. Três falhas reais dispararam os alertas certos. Runbook `docs/runbooks/observabilidade.md` | Repetir em VM isolada; ligar ao Prometheus e ao destino de alertas da operação |
+| 5 | Carga nominal 56/1.120/30 por ≥ 30 min | P-03, FR-004 | PASS (VM) | Todos os limites atendidos: leituras com p95 de 51,5 ms, comandos com p95 de 310 ms, 0,004% de erros, API com 0,17 vCPU | VM 2026-10-28: todos os limites atendidos (ver repetição em VM) |
+| 6 | Carga de margem 100/2.000/50 | P-03, FR-004 | PASS (VM) | Leituras com p95 de 59 ms, comandos com p95 de 324 ms, 0,007% de erros, reconexão em 5,7 s | VM 2026-10-28: todos os limites atendidos; 100 agentes em 5,0 s |
+| 7 | Recuperação | FR-005 | PASS (VM, com aceite) | Reconnect storm (100 agentes em 5,7 s), restart da API com backlog (após `b4be2b7`, `a86058c` e `4ff3623`) e resposta perdida sem efeito duplicado (`Indeterminate` em `745b2fc`, coberto por teste) | VM 2026-10-28: restart da API e resposta perdida sem duplicidade; `Indeterminate` observado. Residual aceito em 2026-10-24 (inventário degradado e comandos concorrentes no mesmo container) segue sem execução |
+| 8 | Compatibilidade N/N-1 | FR-007 | PASS | Spec 023 T003: agente N-1 ↔ servidor N por 10 min, sem erros; o sentido inverso falhou e foi corrigido para versões futuras. Em 2026-10-24, o agente N (`dd9a645`) operou com o servidor N-1 (`cd674fc`) | VM 2026-10-28: agentes N (rc.2) operaram com servidor N-1 (rc.1) no rollback; repetir com as versões publicadas |
+| 9 | Backup e restore com auditoria íntegra | FR-007 | PASS (VM) | 41/41 itens idênticos à origem, incluindo o SHA-256 dos 27.200 eventos; trigger append-only ativo e API pronta sobre a cópia | VM 2026-10-28: 40/40 itens iguais, append-only e API sobre a cópia |
+| 10 | Atualização e rollback | FR-007 | PARCIAL (VM) | N → N-1 e N-1 → N com o agente Podman real: 33 s de indisponibilidade, auditoria, ambientes e identidades preservados; runbook `docs/runbooks/backup-restore-e-atualizacao.md` | Troca funcional nos dois sentidos; item 7 do runbook (sem `fail` no log) reprovado pelo achado A2; rollback com migration nova não exercitado |
+| 11 | Observabilidade de release | FR-007 | PASS (VM, com achado) | OpenTelemetry (OTLP) na API e no BFF, com métricas dos ADRs 0001, 0002 e 0004, traces BFF → API → Keycloak → PostgreSQL e 13 regras de alerta testadas com `promtool`. Três falhas reais dispararam os alertas certos. Runbook `docs/runbooks/observabilidade.md` | Três falhas reais com alerta; achado A3 (alerta de `indeterminate` não disparou) |
 | 12 | Licença, avisos e código-fonte | FR-008 | PASS | `1de46ef`: LICENSE e avisos de terceiros nas quatro imagens, rótulo OCI `AGPL-3.0-only`, oferta do código-fonte no console. Nenhuma chave, serviço de licenciamento ou telemetria comercial no código | — |
 | 13 | Autenticação, autorização e revogação | readiness | PASS | Autorização horizontal e revogação PASS (`docs/release-readiness.md`); permissões do Keycloak por scope (spec 023) | — |
 | 14 | E2E com dependências indisponíveis | readiness | PASS (com aceite) | Jornada autenticada, inventário, lifecycle e revogação PASS | Residual aceito pelo solicitante em 2026-10-24: sessão expirada e indisponibilidade do Keycloak e do PostgreSQL com recuperação da UI ficam sem E2E dedicado |
@@ -184,25 +184,74 @@ O PR #30 entrou na `main` em andamento (`966a4ae`). Depois dele, a `main` recebe
 
 Consequência para a repetição em VM: a candidata passa a ser a `main` atual, não `33684ff`. A assinatura do gate 3 vale para os digests da `v0.1.0-rc.1` (`e528b71`); a VM deve usar uma tag nova (`v0.1.0-rc.2` ou posterior), para que as imagens testadas sejam as mesmas assinadas pelo job `release-images`.
 
-### Veredito recomendado: **NO-GO**
+### Repetição em VM isolada — 2026-10-28 (gates 5, 6, 7, 9, 10 e 11)
 
-Pela regra do T009, `NOT RUN` mantém NO-GO. Não há mais gate `NOT RUN` desde a aprovação do gate 4, mas os gates 5, 6, 7, 9, 10 e 11 só têm evidência de laboratório, sem a VM isolada que o FR-004 exige. O gate 3 passou com a verificação keyless da `v0.1.0-rc.1`. Os gates 15 e 16 foram decididos pelo solicitante, com o Podman Windows adiado.
+**Ambiente**: VPS dedicado (KVM, 8 vCPU, 32 GB, 400 GB, Ubuntu 26.04), sem outra carga; Podman 6.1.3 rootless, usuário sem sudo; todas as portas da stack só em `127.0.0.1`. Plataforma de identidade (PostgreSQL 18.4, Keycloak 26.7.0 e gateway), PKI de laboratório, segredos e realm `dokpod` gerados na própria VM; nada copiado do laboratório local.
 
-Para chegar a GO na candidata Docker Linux:
+**Candidata**: tag `v0.1.0-rc.2` (`24592a5`), pipeline `40623891639` verde. As quatro imagens da rc.2 e as quatro da rc.1 (N-1) tiveram a assinatura verificada por digest com `cosign verify` (identidade `ci.yml@refs/tags/<tag>`, emissor do GitHub Actions) e foram transferidas para a VM com o mesmo ID de imagem (8/8). Migrations: 27, com 133 partições em `audit_events` e 133 em `agent_commands`.
 
-1. Carga nominal, margem, recuperação, restore, rollback e observabilidade repetidos em VM isolada (gates 5, 6, 7, 9, 10 e 11).
-2. A VM com as imagens de uma tag nova (`v0.1.0-rc.2` ou posterior), verificadas pela assinatura antes do teste.
+| Gate | Resultado na VM | Laboratório (2026-10-24) |
+| --- | --- | --- |
+| 5 — nominal 56/1.120/30 por 30 min | **PASS**: leituras p95 88 ms / p99 136 ms (26.133); comando p95 350 ms (868); convergência máx. 738 ms; erros 0,004% (1 `stale_target`); API 0,21 vCPU, 334 MiB; 867 `succeeded` = 867 execuções; host 74% ocioso, steal 1,4% | p95 51,5 / 310 ms; 0,004% |
+| 6 — margem 100/2.000/50 por 30 min | **PASS**: leituras p95 113 ms / p99 233 ms (43.241); comando p95 375 ms (1.455); convergência máx. 929 ms; erros 0,009% (4 `stale_target`); API 0,26 vCPU, 351 MiB; 1.451 `succeeded` = 1.451 execuções; partida simultânea dos 100 agentes em 5,0 s | p95 59 / 324 ms; 5,7 s |
+| 7 — recuperação | **PASS**: restart da API com 100 comandos em voo: parada limpa em 4,8 s (sem SIGKILL), 100 agentes de volta em 5,8 s, 100 `succeeded` = 100 execuções, 0 `too many clients`. Resposta perdida (SIGKILL no simulador), 3 rodadas: 0 execução duplicada; numa rodada, 2 comandos terminaram `indeterminate` (`engine_result_unknown`) sem execução no engine — o caminho de `745b2fc`, antes provado só por teste, agora observado | PASS (lab, com aceite) |
+| 9 — backup e restore | **PASS**: API e BFF parados 17,9 s; dump de 48 MB em 5,1 s (banco de 676 MB); `pg_restore --exit-on-error` em 15,3 s; impressão digital 40/40 itens iguais (10.979 eventos de auditoria, mesmo SHA-256, 133 partições, 27 migrations, trigger, grants, realms, usuários e policies do Keycloak, linhas de cada tabela); `UPDATE` e `DELETE` na auditoria da cópia barrados; API temporária sobre a cópia com 200 em `/health/ready`, `/ready/database` e `/ready/keycloak`; cópia, API e dump removidos | 41/41 itens |
+| 10 — rollback e atualização | **PASS funcional, item 7 reprovado** (achado A2): rc.2 → rc.1 e rc.1 → rc.2 com os 100 agentes simulados e o agente Podman real em N: 36,1 s e 35,8 s de indisponibilidade, agentes de volta em 7 s, leituras e comandos sem erro, auditoria até a troca idêntica (10.979 e 10.994 eventos), 101 ambientes e identidades preservados. O log da API teve 4 e 17 linhas `fail` (`40001`). Sem migration entre rc.1 e rc.2: o rollback com migration nova continua sem exercício | 33 s; sem `fail` (só 1 agente conectado) |
+| 11 — observabilidade | **PASS, com achado A3**: 1.133 séries da API e 820 do BFF, 10/10 métricas-chave; leituras p95 de 126 ms no Prometheus contra 113 ms externos; trace BFF → API → Keycloak → PostgreSQL; 0 dado sensível em 50 traces; `promtool check rules` (13) e `test rules` OK. Falhas reais: Keycloak parado → `DokpodKeycloakIndisponivel` em 146 s (apagou 151 s após a volta); 100 agentes derrubados → `DokpodAgentesDesconectando` em 317 s (25 s); API parada → `DokpodApiSemTelemetria` em 136 s (30 s). `DokpodComandosIndeterminados` **não disparou** para os 2 `indeterminate` do gate 7 | PASS (lab) |
+
+**Preparo da VM** (não afeta o produto, registrado para reprodução): o cadastro por API usa por padrão só `environment:read` e `environment:manage`, e os ambientes de carga precisam de todos os scopes (corrigido direto no banco, como dado sintético, depois de uma primeira rodada nominal que só leu); o `agent-podman` do compose tem `depends_on` da API, que no Podman impede trocar a API (removido no compose da VM, porque em produção o agente fica em outro host); o script idempotente do `dotnet ef` não executa a migration `202609220002`, que chama funções dentro do bloco `DO` (aplicado o script normal, como o `database update`); o compose de laboratório publica a porta gRPC da API em todas as interfaces (presa em `127.0.0.1` na VM).
+
+#### Achados da VM
+
+| Achado | Gravidade | Evidência | Destino proposto |
+| --- | --- | --- | --- |
+| **A1** `provision-environment-authorization.ps1` lista as policies com `GET .../policy` sem filtro: o Keycloak devolve só 100, e a partir daí o script não acha a policy que criou e falha | Média (ferramenta de operação) | 1.253 de 1.717 concessões falharam; com filtro por nome e paginação explícita, 0 falhas | `/speckit-bug-assess` |
+| **A2** Tempestade de reconexão gera `40001` (serialização) na projeção de inventário; o `SaveChanges` compartilhado arrasta a gravação de auditoria junto, o evento é refeito na reentrega, mas o log registra `fail` e `DokpodAuditoriaFalhando` dispara | Média (sem perda: 400/400 comandos com auditoria completa e inventário convergido em 100/100 hosts) | ~131 colisões no restart da API com 100 agentes; 2 e 7 por troca de versão; 1 a cada poucos minutos sob carga | `/speckit-bug-assess`: retentativa de `40001` e separar a gravação de auditoria da projeção |
+| **A3** Contadores criados só no primeiro incremento: a série nasce com o valor do primeiro lote e o `increase()` não o enxerga; alertas de evento raro perdem as primeiras ocorrências | Média (observabilidade de evento crítico) | 2 `indeterminate` sem `DokpodComandosIndeterminados` | `/speckit-bug-assess`: inicializar as séries com zero e teste de regra com série nascendo em valor |
+| **A4** Leitura do console faz uma decisão UMA por ambiente (103 chamadas ao Keycloak num trace com 101 ambientes) | Baixa (dentro dos limites; custo cresce com o número de ambientes) | Trace `8c931ccb…` | Avaliar decisão em lote antes de matrizes maiores |
+
+### Repetição dos gates 10 e 11 com a `v0.1.0-rc.3` — 2026-10-28
+
+**Candidata**: tag `v0.1.0-rc.3` (`6c84722`, correção de A2 e A3 do PR #53, bug `.specify/bugs/spec005-a2-a3-log-alertas`), pipeline `40768626305` verde. As quatro imagens tiveram a assinatura verificada por digest com `cosign verify` v3.1.3 (identidade `ci.yml@refs/tags/v0.1.0-rc.3`, emissor do GitHub Actions); api, bff e web foram transferidas para a VM com o mesmo ID de imagem (3/3). Mesma VM, mesmos 100 agentes simulados e o agente Podman real em rc.2.
+
+| Verificação | Resultado |
+| --- | --- |
+| Gate 10 — atualização rc.2 → rc.3 | **PASS**: 37,4 s de indisponibilidade, 100 agentes de volta em 13,3 s, 136 leituras sem erro, auditoria até a troca idêntica (13.826 eventos), 101 ambientes e identidades preservados; **item 7: 0 linhas `fail`/`crit`** (rc.1 → rc.2: 17) |
+| Gate 10 — rollback rc.3 → rc.2 | **PASS** nos itens 1 a 6 (35,5 s, agentes em 7,5 s, 16.644 eventos idênticos). As 307 linhas `fail` do item 7 são da própria rc.2 (552 `40001`), o defeito que a rc.3 corrige |
+| Gate 10 — nova atualização rc.2 → rc.3 | **PASS**: 34,9 s, agentes em 7,5 s, 16.663 eventos idênticos, item 7 com 0 linhas |
+| Gate 7 com rc.3 | Restart da API com 100 comandos em voo: 100/100 `succeeded` = 100 execuções. Resposta perdida, 13 rodadas: 0 execução duplicada; 1 `stale_target` (recusa correta do agente por revisão divergente, sem execução, como nos gates 5 e 6 da rc.2). Em toda a instância: 0 `fail`/`crit` e 0 `40001` |
+| Gate 11 — alertas | Regras novas carregadas e saudáveis; `DokpodAuditoriaFalhando` inativo, com 0 falhas de auditoria e 39 cancelamentos em `dokpod_audit_append_canceled_total`. Nenhum `indeterminate` nas 13 rodadas da rc.3, então `DokpodComandosIndeterminados` não teve evento para disparar; a prova ao vivo da regra nova foi feita com a imagem de pré-teste do mesmo código (disparo às 11:09:57) e nos dados reais da rc.2 (05:20 a 05:28), registrada no bug |
+
+**Efeito nos achados**: A2 resolvido (item 7 do gate 10 aprovado, 0 `40001`, auditoria sem falha falsa). A3 resolvido nas regras de alerta, com prova ao vivo na imagem de pré-teste e `promtool test rules`; sem nova ocorrência espontânea na rc.3.
+
+### Veredito recomendado: **GO** (atualizado em 2026-10-28, rc.3)
+
+Com a `v0.1.0-rc.3`, os dois achados que sustentavam o NO-GO estão corrigidos e verificados na VM. Fica como residual: A1 (ferramenta de operação), A4 (dentro dos limites), rollback com migration nova sem exercício e a prova ao vivo do alerta de `indeterminate` feita em imagem de pré-teste do mesmo código, não na imagem assinada. A decisão continua sendo do solicitante.
+
+#### Veredito anterior: **NO-GO** (2026-10-28, rc.2)
+
+Não há gate `NOT RUN`. A repetição em VM isolada (FR-004) comprovou carga nominal, margem, recuperação, restore e observabilidade com as imagens assinadas da `v0.1.0-rc.2`. O NO-GO recomendado se deve aos achados da VM, não a falta de evidência:
+
+- **A2** reprova o item 7 do runbook de atualização (gate 10) e faz `DokpodAuditoriaFalhando` disparar sem perda de auditoria, o que confunde a operação;
+- **A3** deixa o alerta de comando `indeterminate`, um evento crítico pela spec 003, cego para as primeiras ocorrências.
+
+Caminhos para GO, à escolha do solicitante:
+
+1. Corrigir A2 e A3 pelo fluxo de bugs (`/speckit-bug-assess`), gerar `v0.1.0-rc.3` e repetir na VM só o gate 10 e a prova do alerta de `indeterminate`; ou
+2. Aceitar A2 e A3 como residual, com responsável e prazo registrados abaixo, e decidir GO na `v0.1.0-rc.2`.
+
+A1 e A4 não bloqueiam: A1 é ferramenta de operação, e A4 está dentro dos limites aprovados.
 
 ### Decisão humana
 
 | Campo | Valor |
 | --- | --- |
-| Decisão | *pendente* |
+| Decisão | **GO** na `v0.1.0-rc.3` |
 | Responsável | lzocateli (solicitante) |
-| Data | *pendente* |
+| Data | 2026-10-28 |
 | Adiamentos aceitos (gates 15 e 16) | Podman Windows adiado (2026-10-24). Docker Windows (Docker Desktop) e Podman Linux aprovados por teste manual do solicitante |
 | Decisões parciais (2026-10-24) | Gate 1 aceito: as imagens usam sempre as bases do repositório `containers`. Gates 7 e 14 aceitos com o residual registrado nas linhas. Gate 4 aprovado, com as recomendações das lacunas e os riscos R1–R10 aceitos |
-| Observações | *pendente* |
+| Observações | Decisão do solicitante em 2026-10-28 ("GO"), depois da repetição dos gates 10 e 11 com a `v0.1.0-rc.3` na VM isolada. Residuais aceitos com o GO: A1 (script de autorização sem paginação), A4 (decisão UMA por ambiente), rollback com migration nova sem exercício e disparo ao vivo de `DokpodComandosIndeterminados` provado só na imagem de pré-teste do mesmo código. `docs/release-readiness.md` não foi alterado (FR-001) |
 
 ### Observabilidade — laboratório local, 2026-10-24 (gate 11)
 
