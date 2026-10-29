@@ -260,16 +260,17 @@ public interface IContainerEngine
         Task.FromResult<EngineContainerStats?>(null);
 }
 
+/// <summary>Contadores de `/containers/{id}/stats`; `ReadAt` é o instante da leitura no engine (campo `read`).</summary>
 public sealed record EngineContainerStats(
     ulong CpuTotalNanos,
-    ulong SystemCpuNanos,
     int OnlineCpus,
     ulong MemoryUsedBytes,
     ulong? MemoryLimitBytes,
     ulong NetRxBytes,
     ulong NetTxBytes,
     ulong BlockReadBytes,
-    ulong BlockWriteBytes);
+    ulong BlockWriteBytes,
+    DateTimeOffset? ReadAt = null);
 
 public sealed record EngineLogRequest(int? Tail, DateTimeOffset? Since, DateTimeOffset? Until, bool Follow);
 

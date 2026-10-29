@@ -6,29 +6,32 @@ namespace Dokpod.Domain.Tests.Metrics;
 public sealed class MetricsDomainTests
 {
     [Theory]
-    // 4 CPUs, container usou 1 núcleo inteiro no intervalo (25% do host); sem limite, referência = host.
-    [InlineData(1_000, 4_000, 4, null, 25, 25)]
+    // 4 CPUs, container usou 1 núcleo inteiro em 15 s (25% do host); sem limite, referência = host.
+    [InlineData(15_000_000_000, 15, 4, null, 25, 25)]
     // limite de 2 núcleos: 1 núcleo = 50% do limite.
-    [InlineData(1_000, 4_000, 4, 2.0, 25, 50)]
+    [InlineData(15_000_000_000, 15, 4, 2.0, 25, 50)]
     // limite de 0,5 núcleo excedido momentaneamente: 200% do limite.
-    [InlineData(1_000, 4_000, 4, 0.5, 25, 200)]
-    public void Container_ComputesShareOfHostAndOfLimit(long containerDelta, long systemDelta, int cpus, double? limit, double host, double ofLimit)
+    [InlineData(15_000_000_000, 15, 4, 0.5, 25, 200)]
+    // 8 CPUs, meio núcleo em 10 s.
+    [InlineData(5_000_000_000, 10, 8, 2.0, 6.25, 25)]
+    public void Container_ComputesCoresFromWallClockOverHostAndLimit(long containerDelta, double seconds, int cpus, double? limit, double host, double ofLimit)
     {
-        var previous = new ContainerCpuCounters(10_000, 100_000, cpus);
-        var current = new ContainerCpuCounters(10_000 + (ulong)containerDelta, 100_000 + (ulong)systemDelta, cpus);
+        var previous = new ContainerCpuCounters(10_000, cpus);
+        var current = new ContainerCpuCounters(10_000 + (ulong)containerDelta, cpus);
 
-        var usage = CpuUsageCalculator.Container(previous, current, limit);
+        var usage = CpuUsageCalculator.Container(previous, current, TimeSpan.FromSeconds(seconds), limit);
 
         Assert.Equal(host, usage!.Value.PercentOfHost);
         Assert.Equal(ofLimit, usage.Value.PercentOfLimit);
     }
 
     [Theory]
-    [InlineData(500UL, 200_000UL)]   // contador do container reiniciou
-    [InlineData(20_000UL, 100_000UL)] // sistema não avançou
-    public void Container_ResetCountersAreGapsNotZeroOrSpikes(ulong containerNow, ulong systemNow)
+    [InlineData(500UL, 15)]     // contador do container reiniciou
+    [InlineData(20_000UL, 0)]   // intervalo nulo (mesma leitura)
+    [InlineData(20_000UL, -1)]  // relógio voltou
+    public void Container_ResetCountersAreGapsNotZeroOrSpikes(ulong containerNow, double seconds)
     {
-        Assert.Null(CpuUsageCalculator.Container(new(10_000, 100_000, 4), new(containerNow, systemNow, 4), null));
+        Assert.Null(CpuUsageCalculator.Container(new(10_000, 4), new(containerNow, 4), TimeSpan.FromSeconds(seconds), null));
     }
 
     [Fact]
