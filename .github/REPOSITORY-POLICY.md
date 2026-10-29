@@ -21,6 +21,11 @@ consegue fazer merge com o `Result` vermelho nem com histórico não linear.
 - Merge somente squash, com título e corpo do PR; branch apagada após o merge; botão de
   atualização da branch habilitado.
 - `GITHUB_TOKEN` somente leitura por padrão e sem permissão de aprovar PRs.
+- Actions permitidas: com a política "selecionadas", as actions do GitHub e cada action de
+  terceiros dos workflows gerenciados, fixada pelo SHA listado em `allowedActions`
+  (`googleapis/release-please-action`). Sem isso o GitHub recusa o workflow antes de
+  qualquer job (`startup_failure`). O `--sync` só acrescenta esses padrões; não troca o modo
+  da política nem remove padrões existentes. Restrição na organização precisa ser liberada lá.
 - Alertas e security updates do Dependabot habilitados.
 - Em repositórios públicos, secret scanning e push protection habilitados.
 
