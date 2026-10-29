@@ -64,13 +64,46 @@
           }
         }
       ]
+    },
+    {
+      "name": "gw-release-tags",
+      "target": "tag",
+      "enforcement": "active",
+      "conditions": { "ref_name": { "include": ["refs/tags/v*"], "exclude": [] } },
+      "bypass_actors": [{ "actor_id": 5441343, "actor_type": "Integration", "bypass_mode": "always" }],
+      "rules": [
+        { "type": "creation" },
+        { "type": "update" },
+        { "type": "deletion" }
+      ]
     }
   ],
   "environments": [
+    {
+      "name": "release",
+      "reviewers": ["lzocateli"],
+      "preventSelfReview": false,
+      "reviewersFallback": "release-pr",
+      "deploymentPolicies": [{ "name": "main", "type": "branch" }, { "name": "v*", "type": "tag" }]
+    },
+    {
+      "name": "quality",
+      "reviewers": ["lzocateli"],
+      "preventSelfReview": false,
+      "requireReviewers": false,
+      "deploymentPolicies": [{ "name": "v*", "type": "tag" }]
+    },
+    {
+      "name": "production",
+      "reviewers": ["lzocateli"],
+      "preventSelfReview": false,
+      "requireReviewers": true,
+      "deploymentPolicies": [{ "name": "v*", "type": "tag" }]
+    }
   ],
   "prerequisites": {
-    "variables": [],
-    "secrets": []
+    "variables": ["RELEASE_APP_ID"],
+    "secrets": ["RELEASE_APP_PRIVATE_KEY"]
   },
   "legacyRulesets": ["Protecao exclusiva da main"]
 }
