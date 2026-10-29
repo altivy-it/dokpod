@@ -258,9 +258,21 @@ PyYAML na imagem `lzocateli/devops:cpu-v1`, em container sem rede e com o reposi
 
 T016, T020 e T025: `BLOCKED` pelo mesmo motivo de T011 (sessão nova do Copilot sobre a cópia descartável não observável daqui), além da cópia a recriar. V03 a V10: `NOT RUN`.
 
+## Descoberta no Copilot e Declaração do Solicitante (2026-10-29)
+
+Em 2026-10-29 o solicitante informou que as quatro skills foram validadas no GitHub Copilot ("7 validado no copilot") e enviou uma captura de tela do VS Code (Copilot Chat, workspace `dokpod`, não a cópia descartável).
+
+| Item | Resultado | Evidência |
+| --- | --- | --- |
+| Descoberta de `/dokpod-create-adr`, `/dokpod-generate-tests` e `/dokpod-localize-speckit` | `PASS` | Menu de comandos do Copilot com o filtro `/do`, cada skill com a `description` do frontmatter; o tooltip de `/dokpod-create-adr` mostra o texto integral |
+| Descoberta de `/pull-request-review` | `PASS` parcial | Pasta `.github/skills/pull-request-review` visível na árvore do workspace; fora do filtro `/do` do menu |
+| Ativação e respostas dos fluxos (V01 a V10) | declarado pelo solicitante, sem registro | Nenhuma resposta, diff ou hash da sessão foi registrado; a captura não mostra execução |
+
+Pelo critério de T026 (evidência insuficiente em critério necessário bloqueia T027 a T030), o gate conjunto segue **não liberado** só com esta evidência: a descoberta está comprovada, e o comportamento dos cenários está declarado, mas não registrado. A retirada dos prompts (T029) exige uma de duas coisas: o registro dos cenários ou a decisão explícita do solicitante de aceitar a própria declaração como evidência, registrada neste relatório.
+
 ## Estado Atual e Gates
 
-T001 a T010, T012 a T015, T017 a T019 e T021 a T024: concluídas no escopo documentado de preparação, diagnóstico, casos e validação estática. T005 é conclusão de diagnóstico, não de observação funcional. T011, T016, T020 e T025: `BLOCKED`, sem marcação de conclusão. T026 a T033: não executadas; dependem das quatro qualificações no Copilot.
+T001 a T010, T012 a T015, T017 a T019 e T021 a T024: concluídas no escopo documentado de preparação, diagnóstico, casos e validação estática. T005 é conclusão de diagnóstico, não de observação funcional. T011, T016, T020 e T025: descoberta comprovada no Copilot e validação funcional declarada pelo solicitante em 2026-10-29, sem registro dos cenários; continuam sem marcação de conclusão. T026 a T033: não executadas; dependem do registro dos cenários ou da decisão explícita do solicitante (seção anterior).
 
 SC-001 e SC-003: `NOT RUN`; SC-002: paridade documental dos quatro fluxos, qualificação funcional pendente; SC-004: não satisfeito, quatro prompts preservados pelo gate; SC-005: `PASS` para integridade deste recorte parcial, sem substituir T031 ao final da migração; SC-006: relato parcial com limites explícitos, não relatório de qualificação completa. Nenhum commit, push, publicação, deploy ou aceite de ADR foi realizado.
 
