@@ -40,7 +40,7 @@ public sealed record AuditExport(AuditQueryOutcome Outcome, IReadOnlyList<AuditE
 /// <summary>Consulta da trilha de auditoria (spec 017) restrita aos hosts com `audit:read` (D-003).</summary>
 public sealed class AuditQueryService(
     IAuditEventReader reader,
-    IEnvironmentAuthorizationDecider decider,
+    IEnvironmentGrantReader grantReader,
     IAuditEventWriter writer,
     TimeProvider timeProvider)
 {
@@ -50,24 +50,9 @@ public sealed class AuditQueryService(
     public const int MaxExport = 10_000;
     public const int MaxRelated = 50;
 
-    public async Task<IReadOnlyList<EnvironmentRegistration>> ReadableAsync(AuditCaller caller, IEnumerable<EnvironmentRegistration>? subset, CancellationToken cancellationToken)
-    {
-        var candidates = (subset ?? caller.Readable).ToArray();
-        var decisions = await Task.WhenAll(candidates.Select(async registration =>
-        {
-            try
-            {
-                var decision = await decider.DecideAsync($"urn:dokpod:environment:{registration.EnvironmentId:D}", EnvironmentResourceScopes.AuditRead, caller.Actor, caller.AccessToken, caller.CorrelationId, cancellationToken).ConfigureAwait(false);
-                return decision.Allowed;
-            }
-            catch (Exception exception) when (exception is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
-            {
-                // Autorização indisponível conta como negada: a trilha nunca é revelada sem decisão.
-                return false;
-            }
-        })).ConfigureAwait(false);
-        return candidates.Where((_, index) => decisions[index]).ToArray();
-    }
+    // Autorização indisponível conta como negada: a trilha nunca é revelada sem decisão.
+    public Task<IReadOnlyList<EnvironmentRegistration>> ReadableAsync(AuditCaller caller, IEnumerable<EnvironmentRegistration>? subset, CancellationToken cancellationToken) =>
+        grantReader.WithScopeAsync(subset ?? caller.Readable, EnvironmentResourceScopes.AuditRead, caller.Actor, caller.AccessToken, caller.CorrelationId, cancellationToken);
 
     public async Task<AuditSummary> SummarizeAsync(AuditCaller caller, CancellationToken cancellationToken)
     {

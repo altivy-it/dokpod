@@ -36,23 +36,23 @@ public static class SettingsEndpoints
     private static async Task<IResult> AccessAsync(
         HttpContext context,
         AuthorizedEnvironmentsService authorizedEnvironments,
-        IEnvironmentAuthorizationDecider decider,
+        IEnvironmentGrantReader grantReader,
         CancellationToken cancellationToken)
     {
-        var (allowed, _, error) = await AuthorizeAsync(context, authorizedEnvironments, decider, cancellationToken);
+        var (allowed, _, error) = await AuthorizeAsync(context, authorizedEnvironments, grantReader, cancellationToken);
         return error ?? Results.Ok(new { allowed });
     }
 
     private static async Task<IResult> InstallationAsync(
         HttpContext context,
         AuthorizedEnvironmentsService authorizedEnvironments,
-        IEnvironmentAuthorizationDecider decider,
+        IEnvironmentGrantReader grantReader,
         HostQueryService hostQuery,
         HealthCheckService health,
         IServiceProvider services,
         CancellationToken cancellationToken)
     {
-        var (allowed, registrations, error) = await AuthorizeAsync(context, authorizedEnvironments, decider, cancellationToken);
+        var (allowed, registrations, error) = await AuthorizeAsync(context, authorizedEnvironments, grantReader, cancellationToken);
         if (error is not null) return error;
         if (!allowed) return Forbidden(context);
 
@@ -106,14 +106,14 @@ public static class SettingsEndpoints
     private static async Task<IResult> ParametersAsync(
         HttpContext context,
         AuthorizedEnvironmentsService authorizedEnvironments,
-        IEnvironmentAuthorizationDecider decider,
+        IEnvironmentGrantReader grantReader,
         IConfiguration configuration,
         CommandRetentionOptions commands,
         MetricsOptions metrics,
         TerminalOptions terminal,
         CancellationToken cancellationToken)
     {
-        var (allowed, _, error) = await AuthorizeAsync(context, authorizedEnvironments, decider, cancellationToken);
+        var (allowed, _, error) = await AuthorizeAsync(context, authorizedEnvironments, grantReader, cancellationToken);
         if (error is not null) return error;
         if (!allowed) return Forbidden(context);
         return Results.Ok(new { parameters = Parameters(configuration, commands, metrics, terminal) });
@@ -160,30 +160,19 @@ public static class SettingsEndpoints
         : value.TotalMinutes >= 1 && value.TotalMinutes == Math.Floor(value.TotalMinutes) ? $"{value.TotalMinutes:0} min"
         : $"{value.TotalSeconds:0} s";
 
-    /// <summary>`environment:manage` em algum host legível e habilitado (decisões em paralelo; indisponível conta como negado).</summary>
+    /// <summary>`environment:manage` em algum host legível e habilitado, numa só consulta ao provedor (indisponível conta como negado).</summary>
     private static async Task<(bool Allowed, IReadOnlyList<EnvironmentRegistration> Registrations, IResult? Error)> AuthorizeAsync(
         HttpContext context,
         AuthorizedEnvironmentsService authorizedEnvironments,
-        IEnvironmentAuthorizationDecider decider,
+        IEnvironmentGrantReader grantReader,
         CancellationToken cancellationToken)
     {
         if (!TryAuthenticate(context, out var actor, out var token, out var unauthorized)) return (false, [], unauthorized);
         var authorized = await LoadAuthorizedAsync(context, authorizedEnvironments, actor!, token!, cancellationToken);
         if (authorized.Error is not null) return (false, [], authorized.Error);
-        var correlation = GetCorrelationId(context);
-        var decisions = await Task.WhenAll(authorized.Registrations.Where(r => r.Enabled).Select(async registration =>
-        {
-            try
-            {
-                return (await decider.DecideAsync($"urn:dokpod:environment:{registration.EnvironmentId:D}", EnvironmentResourceScopes.Manage,
-                    actor!, token!, correlation, cancellationToken)).Allowed;
-            }
-            catch (Exception exception) when (exception is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
-            {
-                return false;
-            }
-        }));
-        return (decisions.Any(d => d), authorized.Registrations, null);
+        var managed = await grantReader.WithScopeAsync(authorized.Registrations.Where(r => r.Enabled), EnvironmentResourceScopes.Manage,
+            actor!, token!, GetCorrelationId(context), cancellationToken);
+        return (managed.Count > 0, authorized.Registrations, null);
     }
 
     private static IResult Forbidden(HttpContext context) =>
