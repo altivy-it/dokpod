@@ -12,7 +12,7 @@ Cada passo diz o que guardar como evidência. Evidência é texto sanitizado (se
    deploy/agent/publish-windows-agent.sh
    ```
 
-   Gera em `artifacts/windows-agent/` o `dokpod-agent-<versão>+<commit>-win-x64.zip`, o `.sha256` e um `.json` com commit e versão. O pacote é self-contained: não exige runtime .NET no Windows e não leva certificado, chave nem endpoint.
+   Gera em `artifacts/windows-agent/` o `dokpod-agent-<versão>-win-x64.zip`, o `.sha256` e um `.json` com commit e versão. O pacote é self-contained: não exige runtime .NET no Windows e não leva certificado, chave nem endpoint.
 
 2. **Ambiente**: cadastre um ambiente novo no console (por exemplo, "Laboratório Windows") e anote o UUID.
 

@@ -1,0 +1,119 @@
+# Semente do Altivy.Groundwork (componente deploy): pertence ao projeto.
+# Contrato (ver .github/CI-CD.md e docs/runbooks/deploy-e-rollback.md):
+# - chamado somente por gw-deploy.yml, depois do guard, na tag da release;
+# - recebe apenas version, environment e o artifact com o release-manifest.json validado;
+# - não aceita versão, imagem ou digest livres: tudo vem do manifesto;
+# - todo job que altera o ambiente declara "environment: ${{ inputs.environment }}";
+# - é idempotente: aplicar a mesma release duas vezes leva ao mesmo estado;
+# - termina com smoke test que confirma a versão em execução.
+name: Deploy (project)
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: Versão da release validada pelo guard
+        type: string
+        required: true
+      environment:
+        description: Environment de deploy
+        type: string
+        required: true
+      manifest-artifact:
+        description: Artifact com o release-manifest.json validado
+        type: string
+        required: true
+
+permissions: {}
+
+# Dokpod: o destino é um host com o compose do Dokpod; o workflow leva o manifesto até ele por SSH e
+# chama o hook do host (docs/runbooks/deploy-projeto.md). Credenciais só do Environment:
+#   secrets DEPLOY_SSH_KEY e DEPLOY_SSH_KNOWN_HOSTS; vars DEPLOY_SSH_TARGET (usuário@host) e DEPLOY_HOOK.
+jobs:
+  deploy:
+    name: Apply release
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment:
+      name: ${{ inputs.environment }}
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - name: Download validated manifest
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: ${{ inputs.manifest-artifact }}
+          path: artifacts
+
+      - name: Prepare SSH
+        shell: bash
+        env:
+          SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.DEPLOY_SSH_KNOWN_HOSTS }}
+          TARGET: ${{ vars.DEPLOY_SSH_TARGET }}
+          HOOK: ${{ vars.DEPLOY_HOOK }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$SSH_KEY" || -z "$KNOWN_HOSTS" || -z "$TARGET" || -z "$HOOK" ]]; then
+            echo "::error::Configure no Environment os secrets DEPLOY_SSH_KEY e DEPLOY_SSH_KNOWN_HOSTS e as vars DEPLOY_SSH_TARGET e DEPLOY_HOOK."
+            exit 1
+          fi
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy && chmod 600 ~/.ssh/deploy
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+
+      # Idempotente: o hook baixa as imagens pelos digests do manifesto e só recria o que mudou;
+      # a mesma release aplicada de novo leva ao mesmo estado.
+      - name: Apply release idempotently
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TARGET: ${{ vars.DEPLOY_SSH_TARGET }}
+          HOOK: ${{ vars.DEPLOY_HOOK }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          ssh_() { ssh -i ~/.ssh/deploy -o BatchMode=yes -o StrictHostKeyChecking=yes "$TARGET" "$@"; }
+          dir=$(ssh_ 'mktemp -d')
+          trap 'ssh_ "rm -rf $dir" || true' EXIT
+          ssh_ "cat > $dir/release-manifest.json" < artifacts/release-manifest.json
+          # Token do job (packages: read) só para o pull; o arquivo de credencial some com o diretório.
+          printf '%s' "$GH_TOKEN" | ssh_ "umask 077; cat > $dir/token"
+          ssh_ "$HOOK apply $dir/release-manifest.json $dir/token $GITHUB_ACTOR"
+          echo "Release $VERSION aplicada em ${{ inputs.environment }}."
+
+  smoke:
+    name: Smoke test
+    needs: deploy
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    environment:
+      name: ${{ inputs.environment }}
+    permissions: {}
+    steps:
+      - name: Download validated manifest
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: ${{ inputs.manifest-artifact }}
+          path: artifacts
+
+      # Confirma no host que cada container roda o digest do manifesto, saudável, com a versão esperada.
+      - name: Confirm running version
+        shell: bash
+        env:
+          SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.DEPLOY_SSH_KNOWN_HOSTS }}
+          TARGET: ${{ vars.DEPLOY_SSH_TARGET }}
+          HOOK: ${{ vars.DEPLOY_HOOK }}
+          EXPECTED_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy && chmod 600 ~/.ssh/deploy
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          ssh_() { ssh -i ~/.ssh/deploy -o BatchMode=yes -o StrictHostKeyChecking=yes "$TARGET" "$@"; }
+          dir=$(ssh_ 'mktemp -d')
+          trap 'ssh_ "rm -rf $dir" || true' EXIT
+          ssh_ "cat > $dir/release-manifest.json" < artifacts/release-manifest.json
+          ssh_ "$HOOK check $dir/release-manifest.json $EXPECTED_VERSION"
