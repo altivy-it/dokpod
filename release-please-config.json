@@ -23,7 +23,6 @@
   ],
   "packages": {
     ".": {
-      "release-as": "0.1.0",
       "changelog-path": "CHANGELOG.md",
       "extra-files": [
         { "type": "xml", "path": "backend/Directory.Build.props", "xpath": "//Project/PropertyGroup/VersionPrefix" },
