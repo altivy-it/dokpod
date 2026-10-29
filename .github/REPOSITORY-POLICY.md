@@ -10,6 +10,7 @@ mudanças vão para o catálogo. O contrato versionado é
 | --- | --- | --- | --- |
 | `gw-main-integrity` | branch padrão (`main`) | sem deleção, sem force push, histórico linear, check `Result` (modo strict), commits assinados | **nenhum** |
 | `gw-main-review` | branch padrão | PR obrigatório com 1 aprovação(ões), revisões antigas descartadas em novo push, conversas resolvidas, somente squash | admins **somente via PR** |
+| `gw-release-tags` | `refs/tags/v*` | criação, atualização e deleção bloqueadas | somente o GitHub App de release |
 
 Os rulesets são separados porque o bypass vale por ruleset: um admin pode fazer merge do
 próprio PR sem aprovação de terceiros (bypass em modo `pull_request`, sem push direto), mas não
@@ -24,6 +25,12 @@ consegue fazer merge com o `Result` vermelho nem com histórico não linear.
 - Em repositórios públicos, secret scanning e push protection habilitados.
 
 ## Environments
+
+- `release`: revisores `@lzocateli`; aceita `main` e `tag:v*`
+  (publicação inicial e `republish`). Em repositório privado sem plano que suporte revisores, o
+  controle humano é o merge do Release PR sob `gw-main-review` (reportado como *compensado*).
+- `quality`: aceita **somente** `tag:v*`; revisores `@lzocateli`. É o que impede, no próprio GitHub, deploy fora de uma release.
+- `production`: aceita **somente** `tag:v*`; revisores `@lzocateli` (obrigatórios). É o que impede, no próprio GitHub, deploy fora de uma release.
 
 `prevent_self_review` fica desligado para que o mantenedor único possa aprovar.
 
