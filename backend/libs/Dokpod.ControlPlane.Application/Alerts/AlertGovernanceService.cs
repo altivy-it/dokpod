@@ -35,6 +35,7 @@ public sealed class AlertGovernanceService(
     IAlertStore alerts,
     IActionJustificationStore justifications,
     IEnvironmentAuthorizationDecider decider,
+    IEnvironmentGrantReader grantReader,
     IAuditEventWriter auditWriter,
     IControlPlaneNotifier notifier,
     TimeProvider timeProvider)
@@ -42,7 +43,11 @@ public sealed class AlertGovernanceService(
     public const int MinComment = ActionJustifications.MinLength;
     public const int MaxComment = ActionJustifications.MaxLength;
 
-    /// <summary>Ambientes legíveis em que o chamador tem o scope (decisões em paralelo; indisponível conta como negado).</summary>
+    /// <summary>Leituras: ambientes legíveis e habilitados com o scope, numa só consulta ao provedor (indisponível conta como negado).</summary>
+    public Task<IReadOnlyList<EnvironmentRegistration>> ReadableWithAsync(AlertCaller caller, string scope, IEnumerable<EnvironmentRegistration>? subset, CancellationToken cancellationToken) =>
+        grantReader.WithScopeAsync((subset ?? caller.Readable).Where(r => r.Enabled), scope, caller.Actor, caller.AccessToken, caller.CorrelationId, cancellationToken);
+
+    /// <summary>Ações: ambientes legíveis em que o chamador tem o scope (decisões em paralelo; indisponível conta como negado).</summary>
     public async Task<IReadOnlyList<EnvironmentRegistration>> FilterAsync(AlertCaller caller, string scope, IEnumerable<EnvironmentRegistration>? subset, CancellationToken cancellationToken)
     {
         var candidates = (subset ?? caller.Readable).Where(r => r.Enabled).ToArray();
@@ -63,7 +68,7 @@ public sealed class AlertGovernanceService(
 
     public async Task<AlertSummary> SummarizeAsync(AlertCaller caller, EnvironmentStage? stage, CancellationToken cancellationToken)
     {
-        var readable = await FilterAsync(caller, EnvironmentResourceScopes.ReadAlerts, caller.Readable.Where(r => stage is null || r.Stage == stage), cancellationToken).ConfigureAwait(false);
+        var readable = await ReadableWithAsync(caller, EnvironmentResourceScopes.ReadAlerts, caller.Readable.Where(r => stage is null || r.Stage == stage), cancellationToken).ConfigureAwait(false);
         if (readable.Count == 0) return new AlertSummary(0, Severities(), []);
         var ids = readable.Select(r => r.EnvironmentId).ToArray();
         var page = await alerts.ListAsync(new AlertQuery(ids, false, [], [AlertState.Open, AlertState.Acknowledged], null, null, null, null, null, 500), cancellationToken).ConfigureAwait(false);
@@ -75,10 +80,10 @@ public sealed class AlertGovernanceService(
     public async Task<(AlertPage Page, IReadOnlySet<Guid> Manageable)> ListAsync(AlertCaller caller, EnvironmentStage? stage, AlertQuery query, CancellationToken cancellationToken)
     {
         var candidates = caller.Readable.Where(r => (stage is null || r.Stage == stage) && (query.EnvironmentIds.Count == 0 || query.EnvironmentIds.Contains(r.EnvironmentId)));
-        var readable = await FilterAsync(caller, EnvironmentResourceScopes.ReadAlerts, candidates, cancellationToken).ConfigureAwait(false);
+        var readable = await ReadableWithAsync(caller, EnvironmentResourceScopes.ReadAlerts, candidates, cancellationToken).ConfigureAwait(false);
         if (readable.Count == 0) return (new AlertPage([], null), new HashSet<Guid>());
         var page = await alerts.ListAsync(query with { EnvironmentIds = readable.Select(r => r.EnvironmentId).ToArray() }, cancellationToken).ConfigureAwait(false);
-        var manageable = await FilterAsync(caller, EnvironmentResourceScopes.ManageAlerts, readable.Where(r => page.Alerts.Any(a => a.EnvironmentId == r.EnvironmentId)), cancellationToken).ConfigureAwait(false);
+        var manageable = await ReadableWithAsync(caller, EnvironmentResourceScopes.ManageAlerts, readable.Where(r => page.Alerts.Any(a => a.EnvironmentId == r.EnvironmentId)), cancellationToken).ConfigureAwait(false);
         return (page, manageable.Select(r => r.EnvironmentId).ToHashSet());
     }
 
@@ -157,11 +162,11 @@ public sealed class AlertGovernanceService(
     /// <summary>Regras visíveis: globais ou de hosts legíveis (FR-023).</summary>
     public async Task<(IReadOnlyList<AlertRule> Rules, bool CanManage)> ListRulesAsync(AlertCaller caller, CancellationToken cancellationToken)
     {
-        var readable = await FilterAsync(caller, EnvironmentResourceScopes.ReadAlerts, null, cancellationToken).ConfigureAwait(false);
+        var readable = await ReadableWithAsync(caller, EnvironmentResourceScopes.ReadAlerts, null, cancellationToken).ConfigureAwait(false);
         if (readable.Count == 0) return ([], false);
         var ids = readable.Select(r => r.EnvironmentId).ToHashSet();
         var rules = (await alerts.ListRulesAsync(cancellationToken).ConfigureAwait(false)).Where(r => r.Scope.EnvironmentId is null || ids.Contains(r.Scope.EnvironmentId.Value)).ToArray();
-        var canManage = (await FilterAsync(caller, EnvironmentResourceScopes.ManageAlerts, readable, cancellationToken).ConfigureAwait(false)).Count == readable.Count;
+        var canManage = (await ReadableWithAsync(caller, EnvironmentResourceScopes.ManageAlerts, readable, cancellationToken).ConfigureAwait(false)).Count == readable.Count;
         return (rules, canManage);
     }
 
@@ -219,8 +224,8 @@ public sealed class AlertGovernanceService(
     /// <summary>Silenciamentos visíveis e se o chamador pode criá-los (alert:manage em todos os hosts com alert:read).</summary>
     public async Task<(IReadOnlyList<AlertSilence> Silences, bool CanManage)> ListSilencesAsync(AlertCaller caller, bool activeOnly, CancellationToken cancellationToken)
     {
-        var readable = await FilterAsync(caller, EnvironmentResourceScopes.ReadAlerts, null, cancellationToken).ConfigureAwait(false);
-        var canManage = readable.Count > 0 && (await FilterAsync(caller, EnvironmentResourceScopes.ManageAlerts, readable, cancellationToken).ConfigureAwait(false)).Count == readable.Count;
+        var readable = await ReadableWithAsync(caller, EnvironmentResourceScopes.ReadAlerts, null, cancellationToken).ConfigureAwait(false);
+        var canManage = readable.Count > 0 && (await ReadableWithAsync(caller, EnvironmentResourceScopes.ManageAlerts, readable, cancellationToken).ConfigureAwait(false)).Count == readable.Count;
         var ids = readable.Select(r => r.EnvironmentId).ToHashSet();
         var visibleAlerts = new HashSet<Guid>();
         var silences = await alerts.ListSilencesAsync(activeOnly, timeProvider.GetUtcNow(), cancellationToken).ConfigureAwait(false);
@@ -284,7 +289,7 @@ public sealed class AlertGovernanceService(
     public async Task<IReadOnlyList<(JustificationPolicyEntry Policy, bool CanEdit)>> ListPoliciesAsync(AlertCaller caller, CancellationToken cancellationToken)
     {
         var entries = await justifications.ListPolicyEntriesAsync(cancellationToken).ConfigureAwait(false);
-        var managed = (await FilterAsync(caller, EnvironmentResourceScopes.Manage, null, cancellationToken).ConfigureAwait(false))
+        var managed = (await ReadableWithAsync(caller, EnvironmentResourceScopes.Manage, null, cancellationToken).ConfigureAwait(false))
             .Select(r => r.EnvironmentId).ToHashSet();
         return entries.Select(entry =>
         {

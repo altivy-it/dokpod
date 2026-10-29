@@ -167,8 +167,8 @@ public sealed class AuditConsoleIntegrationTests
         var secret = Event(hidden, "sub-ana", "environment.stage_changed", Now.AddMinutes(-1), correlation: correlation);
         await writer.AppendAsync(visible, ct);
         await writer.AppendAsync(secret, ct);
-        var decider = new Decider([allowed]);
-        var service = new AuditQueryService(new PostgresAuditEventReader(context), decider, writer, TimeProvider.System);
+        var grants = new Grants([allowed]);
+        var service = new AuditQueryService(new PostgresAuditEventReader(context), grants, writer, TimeProvider.System);
         var caller = new AuditCaller(AuthenticatedActor.FromSubject("sub-ana") with { DisplayName = "ana" }, "token", Guid.NewGuid(),
         [
             EnvironmentRegistration.Create(allowed, "prod-1", "prod-1", true, EnvironmentResourceScopes.Supported, EnvironmentStage.Production),
@@ -200,7 +200,7 @@ public sealed class AuditConsoleIntegrationTests
         await using var transaction = await context.Database.BeginTransactionAsync(ct);
         var host = Guid.NewGuid();
         await BulkInsertAsync(context, [host], 10_001, TimeSpan.FromHours(20), ct);
-        var service = new AuditQueryService(new PostgresAuditEventReader(context), new Decider([host]), new PostgresAuditEventWriter(context), TimeProvider.System);
+        var service = new AuditQueryService(new PostgresAuditEventReader(context), new Grants([host]), new PostgresAuditEventWriter(context), TimeProvider.System);
         var caller = new AuditCaller(AuthenticatedActor.FromSubject("sub-ana"), "token", Guid.NewGuid(), [EnvironmentRegistration.Create(host, "h", "h", true, EnvironmentResourceScopes.Supported)]);
 
         var export = await service.ExportAsync(caller, new AuditFilter(null, null, null, [], null, [], [], [], null), ct);
@@ -243,13 +243,9 @@ public sealed class AuditConsoleIntegrationTests
         public string? NameFor(string actorId) => actorId == subject ? name : null;
     }
 
-    private sealed class Decider(IReadOnlyCollection<Guid> allowed) : IEnvironmentAuthorizationDecider
+    private sealed class Grants(IReadOnlyCollection<Guid> allowed) : IEnvironmentGrantReader
     {
-        public Task<EnvironmentAuthorizationDecision> DecideAsync(string resource, string scope, AuthenticatedActor actor, string accessToken, Guid correlationId, CancellationToken cancellationToken)
-        {
-            var id = Guid.Parse(resource["urn:dokpod:environment:".Length..]);
-            var ok = scope == EnvironmentResourceScopes.AuditRead && allowed.Contains(id);
-            return Task.FromResult(new EnvironmentAuthorizationDecision(ok ? AuthorizationDecisionOutcome.Allowed : AuthorizationDecisionOutcome.Denied, ok ? null : "access_denied"));
-        }
+        public Task<IReadOnlyDictionary<Guid, IReadOnlySet<string>>?> ReadAsync(AuthenticatedActor actor, string accessToken, Guid correlationId, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyDictionary<Guid, IReadOnlySet<string>>?>(allowed.ToDictionary(id => id, _ => (IReadOnlySet<string>)new HashSet<string> { EnvironmentResourceScopes.AuditRead }));
     }
 }
