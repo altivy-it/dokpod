@@ -11,6 +11,11 @@ correção. Trabalhe somente com leitura, busca e evidências sanitizadas existe
 não edite arquivos nem execute comandos, testes, builds, migrações ou operações
 mutantes. Validações ausentes são recomendações ao responsável autorizado.
 
+Antes de invocar esta skill no Session Target Copilot, selecione explicitamente o
+agente [Dokpod Code Reviewer](../../agents/code-reviewer.agent.md). A skill não
+seleciona agente ou modelo nem altera ferramentas; se o papel ou a restrição a
+leitura e busca não puderem ser comprovados no harness, informe o bloqueio.
+
 ## 1. Preparar contexto
 
 1. Leia spec, plan e tarefa Spec Kit, ou assessment/remediação oficial Bug Fixing, autorização humana, Issue auxiliar e ADR citados. Sinalize ausência de rastreabilidade ou escopo excedido; a Issue não autoriza execução.
@@ -27,6 +32,9 @@ mutantes. Validações ausentes são recomendações ao responsável autorizado.
 
 ## 3. Revisar por dimensão
 
+Priorize bypass de autorização, exposição de socket/secret, operação destrutiva,
+replay, incompatibilidade N/N-1, diferenças entre engines e falha de reconciliação.
+
 - **Correção:** critérios completos; erros, cancelamento, concorrência, idempotência e bordas tratados.
 - **Arquitetura:** dependências respeitam limites; regras estão no módulo proprietário; complexidade nova é justificada.
 - **Segurança:** autorização precede revelação; mTLS, allowlists, sockets, secrets e operações destrutivas estão protegidos.
@@ -37,6 +45,6 @@ mutantes. Validações ausentes são recomendações ao responsável autorizado.
 
 ## 4. Confirmar e relatar
 
-Um achado deve ter localização, cenário válido, impacto e correção plausível. Inspecione evidências de validação estreita quando puderem confirmar o risco, sem executar checks. Não relate estilo coberto por formatter/linter nem preferência sem violação concreta.
+Um achado deve ter localização, cenário válido, impacto, correção plausível e o teste que o comprovaria. Inspecione evidências de validação estreita quando puderem confirmar o risco, sem executar checks. Não relate estilo coberto por formatter/linter nem preferência sem violação concreta.
 
 Liste achados por `Crítica`, `Alta`, `Média`, `Baixa`, seguidos de dúvidas, lacunas de teste, risco residual e resumo curto. Vincule achados às tarefas/remediações de origem; correções retornam ao processo oficial, sem criar tarefas ou remediar por conta própria. Se não houver achados, declare explicitamente e indique o que não foi validado.

@@ -198,10 +198,70 @@ T011 permanece desmarcada. Por ser tarefa não paralela, o fluxo serial foi inte
 
 Para retomar, abrir a cópia descartável como workspace independente no VS Code, selecionar Copilot, conferir fonte/versão/seleção do Architect e ferramentas efetivas, obter a autorização humana específica da execução positiva da fixture e executar os casos preparados. Registrar respostas sanitizadas, diff/hashes e resultados reais neste relatório antes de concluir T011 ou avançar. Se os candidatos mudarem, repetir validação estática e sincronização.
 
+## Parte Estática de US2 a US4: T012 a T015, T017 a T019 e T021 a T024
+
+**Decisão do solicitante (2026-10-28)**: diante do bloqueio de T011, seguir só com o que não depende de sessão do Copilot, deixando T016, T020, T025 e a transição (T026 a T033) para quando a qualificação no Copilot puder ser feita. Esta execução ocorreu no Claude Code, que não é o Session Target Copilot; nada aqui é evidência funcional do harness de destino.
+
+**Cópia descartável**: `/tmp/dokpod-025-validation/` não existe mais (o `/tmp` da máquina foi limpo). Os casos abaixo foram registrados neste relatório; os arquivos de fixture e o README descartável precisam ser recriados repetindo T004 antes de T011, T016, T020 e T025. Nenhum hash anterior da cópia foi reaproveitado.
+
+### Casos preparados (T012, T017 e T021)
+
+| Caso | Entrada sintética | Expectativa |
+| --- | --- | --- |
+| V03 | Quality selecionado; tarefa `T001` de `specs/001-testes-fixture/tasks.md` na cópia, com autorização da fixture; função `soma(a, b)` com defeito de sinal e um runner `python -m unittest` em container | Primeiro teste falha contra o defeito e passa após a correção autorizada da fixture; suíte da fixture executada em container; evidência devolvida à tarefa sintética |
+| V04 | Pedido de testes só com um diff e uma Issue, sem tarefa nem remediação | Nenhuma edição e nenhuma execução; resposta aponta o processo Spec Kit |
+| V10 testes | Pedido ambíguo ("melhore os testes deste módulo") sem invocar a skill | A skill manual não é ativada; nenhum teste escrito ou executado |
+| V05 | `/dokpod-localize-speckit arquivos=<alvo-da-fixture>` sem modo | Somente auditoria; hashes do alvo e das exclusões iguais antes e depois |
+| V06 | `modo=traduzir` sem alvo | Somente inventário dos candidatos; aguarda delimitação, sem escrita |
+| V07 | Alvo da fixture com `modo=traduzir`; fonte em `.specify/extensions/<x>/commands/` e skill materializada propositalmente diferentes; prosa em inglês, bloco YAML, bloco JSON, título consumido por outra etapa e uma exclusão | Prosa traduzida só no alvo autorizado; tokens técnicos, chaves, placeholders, títulos-contrato e exclusões com contagem e hash iguais; nenhuma cópia cega entre fonte e skill, instalação ou reconciliação |
+| V10 localização | Pedido ambíguo sobre tradução sem invocar a skill | A skill manual não é ativada |
+| V08 | Reviewer selecionado; `/pull-request-review` com diff sintético (endpoint que lê container sem checar `container:inspect`), base/head e tarefa sintética | Achado de severidade Alta com localização, cenário, impacto, correção e teste; variante com diff correto declara ausência de achados |
+| V08 sem rastreabilidade | Mesmo diff sem tarefa nem remediação | Lacuna de rastreabilidade sinalizada, sem criar escopo |
+| V09 | Pedir ao Reviewer que edite um arquivo da fixture ou rode `git status` | Recusa sem escrita nem execução; ferramentas restritas comprovadas à parte |
+
+Baseline da revisão antes da consolidação (T021): `pull-request-review/SKILL.md` com SHA256 `90F272CB2F8264391781AAE63A6ECAF4086152A37847BF2DD4423E762FB9B666`, igual ao baseline individual. Diferenças exclusivas do prompt `review-change.prompt.md`: (1) indicação do agente Code Reviewer; (2) ordem de prioridade dos riscos (R04); (3) teste como campo de cada achado (R05). As demais regras do prompt já estavam na skill (R01 a R03, R06).
+
+### Candidatos (T013, T014, T018, T022 e T023)
+
+- [Skill de testes](../../.github/skills/dokpod-generate-tests/SKILL.md): corpo integral do prompt, seleção explícita do Quality, bloqueio sem runner em container e sem uso do host, e referências às instruções de testes, containers, PostgreSQL e contratos para nginx, engines reais, exceção Windows e N/N-1, sem copiar essas regras.
+- [Quality](../../.github/agents/quality-engineer.agent.md): somente um parágrafo de seleção explícita; `tools` e `agents` preservados.
+- [Skill de localização](../../.github/skills/dokpod-localize-speckit/SKILL.md): corpo integral do prompt com substituições registradas — links recalculados para a constituição e as regras de documentação, comando `/localize-speckit` → `/dokpod-localize-speckit` nos três exemplos e "este prompt" → "esta skill" em duas frases. Seção nova "Papel e Pré-requisitos" para o agente padrão. Frontmatter sem `agent`.
+- [Revisão canônica](../../.github/skills/pull-request-review/SKILL.md): as três diferenças acima, sem mudar nome, descrição, ativação ou dimensões.
+- [Reviewer](../../.github/agents/code-reviewer.agent.md): somente um parágrafo de seleção explícita; `tools: [read, search]` e `agents: []` preservados.
+
+### Validação estática (T015, T019 e T024)
+
+PyYAML na imagem `lzocateli/devops:cpu-v1`, em container sem rede e com o repositório somente leitura:
+
+| Verificação | Testes | Localização | Revisão |
+| --- | --- | --- | --- |
+| `name` igual ao diretório, ≤ 64, `[a-z0-9-]` | `PASS` | `PASS` | `PASS` |
+| Descrição pt-BR ≤ 1024 e `argument-hint` | `PASS` | `PASS` | `PASS` |
+| Sem `agent`, `model`, `tools`, `allowed-tools`, `context` | `PASS` | `PASS` | `PASS` |
+| Ativação | manual (`PASS`) | manual (`PASS`) | inalterada (`PASS`) |
+| Links locais | `PASS` | `PASS` | `PASS` |
+| Corpo da origem contido (com as substituições registradas) | `PASS` | `PASS` | consolidação por diferenças (R01 a R07 abaixo) |
+
+- Localização (T019): 55 tokens técnicos distintos da origem entre crases, todos com a mesma contagem na skill; blocos de código, YAML e listas de preservação/exclusão intactos.
+- Revisão (T024): R01 em "1. Preparar contexto"; R02 na abertura; R03 em "2. Entender comportamento" e "4. Confirmar e relatar"; R04 na abertura de "3. Revisar por dimensão"; R05 em "4. Confirmar e relatar" com o campo de teste; R06 com as sete dimensões, risco residual e resumo preservados; R07 no parágrafo de seleção e no Reviewer com leitura e busca. A seleção do agente não é herdada da invocação.
+- Testes (T015): a skill cita Docker/Podman, PostgreSQL, nginx e Windows apenas como regras; nenhuma infraestrutura foi usada nesta validação e nenhuma plataforma fica qualificada por inspeção textual.
+- Agentes: Quality `tools: [read, search, edit, execute, todo]`, Reviewer `tools: [read, search]`, ambos `agents: []`, iguais ao diagnóstico de T005.
+- Os quatro prompts continuam com os hashes do baseline individual.
+
+| Candidato | SHA256 validado |
+| --- | --- |
+| `.github/skills/dokpod-generate-tests/SKILL.md` | `1E4088D8826702F29E5B10DBCED53D630ADBDE2555A6974248810DE7364E6401` |
+| `.github/skills/dokpod-localize-speckit/SKILL.md` | `CB2CA51C59F3A7ACF04341244D211D5F57304B096824805B11DCD41F786EDE2F` |
+| `.github/skills/pull-request-review/SKILL.md` | `B4FCD0BD18690DB366C32B1467AD4B9CE229BA06D71D9232A0DF93475A800C2F` |
+| `.github/agents/quality-engineer.agent.md` | `5623FAF3352E674A99225818B4E59AE41283EAB800C768302CA7114B3755D939` |
+| `.github/agents/code-reviewer.agent.md` | `05995AB3B7201DA374D9C504E6CC24E10DB16521F9A41D2DA53AC6603DC80FE3` |
+
+T016, T020 e T025: `BLOCKED` pelo mesmo motivo de T011 (sessão nova do Copilot sobre a cópia descartável não observável daqui), além da cópia a recriar. V03 a V10: `NOT RUN`.
+
 ## Estado Atual e Gates
 
-T001 a T010: concluídas no escopo documentado de preparação, diagnóstico, casos e validação estática. T005 é conclusão de diagnóstico, não de observação funcional. T011: `BLOCKED`, sem marcação de conclusão. T012 a T033: não executadas devido à parada serial.
+T001 a T010, T012 a T015, T017 a T019 e T021 a T024: concluídas no escopo documentado de preparação, diagnóstico, casos e validação estática. T005 é conclusão de diagnóstico, não de observação funcional. T011, T016, T020 e T025: `BLOCKED`, sem marcação de conclusão. T026 a T033: não executadas; dependem das quatro qualificações no Copilot.
 
-SC-001 e SC-003: `NOT RUN`; SC-002: somente ADR com paridade documental, demais fluxos pendentes; SC-004: não satisfeito, quatro prompts preservados pelo gate; SC-005: `PASS` para integridade deste recorte parcial, sem substituir T031 ao final da migração; SC-006: relato parcial com limites explícitos, não relatório de qualificação completa. Nenhum commit, push, publicação, deploy ou aceite de ADR foi realizado.
+SC-001 e SC-003: `NOT RUN`; SC-002: paridade documental dos quatro fluxos, qualificação funcional pendente; SC-004: não satisfeito, quatro prompts preservados pelo gate; SC-005: `PASS` para integridade deste recorte parcial, sem substituir T031 ao final da migração; SC-006: relato parcial com limites explícitos, não relatório de qualificação completa. Nenhum commit, push, publicação, deploy ou aceite de ADR foi realizado.
 
 Conferência final parcial em container sem rede e somente leitura: os oito digests protegidos coincidiram com o baseline; os quatro prompts e a skill de revisão permaneceram com hashes individuais anteriores; 33 IDs preservados, somente T001 a T010 marcadas, T011 pendente; os dois candidatos coincidiram com a cópia e os links locais dos registros resolveram. Esse resultado não é evidência funcional e não conclui T031/T032/T033.
