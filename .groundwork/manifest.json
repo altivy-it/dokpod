@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "toolVersion": "0.5.0",
-  "catalogVersion": "0.5.0",
+  "toolVersion": "0.5.1",
+  "catalogVersion": "0.5.1",
   "parameters": {
     "auto_deploy_environment": "",
     "commit_scopes": "docs,tooling,deps,actions,repo",
@@ -45,11 +45,11 @@
     },
     ".github/REPOSITORY-POLICY.md": {
       "component": "repository-policy",
-      "sha256": "fef53ba54036d1a16d70613681d2327100d6fde79673ce47d967aa49a7ed4beb"
+      "sha256": "cca7e3dfb58417b523e775a41cb77656c2a8e7d875842dd9ef2f853c820150ba"
     },
     ".github/repository-policy.json": {
       "component": "repository-policy",
-      "sha256": "e02791a1f245c376d87cefdc233b3ef89385bf23201632c1e1794e9efafc5668"
+      "sha256": "29b54b2894b59b7906485a4923f636d0a5a381dae9aa8ad08f7572bf885dc1d0"
     },
     ".github/workflows/gw-container-images.yml": {
       "component": "publish-containers",
@@ -89,7 +89,7 @@
     },
     "docs/runbooks/release.md": {
       "component": "release",
-      "sha256": "a2ead04442e8c0ecfc817d2dddf58695966631f7d3286347305c288fc3836850"
+      "sha256": "4cf61f5b6de8417b541028fdead19d0b0d6da39aa67da0768bbebd3da66d7b94"
     },
     "tools/scripts/ci/Assert-ArtifactVersion.ps1": {
       "component": "release",
