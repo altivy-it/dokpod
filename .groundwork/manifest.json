@@ -15,7 +15,7 @@
     "github_repo": "dokpod",
     "initial_version": "0.1.0",
     "issue_areas": "Arquitetura,Backend,Frontend,Banco de dados,Seguran\u00E7a,DevOps,Documenta\u00E7\u00E3o,Testes",
-    "legacy_rulesets": "Protecao exclusiva da main",
+    "legacy_rulesets": "Protecao exclusiva da main,Protect release tags",
     "license": "AGPL-3.0-only",
     "project_description": "",
     "project_name": "Dokpod",
@@ -49,7 +49,7 @@
     },
     ".github/repository-policy.json": {
       "component": "repository-policy",
-      "sha256": "29b54b2894b59b7906485a4923f636d0a5a381dae9aa8ad08f7572bf885dc1d0"
+      "sha256": "373340781e30e6465d55ec065c8f5c2478dc67e797e5cfd1fb62a6cf510ed35d"
     },
     ".github/workflows/gw-container-images.yml": {
       "component": "publish-containers",

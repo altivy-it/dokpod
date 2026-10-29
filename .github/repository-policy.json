@@ -106,5 +106,5 @@
     "variables": ["RELEASE_APP_ID"],
     "secrets": ["RELEASE_APP_PRIVATE_KEY"]
   },
-  "legacyRulesets": ["Protecao exclusiva da main"]
+  "legacyRulesets": ["Protecao exclusiva da main", "Protect release tags"]
 }
