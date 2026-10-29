@@ -25,6 +25,7 @@ public sealed class RegistryPolicyService(
     IRegistryPolicyStore store,
     ImagePullPolicy policy,
     IEnvironmentAuthorizationDecider decider,
+    IEnvironmentGrantReader grantReader,
     IAuditEventWriter auditWriter,
     TimeProvider timeProvider)
 {
@@ -34,7 +35,9 @@ public sealed class RegistryPolicyService(
     {
         var stored = (await store.ListAsync(cancellationToken).ConfigureAwait(false)).ToDictionary(p => RegistryPolicyStages.Key(p.Stage));
         policy.ApplyOverrides(stored.ToDictionary(p => p.Key, p => p.Value.Registries.ToArray()));
-        var managed = await ManagedAsync(caller, caller.Readable, cancellationToken).ConfigureAwait(false);
+        // Leitura: uma só consulta ao provedor; salvar continua decidindo host a host.
+        var managed = (await grantReader.WithScopeAsync(caller.Readable.Where(r => r.Enabled).DistinctBy(r => r.EnvironmentId), EnvironmentResourceScopes.Manage,
+            caller.Actor, caller.AccessToken, caller.CorrelationId, cancellationToken).ConfigureAwait(false)).Select(r => r.EnvironmentId).ToHashSet();
         return RegistryPolicyStages.All.Select(stage =>
         {
             var key = RegistryPolicyStages.Key(stage);

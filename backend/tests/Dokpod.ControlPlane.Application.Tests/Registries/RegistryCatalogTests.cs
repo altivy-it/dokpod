@@ -105,8 +105,8 @@ public sealed class RegistryCatalogTests
         var store = new PolicyStore();
         var audit = new TerminalSessionServiceTests.AuditSink();
         var caller = new AlertCaller(AuthenticatedActor.FromSubject("admin"), "token", Guid.NewGuid(), Hosts.Select(h => h.Registration).ToArray());
-        var allowed = new RegistryPolicyService(store, policy, new Decider(AuthorizationDecisionOutcome.Allowed), audit, TimeProvider.System);
-        var denied = new RegistryPolicyService(store, policy, new Decider(AuthorizationDecisionOutcome.Denied), audit, TimeProvider.System);
+        var allowed = new RegistryPolicyService(store, policy, new Decider(AuthorizationDecisionOutcome.Allowed), new GrantReader(Hosts.Select(h => h.Registration.EnvironmentId)), audit, TimeProvider.System);
+        var denied = new RegistryPolicyService(store, policy, new Decider(AuthorizationDecisionOutcome.Denied), new GrantReader([]), audit, TimeProvider.System);
         Assert.True(ImageReference.TryParse("docker.io/library/alpine:3", out var alpine));
         var ct = TestContext.Current.CancellationToken;
 

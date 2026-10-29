@@ -30,4 +30,35 @@ public static class EnvironmentGrants
                 .Where(scope => grants.TryGetValue(registration.EnvironmentId, out var granted) && granted.Contains(scope))
                 .ToFrozenSet(StringComparer.Ordinal),
         };
+
+    /// <summary>
+    /// Hosts candidatos em que o usuário tem `scope`, numa só consulta ao provedor (achado A4 da spec 005: antes, uma decisão
+    /// UMA por host). Só para leituras; ações continuam decididas uma a uma. Sem resposta do provedor, nenhum host: indisponível
+    /// conta como negado.
+    /// </summary>
+    public static async Task<IReadOnlyList<EnvironmentRegistration>> WithScopeAsync(
+        this IEnvironmentGrantReader reader,
+        IEnumerable<EnvironmentRegistration> candidates,
+        string scope,
+        AuthenticatedActor actor,
+        string accessToken,
+        Guid correlationId,
+        CancellationToken cancellationToken)
+    {
+        var hosts = candidates.ToArray();
+        if (hosts.Length == 0) return hosts;
+        IReadOnlyDictionary<Guid, IReadOnlySet<string>>? grants;
+        try
+        {
+            grants = await reader.ReadAsync(actor, accessToken, correlationId, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
+        {
+            grants = null;
+        }
+
+        return grants is null
+            ? []
+            : hosts.Where(r => grants.TryGetValue(r.EnvironmentId, out var granted) && granted.Contains(scope)).ToArray();
+    }
 }

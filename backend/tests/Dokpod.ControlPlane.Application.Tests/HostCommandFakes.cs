@@ -9,6 +9,13 @@ using Dokpod.Domain.Environments;
 namespace Dokpod.ControlPlane.Application.Tests;
 
 // Fakes compartilhados pelos testes de comandos com alvo de host (specs 012 e 013).
+/// <summary>Concede todos os scopes suportados nos hosts informados.</summary>
+internal sealed class GrantReader(IEnumerable<Guid> environments) : IEnvironmentGrantReader
+{
+    public Task<IReadOnlyDictionary<Guid, IReadOnlySet<string>>?> ReadAsync(AuthenticatedActor actor, string accessToken, Guid correlationId, CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyDictionary<Guid, IReadOnlySet<string>>?>(environments.Distinct().ToDictionary(id => id, _ => (IReadOnlySet<string>)EnvironmentResourceScopes.Supported));
+}
+
 internal sealed class Decider(AuthorizationDecisionOutcome outcome) : IEnvironmentAuthorizationDecider
 {
     public string? Scope { get; private set; }

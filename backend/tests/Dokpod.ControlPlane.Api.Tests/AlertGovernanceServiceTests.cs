@@ -183,7 +183,7 @@ public sealed class AlertGovernanceServiceTests
     private static (AlertGovernanceService Service, PostgresAlertStore Store) Create(ControlPlaneDbContext context, Decider decider, Audit audit)
     {
         var store = new PostgresAlertStore(context);
-        return (new AlertGovernanceService(store, new PostgresActionJustificationStore(context), decider, audit, new NullControlPlaneNotifier(), TimeProvider.System), store);
+        return (new AlertGovernanceService(store, new PostgresActionJustificationStore(context), decider, decider, audit, new NullControlPlaneNotifier(), TimeProvider.System), store);
     }
 
     private static async Task Cleanup(ControlPlaneDbContext context, Guid[] environments, CancellationToken ct) =>
@@ -196,8 +196,12 @@ public sealed class AlertGovernanceServiceTests
         return new ControlPlaneDbContext(new DbContextOptionsBuilder<ControlPlaneDbContext>().UseNpgsql(connectionString).Options);
     }
 
-    private sealed class Decider : Dictionary<(Guid, string), bool>, IEnvironmentAuthorizationDecider
+    private sealed class Decider : Dictionary<(Guid, string), bool>, IEnvironmentAuthorizationDecider, IEnvironmentGrantReader
     {
+        public Task<IReadOnlyDictionary<Guid, IReadOnlySet<string>>?> ReadAsync(AuthenticatedActor actor, string accessToken, Guid correlationId, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyDictionary<Guid, IReadOnlySet<string>>?>(this.Where(p => p.Value).GroupBy(p => p.Key.Item1)
+                .ToDictionary(g => g.Key, g => (IReadOnlySet<string>)g.Select(p => p.Key.Item2).ToHashSet(StringComparer.Ordinal)));
+
         public Task<EnvironmentAuthorizationDecision> DecideAsync(string resource, string scope, AuthenticatedActor actor, string accessToken, Guid correlationId, CancellationToken cancellationToken)
         {
             var id = Guid.Parse(resource["urn:dokpod:environment:".Length..]);
