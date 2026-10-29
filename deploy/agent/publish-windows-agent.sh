@@ -13,9 +13,9 @@ rid=${2:-win-x64}
 sdk_image=docker.io/lzocateli/dotnet-sdk:10.0.402-noble-v1
 engine=$(command -v podman || command -v docker)
 commit=$(git -C "$root" rev-parse --short=12 HEAD)
-version=$(sed -n 's:.*<Version>\(.*\)</Version>.*:\1:p' "$root/backend/Directory.Build.props" | head -1)
+version=$(sed -n 's:.*<VersionPrefix>\(.*\)</VersionPrefix>.*:\1:p' "$root/backend/Directory.Build.props" | head -1)
 version=${version:-0.0.0}
-name="dokpod-agent-$version+$commit-$rid"
+name="dokpod-agent-$version-$rid"
 mkdir -p "$out"
 stage=$(mktemp -d)
 trap 'rm -rf "$stage"' EXIT

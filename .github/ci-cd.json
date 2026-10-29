@@ -10,7 +10,7 @@
   "versionFiles": ["backend/Directory.Build.props", "frontend/web/package.json"],
   "publishSnapshots": false,
   "deploy": {
-    "environments": [],
+    "environments": ["quality", "production"],
     "autoDeployEnvironment": ""
   },
   "attestations": true,

@@ -24,7 +24,7 @@ public sealed class ArchitectureTests
     public void ProductVersion_IsTheSameInBackendAndConsole()
     {
         var root = Path.Combine(AppContext.BaseDirectory, "../../../../../");
-        var backend = XDocument.Load(Path.Combine(root, "Directory.Build.props")).Descendants("Version").Single().Value;
+        var backend = XDocument.Load(Path.Combine(root, "Directory.Build.props")).Descendants("VersionPrefix").Single().Value;
         using var package = System.Text.Json.JsonDocument.Parse(File.ReadAllText(Path.Combine(root, "../frontend/web/package.json")));
 
         Assert.Matches(@"^\d+\.\d+\.\d+$", backend);
