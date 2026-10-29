@@ -92,6 +92,7 @@ versão publicada.
 | Sintoma | Causa provável | Ação |
 | --- | --- | --- |
 | `Require release GitHub App` falha | `vars.RELEASE_APP_ID` ou `RELEASE_APP_PRIVATE_KEY` ausentes | Configure-os manualmente; nunca use PAT pessoal |
+| Run `Release` com `startup_failure` e nenhum job | Política de actions do repositório (ou da organização) bloqueia `googleapis/release-please-action` | Execute `groundwork github --sync`, que permite o SHA de `allowedActions`; se a organização restringir, libere-o lá |
 | Release PR sem checks | PR criado com `GITHUB_TOKEN` | Confirme que o App está instalado; o token do App dispara os checks |
 | Tag recusada | ruleset `gw-release-tags` sem o App no bypass | Execute `groundwork github` e revise `release_app_id` |
 | `Assert-ReleaseTag.ps1` falha | versão divergente entre tag e arquivos de versão | Corrija no Release PR; não crie tags manualmente |
