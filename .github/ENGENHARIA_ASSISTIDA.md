@@ -15,9 +15,8 @@ Leia primeiro o [guia do Copilot](COPILOT_GUIDE.md). Para gerenciar trabalho, us
 | `copilot-instructions.md` | regras globais do Dokpod |
 | `instructions/*.instructions.md` | regras carregadas por domínio e caminho |
 | `agents/*.agent.md` | especialistas selecionáveis |
-| `prompts/*.prompt.md` | tarefas focadas invocáveis por `/` |
 | `skills/speckit-*/SKILL.md` | integração oficial Copilot do Spec Kit e Bug Fixing |
-| demais `skills/*/SKILL.md` | revisão e qualificação técnica, sem execução concorrente |
+| demais `skills/*/SKILL.md` | auxiliares manuais (`dokpod-create-adr`, `dokpod-generate-tests`, `dokpod-localize-speckit`), revisão (`pull-request-review`) e qualificação técnica, sem execução concorrente |
 | `COPILOT_GUIDE.md` | tutorial de uso |
 | `ISSUE_TEMPLATE/` | entrada estruturada para o GitHub Project |
 | `COMMIT_CONVENTIONS.md` | formato de commits |
@@ -40,8 +39,9 @@ Leia primeiro o [guia do Copilot](COPILOT_GUIDE.md). Para gerenciar trabalho, us
 - Use **Dokpod Engine & Protocol Engineer** para Docker/Podman, gRPC, mTLS, journal e reconciliação.
 - Use **Dokpod Angular Engineer** para frontend e UX operacional.
 - Use **Dokpod .NET Engineer** para API, BFF, agente, domínio e PostgreSQL.
-- Use `/create-adr` apenas para decisão duradoura vinculada ao plan/tarefa; IA mantém `proposed`.
-- Use `/review-change` ou `/pull-request-review` para revisão.
+- Use `/dokpod-create-adr`, com **Dokpod Solution Architect** selecionado, apenas para decisão duradoura vinculada ao plan/tarefa; IA mantém `proposed`.
+- Use `/dokpod-generate-tests`, com **Dokpod Quality Engineer** selecionado, para evidência de teste de tarefa ou remediação autorizada.
+- Use `/pull-request-review`, com **Dokpod Code Reviewer** selecionado, para revisão.
 - Use `/release-readiness` antes de publicar uma versão.
 
 O GitHub Project organiza demanda, prioridade, risco e bloqueios; `Ready` não
@@ -72,12 +72,12 @@ Mensagens de commit seguem [as convenções do Dokpod](COMMIT_CONVENTIONS.md).
 
 ### Localização pt-BR
 
-Use o [prompt localize-speckit](prompts/localize-speckit.prompt.md) após instalações
-ou atualizações. Sem modo explícito, ele somente audita:
+Use a [skill dokpod-localize-speckit](skills/dokpod-localize-speckit/SKILL.md) após instalações
+ou atualizações. Sem modo explícito, ela somente audita:
 
 ```text
-/localize-speckit extensão=assess modo=auditar
-/localize-speckit extensão=assess modo=traduzir
+/dokpod-localize-speckit extensão=assess modo=auditar
+/dokpod-localize-speckit extensão=assess modo=traduzir
 ```
 
 Não há tradução automática por configuração de idioma ou hook de instalação.
