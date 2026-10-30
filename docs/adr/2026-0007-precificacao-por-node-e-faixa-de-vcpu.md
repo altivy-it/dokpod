@@ -1,11 +1,12 @@
 # ADR 2026-0007: Precificação por node com faixa de vCPU
 
-- **Status:** proposed
+- **Status:** accepted (2026-10-30)
+- **Aceite humano:** zocatel, 2026-10-30. Aceite registrado a pedido do solicitante, que declarou na sessão de 2026-10-30: "aceito os ADR 2026-0007 e 2026-0008".
 - **Data:** 2026-10-27
 - **Origem:** IA assistida, a pedido do solicitante
 - **Revisor humano:** zocatel (solicitante e responsável pelo produto)
 - **Revisa:** a seção de preço e de métricas comerciais do [ADR 2026-0003](2026-0003-licenciamento-e-edicoes.md); licença, edições e regras de enforcement daquele ADR permanecem.
-- **Decisões do solicitante (2026-10-27):** três planos pagos, de US$ 900/ano, US$ 1.500/ano e sob medida; o plano de entrada se chama **Teams**, sem tradução em nenhum idioma. Quantidades de nodes, faixas de vCPU e regra de contagem abaixo são proposta e aguardam aceite.
+- **Decisões do solicitante (2026-10-27):** três planos pagos, de US$ 900/ano, US$ 1.500/ano e sob medida; o plano de entrada se chama **Teams**, sem tradução em nenhum idioma. Quantidades de nodes, faixas de vCPU e regra de contagem abaixo foram aceitas em 2026-10-30, junto com as decisões das pendências.
 
 ## Contexto
 
@@ -42,7 +43,7 @@ O ADR 2026-0003 previu uma única oferta Business por US$ 99/mês ou US$ 990/ano
 
 ## Pendências antes do aceite
 
-As quatro pendências foram decididas pelo solicitante em 2026-10-30 (seção seguinte). O status continua `proposed` até o aceite humano explícito deste ADR.
+As quatro pendências foram decididas pelo solicitante em 2026-10-30 (seção seguinte). Aceite humano registrado em 2026-10-30. A confirmação tributária da pendência 3 com a contabilidade continua obrigatória antes da primeira venda.
 
 1. Preço do pacote adicional de 5 nodes no Business. **Decidida.**
 2. Tolerância de excedente e regra de arredondamento no contrato. **Decidida.**
@@ -80,7 +81,7 @@ Base: referência de mercado de software de gestão de containers self-hosted, c
 
 - **Data:** 2026-10-29
 - **Origem:** IA assistida, a pedido do solicitante ("faça a proposta formal para a pendência 4")
-- **Estado:** variante A′ escolhida pelo solicitante em 2026-10-30; o status do ADR continua `proposed` até o aceite
+- **Estado:** variante A′ escolhida pelo solicitante e aceita com este ADR em 2026-10-30
 
 ### Contexto
 

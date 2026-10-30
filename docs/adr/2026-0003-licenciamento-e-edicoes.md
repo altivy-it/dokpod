@@ -5,7 +5,8 @@
 **Responsáveis:** Lincoln Zocateli  
 **Origem:** humano  
 **Revisor humano:** Lincoln Zocateli  
-**Relacionado:** ADR 2026-0001, ADR 2026-0002 e plano do MVP
+**Relacionado:** ADR 2026-0001, ADR 2026-0002 e plano do MVP  
+**Revisado por:** [ADR 2026-0007](2026-0007-precificacao-por-node-e-faixa-de-vcpu.md) (preço e métricas comerciais, aceito em 2026-10-30) e [ADR 2026-0008](2026-0008-licenca-assinada-e-verificacao-offline.md) (formato da licença, aceito em 2026-10-30)
 
 ## Contexto
 

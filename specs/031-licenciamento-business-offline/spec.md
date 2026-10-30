@@ -20,6 +20,10 @@
 - P: A CE está estável para o gate do ADR 2026-0003 ("a Business só será iniciada após estabilização do MVP CE e revisão jurídica")? → R: Sim. A `v0.1.0`, publicada em 2026-10-29 e implantada em `quality`, é o marco de estabilização da CE. A revisão jurídica continua pendente e é gate antes de código Business (FR-030).
 - P: Escopo desta etapa? → R: F0 documental: esta spec, a matriz CE/Business e um ADR `proposed` derivado do `/speckit-plan`. Sem código, sem repositório da CLI, sem aceite de ADR.
 
+### Sessão 2026-10-30 (aceite dos ADRs)
+
+- O solicitante aceitou o [ADR 2026-0007](../../docs/adr/2026-0007-precificacao-por-node-e-faixa-de-vcpu.md) (planos, nodes equivalentes, faixas, pacote adicional, tolerância e cobrança) e o [ADR 2026-0008](../../docs/adr/2026-0008-licenca-assinada-e-verificacao-offline.md) (formato da licença e verificação offline). O gate de FR-031 está cumprido; o de FR-030 (revisão jurídica) continua aberto.
+
 ### Decisões herdadas do plano (2026-10-28)
 
 - Capacidade em nodes equivalentes por faixa de vCPU, apurada pelo maior total simultâneo em 30 dias.
@@ -261,7 +265,7 @@ Recursos da coluna Business só viram direitos da licença (FR-006) quando tiver
 ## Premissas
 
 - A revisão jurídica (titularidade, contribuições, MIT do verificador, composição CE/Business, contrato) acontece antes de código Business (FR-030) e pode alterar requisitos desta spec.
-- O ADR 2026-0007 continua `proposed`; faixa, janela e tolerância entram como parâmetros da licença, e só a regra de cálculo é do produto (FR-031).
+- O ADR 2026-0007 foi aceito em 2026-10-30; faixa, janela e tolerância continuam como parâmetros da licença, e só a regra de cálculo é do produto (FR-031).
 - Preço, moeda, tributação, pacote adicional de nodes e meio de cobrança ficam fora desta spec.
 - Checkout, servidor de ativação, telemetria comercial, fingerprint de hardware e qualquer kill switch estão fora de escopo e proibidos.
 - O desenho técnico (formato da assinatura, limites de tamanho, persistência, API, comandos da CLI, provedor de chave) fica no `/speckit-plan`, a partir das seções correspondentes do plano de origem.
