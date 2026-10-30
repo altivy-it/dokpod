@@ -14,12 +14,16 @@ O Dokpod terá duas edições: a Community Edition gratuita e a edição comerci
 | --- | --- | --- | --- | --- |
 | Licença | `AGPL-3.0-only` | comercial proprietária | comercial proprietária | comercial proprietária |
 | Preço | gratuito | US$ 900/ano | US$ 1.500/ano | sob medida |
-| Nodes | sem limite artificial | até 5 | 5, em pacotes de 5 até 25 | sem teto |
+| Nodes | sem limite artificial | até 5 | 5, mais pacotes de 5 a US$ 1.200/ano com prorrata, até 25 | sem teto |
 | vCPUs por node | sem limite | até 16 | até 32 | acima de 32 |
 | Usuários | sem limite artificial | sem cobrança ou limite | sem cobrança ou limite | sem cobrança ou limite |
 | Instalações | sem limite imposto | uma de produção e uma de homologação | uma de produção e uma de homologação | conforme contrato |
 | Chave de licença | não exige | arquivo assinado, verificável offline | arquivo assinado, verificável offline | arquivo assinado, verificável offline |
 | Suporte | comunidade | comunidade e documentação | e-mail em horário comercial, próximo dia útil | SLA contratual |
+| Recursos comerciais | não | governança e conformidade | governança, conformidade e escala de frota | todos, mais builds de suporte estendido |
+| Cobrança | gratuita | USD, online por merchant of record | fatura em USD (exterior) ou BRL com NFS-e (Brasil) | contrato |
+
+Tolerância de 30 dias para expiração e excesso, avisos 60, 30 e 7 dias antes de vencer, regularização por pacote com prorrata e sem cobrança retroativa; detalhes e pendências tributárias no [ADR 2026-0007](adr/2026-0007-precificacao-por-node-e-faixa-de-vcpu.md#decisões-do-solicitante-sobre-as-pendências-2026-10-30).
 
 A política anterior (US$ 99/mês ou US$ 990/ano por organização, até 100 nodes) permanece registrada no [ADR 2026-0003](adr/2026-0003-licenciamento-e-edicoes.md) e vale até o aceite do ADR 2026-0007.
 

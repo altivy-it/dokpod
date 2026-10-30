@@ -97,6 +97,7 @@ Quando a licença expira ou a capacidade é excedida, o administrador recebe avi
 3. **Dado** um excesso em andamento, **Quando** a API reinicia ou a mesma licença é reimportada, **Então** o prazo de tolerância não recomeça.
 4. **Dado** expiração e excesso simultâneos, **Quando** os prazos são calculados, **Então** as tolerâncias não se somam.
 5. **Dado** uma renovação que aumenta a capacidade, **Quando** é importada, **Então** o excesso se resolve assim que a janela fica regular, sem reiniciar a instalação.
+6. **Dado** uma licença que expira em 30 dias, **Quando** o administrador acessa o console, **Então** vê o aviso de vencimento, também registrado na trilha de licenciamento.
 
 ---
 
@@ -197,6 +198,8 @@ O fornecedor troca a chave de assinatura sem invalidar licenças vigentes e, em 
 
 - **FR-030**: Nenhum código exclusivo Business DEVE ser escrito antes da revisão jurídica de titularidade, contribuições, licença MIT do verificador, composição CE/Business e contrato (ADR 2026-0003).
 - **FR-031**: As regras comerciais do ADR 2026-0007 DEVEM ser implementadas somente após seu aceite humano; até lá, a faixa de vCPU, a janela e a tolerância só valem como parâmetros da licença.
+- **FR-032**: O administrador DEVE ser avisado, de forma auditável, 60, 30 e 7 dias antes da expiração da licença (decisão de 2026-10-30 no ADR 2026-0007).
+- **FR-033**: O administrador com `licensing:read` DEVE poder exportar localmente um relatório de apuração (consumo atual, pico da janela, faixa, hosts com origem da CPU e prazos), sem envio automático; é o insumo da cláusula de verificação anual do contrato (ADR 2026-0007).
 
 ### Matriz CE/Business (reconciliação de 2026-10-29)
 
