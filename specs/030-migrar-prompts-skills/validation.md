@@ -270,10 +270,71 @@ Em 2026-10-29 o solicitante informou que as quatro skills foram validadas no Git
 
 Pelo critério de T026 (evidência insuficiente em critério necessário bloqueia T027 a T030), o gate conjunto segue **não liberado** só com esta evidência: a descoberta está comprovada, e o comportamento dos cenários está declarado, mas não registrado. A retirada dos prompts (T029) exige uma de duas coisas: o registro dos cenários ou a decisão explícita do solicitante de aceitar a própria declaração como evidência, registrada neste relatório.
 
+## Decisão do Solicitante e Gate Conjunto: T026 (2026-10-29)
+
+Decisão literal do solicitante em 2026-10-29: "explicitamente eu aceito a própria declaração como evidência, registre essa decisão e feche T026–T033". Com ela, a validação funcional declarada na seção anterior passa a valer como evidência humana para T011, T016, T020 e T025. A evidência é **declarada e aceita pelo solicitante**, não observada nesta sessão.
+
+| Critério de T026 | Resultado | Evidência |
+| --- | --- | --- |
+| Quatro fluxos (ADR, testes, localização, revisão) | `PASS` por aceite do solicitante | Declaração de 2026-10-29 e descoberta no Copilot (captura) |
+| Matriz de regras da origem (T003) | `PASS` | Paridade estática de T015, T019 e T024; T010 para ADR |
+| V01 a V10 | `PASS` por aceite do solicitante | Sem respostas registradas; declaração aceita explicitamente |
+| Colisão de nomes | `PASS` | Nomes `dokpod-*` e `pull-request-review` únicos no menu do Copilot |
+| Integridade dos componentes protegidos | `PASS` | T031 abaixo |
+
+Gate conjunto **liberado** em 2026-10-29 por decisão do solicitante.
+
+## Consumidores e Retirada: T027 a T030 (2026-10-29)
+
+- T027: `.github/ENGENHARIA_ASSISTIDA.md` (estrutura sem `prompts/`, escolha com `/dokpod-create-adr`, `/dokpod-generate-tests` e `/pull-request-review` e o especialista de cada um, localização pela skill) e `.github/COPILOT_GUIDE.md` (seção "Skills auxiliares" com os quatro comandos e especialistas).
+- T028: `.github/copilot-instructions.md` (localização pela skill) e `.github/GOVERNANCE.md` (`skills/` passa a descrever os auxiliares; linha de `prompts/` removida). Processo Spec Kit, autoridade e aprovações inalterados. `.github/plano-migracao-prompts-skills.md` e os relatórios das specs mantêm as menções históricas.
+- T029: antes da exclusão, os quatro prompts tinham exatamente os hashes do baseline (sem alterações locais):
+
+  | Prompt | SHA256 antes da exclusão |
+  | --- | --- |
+  | `create-adr.prompt.md` | `E7D99E84C427A23144EDC60828184D0E57A4DCEFBBC766574B7D064294B968F1` |
+  | `generate-tests.prompt.md` | `0066B11D20D5A4DFF4B6FA1F622C9B97F72F070D53AD7FB6D511557122B94301` |
+  | `localize-speckit.prompt.md` | `B53C42ECE7E484657D127565D04ABF9C908C5396FFA1F1E011A9B160BA411282` |
+  | `review-change.prompt.md` | `EF1AC4A7F1E2D9C22EECC6BFFE4D5C147BEFE72A5168997C659B7CBD1CE01AF5` |
+
+  Os quatro foram excluídos e o diretório `.github/prompts/` deixou de existir. Nenhuma ponte local foi mantida e nenhum outro arquivo foi removido.
+- T030: a cópia descartável `/tmp/dokpod-025-validation/` não existe mais (registrado acima). A sincronização final não tem destino; a verificação de descoberta em sessão nova fica coberta pela captura do solicitante e pela decisão de T026. Referências operacionais quebradas: nenhuma. A busca por `prompts/`, `.prompt.md` e pelos comandos antigos fora de `specs/` só encontra o plano histórico de migração; os links locais dos quatro guias resolvem.
+
+## Integridade Final: T031 (2026-10-29)
+
+Mesmo algoritmo do baseline (linhas `caminho:HASH` ordenadas, LF, sem LF final), na branch desta retirada:
+
+| Conjunto | Arquivos | Resultado |
+| --- | ---: | --- |
+| `.github/skills/speckit-*/SKILL.md` | 23 | idêntico ao baseline |
+| `.specify/extensions/` e `.specify/extensions.yml` | 36 | difere: alterado fora desta migração pelos PRs #49 (`git/git-config.yml`) e #51 (`bug/README.pt-BR.md`) |
+| `.specify/integrations/`, `integration.json`, `init-options.json` | 4 | idêntico |
+| `.specify/memory/constitution.md` | 1 | idêntico |
+| `.specify/templates/` | 10 | idêntico |
+| `.github/instructions/` | 20 | idêntico |
+| checklists da feature (`specs/025-…` → `specs/030-…`) | 1 | difere: renumeração 025 → 030 autorizada em 2026-10-27 |
+| `.gitignore` e `.dockerignore` | 2 | idêntico |
+
+Nenhum commit desta migração (#61 e esta retirada) toca os conjuntos protegidos: a interseção dos arquivos alterados com esses caminhos é vazia. O diff desta retirada contém só os quatro guias, a exclusão dos quatro prompts e este relatório. Produto, contratos, deployment e secrets não foram alterados. Os arquivos alterados são UTF-8.
+
+Limitação: o baseline dos extensions foi capturado numa cópia de trabalho anterior ao #49 e não é reproduzível bit a bit a partir do histórico; a prova de não interferência é o histórico Git dos caminhos.
+
+## Consolidação: T032 (2026-10-29)
+
+| Requisito | Evidência | Resultado |
+| --- | --- | --- |
+| FR-001, FR-003, FR-012; SC-001 | Skills criadas (T008, T013, T018, T022), descoberta no Copilot, aceite de T026 | `PASS` por aceite do solicitante |
+| FR-002; SC-002 | Paridade estática T010, T015, T019, T024 | `PASS` |
+| FR-004 a FR-010 | Casos e candidatos por história; V01 a V10 aceitos em T026 | `PASS` por aceite do solicitante |
+| FR-011; SC-003 | Ferramentas dos agentes conferidas estaticamente; uso efetivo declarado | `PASS` por aceite do solicitante |
+| FR-013; SC-004 | T027 a T029: consumidores atualizados e quatro prompts removidos | `PASS` |
+| FR-014, FR-016; SC-005 | T031 | `PASS`, com a limitação registrada |
+| FR-015; SC-006 | Este relatório | `PASS`, com a natureza declarada da evidência funcional |
+
+Harness: GitHub Copilot no VS Code (sessão do solicitante, versão não registrada). Não há qualificação de cloud, CLI, engines ou Windows nesta migração, e nenhum ADR foi aceito. O commit e o PR desta retirada foram pedidos pelo solicitante; não houve publicação nem deploy.
+
+Residual para `/speckit-converge`: os cenários V01 a V10 não têm respostas registradas; se a política de evidência exigir registro observado, repetir os casos preparados numa sessão nova do Copilot.
+
 ## Estado Atual e Gates
 
-T001 a T010, T012 a T015, T017 a T019 e T021 a T024: concluídas no escopo documentado de preparação, diagnóstico, casos e validação estática. T005 é conclusão de diagnóstico, não de observação funcional. T011, T016, T020 e T025: descoberta comprovada no Copilot e validação funcional declarada pelo solicitante em 2026-10-29, sem registro dos cenários; continuam sem marcação de conclusão. T026 a T033: não executadas; dependem do registro dos cenários ou da decisão explícita do solicitante (seção anterior).
-
-SC-001 e SC-003: `NOT RUN`; SC-002: paridade documental dos quatro fluxos, qualificação funcional pendente; SC-004: não satisfeito, quatro prompts preservados pelo gate; SC-005: `PASS` para integridade deste recorte parcial, sem substituir T031 ao final da migração; SC-006: relato parcial com limites explícitos, não relatório de qualificação completa. Nenhum commit, push, publicação, deploy ou aceite de ADR foi realizado.
-
-Conferência final parcial em container sem rede e somente leitura: os oito digests protegidos coincidiram com o baseline; os quatro prompts e a skill de revisão permaneceram com hashes individuais anteriores; 33 IDs preservados, somente T001 a T010 marcadas, T011 pendente; os dois candidatos coincidiram com a cópia e os links locais dos registros resolveram. Esse resultado não é evidência funcional e não conclui T031/T032/T033.
+T001 a T033 concluídas em 2026-10-29. T011, T016, T020, T025, T026 e T030 com evidência funcional declarada e aceita explicitamente pelo solicitante; T031 com a limitação registrada. Os quatro prompts foram retirados e os consumidores apontam para as skills.

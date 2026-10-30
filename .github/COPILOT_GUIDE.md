@@ -124,13 +124,16 @@ ADRs propostos; não cria planos legados. O Delivery Lead coordena tarefas Spec 
 autorizadas ou remediação Bug Fixing e pode delegar recortes com referência aos
 artefatos. Especialistas não iniciam workflows independentes nem presumem aprovação.
 
-## Prompts
+## Skills auxiliares
 
-| Comando | Quando usar |
-| --- | --- |
-| `/create-adr` | registrar decisão duradoura proposta vinculada a plan/tarefa |
-| `/generate-tests` | produzir evidência para tarefa/remediação autorizada |
-| `/review-change` | revisar diff, branch ou pull request sem editar |
+Skills manuais, invocadas por `/`; selecione o especialista indicado antes de invocar.
+
+| Comando | Especialista | Quando usar |
+| --- | --- | --- |
+| `/dokpod-create-adr` | `Dokpod Solution Architect` | registrar decisão duradoura proposta vinculada a plan/tarefa |
+| `/dokpod-generate-tests` | `Dokpod Quality Engineer` | produzir evidência para tarefa/remediação autorizada |
+| `/dokpod-localize-speckit` | qualquer | auditar ou traduzir textos humanos do Spec Kit para pt-BR |
+| `/pull-request-review` | `Dokpod Code Reviewer` | revisar diff, branch ou pull request sem editar |
 
 Exemplo:
 
