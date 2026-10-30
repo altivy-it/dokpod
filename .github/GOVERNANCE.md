@@ -34,8 +34,7 @@ legadas de execução por plano não autorizam trabalho fora do Spec Kit.
 - `copilot-instructions.md`: contexto e regras invariáveis do Dokpod;
 - `instructions/`: regras especializadas por caminho;
 - `agents/`: especialistas selecionáveis e agentes de revisão read-only;
-- `prompts/`: auxiliares de ADR, testes e revisão subordinados ao Spec Kit;
-- `skills/`: processos oficiais Spec Kit e gates auxiliares de revisão/release;
+- `skills/`: processos oficiais Spec Kit, auxiliares de ADR, testes e localização subordinados ao Spec Kit e gates de revisão/release;
 - `COPILOT_GUIDE.md`: guia de escolha e uso das customizações;
 - `SCRIPTING.md`: localização, linguagem e contrato das automações do repositório;
 - `PERFORMANCE_TESTING_CRITERIA.md`: perfis, thresholds e evidências de capacidade;
