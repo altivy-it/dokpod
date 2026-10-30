@@ -96,7 +96,7 @@ Gravada só quando a capacidade confiável do host muda ou na conexão do agente
 | `occurred_at_utc` | timestamptz (partição) |
 | `actor_id` | text null (sujeito, ou null para o sistema) |
 | `correlation_id` | uuid |
-| `action` | text: `license.imported`, `license.rejected`, `license.state_changed`, `license.grace_started`, `license.grace_ended`, `revocation.imported`, `host.linked`, `host.unlinked`, `host.removed` |
+| `action` | text: `license.imported`, `license.rejected`, `license.state_changed`, `license.grace_started`, `license.grace_ended`, `license.expiry_warning` (60, 30 e 7 dias, FR-032), `license.report_exported` (FR-033), `revocation.imported`, `host.linked`, `host.unlinked`, `host.removed` |
 | `details` | jsonb com allowlist por ação (IDs, revisões, códigos, sem conteúdo da licença) |
 
 ## Transições

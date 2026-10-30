@@ -18,6 +18,32 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/LicensingStatus' }
         '403': { $ref: '#/components/responses/Problem' }
+  /api/v1/licensing/report:
+    get:
+      operationId: exportLicensingReport
+      summary: Relatório de apuração para exportação local (licensing:read, FR-033); nada é enviado ao fornecedor
+      responses:
+        '200':
+          description: Consumo atual, pico da janela, faixa, hosts com origem da CPU e prazos
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [generatedAt, status, hosts]
+                properties:
+                  generatedAt: { type: string, format: date-time }
+                  status: { $ref: '#/components/schemas/LicensingStatus' }
+                  hosts:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        hostId: { type: string }
+                        label: { type: string }
+                        vcpus: { type: integer, nullable: true }
+                        source: { type: string, enum: [engine, process_fallback, unknown] }
+                        nodeEquivalents: { type: integer, nullable: true }
+        '403': { $ref: '#/components/responses/Problem' }
   /api/v1/licensing/license:
     put:
       operationId: importLicense

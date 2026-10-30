@@ -42,16 +42,45 @@ O ADR 2026-0003 previu uma única oferta Business por US$ 99/mês ou US$ 990/ano
 
 ## Pendências antes do aceite
 
-1. Preço do pacote adicional de 5 nodes no Business.
-2. Tolerância de excedente e regra de arredondamento no contrato.
-3. Moeda, meio de cobrança e tributação no Brasil.
-4. Se o plano Teams inclui todos os recursos comerciais ou um subconjunto. **Proposta abaixo (2026-10-29), aguardando decisão.**
+As quatro pendências foram decididas pelo solicitante em 2026-10-30 (seção seguinte). O status continua `proposed` até o aceite humano explícito deste ADR.
+
+1. Preço do pacote adicional de 5 nodes no Business. **Decidida.**
+2. Tolerância de excedente e regra de arredondamento no contrato. **Decidida.**
+3. Moeda, meio de cobrança e tributação no Brasil. **Decidida, com confirmação tributária pendente com a contabilidade.**
+4. Se o plano Teams inclui todos os recursos comerciais ou um subconjunto. **Decidida: variante A′.**
+
+## Decisões do solicitante sobre as pendências (2026-10-30)
+
+Base: referência de mercado de software de gestão de containers self-hosted, consultada em 2026-10-29 (planos com nodes fixos no período e ajuste só na renovação; custo de cerca de US$ 13 a US$ 17,50 por vCPU por ano nos planos de entrada e intermediário; tolerâncias pós-expiração de 6 horas a 14 dias em outros produtos self-hosted, alguns com desligamento).
+
+### Pendência 1: pacote adicional
+
+- Pacote de 5 nodes equivalentes no Business por **US$ 1.200/ano** (20% abaixo da base, que já inclui onboarding e suporte).
+- Contratável a qualquer momento, com **prorrata** até a data de renovação do contrato (co-terminado), por aditivo assinado (licença com revisão nova).
+- Até 25 nodes: 10 nodes = US$ 2.700; 15 = US$ 3.900; 20 = US$ 5.100; 25 = US$ 6.300 (≈ US$ 7,88 por vCPU por ano). Acima de 25, Enterprise.
+
+### Pendência 2: tolerância, excedente e arredondamento
+
+- Arredondamento: `teto(vCPUs / faixa)` por host, como no item 3 da decisão.
+- Tolerância de **30 dias**, assinada na licença, para expiração e para excesso; prazos não se somam e não recomeçam por reinício ou reimportação.
+- Avisos ao administrador **60, 30 e 7 dias** antes da expiração.
+- Excesso se regulariza dentro da tolerância por compra de pacote com prorrata ou por redução do uso. **Sem cobrança retroativa**: sem telemetria, o fornecedor não mede o passado.
+- Cláusula contratual de verificação: no máximo uma vez por ano, o fornecedor pode pedir o relatório de apuração gerado localmente pelo Dokpod, que o próprio cliente exporta e envia. Nada sai automaticamente da instalação.
+- Após a tolerância, só novas execuções de recursos exclusivos ficam bloqueadas; workloads, dados, leitura, backup, exportação, renovação e a CE seguem intactos.
+
+### Pendência 3: moeda, cobrança e tributação
+
+- **Teams**: preço em USD, compra só online por um *merchant of record* (MoR), que vende ao cliente final e recolhe IVA ou sales tax de cada país. O repasse do MoR cai na conta global em USD da Altivy, com NFS-e de exportação de serviços emitida pela Altivy contra o MoR.
+- **Business e Enterprise**: fatura (invoice) em USD para clientes no exterior, paga na conta global, com NFS-e de exportação.
+- **Clientes no Brasil**: preço em BRL, tabela fixa revista uma vez por ano, NFS-e com ISS (licenciamento de software, item 1.05 da LC 116/2003), PIX, boleto ou cartão.
+- A conta global recebe e mantém USD e a contabilidade emite as notas; não substituem o MoR, que é quem faz o checkout e a conformidade fiscal no país do comprador.
+- **A confirmar com a contabilidade antes da primeira venda**: enquadramento como exportação de serviços (o resultado precisa se verificar no exterior), não incidência de ISS e de PIS/Cofins com ingresso de divisas, tratamento no regime tributário da empresa e na transição para CBS e IBS, e aceite de repasses do MoR na conta global.
 
 ## Proposta para a pendência 4: recursos do plano Teams
 
 - **Data:** 2026-10-29
 - **Origem:** IA assistida, a pedido do solicitante ("faça a proposta formal para a pendência 4")
-- **Estado:** proposta; não altera o status deste ADR nem constitui aceite
+- **Estado:** variante A′ escolhida pelo solicitante em 2026-10-30; o status do ADR continua `proposed` até o aceite
 
 ### Contexto
 
