@@ -13,7 +13,7 @@ import {
 } from '../../data-access/generated/control-plane';
 
 /** Versão do console: a mesma do backend e do `package.json` (conferida pelo teste de arquitetura da spec 022). */
-export const CONSOLE_VERSION = '0.1.0'; // x-release-please-version
+export const CONSOLE_VERSION = '0.1.1'; // x-release-please-version
 
 /** API de Configurações (spec 022), fora do bundle inicial. */
 @Injectable({ providedIn: 'root' })
