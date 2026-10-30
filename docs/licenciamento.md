@@ -1,14 +1,14 @@
 # Licenciamento e comercialização
 
-**Status da política:** decisão aceita (2026-09-06); revisão de preços e métrica em `proposed` ([ADR 2026-0007](adr/2026-0007-precificacao-por-node-e-faixa-de-vcpu.md), 2026-10-27)  
-**Data:** 2026-09-06, revisada em 2026-10-27  
+**Status da política:** decisão aceita (2026-09-06); revisão de preços, métrica e planos aceita em 2026-10-30 ([ADR 2026-0007](adr/2026-0007-precificacao-por-node-e-faixa-de-vcpu.md)); formato da licença no [ADR 2026-0008](adr/2026-0008-licenca-assinada-e-verificacao-offline.md), aceito em 2026-10-30  
+**Data:** 2026-09-06, revisada em 2026-10-27 e 2026-10-30  
 **Implementação atual:** nenhuma edição publicada; CE é a primeira entrega planejada
 
 Esta é a política operacional derivada do [ADR 2026-0003](adr/2026-0003-licenciamento-e-edicoes.md). O ADR registra contexto e decisão; este documento é a referência para escopo das edições, comercialização e gates de release.
 
 ## Modelo
 
-O Dokpod terá duas edições: a Community Edition gratuita e a edição comercial (Business), vendida em três planos anuais. Os planos abaixo seguem o [ADR 2026-0007](adr/2026-0007-precificacao-por-node-e-faixa-de-vcpu.md), em `proposed`; preços e nome dos planos são decisão do solicitante, e nodes, faixas de vCPU e contagem aguardam aceite.
+O Dokpod terá duas edições: a Community Edition gratuita e a edição comercial (Business), vendida em três planos anuais. Os planos abaixo seguem o [ADR 2026-0007](adr/2026-0007-precificacao-por-node-e-faixa-de-vcpu.md), aceito em 2026-10-30, incluindo nodes, faixas de vCPU, contagem, pacote adicional, tolerância e cobrança.
 
 | Aspecto | Community Edition | Teams | Business | Enterprise |
 | --- | --- | --- | --- | --- |
@@ -25,7 +25,7 @@ O Dokpod terá duas edições: a Community Edition gratuita e a edição comerci
 
 Tolerância de 30 dias para expiração e excesso, avisos 60, 30 e 7 dias antes de vencer, regularização por pacote com prorrata e sem cobrança retroativa; detalhes e pendências tributárias no [ADR 2026-0007](adr/2026-0007-precificacao-por-node-e-faixa-de-vcpu.md#decisões-do-solicitante-sobre-as-pendências-2026-10-30).
 
-A política anterior (US$ 99/mês ou US$ 990/ano por organização, até 100 nodes) permanece registrada no [ADR 2026-0003](adr/2026-0003-licenciamento-e-edicoes.md) e vale até o aceite do ADR 2026-0007.
+A política anterior (US$ 99/mês ou US$ 990/ano por organização, até 100 nodes) permanece registrada no [ADR 2026-0003](adr/2026-0003-licenciamento-e-edicoes.md) e foi substituída pelo ADR 2026-0007 em 2026-10-30.
 
 A CE será implementada e estabilizada antes do início da Business. Os preços são uma decisão de produto; impostos, moeda de cobrança, meios de pagamento, SLA e contrato comercial precisam de validação jurídica e financeira antes da primeira venda.
 
@@ -79,7 +79,7 @@ Uma organização é a pessoa jurídica ou unidade contratante identificada no c
 
 Um node é um host físico, máquina virtual ou dispositivo com engine Docker ou Podman gerenciado pelo Dokpod. A quantidade de containers e usuários não altera a contagem. Um host com mais de um engine conta uma vez enquanto representar o mesmo ambiente computacional gerenciado.
 
-Pelo ADR 2026-0007 (`proposed`), cada node conta como `teto(vCPUs / faixa do plano)` nodes equivalentes, com os vCPUs lógicos informados pelo agente (`cpu_count` no `Hello`). A apuração usa o maior total dos últimos 30 dias, calculado localmente.
+Pelo ADR 2026-0007 (aceito em 2026-10-30), cada node conta como `teto(vCPUs / faixa do plano)` nodes equivalentes, com os vCPUs lógicos informados pelo agente (`cpu_count` no `Hello`). A apuração usa o maior total dos últimos 30 dias, calculado localmente.
 
 A CE mede nodes apenas para capacidade e observabilidade local. A edição comercial usa a contagem para validar o plano contratado, sem transmitir inventário ao fornecedor.
 
