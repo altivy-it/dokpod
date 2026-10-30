@@ -1,11 +1,11 @@
 # ADR 2026-0008: Licença assinada e verificação offline da edição Business
 
-**Status:** proposed
+**Status:** accepted (2026-10-30)
 
 **Data:** 2026-10-29  
 **Responsáveis:** zocatel (responsável pelo produto)  
 **Origem:** IA assistida, a pedido do solicitante (fase F0 da spec 031)  
-**Revisor humano:** zocatel; revisão pendente  
+**Revisor humano:** zocatel; aceite em 2026-10-30. Aceite registrado a pedido do solicitante, que declarou na sessão de 2026-10-30: "aceito os ADR 2026-0007 e 2026-0008".  
 **Relacionado:** [spec 031](../../specs/031-licenciamento-business-offline/spec.md), [plan 031](../../specs/031-licenciamento-business-offline/plan.md) (decisões D-001, D-002 e D-009 de [research.md](../../specs/031-licenciamento-business-offline/research.md)), [ADR 2026-0003](2026-0003-licenciamento-e-edicoes.md), [ADR 2026-0007](2026-0007-precificacao-por-node-e-faixa-de-vcpu.md)
 
 ## Contexto
@@ -87,7 +87,7 @@ A decisão é falsificada se qualquer um falhar:
 
 ## Rollout e rollback
 
-Implementação só depois do aceite deste ADR, da revisão jurídica (spec 031, FR-030) e do aceite do ADR 2026-0007 para as regras de capacidade (FR-031). Rollback: a imagem CE continua sem o módulo; uma instalação Business volta à CE trocando a imagem, sem perda de dados. Trocar de formato depois exige ADR novo e período de convivência dos perfis.
+Este ADR e o ADR 2026-0007 foram aceitos em 2026-10-30. A implementação ainda depende da revisão jurídica (spec 031, FR-030) e da autorização das tarefas. Rollback: a imagem CE continua sem o módulo; uma instalação Business volta à CE trocando a imagem, sem perda de dados. Trocar de formato depois exige ADR novo e período de convivência dos perfis.
 
 ## Referências
 
