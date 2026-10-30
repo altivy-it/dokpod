@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.1](https://github.com/altivy-it/dokpod/compare/v0.1.0...v0.1.1) (2026-10-30)
+
+
+### Corrigido
+
+* **api:** filtre as leituras por scope com uma só consulta de grants ([#66](https://github.com/altivy-it/dokpod/issues/66)) ([021a9a2](https://github.com/altivy-it/dokpod/commit/021a9a23abc2b06d778ae36f7d4bc70e34ba1753))
+
 ## 0.1.0 (2026-10-29)
 
 
