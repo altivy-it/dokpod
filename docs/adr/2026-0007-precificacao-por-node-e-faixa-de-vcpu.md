@@ -45,4 +45,56 @@ O ADR 2026-0003 previu uma única oferta Business por US$ 99/mês ou US$ 990/ano
 1. Preço do pacote adicional de 5 nodes no Business.
 2. Tolerância de excedente e regra de arredondamento no contrato.
 3. Moeda, meio de cobrança e tributação no Brasil.
-4. Se o plano Teams inclui todos os recursos comerciais ou um subconjunto.
+4. Se o plano Teams inclui todos os recursos comerciais ou um subconjunto. **Proposta abaixo (2026-10-29), aguardando decisão.**
+
+## Proposta para a pendência 4: recursos do plano Teams
+
+- **Data:** 2026-10-29
+- **Origem:** IA assistida, a pedido do solicitante ("faça a proposta formal para a pendência 4")
+- **Estado:** proposta; não altera o status deste ADR nem constitui aceite
+
+### Contexto
+
+A CE já entrega, sem custo, todo o baseline operacional (ambientes, ciclo de vida e ações em lote, métricas, logs, terminal, imagens, volumes, redes, registries, pods, governança de alertas, auditoria com CSV e autorização no Keycloak). Pelo ADR 2026-0003 nada disso pode migrar para a Business; a reconciliação está na [spec 031](../../specs/031-licenciamento-business-offline/spec.md#matriz-cebusiness-reconciliação-de-2026-10-29). O valor pago vem de três fontes: recursos de governança e conformidade (specs 025 a 029 e roteiro), suporte, e a própria licença comercial, que dispensa as obrigações da `AGPL-3.0-only` para organizações cuja política interna a proíbe.
+
+O público do Teams (até 5 nodes de até 16 vCPUs, sem suporte comercial) é o mesmo que a CE já atende bem. Um Teams com subconjunto de recursos ficaria com pouca razão para existir.
+
+### Opções
+
+| Opção | Teams recebe | Vantagens | Desvantagens |
+| --- | --- | --- | --- |
+| A. Todos os recursos comerciais | as mesmas capabilities do Business | proposta simples ("Business para times pequenos"); uma única allowlist de capabilities; o upgrade compra porte e suporte, não funcionalidade; nenhuma tabela de recursos por plano para manter | menor diferenciação entre Teams e Business; risco de canibalização pelo Teams contido pelos limites de 5 nodes e 16 vCPUs |
+| B. Subconjunto (sem conformidade: SIEM, retenção, implantação só por código) | governança operacional, sem os recursos de auditoria externa | diferenciação maior; empurra quem tem exigência regulatória para o Business | Teams fica pouco atraente frente à CE; matriz recurso × plano para comunicar, testar e emitir; o cliente pequeno regulado (clínica, escritório, fintech inicial) é justamente quem precisa de SIEM |
+| C. Teams só como licença comercial, sem recursos exclusivos | apenas a licença não AGPL | atende quem só precisa sair da AGPL | confunde o produto; o preço passa a parecer taxa jurídica |
+
+### Proposta
+
+**Opção A.** O Teams inclui todas as capabilities comerciais disponíveis na versão; os planos diferem apenas em:
+
+| Eixo | Teams | Business | Enterprise |
+| --- | --- | --- | --- |
+| Capabilities comerciais | todas | todas | todas, mais builds de suporte estendido |
+| Nodes | até 5 | 5, em pacotes de 5, até 25 | sem teto |
+| Faixa de vCPU por node | 16 | 32 | acima de 32 |
+| Instalações | 1 produção + 1 homologação | 1 + 1 | contrato |
+| Suporte | comunidade e documentação | e-mail, próximo dia útil, onboarding | SLA contratual |
+
+Consequências para o produto:
+
+- A licença de qualquer plano carrega a mesma allowlist de capabilities; plano não é regra embutida no produto (spec 031, FR-006). Isso já é compatível com o desenho atual e não muda o mecanismo.
+- A Enterprise continua sendo a única com builds de suporte estendido, porque isso é custo de manutenção, não funcionalidade.
+- A comunicação comercial passa a ser: "CE para operar; Teams e Business para governar, com suporte crescente; Enterprise para escala e contrato".
+
+### Recomendação complementar: primeira capability comercial
+
+Enquanto nenhuma das specs 025 a 029 estiver implementada, a edição comercial vende só suporte e licença. Propõe-se priorizar a capability que responde a uma exigência de auditoria, não de conveniência:
+
+1. **[027 - Exportação de auditoria para SIEM](../../specs/027-exportacao-auditoria-siem/spec.md)**, com retenção configurável: independente das outras, atende auditoria de segurança (ISO 27001, SOC 2, setor financeiro e saúde) e não tem equivalente na CE.
+2. **[026 - Janelas de mudança](../../specs/026-janelas-de-mudanca/spec.md) seguida da [028 - Implantação somente por código](../../specs/028-implantacao-somente-por-codigo/spec.md)**: controle de mudança em produção, a dupla com maior apelo para processos ITIL.
+3. 029 (SSO) e 025 (aviso de versão), de menor esforço e menor peso na decisão de compra.
+
+Todas dependem do mecanismo de direitos da spec 031 (fase F5) e de aprovação da respectiva spec.
+
+### Como falsificar a proposta
+
+Revisar a opção A se, após o lançamento, a maioria das contratações Teams vier de organizações que poderiam pagar o Business pelo porte (sinal de canibalização), ou se clientes recusarem o Business por considerar o Teams equivalente apesar da diferença de suporte.
