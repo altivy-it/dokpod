@@ -158,7 +158,7 @@ Dependências: 026 → 028 (exceção de emergência compartilhada). 025, 027 e 
 
 **Data**: 2026-10-29 | **Branch**: `031-licenciamento-business-offline` | **Estado**: `draft` (Rascunho), fase F0 documental; nenhuma implementação autorizada.
 
-[031 - Licenciamento Business offline](031-licenciamento-business-offline/spec.md): licença assinada verificada na instalação, nodes equivalentes por faixa de vCPU, tolerância sem afetar workloads, CLI de emissão em repositório separado e a matriz CE/Business reconciliada com o que já foi entregue. Gate da CE cumprido pela decisão do solicitante (`v0.1.0` como marco, 2026-10-29); revisão jurídica e aceite do ADR 2026-0007 seguem como gates de implementação. As specs 025 a 029 dependem do mecanismo de direitos desta spec.
+[031 - Licenciamento Business offline](031-licenciamento-business-offline/spec.md): licença assinada verificada na instalação, nodes equivalentes por faixa de vCPU, tolerância sem afetar workloads, CLI de emissão em repositório separado e a matriz CE/Business reconciliada com o que já foi entregue. Gate da CE cumprido pela decisão do solicitante (`v0.1.0` como marco, 2026-10-29); revisão jurídica (declarada pelo solicitante em 2026-10-30) e aceite dos ADRs 2026-0007 e 2026-0008 (2026-10-30) cumpridos; próximo passo `/speckit-tasks`. As specs 025 a 029 dependem do mecanismo de direitos desta spec.
 
 ### Registro de alocação de contratos
 
