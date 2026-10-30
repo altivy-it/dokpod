@@ -22,7 +22,8 @@
 
 ### Sessão 2026-10-30 (aceite dos ADRs)
 
-- O solicitante aceitou o [ADR 2026-0007](../../docs/adr/2026-0007-precificacao-por-node-e-faixa-de-vcpu.md) (planos, nodes equivalentes, faixas, pacote adicional, tolerância e cobrança) e o [ADR 2026-0008](../../docs/adr/2026-0008-licenca-assinada-e-verificacao-offline.md) (formato da licença e verificação offline). O gate de FR-031 está cumprido; o de FR-030 (revisão jurídica) continua aberto.
+- O solicitante aceitou o [ADR 2026-0007](../../docs/adr/2026-0007-precificacao-por-node-e-faixa-de-vcpu.md) (planos, nodes equivalentes, faixas, pacote adicional, tolerância e cobrança) e o [ADR 2026-0008](../../docs/adr/2026-0008-licenca-assinada-e-verificacao-offline.md) (formato da licença e verificação offline). O gate de FR-031 está cumprido.
+- P: A revisão jurídica de FR-030 (titularidade, contribuições, MIT do verificador, composição CE/Business e contrato) está feita? → R: Sim. Declaração do solicitante em 2026-10-30, em resposta à pergunta sobre esse gate: "Esta OK". O gate de FR-030 fica cumprido por essa declaração; o parecer não foi anexado a este repositório. A confirmação tributária com a contabilidade segue pendente antes da primeira venda (ADR 2026-0007, pendência 3).
 
 ### Decisões herdadas do plano (2026-10-28)
 
