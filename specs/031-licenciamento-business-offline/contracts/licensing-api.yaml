@@ -1,0 +1,121 @@
+# Fragmento a incorporar em contracts/openapi/dokpod-control-plane.v1.yaml (só na composição Business).
+# Decisão: research.md D-008. Recurso Keycloak urn:dokpod:installation; scopes licensing:read e licensing:manage.
+openapi: 3.1.0
+info:
+  title: Dokpod Control Plane - Licenciamento
+  version: 1.0.0
+paths:
+  /api/v1/licensing/status:
+    get:
+      operationId: getLicensingStatus
+      summary: Estado da licença, consumo e prazos (licensing:read)
+      responses:
+        '200':
+          description: Estado atual
+          headers:
+            ETag: { schema: { type: string }, description: Versão do estado para If-Match }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LicensingStatus' }
+        '403': { $ref: '#/components/responses/Problem' }
+  /api/v1/licensing/license:
+    put:
+      operationId: importLicense
+      summary: Importar ou renovar a licença (licensing:manage)
+      parameters:
+        - { name: If-Match, in: header, required: true, schema: { type: string } }
+        - { name: X-Dokpod-Antiforgery, in: header, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/jose:
+            schema: { type: string, maxLength: 65536 }
+      responses:
+        '200':
+          description: Licença aceita; estado atualizado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LicensingStatus' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '412': { description: Estado mudou desde a leitura (license_revision_conflict), $ref: '#/components/responses/Problem' }
+        '413': { $ref: '#/components/responses/Problem' }
+        '422': { description: Arquivo recusado (license_invalid, license_obsolete); a licença anterior continua, $ref: '#/components/responses/Problem' }
+  /api/v1/licensing/revocations:
+    post:
+      operationId: importRevocation
+      summary: Importar pacote de revogação assinado (licensing:manage)
+      parameters:
+        - { name: X-Dokpod-Antiforgery, in: header, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/jose:
+            schema: { type: string, maxLength: 65536 }
+      responses:
+        '200':
+          description: Pacote aceito
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LicensingStatus' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '422': { description: Pacote inválido ou sequência não crescente, $ref: '#/components/responses/Problem' }
+components:
+  responses:
+    Problem:
+      description: application/problem+json com code tipado
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+  schemas:
+    Problem:
+      type: object
+      required: [type, title, status, code]
+      properties:
+        type: { type: string }
+        title: { type: string }
+        status: { type: integer }
+        code:
+          type: string
+          enum: [authorization_denied, license_invalid, license_obsolete, license_expired, license_capacity_exceeded, license_revoked, license_state_indeterminate, license_revision_conflict, payload_too_large]
+        correlationId: { type: string, format: uuid }
+    LicensingStatus:
+      type: object
+      required: [entitlement, authenticity, validity, metering]
+      properties:
+        entitlement: { type: string, enum: [ce_only, granted, granted_in_grace, restricted, indeterminate] }
+        authenticity: { type: string, enum: [absent, valid, invalid, revoked] }
+        validity: { type: string, enum: [not_started, active, expired_in_grace, expired] }
+        metering: { type: string, enum: [regular, excess_in_grace, excess, unknown] }
+        reasons: { type: array, items: { type: string } }
+        license:
+          type: object
+          nullable: true
+          properties:
+            licenseId: { type: string }
+            organizationId: { type: string }
+            revision: { type: integer }
+            plan: { type: string }
+            notBefore: { type: string, format: date-time }
+            expiresAt: { type: string, format: date-time }
+            capabilities: { type: array, items: { type: string } }
+        installation:
+          type: object
+          properties:
+            slotId: { type: string }
+            kind: { type: string, enum: [production, staging] }
+            quota: { type: integer, nullable: true, description: null quando ilimitado }
+        consumption:
+          type: object
+          properties:
+            vcpuBand: { type: integer }
+            current: { type: integer }
+            windowPeak: { type: integer }
+            windowPeakAt: { type: string, format: date-time }
+            unknownHosts: { type: integer }
+        grace:
+          type: object
+          nullable: true
+          properties:
+            cause: { type: string, enum: [expiry, excess] }
+            startedAt: { type: string, format: date-time }
+            until: { type: string, format: date-time }
