@@ -65,25 +65,53 @@ O público do Teams (até 5 nodes de até 16 vCPUs, sem suporte comercial) é o 
 | --- | --- | --- | --- |
 | A. Todos os recursos comerciais | as mesmas capabilities do Business | proposta simples ("Business para times pequenos"); uma única allowlist de capabilities; o upgrade compra porte e suporte, não funcionalidade; nenhuma tabela de recursos por plano para manter | menor diferenciação entre Teams e Business; risco de canibalização pelo Teams contido pelos limites de 5 nodes e 16 vCPUs |
 | B. Subconjunto (sem conformidade: SIEM, retenção, implantação só por código) | governança operacional, sem os recursos de auditoria externa | diferenciação maior; empurra quem tem exigência regulatória para o Business | Teams fica pouco atraente frente à CE; matriz recurso × plano para comunicar, testar e emitir; o cliente pequeno regulado (clínica, escritório, fintech inicial) é justamente quem precisa de SIEM |
+| A′. Todos os de governança e conformidade; escala de frota só no Business | specs 025 a 029; sem rollout coordenado nem operações agendadas em lote | mantém o Teams atraente para o cliente pequeno regulado; dá ao Business diferencial funcional que acompanha o crescimento | uma linha a mais na comunicação; exige classificar cada capability nova como governança ou escala |
 | C. Teams só como licença comercial, sem recursos exclusivos | apenas a licença não AGPL | atende quem só precisa sair da AGPL | confunde o produto; o preço passa a parecer taxa jurídica |
 
 ### Proposta
 
-**Opção A.** O Teams inclui todas as capabilities comerciais disponíveis na versão; os planos diferem apenas em:
+**Opção A com reserva de escala (A′).** O Teams inclui todas as capabilities comerciais de governança e conformidade disponíveis na versão. Ficam reservadas ao Business e à Enterprise apenas as capabilities de escala de frota, que só fazem sentido com muitos hosts. Os planos diferem em:
 
 | Eixo | Teams | Business | Enterprise |
 | --- | --- | --- | --- |
-| Capabilities comerciais | todas | todas | todas, mais builds de suporte estendido |
+| Capabilities de governança e conformidade (specs 025 a 029: aviso de versão, janelas de mudança, SIEM e retenção, implantação só por código, SSO) | todas | todas | todas |
+| Capabilities de escala de frota (rollout coordenado de agentes, operações agendadas em lote sobre vários hosts) | não | sim | sim |
+| Builds de suporte estendido | não | não | sim |
 | Nodes | até 5 | 5, em pacotes de 5, até 25 | sem teto |
 | Faixa de vCPU por node | 16 | 32 | acima de 32 |
 | Instalações | 1 produção + 1 homologação | 1 + 1 | contrato |
 | Suporte | comunidade e documentação | e-mail, próximo dia útil, onboarding | SLA contratual |
 
+A variante A′ preserva o que torna o Teams atraente (o cliente pequeno regulado recebe SIEM, retenção e controle de mudança) e dá ao Business um diferencial funcional natural: recursos de frota, sem valor real com até 5 nodes, passam a acompanhar o crescimento do cliente. As capabilities de escala ainda não têm spec; a classificação vale quando forem especificadas.
+
+### Gatilhos de migração entre planos
+
+Com as specs 025 a 029 implementadas:
+
+| Migração | Gatilho |
+| --- | --- |
+| CE → Teams ou Business | recursos de governança e conformidade; licença comercial para quem não pode usar AGPL; suporte |
+| Teams → Business | crescimento acima de 5 nodes equivalentes na faixa de 16 vCPUs; custo por vCPU (abaixo); suporte por e-mail e onboarding; recursos de escala de frota (A′) |
+| Business → Enterprise | mais de 25 nodes ou mais de 32 vCPUs por node; SLA contratual; builds de suporte estendido |
+
+Um cliente Teams com poucos hosts pequenos e sem necessidade de suporte não tem motivo para migrar. É intencional: ele paga pelo porte que usa, e a migração acompanha o crescimento.
+
+### Custo por vCPU
+
+A faixa limita a capacidade efetiva de cada plano, porque cada node conta `teto(vCPUs / faixa)`:
+
+| Plano | Capacidade incluída | Preço anual | Custo por vCPU por ano |
+| --- | --- | --- | --- |
+| Teams | 5 nodes equivalentes × 16 vCPUs = 80 vCPUs | US$ 900 | US$ 900 / 80 ≈ **US$ 11,25** |
+| Business | 5 nodes equivalentes × 32 vCPUs = 160 vCPUs | US$ 1.500 | US$ 1.500 / 160 ≈ **US$ 9,38** |
+
+Exemplos: um host de 32 vCPUs consome 2 dos 5 nodes equivalentes do Teams, mas só 1 no Business; três hosts de 32 vCPUs (6 nodes equivalentes na faixa 16) já não cabem no Teams e cabem no Business. Quem usa hosts maiores que 16 vCPUs tende a achar o Business mais vantajoso antes de atingir o limite do Teams. Acima de 5 nodes no Business, o custo por vCPU depende do preço do pacote adicional (pendência 1), ainda não definido; a conta acima vale para a capacidade incluída.
+
 Consequências para o produto:
 
-- A licença de qualquer plano carrega a mesma allowlist de capabilities; plano não é regra embutida no produto (spec 031, FR-006). Isso já é compatível com o desenho atual e não muda o mecanismo.
+- Cada licença carrega a allowlist de capabilities do plano contratado; na A′, a do Teams omite as capabilities de escala de frota. O plano não é regra embutida no produto (spec 031, FR-006), então a variante não muda o mecanismo.
 - A Enterprise continua sendo a única com builds de suporte estendido, porque isso é custo de manutenção, não funcionalidade.
-- A comunicação comercial passa a ser: "CE para operar; Teams e Business para governar, com suporte crescente; Enterprise para escala e contrato".
+- A comunicação comercial passa a ser: "CE para operar; Teams para governar; Business para governar uma frota, com suporte; Enterprise para escala e contrato".
 
 ### Recomendação complementar: primeira capability comercial
 
@@ -97,4 +125,4 @@ Todas dependem do mecanismo de direitos da spec 031 (fase F5) e de aprovação d
 
 ### Como falsificar a proposta
 
-Revisar a opção A se, após o lançamento, a maioria das contratações Teams vier de organizações que poderiam pagar o Business pelo porte (sinal de canibalização), ou se clientes recusarem o Business por considerar o Teams equivalente apesar da diferença de suporte.
+Revisar a variante A′ se, após o lançamento, a maioria das contratações Teams vier de organizações que poderiam pagar o Business pelo porte (sinal de canibalização), ou se clientes recusarem o Business por considerar o Teams equivalente apesar da diferença de suporte. Revisar a reserva de escala se clientes Teams com até 5 nodes pedirem esses recursos com frequência (sinal de que não são só de frota).
