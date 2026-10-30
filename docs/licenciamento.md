@@ -54,8 +54,8 @@ A CE não terá limites artificiais de nodes, usuários ou containers. Limites t
 - aviso de nova versão das imagens em uso ([spec 025](../specs/025-aviso-nova-versao-imagem/spec.md));
 - implantação somente por código em produção ([spec 028](../specs/028-implantacao-somente-por-codigo/spec.md));
 - modelos de SSO prontos para Microsoft Entra ID, Google e GitHub ([spec 029](../specs/029-modelos-sso/spec.md));
-- ações em lote e operações agendadas;
-- alertas e integrações operacionais;
+- operações agendadas (as ações em lote já fazem parte da CE, [spec 010](../specs/010-lista-containers-acoes-lote/spec.md));
+- integrações externas de alertas (a governança de alertas e a parada justificada já fazem parte da CE, [spec 016](../specs/016-governanca-alertas/spec.md));
 - GitOps, stacks e Compose quando essas capacidades forem implementadas;
 - backup automático e políticas de retenção;
 - atualização coordenada de agentes com rollout e rollback;
@@ -63,7 +63,7 @@ A CE não terá limites artificiais de nodes, usuários ou containers. Limites t
 - builds com ciclo de suporte estendido;
 - suporte comercial por e-mail.
 
-Esta matriz descreve intenção de produto, não funcionalidades já implementadas. Cada capability ainda depende de contrato, testes, segurança, documentação e gate de release próprios.
+Esta matriz descreve intenção de produto, não funcionalidades já implementadas. A reconciliação com o que já foi entregue na CE está na [spec 031](../specs/031-licenciamento-business-offline/spec.md#matriz-cebusiness-reconciliação-de-2026-10-29): nada já entregue na CE migra para a Business. Cada capability ainda depende de contrato, testes, segurança, documentação e gate de release próprios.
 
 ## Métricas comerciais
 
