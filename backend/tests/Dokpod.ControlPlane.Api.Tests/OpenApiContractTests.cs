@@ -100,11 +100,30 @@ public sealed class OpenApiContractTests
         Assert.Contains("operationId: getPod", contract, StringComparison.Ordinal);
         Assert.Contains("operationId: submitPodAction", contract, StringComparison.Ordinal);
         Assert.Contains("PodItem:", contract, StringComparison.Ordinal);
+        Assert.Contains("operationId: getLicensingStatus", contract, StringComparison.Ordinal);
+        Assert.Contains("operationId: exportLicensingReport", contract, StringComparison.Ordinal);
+        Assert.Contains("operationId: importLicense", contract, StringComparison.Ordinal);
+        Assert.Contains("operationId: importRevocation", contract, StringComparison.Ordinal);
+        Assert.Contains("operationId: resetTrustedInstant", contract, StringComparison.Ordinal);
+        Assert.Contains("application/jose:", contract, StringComparison.Ordinal);
+        Assert.Contains("LicensingProblemCode:", contract, StringComparison.Ordinal);
+        Assert.Equal(5, CountOccurrences(contract, "\n      x-dokpod-edition: business"));
         Assert.DoesNotContain("operationId: listHosts", contract, StringComparison.Ordinal);
         Assert.DoesNotContain("AuditEventEntity", contract, StringComparison.Ordinal);
         Assert.DoesNotContain("EnvironmentRegistrationEntity", contract, StringComparison.Ordinal);
         Assert.DoesNotContain("fencingToken:", contract, StringComparison.Ordinal);
         Assert.DoesNotContain("payloadHash:", contract, StringComparison.Ordinal);
+    }
+
+    private static int CountOccurrences(string text, string value)
+    {
+        var count = 0;
+        for (var index = text.IndexOf(value, StringComparison.Ordinal); index >= 0; index = text.IndexOf(value, index + value.Length, StringComparison.Ordinal))
+        {
+            count++;
+        }
+
+        return count;
     }
 
     private static string FindContractPath()
