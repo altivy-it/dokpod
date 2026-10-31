@@ -9,6 +9,11 @@
     <DefineConstants>$(DefineConstants);DOKPOD_BUSINESS</DefineConstants>
   </PropertyGroup>
 
+  <ItemGroup>
+    <!-- Spec 031 T062: a edição também fica nos metadados do assembly, para a inspeção de imagens. -->
+    <AssemblyMetadata Include="DokpodEdition" Value="$([MSBuild]::ValueOrDefault('$(DokpodEdition)', 'Community'))" />
+  </ItemGroup>
+
   <Target Name="ValidateDokpodEdition" BeforeTargets="BeforeBuild" Condition="'$(DokpodEdition)' != '' and '$(DokpodEdition)' != 'Business'">
     <Error Text="DokpodEdition aceita somente 'Business'; omita a propriedade para compilar a CE." />
   </Target>
@@ -28,7 +33,7 @@
 
   <ItemGroup>
     <!-- Spec 031 T027: chaves públicas da licença, por kid (Licensing/TrustStore/<kid>.pem). -->
-    <EmbeddedResource Include="Licensing/TrustStore/*.pem" LogicalName="Dokpod.TrustStore.%(Filename)" />
+    <EmbeddedResource Include="Licensing/TrustStore/*.pem" LogicalName="Dokpod.TrustStore.%(Filename)" Condition="'$(DokpodEdition)' == 'Business'" />
   </ItemGroup>
 
   <ItemGroup>

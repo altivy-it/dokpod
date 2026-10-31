@@ -1,5 +1,10 @@
 using Dokpod.ControlPlane.Api;
-using Dokpod.ControlPlane.Api.Licensing;
+
+if (args is ["--describe-edition"])
+{
+    Console.WriteLine(ProductEdition.Describe());
+    return;
+}
 
 var builder = ApiHost.CreateBuilder(args);
 // Spec 031 D-009: a edição é fixada no build; a CE não registra o licenciamento.

@@ -35,7 +35,8 @@ internal sealed class LicensingUs4Fixture : IDisposable
         LicensingEvaluationStore Evaluation,
         LicenseStatusService Status,
         LicenseImportService Import,
-        RevocationImportService Revocations) : IAsyncDisposable
+        RevocationImportService Revocations,
+        LicensingReportService Reports) : IAsyncDisposable
     {
         public ValueTask DisposeAsync() => Context.DisposeAsync();
     }
@@ -51,6 +52,7 @@ internal sealed class LicensingUs4Fixture : IDisposable
         var evaluation = new LicensingEvaluationStore(context, writer);
         var evaluator = new LicenseStateEvaluator(TrustStore);
         var status = new LicenseStatusService(licenses, licenses, evaluator, clock, ledger, evaluation);
+        var hosts = new LicensingHostService(new LicensingHostStore(context, writer), ledger, licenses, licenses, evaluator, clock);
         return new Services(
             context,
             licenses,
@@ -58,7 +60,8 @@ internal sealed class LicensingUs4Fixture : IDisposable
             evaluation,
             status,
             new LicenseImportService(licenses, licenses, evaluator, TrustStore, clock),
-            new RevocationImportService(licenses, licenses, status, TrustStore, clock));
+            new RevocationImportService(licenses, licenses, status, TrustStore, clock),
+            new LicensingReportService(status, hosts, licenses, new LicensingChainReader(context), writer, clock));
     }
 
     public byte[] Revocation(int sequence, string licenseId, int revisionsUpTo = 1, string organizationId = "org_us4") =>

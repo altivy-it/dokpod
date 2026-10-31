@@ -68,6 +68,65 @@ public static partial class LicensingEndpoints
         endpoints.MapPut("/api/v1/licensing/license", ImportAsync).RequireAuthorization();
         endpoints.MapPost("/api/v1/licensing/trusted-instant", ResetTrustedInstantAsync).RequireAuthorization();
         endpoints.MapPost("/api/v1/licensing/revocations", ImportRevocationAsync).RequireAuthorization();
+        endpoints.MapGet("/api/v1/licensing/report", ExportReportAsync).RequireAuthorization();
+    }
+
+    /// <summary>
+    /// Relatório de apuração para exportação local (T060): cadeia completa com o desafio do fornecedor no último evento.
+    /// Hosts aparecem só pelo ID opaco, sem nome; autores só como <c>actorRef</c> (report-format.md, FR-007, FR-026).
+    /// </summary>
+    public static async Task<IResult> ExportReportAsync(
+        HttpContext context,
+        IEnvironmentAuthorizationDecider authorizationDecider,
+        LicensingReportService reportService,
+        CancellationToken cancellationToken)
+    {
+        if (!TryAuthenticate(context, out var actor, out var token, out var unauthorized)) return unauthorized!;
+        var denied = await AuthorizeAsync(context, authorizationDecider, actor!, token!, LicensingAuthorization.ReadScope, cancellationToken);
+        if (denied is not null) return denied;
+
+        var challenge = context.Request.Query["challenge"].ToString();
+        if (!LicensingReportService.IsValidChallenge(challenge))
+        {
+            return Problem(context, StatusCodes.Status400BadRequest, "invalid_challenge", "Informe o desafio recebido do fornecedor (8 a 64 caracteres).");
+        }
+
+        var report = await reportService.ExportAsync(challenge, actor!.Subject, GetCorrelationId(context), cancellationToken);
+        context.Response.Headers.ContentDisposition = $"attachment; filename=\"relatorio-licenciamento-{report.GeneratedAtUtc:yyyyMMdd'T'HHmmss'Z'}.json\"";
+        return Results.Json(new
+        {
+            reportVersion = 1,
+            installationId = report.InstallationId,
+            slotId = report.SlotId,
+            generatedAt = report.GeneratedAtUtc,
+            challenge = report.Challenge,
+            status = ToResponse(report.Status),
+            hosts = report.Hosts.Select(host => new
+            {
+                hostId = host.HostId,
+                vcpus = host.Vcpus,
+                source = host.Source,
+                nodeEquivalents = host.NodeEquivalents,
+                removed = host.Removed,
+            }),
+            chain = new
+            {
+                headSeq = report.Events.Count == 0 ? 0 : report.Events[^1].ChainSeq,
+                headHash = report.Events.Count == 0 ? string.Empty : System.Buffers.Text.Base64Url.EncodeToString(report.Events[^1].RecordHash),
+            },
+            events = report.Events.Select(item => new
+            {
+                chainSeq = item.ChainSeq,
+                eventId = item.EventId.ToString("D"),
+                occurredAt = item.OccurredAtUtc.UtcDateTime.ToString("yyyy-MM-dd'T'HH:mm:ss.ffffff'Z'", CultureInfo.InvariantCulture),
+                actorRef = item.ActorRef,
+                correlationId = item.CorrelationId.ToString("D"),
+                action = item.Action,
+                details = System.Text.Json.Nodes.JsonNode.Parse(item.Details),
+                prevHash = System.Buffers.Text.Base64Url.EncodeToString(item.PrevHash),
+                recordHash = System.Buffers.Text.Base64Url.EncodeToString(item.RecordHash),
+            }),
+        });
     }
 
     /// <summary>

@@ -5537,8 +5537,6 @@ components:
         hostId:
           type: string
           format: uuid
-        label:
-          type: string
         vcpus:
           type: [integer, 'null']
         source:
@@ -5546,6 +5544,9 @@ components:
           enum: [engine, process_fallback, unknown]
         nodeEquivalents:
           type: [integer, 'null']
+        removed:
+          type: boolean
+      description: Só o ID opaco do host; o nome nunca sai da instalação (report-format.md, FR-007).
     LicensingChainEvent:
       type: object
       required: [chainSeq, eventId, occurredAt, actorRef, correlationId, action, details, prevHash, recordHash]

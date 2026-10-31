@@ -58,11 +58,12 @@ Dias perdidos (API parada) são gravados na execução seguinte com `late: true`
 | Código | Quando |
 | --- | --- |
 | `ok` | todas as verificações abaixo passam |
-| `tampered` | `record_hash` ou `prev_hash` não confere, `chain_seq` com lacuna ou repetição, instantes regredindo ao longo da cadeia, JSON fora da forma canônica |
+| `tampered` | `record_hash` ou `prev_hash` não confere, `chain_seq` com lacuna ou repetição, cabeça declarada diferente da cadeia, JSON fora da forma canônica |
 | `discontinuous` | o evento no `headSeq` do último relatório aceito não tem o mesmo `recordHash` (história reescrita ou banco restaurado de backup anterior), ou `installationId` diferente do registrado |
 | `mismatch` | `license.imported` ou `revocation.imported` sem correspondência no registro de emissões, ou emissão entregue sem importação correspondente |
 | `stale` | `challenge` ausente ou diferente do pedido em andamento |
 | `gaps` | dias sem `capacity.daily_summary`, ou com `late: true`; não bloqueia sozinho, mas é listado |
+| `clockRegressions` | eventos com instante anterior ao do evento anterior; não bloqueia, mas é listado. Acontece com relógio atrasado (o mesmo que deixa o estado `indeterminate`) e por concorrência; a ordem é garantida pelos hashes |
 
 `tampered`, `discontinuous`, `mismatch` e `stale` bloqueiam a emissão (FR-034). A liberação exige aprovação dupla registrada com justificativa (FR-029).
 
