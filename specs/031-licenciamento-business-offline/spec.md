@@ -25,6 +25,12 @@
 - O solicitante aceitou o [ADR 2026-0007](../../docs/adr/2026-0007-precificacao-por-node-e-faixa-de-vcpu.md) (planos, nodes equivalentes, faixas, pacote adicional, tolerância e cobrança) e o [ADR 2026-0008](../../docs/adr/2026-0008-licenca-assinada-e-verificacao-offline.md) (formato da licença e verificação offline). O gate de FR-031 está cumprido.
 - P: A revisão jurídica de FR-030 (titularidade, contribuições, MIT do verificador, composição CE/Business e contrato) está feita? → R: Sim. Declaração do solicitante em 2026-10-30, em resposta à pergunta sobre esse gate: "Esta OK". O gate de FR-030 fica cumprido por essa declaração; o parecer não foi anexado a este repositório. A confirmação tributária com a contabilidade segue pendente antes da primeira venda (ADR 2026-0007, pendência 3).
 
+### Sessão 2026-10-31 (revisão do threat model, T002)
+
+- O solicitante aceitou o [threat model](threat-model.md): premissa central, lacunas L1 a L9 com as correções propostas e riscos residuais R1 a R8.
+- Decisão do solicitante: a auditoria pelo relatório de apuração é **obrigatória em toda contratação e em toda renovação**, e não mais um pedido eventual do fornecedor (FR-034). O relatório precisa evitar ou dificultar a manipulação dos dados pelo administrador do host (FR-035).
+- P: Vale enviar o relatório ao fornecedor (Altivy) pela internet no momento da importação da licença, tornando a conexão obrigatória só nesse momento? → Avaliado em [D-013](research.md#d-013-relatório-de-apuração-com-evidência-de-adulteração): não adotado. A entrega continua fora de banda e a exigência fica na emissão, onde ela de fato condiciona a licença. Confirmado pelo solicitante em 2026-10-31, junto da fronteira B10 e do risco R9 do threat model.
+
 ### Decisões herdadas do plano (2026-10-28)
 
 - Capacidade em nodes equivalentes por faixa de vCPU, apurada pelo maior total simultâneo em 30 dias.
@@ -147,6 +153,8 @@ O fornecedor troca a chave de assinatura sem invalidar licenças vigentes e, em 
 - Dois administradores importam licenças ao mesmo tempo: só uma vence, a outra recebe conflito.
 - Uma cópia da mesma licença usada em duas instalações isoladas: não é detectável sem conexão; o risco fica no contrato, sem alegar controle global.
 - Agente de versão anterior, sem informação de confiabilidade da CPU: tratamento explícito na matriz de compatibilidade, nunca contagem silenciosa.
+- Banco restaurado de backup anterior ao último relatório aceito: a instalação segue funcionando; a renovação seguinte acusa `discontinuous` e exige aprovação dupla com justificativa.
+- API parada por dias: o resumo diário dos dias perdidos é gravado depois com `late: true`; o relatório lista as lacunas sem tratá-las como adulteração.
 
 ## Requisitos *(obrigatório)*
 
@@ -204,7 +212,9 @@ O fornecedor troca a chave de assinatura sem invalidar licenças vigentes e, em 
 - **FR-030**: Nenhum código exclusivo Business DEVE ser escrito antes da revisão jurídica de titularidade, contribuições, licença MIT do verificador, composição CE/Business e contrato (ADR 2026-0003).
 - **FR-031**: As regras comerciais do ADR 2026-0007 DEVEM ser implementadas somente após seu aceite humano; até lá, a faixa de vCPU, a janela e a tolerância só valem como parâmetros da licença.
 - **FR-032**: O administrador DEVE ser avisado, de forma auditável, 60, 30 e 7 dias antes da expiração da licença (decisão de 2026-10-30 no ADR 2026-0007).
-- **FR-033**: O administrador com `licensing:read` DEVE poder exportar localmente um relatório de apuração (consumo atual, pico da janela, faixa, hosts com origem da CPU e prazos), sem envio automático; é o insumo da cláusula de verificação anual do contrato (ADR 2026-0007).
+- **FR-033**: O administrador com `licensing:read` DEVE poder exportar localmente um relatório de apuração (consumo atual, pico da janela, faixa, hosts com origem da CPU e prazos), sem envio automático, também sem licença importada (auditoria inicial da contratação), no formato de [report-format.md](contracts/report-format.md).
+- **FR-034**: Toda contratação e toda renovação DEVEM exigir um relatório de apuração recente da instalação, verificado pela ferramenta do fornecedor antes da emissão; relatório adulterado, descontínuo, sem correspondência com as emissões ou sem o desafio do pedido DEVE bloquear a emissão, salvo aprovação dupla registrada com justificativa (decisão de 2026-10-31).
+- **FR-035**: Os eventos de licenciamento DEVEM formar uma cadeia de hashes encadeada e sem lacunas, ligada a um identificador aleatório da instalação e com resumo diário de capacidade, de modo que remoção, alteração ou reordenação de eventos e a reescrita da história anterior ao último relatório aceito sejam detectadas pela ferramenta do fornecedor.
 
 ### Matriz CE/Business (reconciliação de 2026-10-29)
 
@@ -258,10 +268,11 @@ Recursos da coluna Business só viram direitos da licença (FR-006) quando tiver
 - **SC-003**: 100% dos arquivos adulterados, de outro produto, obsoletos ou malformados do conjunto de testes são recusados, e a licença íntegra anterior continua em vigor em todos os casos.
 - **SC-004**: A apuração exibida coincide com o cálculo esperado em 100% dos cenários de capacidade (faixas 16/17/32/33/64, picos em horários diferentes, host com dois engines, host desconectado, CPU desconhecida).
 - **SC-005**: Após o fim da tolerância, zero containers parados, zero perda de dados e 100% das operações de leitura, backup, exportação e renovação disponíveis.
-- **SC-006**: Reinício, reimportação e restauração não estendem nenhum prazo de tolerância em 100% dos casos testados.
+- **SC-006**: Reinício e reimportação não estendem nenhum prazo de tolerância, e restauração de backup não estende a tolerância de expiração, em 100% dos casos testados; restauração anterior ao último relatório aceito é detectada como `discontinuous` na auditoria seguinte.
 - **SC-007**: O administrador vê o estado da licença, o consumo e o prazo de tolerância em uma única tela, em até 2 cliques a partir de Configurações.
 - **SC-008**: Inspeção das imagens distribuídas ao cliente não encontra emissor nem chave privada em nenhuma camada.
 - **SC-009**: Cada pedido de emissão repetido, interrompido ou concorrente resulta em exatamente uma revisão verificável.
+- **SC-010**: 100% dos relatórios adulterados do conjunto de vetores (evento removido, alterado ou reordenado, cadeia reiniciada, instalação trocada, importação sem emissão correspondente, desafio antigo) são recusados pela verificação do fornecedor, e 100% dos relatórios íntegros são aceitos.
 
 ## Premissas
 
@@ -272,4 +283,5 @@ Recursos da coluna Business só viram direitos da licença (FR-006) quando tiver
 - O desenho técnico (formato da assinatura, limites de tamanho, persistência, API, comandos da CLI, provedor de chave) fica no `/speckit-plan`, a partir das seções correspondentes do plano de origem.
 - O repositório da CLI, seu nome, licença, visibilidade e responsáveis são decididos e criados só na implementação autorizada.
 - Instalações isoladas não detectam cópia da licença em outra instalação; o contrato trata esse risco.
+- O relatório de apuração chega ao fornecedor pelo mesmo canal fora de banda usado para entregar a licença; o produto nunca o envia. Quem controla o host pode recalcular a cadeia depois do último relatório aceito; a cadeia dificulta e torna rastreável a manipulação, não a impede (threat model, R9).
 - A `v0.1.0` é o marco de estabilização da CE (decisão de 2026-10-29); a verificação de que a CE continua completa (História 1) vale para cada versão Business.

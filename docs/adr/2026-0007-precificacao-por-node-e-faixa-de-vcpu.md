@@ -66,7 +66,7 @@ Base: referência de mercado de software de gestão de containers self-hosted, c
 - Tolerância de **30 dias**, assinada na licença, para expiração e para excesso; prazos não se somam e não recomeçam por reinício ou reimportação.
 - Avisos ao administrador **60, 30 e 7 dias** antes da expiração.
 - Excesso se regulariza dentro da tolerância por compra de pacote com prorrata ou por redução do uso. **Sem cobrança retroativa**: sem telemetria, o fornecedor não mede o passado.
-- Cláusula contratual de verificação: no máximo uma vez por ano, o fornecedor pode pedir o relatório de apuração gerado localmente pelo Dokpod, que o próprio cliente exporta e envia. Nada sai automaticamente da instalação.
+- Cláusula contratual de verificação: no máximo uma vez por ano, o fornecedor pode pedir o relatório de apuração gerado localmente pelo Dokpod, que o próprio cliente exporta e envia. Nada sai automaticamente da instalação. *(Ampliada pelo [adendo de 2026-10-31](#adendo-de-2026-10-31-auditoria-obrigatória).)*
 - Após a tolerância, só novas execuções de recursos exclusivos ficam bloqueadas; workloads, dados, leitura, backup, exportação, renovação e a CE seguem intactos.
 
 ### Pendência 3: moeda, cobrança e tributação
@@ -156,3 +156,12 @@ Todas dependem do mecanismo de direitos da spec 031 (fase F5) e de aprovação d
 ### Como falsificar a proposta
 
 Revisar a variante A′ se, após o lançamento, a maioria das contratações Teams vier de organizações que poderiam pagar o Business pelo porte (sinal de canibalização), ou se clientes recusarem o Business por considerar o Teams equivalente apesar da diferença de suporte. Revisar a reserva de escala se clientes Teams com até 5 nodes pedirem esses recursos com frequência (sinal de que não são só de frota).
+
+## Adendo de 2026-10-31: auditoria obrigatória
+
+Decisão do solicitante na revisão do [threat model da spec 031](../../specs/031-licenciamento-business-offline/threat-model.md), em 2026-10-31. O status deste ADR não muda.
+
+- O relatório de apuração deixa de ser só um pedido eventual: ele é **obrigatório em toda contratação e em toda renovação**, e a licença só é emitida depois da sua verificação (spec 031, FR-034).
+- O relatório traz uma cadeia de eventos com evidência de adulteração, verificada pela ferramenta do fornecedor (FR-035, [D-013](../../specs/031-licenciamento-business-offline/research.md#d-013-relatório-de-apuração-com-evidência-de-adulteração)).
+- A entrega continua pelo cliente, fora de banda; nada sai automaticamente da instalação. O envio pela internet no momento da importação foi avaliado e não adotado (D-013).
+- A verificação anual a pedido do fornecedor continua valendo entre renovações.
