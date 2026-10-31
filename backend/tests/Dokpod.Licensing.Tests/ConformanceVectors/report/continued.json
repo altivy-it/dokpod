@@ -1,0 +1,103 @@
+{
+  "reportVersion": 1,
+  "installationId": "3f0c5a1e-2b4d-4c6e-8f90-a1b2c3d4e5f6",
+  "slotId": "prd",
+  "generatedAt": "2027-10-02T13:00:00Z",
+  "challenge": "rnw-2027-org_51d2e0-a91f",
+  "status": {},
+  "hosts": [],
+  "chain": {
+    "headSeq": 6,
+    "headHash": "aa0LiytHuGg30z6XgxYGWIz2wXLcsHXWDl1elsoe7GM"
+  },
+  "events": [
+    {
+      "chainSeq": 1,
+      "eventId": "00000000-0000-4000-8000-000000000011",
+      "occurredAt": "2026-11-14T13:00:00.000000Z",
+      "actorRef": "actor-ref-1",
+      "correlationId": "00000000-0000-4000-8000-000000000012",
+      "action": "license.imported",
+      "details": {
+        "contentSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "licenseId": "lic_7f3c9a",
+        "revision": 2,
+        "slotId": "prd"
+      },
+      "prevHash": "8Jm3sc75qZgd7JwejlkxgvwckB2yzCdMtfyX2PM1D14",
+      "recordHash": "kJZND2s-dtiq7zXErv5RnP9BQZDybS7XP0h-3LGjb-8"
+    },
+    {
+      "chainSeq": 2,
+      "eventId": "00000000-0000-4000-8000-000000000013",
+      "occurredAt": "2026-11-14T13:01:00.000000Z",
+      "actorRef": null,
+      "correlationId": "00000000-0000-4000-8000-000000000014",
+      "action": "host.linked",
+      "details": {
+        "environmentId": "e1000000-0000-4000-8000-000000000001",
+        "hostId": "a1000000-0000-4000-8000-000000000001"
+      },
+      "prevHash": "kJZND2s-dtiq7zXErv5RnP9BQZDybS7XP0h-3LGjb-8",
+      "recordHash": "dVeOV0rqmTK1LLf87VESUFuXuaHvo5jE-0e8Va15NNk"
+    },
+    {
+      "chainSeq": 3,
+      "eventId": "00000000-0000-4000-8000-000000000015",
+      "occurredAt": "2026-11-15T13:00:00.000000Z",
+      "actorRef": null,
+      "correlationId": "00000000-0000-4000-8000-000000000016",
+      "action": "capacity.daily_summary",
+      "details": {
+        "date": "2026-11-14",
+        "hosts": [],
+        "late": false,
+        "peakNodeEquivalents": 3,
+        "unknownHosts": 0,
+        "vcpuBand": 16
+      },
+      "prevHash": "dVeOV0rqmTK1LLf87VESUFuXuaHvo5jE-0e8Va15NNk",
+      "recordHash": "owCpt_nJu6Xg10GV8_s6xVq2wdqaSQl4vxSpCAzBidc"
+    },
+    {
+      "chainSeq": 4,
+      "eventId": "00000000-0000-4000-8000-000000000017",
+      "occurredAt": "2026-11-15T15:00:00.000000Z",
+      "actorRef": "actor-ref-1",
+      "correlationId": "00000000-0000-4000-8000-000000000018",
+      "action": "revocation.imported",
+      "details": {
+        "revokedLicenses": 1,
+        "sequence": 3
+      },
+      "prevHash": "owCpt_nJu6Xg10GV8_s6xVq2wdqaSQl4vxSpCAzBidc",
+      "recordHash": "OhwsFBd5LuL8Y9Pxr7WCvAU5DNHgxXQdF-a6tQvqA9A"
+    },
+    {
+      "chainSeq": 5,
+      "eventId": "00000000-0000-4000-8000-000000000019",
+      "occurredAt": "2026-11-15T16:00:00.000000Z",
+      "actorRef": "actor-ref-1",
+      "correlationId": "00000000-0000-4000-8000-000000000020",
+      "action": "license.report_exported",
+      "details": {
+        "challenge": "rnw-2027-org_51d2e0-a91f"
+      },
+      "prevHash": "OhwsFBd5LuL8Y9Pxr7WCvAU5DNHgxXQdF-a6tQvqA9A",
+      "recordHash": "k72rNlQolgL8nbkhcZNXm6KmeE_t1SM4-3sxTLc7xMA"
+    },
+    {
+      "chainSeq": 6,
+      "eventId": "00000000-0000-4000-8000-000000000021",
+      "occurredAt": "2026-12-24T13:00:00.000000Z",
+      "actorRef": "actor-ref-1",
+      "correlationId": "00000000-0000-4000-8000-000000000022",
+      "action": "license.report_exported",
+      "details": {
+        "challenge": "rnw-2028-next-0001"
+      },
+      "prevHash": "k72rNlQolgL8nbkhcZNXm6KmeE_t1SM4-3sxTLc7xMA",
+      "recordHash": "aa0LiytHuGg30z6XgxYGWIz2wXLcsHXWDl1elsoe7GM"
+    }
+  ]
+}

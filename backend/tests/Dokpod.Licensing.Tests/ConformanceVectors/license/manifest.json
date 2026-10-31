@@ -1,0 +1,54 @@
+{
+  "formatVersion": 1,
+  "description": "Licenças e revogação assinadas por uma chave sintética; verifique com o PEM público desta pasta como trust store, no instante indicado.",
+  "cases": [
+    {
+      "file": "valid.jws",
+      "kind": "license",
+      "instant": "2026-12-01T00:00:00Z",
+      "expected": "valid"
+    },
+    {
+      "file": "bad-signature.jws",
+      "kind": "license",
+      "instant": "2026-12-01T00:00:00Z",
+      "expected": "bad_signature"
+    },
+    {
+      "file": "unknown-key.jws",
+      "kind": "license",
+      "instant": "2026-12-01T00:00:00Z",
+      "expected": "unknown_key"
+    },
+    {
+      "file": "alg-none.jws",
+      "kind": "license",
+      "instant": "2026-12-01T00:00:00Z",
+      "expected": "unsupported_profile"
+    },
+    {
+      "file": "wrong-product.jws",
+      "kind": "license",
+      "instant": "2026-12-01T00:00:00Z",
+      "expected": "wrong_product"
+    },
+    {
+      "file": "unknown-capability.jws",
+      "kind": "license",
+      "instant": "2026-12-01T00:00:00Z",
+      "expected": "unknown_capability"
+    },
+    {
+      "file": "revocation-valid.jws",
+      "kind": "revocation",
+      "instant": "2026-12-01T00:00:00Z",
+      "expected": "valid"
+    },
+    {
+      "file": "revocation-as-license.jws",
+      "kind": "license",
+      "instant": "2026-12-01T00:00:00Z",
+      "expected": "unsupported_profile"
+    }
+  ]
+}
