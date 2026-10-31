@@ -155,7 +155,8 @@ public sealed class LicenseImportServiceTests : IDisposable
     {
         var evaluator = new LicenseStateEvaluator(trustStore);
         var content = License(revision: 2);
-        var state = new LicensingStateRecord(Guid.NewGuid(), "prd", Guid.NewGuid(), 0, null, null, null, Now, 1, 1);
+        // Instante confiável anterior a todos os instantes avaliados: o relógio nunca está "atrasado" aqui.
+        var state = new LicensingStateRecord(Guid.NewGuid(), "prd", Guid.NewGuid(), 0, null, null, null, new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero), 1, 1);
         var active = new LicenseRevisionRecord(state.ActiveRevisionId!.Value, "license", Now, "user", new byte[32], content, "lic_7f3c9a", 2, "accepted", null);
 
         var inGrace = evaluator.Evaluate(state, active, new DateTimeOffset(2027, 11, 10, 0, 0, 0, TimeSpan.Zero));

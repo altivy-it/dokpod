@@ -18,6 +18,7 @@ public static class LicensingProblems
     public const string LicenseSlotDisabled = "license_slot_disabled";
     public const string PayloadTooLarge = "payload_too_large";
     public const string RateLimited = "rate_limited";
+    public const string LicenseNotIndeterminate = "license_not_indeterminate";
 
     public static IReadOnlyDictionary<string, int> StatusByCode { get; } = new Dictionary<string, int>(StringComparer.Ordinal)
     {
@@ -33,6 +34,7 @@ public static class LicensingProblems
         [LicenseRevisionConflict] = StatusCodes.Status412PreconditionFailed,
         [PayloadTooLarge] = StatusCodes.Status413PayloadTooLarge,
         [RateLimited] = StatusCodes.Status429TooManyRequests,
+        [LicenseNotIndeterminate] = StatusCodes.Status409Conflict,
     };
 
     public static IResult Create(HttpContext context, string code, string detail)
@@ -52,6 +54,7 @@ public static class LicensingProblems
                 StatusCodes.Status412PreconditionFailed => "Estado da licença mudou",
                 StatusCodes.Status413PayloadTooLarge => "Arquivo grande demais",
                 StatusCodes.Status429TooManyRequests => "Muitas importações",
+                StatusCodes.Status409Conflict => "Nada a recuperar",
                 _ => "Arquivo de licença recusado",
             },
             detail: detail,

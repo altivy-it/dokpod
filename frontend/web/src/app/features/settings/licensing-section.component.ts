@@ -10,7 +10,7 @@ import {
   type KeyValueItem,
   ToastService,
 } from '../../design-system';
-import { importFailureMessage, ENTITLEMENT } from './licensing-labels';
+import { ENTITLEMENT, expiryWarningDays, GRACE_CAUSE, importFailureMessage, REASON } from './licensing-labels';
 import type { LicensingHost } from '../../data-access/generated/control-plane';
 import { LicensingApiService, MAX_LICENSE_BYTES, toLicensingFailure, type LicensingSnapshot } from './licensing-api.service';
 
@@ -34,6 +34,18 @@ export class LicensingSection implements OnInit {
   protected readonly file = signal<File | null>(null);
   protected readonly importing = signal(false);
   protected readonly hosts = signal<LicensingHost[]>([]);
+
+  /** Motivos (`reasons`), tolerância e aviso de vencimento (T048); a mesma informação fica na trilha de licenciamento. */
+  protected readonly reasons = computed(() => (this.snapshot()?.status.reasons ?? []).map(reason => REASON[reason] ?? reason));
+  protected readonly grace = computed(() => {
+    const grace = this.snapshot()?.status.grace;
+    return grace ? `Tolerância por ${GRACE_CAUSE[grace.cause] ?? grace.cause} até ${formatDateTime(grace.until)}` : null;
+  });
+  protected readonly expiryWarning = computed(() => {
+    const status = this.snapshot()?.status;
+    const days = status?.license ? expiryWarningDays(status.license.expiresAt, status.validity) : null;
+    return days === null ? null : `Vence em ${days} dia(s), em ${formatDateTime(status!.license!.expiresAt)}`;
+  });
   protected readonly unknownHosts = computed(() => this.hosts().filter(host => !host.removed && host.source !== 'engine'));
 
   /** Consumo apurado (US3): atual, pico da janela de 30 dias com horário, faixa e cota da instalação. */

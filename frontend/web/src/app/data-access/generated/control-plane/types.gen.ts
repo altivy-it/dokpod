@@ -1069,7 +1069,7 @@ export type ProblemDetails = {
 /**
  * Valor de ProblemDetails.code nas respostas de licenciamento (spec 031).
  */
-export type LicensingProblemCode = 'authorization_denied' | 'license_invalid' | 'license_obsolete' | 'license_expired' | 'license_capacity_exceeded' | 'license_revoked' | 'license_state_indeterminate' | 'license_revision_conflict' | 'license_slot_unknown' | 'license_slot_disabled' | 'payload_too_large' | 'rate_limited';
+export type LicensingProblemCode = 'authorization_denied' | 'license_invalid' | 'license_obsolete' | 'license_expired' | 'license_capacity_exceeded' | 'license_revoked' | 'license_state_indeterminate' | 'license_revision_conflict' | 'license_slot_unknown' | 'license_slot_disabled' | 'payload_too_large' | 'rate_limited' | 'license_not_indeterminate';
 
 export type LicensingStatus = {
     entitlement: 'ce_only' | 'granted' | 'granted_in_grace' | 'restricted' | 'indeterminate';
@@ -1185,6 +1185,9 @@ export type LicensingHost = {
 };
 
 export type TrustedInstantResetRequest = {
+    /**
+     * Justificativa gravada na cadeia e levada ao relatório de auditoria; não inclua dados pessoais.
+     */
     reason: string;
 };
 
