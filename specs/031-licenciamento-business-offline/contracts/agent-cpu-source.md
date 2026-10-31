@@ -13,11 +13,11 @@ enum CpuCountSource {
 
 message AgentHello {
   // ... campos existentes, inclusive uint32 cpu_count = 10;
-  CpuCountSource cpu_count_source = <tag a reservar>;
+  CpuCountSource cpu_count_source = 14;
 }
 ```
 
-- A tag é reservada no registro de alocação de contratos de `specs/README.md` quando as tarefas forem geradas, para não colidir com outras specs.
+- A tag 14 está reservada para a 031 no [registro de alocação de contratos](../../README.md#registro-de-alocação-de-contratos) (T001, 2026-10-31).
 - O agente preenche `ENGINE` quando `EngineHostInfo.CpuCount > 0` e `PROCESS_FALLBACK` quando usa `Environment.ProcessorCount` (`backend/apps/Dokpod.Agent/AgentControlWorker.cs`, `CreateHello`).
 - O plano de controle só grava observação confiável com `ENGINE`; `PROCESS_FALLBACK` e `UNSPECIFIED` entram como `source = process_fallback|unknown` e contam como medição desconhecida (FR-013).
 - Agente N com plano de controle N-1: o campo é ignorado, sem efeito na sessão.
