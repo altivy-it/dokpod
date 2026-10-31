@@ -34,6 +34,7 @@ public static class LicensingModule
             provider.GetRequiredService<ICapacityLedger>(),
             provider.GetRequiredService<ILicensingEvaluationStore>()));
         services.AddScoped<LicensingHostService>();
+        services.AddScoped<RevocationImportService>();
         services.AddScoped<LicensingMaintenance>();
         services.AddScoped<IBusinessCapabilityGate, BusinessCapabilityGate>();
         services.AddHostedService<CapacityRetentionWorker>();

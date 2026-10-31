@@ -261,6 +261,11 @@ public sealed class LicenseImportServiceTests : IDisposable
             return Task.CompletedTask;
         }
 
+        public Task<IReadOnlyList<byte[]>> GetAcceptedRevocationsAsync(CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<byte[]>>([]);
+
+        public Task<LicenseActivationOutcome> AcceptRevocationAsync(LicenseRevisionRecord revision, int sequence, IReadOnlyList<LicensingEvent> events, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
         public void TamperActiveContent()
         {
             var index = Revisions.FindIndex(r => r.RevisionId == ActiveRevisionId);

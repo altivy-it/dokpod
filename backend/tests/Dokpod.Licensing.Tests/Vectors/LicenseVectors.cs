@@ -50,6 +50,22 @@ public sealed class LicenseVectors : IDisposable
         ["capabilities"] = new JsonArray("image-update-notice", "change-windows"),
     };
 
+    public static JsonObject RevocationPayload() => new()
+    {
+        ["schemaVersion"] = 1,
+        ["organizationId"] = "org_51d2e0",
+        ["sequence"] = 3,
+        ["issuedAt"] = "2026-12-01T00:00:00Z",
+        ["revokedLicenses"] = new JsonArray(new JsonObject { ["licenseId"] = "lic_7f3c9a", ["revisionsUpTo"] = 2 }),
+    };
+
+    public byte[] Revocation(Action<JsonObject>? change = null)
+    {
+        var payload = RevocationPayload();
+        change?.Invoke(payload);
+        return Sign(Header(typ: "dokpod-revocation+jws"), payload.ToJsonString());
+    }
+
     public byte[] Sign(string header, string payload) => Sign(Encoding.UTF8.GetBytes(header), Encoding.UTF8.GetBytes(payload));
 
     public byte[] Sign(byte[] header, byte[] payload)

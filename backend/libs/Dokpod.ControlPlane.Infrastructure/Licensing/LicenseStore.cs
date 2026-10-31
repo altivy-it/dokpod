@@ -168,6 +168,53 @@ public sealed class LicenseStore(ControlPlaneDbContext dbContext, ILicensingAudi
         await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
     }
 
+    public async Task<IReadOnlyList<byte[]>> GetAcceptedRevocationsAsync(CancellationToken cancellationToken) =>
+        await LicensingSql.QueryAsync(
+            dbContext,
+            "SELECT content FROM dokpod.license_revisions WHERE document_type = 'revocation' AND outcome = 'accepted' ORDER BY revision",
+            [],
+            reader => (byte[])reader.GetValue(0),
+            cancellationToken).ConfigureAwait(false);
+
+    public async Task<LicenseActivationOutcome> AcceptRevocationAsync(
+        LicenseRevisionRecord revision,
+        int sequence,
+        IReadOnlyList<LicensingEvent> events,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(revision);
+        if (revision.DocumentType != "revocation" || revision.Outcome != "accepted" || revision.Content is null)
+        {
+            throw new ArgumentException("Only accepted revocation packages with content can be stored.", nameof(revision));
+        }
+
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+        var dbTransaction = transaction.GetDbTransaction();
+        var connection = dbTransaction.Connection!;
+        await LicensingStateRow.EnsureAsync(connection, dbTransaction, revision.ReceivedAtUtc, cancellationToken).ConfigureAwait(false);
+        var current = await LicensingSql.ScalarAsync<long>(connection, dbTransaction, "SELECT revocation_sequence FROM dokpod.licensing_state FOR UPDATE", [], cancellationToken)
+            .ConfigureAwait(false);
+        if (sequence <= current)
+        {
+            return LicenseActivationOutcome.Conflict;
+        }
+
+        await InsertRevisionAsync(connection, dbTransaction, revision, cancellationToken).ConfigureAwait(false);
+        await ExecuteAsync(
+            connection,
+            dbTransaction,
+            "UPDATE dokpod.licensing_state SET revocation_sequence = @sequence, version = version + 1",
+            [new NpgsqlParameter("sequence", (long)sequence)],
+            cancellationToken).ConfigureAwait(false);
+        foreach (var licensingEvent in events)
+        {
+            await auditWriter.AppendAsync(licensingEvent, cancellationToken).ConfigureAwait(false);
+        }
+
+        await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+        return LicenseActivationOutcome.Activated;
+    }
+
     private static Task<int> InsertRevisionAsync(DbConnection connection, DbTransaction transaction, LicenseRevisionRecord revision, CancellationToken cancellationToken) =>
         ExecuteAsync(
             connection,

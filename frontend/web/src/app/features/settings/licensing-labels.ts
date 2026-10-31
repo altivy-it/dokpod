@@ -17,7 +17,20 @@ export const REASON: Record<string, string> = {
   metering_unknown: 'Há hosts com medição desconhecida',
   license_not_started: 'Licença ainda não vigente',
   license_invalid: 'A licença guardada não confere na verificação',
+  license_revoked: 'Licença revogada pelo fornecedor; a renovação restabelece os recursos Business',
 };
+
+/** Recusas do pacote de revogação; o conteúdo do arquivo nunca aparece (FR-027). */
+export function revocationFailureMessage(code: string | null, status: number): string {
+  switch (code) {
+    case 'license_obsolete':
+      return 'A sequência do pacote não é maior que a já importada.';
+    case 'license_invalid':
+      return 'O pacote foi recusado na verificação ou não é da organização desta licença.';
+    default:
+      return importFailureMessage(code, status);
+  }
+}
 
 export const GRACE_CAUSE: Record<string, string> = { expiry: 'vencimento', excess: 'excesso de consumo' };
 

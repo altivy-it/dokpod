@@ -96,6 +96,15 @@ dotnet test backend/tests/Dokpod.ControlPlane.Api.Tests --filter "GracePersisten
 2. `POST /api/v1/licensing/revocations` com pacote válido → `restricted` para Business; CE e workloads intactos.
 3. Pacote com sequência menor → `422`.
 
+Comandos:
+
+```bash
+dotnet test backend/tests/Dokpod.Licensing.Tests --filter RevocationVerifier                 # T049: tipos, limites e rotação
+dotnet test backend/tests/Dokpod.ControlPlane.Api.Tests --filter RevocationEndpoints          # T050: PostgreSQL real
+```
+
+Procedimentos: [runbook de rotação e revogação](../../docs/runbooks/licenciamento-rotacao-e-revogacao.md).
+
 ## Cenário 7: artefatos do cliente (SC-008)
 
 Inspecionar camadas e histórico das imagens CE e Business: nenhum emissor, nenhuma chave privada; a CE não contém o módulo de licenciamento registrado.
