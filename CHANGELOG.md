@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.2.0](https://github.com/altivy-it/dokpod/compare/v0.1.1...v0.2.0) (2026-10-31)
+
+
+### Adicionado
+
+* **api:** aplique tolerância e restrição da licença Business (spec 031 US4) ([#90](https://github.com/altivy-it/dokpod/issues/90)) ([483752f](https://github.com/altivy-it/dokpod/commit/483752f655bd2ada450bebc70aa6ede2eba41e34))
+* **api:** apure nodes equivalentes por host na janela de 30 dias (spec 031 US3) ([#89](https://github.com/altivy-it/dokpod/issues/89)) ([09b4e04](https://github.com/altivy-it/dokpod/commit/09b4e049e022a18ec966a1d9391d8c6e076fdbd6))
+* **api:** crie a fundação do licenciamento Business da spec 031 ([#86](https://github.com/altivy-it/dokpod/issues/86)) ([46c37b4](https://github.com/altivy-it/dokpod/commit/46c37b4c6e4c406aba7b88c6a393d7d4a80be818))
+* **api:** empacote o verificador e valide a CLI de emissão (spec 031 US5) ([#93](https://github.com/altivy-it/dokpod/issues/93)) ([4b2ca1d](https://github.com/altivy-it/dokpod/commit/4b2ca1dd7e4370ac7f1c93bd46f2db1b088b1d7d))
+* **api:** exporte e verifique o relatório de apuração da licença Business (spec 031 Fase 9) ([#92](https://github.com/altivy-it/dokpod/issues/92)) ([5c3ac48](https://github.com/altivy-it/dokpod/commit/5c3ac4878c368462781c3e44674b654baf8d9908))
+* **api:** garanta a CE sem licença e sem comunicação externa (spec 031 US1) ([#87](https://github.com/altivy-it/dokpod/issues/87)) ([d4f916d](https://github.com/altivy-it/dokpod/commit/d4f916db0529f03057bd95863f882f6dac1a090f))
+* **api:** importe a revogação offline e suporte rotação de chave (spec 031 US6) ([#91](https://github.com/altivy-it/dokpod/issues/91)) ([1b4a5d7](https://github.com/altivy-it/dokpod/commit/1b4a5d7f663a421ed3856ef161eb9102d6ba1d77))
+* **api:** importe e verifique a licença Business offline (spec 031 US2) ([#88](https://github.com/altivy-it/dokpod/issues/88)) ([19d9376](https://github.com/altivy-it/dokpod/commit/19d937682d9dfecd87ec6862c767be1167872092))
+* **contracts:** crie o verificador Dokpod.Licensing e publique a API de licenciamento ([#84](https://github.com/altivy-it/dokpod/issues/84)) ([40409b1](https://github.com/altivy-it/dokpod/commit/40409b199f65e2b6bdf0d6eae2e19958a3bcfe4a))
+
 ## [0.1.1](https://github.com/altivy-it/dokpod/compare/v0.1.0...v0.1.1) (2026-10-30)
 
 
