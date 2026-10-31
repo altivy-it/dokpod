@@ -4,6 +4,7 @@ import { provideRouter } from '@angular/router';
 import { JustificationPolicyService } from '../../core/justification-policy.service';
 import type { JustificationPolicy, RegistryPolicy, SettingsInstallation } from '../../data-access/generated/control-plane';
 import { activeNavId, COMING_SOON, NAV_ITEMS } from '../../shell/navigation';
+import { LicensingApiService } from './licensing-api.service';
 import { CONSOLE_VERSION, SettingsApiService } from './settings-api.service';
 import { migrationLabel } from './settings-labels';
 import { changedBy, SettingsPage, stagePolicies } from './settings.page';
@@ -71,6 +72,18 @@ describe('Configurações (spec 022)', () => {
   });
 });
 
+const licensingStatus = {
+  entitlement: 'ce_only' as const,
+  authenticity: 'absent' as const,
+  validity: null,
+  metering: 'regular' as const,
+  reasons: [],
+  license: null,
+  installation: { slotId: null, kind: null, quota: null },
+  consumption: { vcpuBand: null, current: null, windowPeak: null, windowPeakAt: null, unknownHosts: 0 },
+  grace: null,
+};
+
 describe('settings page', () => {
   const api = {
     justificationPolicies: vi.fn(),
@@ -99,6 +112,7 @@ describe('settings page', () => {
         provideHttpClient(),
         { provide: SettingsApiService, useValue: api },
         { provide: JustificationPolicyService, useValue: { set } },
+        { provide: LicensingApiService, useValue: { status: vi.fn().mockResolvedValue({ status: licensingStatus, etag: '"1"' }), importLicense: vi.fn() } },
       ],
     });
   });

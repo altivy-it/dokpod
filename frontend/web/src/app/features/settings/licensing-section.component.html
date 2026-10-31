@@ -1,0 +1,28 @@
+@if (loadStatus() !== null) {
+  <dok-empty-state
+    [kind]="loadStatus() === 403 ? 'forbidden' : 'error'"
+    [title]="loadStatus() === 403 ? 'Ver a licença exige a permissão licensing:read.' : 'Não foi possível ler o estado da licença.'"
+  >
+    <button dok-button variant="outline" size="sm" startIcon="refresh" type="button" (click)="load()">Tentar novamente</button>
+  </dok-empty-state>
+} @else if (snapshot(); as current) {
+  <div class="dok-stack">
+    @if (entitlement(); as state) {
+      <p><dok-status-chip size="sm" [color]="state.tone" [label]="state.label" /></p>
+    }
+    @if (details().length) {
+      <dok-key-value [items]="details()" [labelWidth]="150" />
+    } @else {
+      <p class="app-small st-muted">Nenhuma licença importada. A instalação opera como Community Edition até a importação.</p>
+    }
+
+    <form class="dok-stack" aria-label="Importar licença" (submit)="$event.preventDefault(); importLicense()">
+      <label class="app-small" for="lic-file">Arquivo de licença (.jws, até 64 KiB)</label>
+      <input id="lic-file" type="file" accept=".jws,.txt,application/jose" (change)="chooseFile($event)" />
+      <dok-field label="Slot da instalação" placeholder="prd" [mono]="true" name="slotId" [(ngModel)]="slotId" />
+      <div class="dok-actions">
+        <button dok-button size="sm" startIcon="upload" type="submit" [loading]="importing()" [disabled]="!file() || !slotId.trim()">Importar licença</button>
+      </div>
+    </form>
+  </div>
+}

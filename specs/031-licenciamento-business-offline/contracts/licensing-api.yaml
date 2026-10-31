@@ -151,7 +151,7 @@ components:
       properties:
         entitlement: { type: string, enum: [ce_only, granted, granted_in_grace, restricted, indeterminate] }
         authenticity: { type: string, enum: [absent, valid, invalid, revoked] }
-        validity: { type: string, enum: [not_started, active, expired_in_grace, expired] }
+        validity: { type: [string, 'null'], enum: [not_started, active, expired_in_grace, expired, null] }
         metering: { type: string, enum: [regular, excess_in_grace, excess, unknown] }
         reasons: { type: array, items: { type: string } }
         license:
@@ -165,6 +165,7 @@ components:
             notBefore: { type: string, format: date-time }
             expiresAt: { type: string, format: date-time }
             capabilities: { type: array, items: { type: string } }
+            capacity: { type: object, properties: { mode: { type: string, enum: [limited, unlimited] }, nodeEquivalents: { type: [integer, 'null'] } } }
         installation:
           type: object
           properties:

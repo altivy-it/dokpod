@@ -132,9 +132,12 @@ public sealed class KeycloakAuthorizationDecisionService(
     }
 
     private static bool IsSupportedPermission(string resource, string scope) =>
-        resource.StartsWith("urn:dokpod:environment:", StringComparison.Ordinal)
-        && Guid.TryParse(resource["urn:dokpod:environment:".Length..], out _)
-        && EnvironmentResourceScopes.Supported.Contains(scope);
+        (resource.StartsWith("urn:dokpod:environment:", StringComparison.Ordinal)
+            && Guid.TryParse(resource["urn:dokpod:environment:".Length..], out _)
+            && EnvironmentResourceScopes.Supported.Contains(scope))
+        // Spec 031 D-008: recurso único da instalação, só com os scopes de licenciamento.
+        || (resource == Dokpod.ControlPlane.Application.Licensing.LicensingAuthorization.Resource
+            && Dokpod.ControlPlane.Application.Licensing.LicensingAuthorization.Scopes.Contains(scope));
 
     private EnvironmentAuthorizationDecision LogDecision(
         EnvironmentAuthorizationDecision decision,

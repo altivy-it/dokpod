@@ -32,15 +32,34 @@ public sealed record LicenseRevisionRecord(
     string Outcome,
     string? FailureCode);
 
+public enum LicenseActivationOutcome
+{
+    Activated,
+
+    /// <summary>O <c>version</c> do estado não é mais o esperado (<c>If-Match</c>).</summary>
+    Conflict,
+
+    /// <summary>A mesma licença e revisão já foi aceita antes (índice único de revisões aceitas).</summary>
+    Duplicate,
+}
+
 public interface ILicenseStore
 {
     Task<LicenseRevisionRecord?> GetActiveAsync(CancellationToken cancellationToken);
 
-    /// <summary>Grava a revisão aceita e a torna ativa se <paramref name="expectedVersion"/> conferir; false no conflito.</summary>
-    Task<bool> ActivateAsync(LicenseRevisionRecord revision, long expectedVersion, CancellationToken cancellationToken);
+    /// <summary>
+    /// Numa transação: grava <paramref name="revision"/> (null mantém a revisão ativa e só troca o slot), aponta o estado
+    /// para ela e para <paramref name="slotId"/> se <paramref name="expectedVersion"/> conferir, e grava os eventos.
+    /// </summary>
+    Task<LicenseActivationOutcome> ActivateAsync(
+        LicenseRevisionRecord? revision,
+        string slotId,
+        long expectedVersion,
+        IReadOnlyList<LicensingEvent> events,
+        CancellationToken cancellationToken);
 
-    /// <summary>Registra o documento recusado sem tocar o estado (FR-009).</summary>
-    Task RecordRejectedAsync(LicenseRevisionRecord revision, CancellationToken cancellationToken);
+    /// <summary>Registra o documento recusado e o evento, sem tocar o estado (FR-009).</summary>
+    Task RecordRejectedAsync(LicenseRevisionRecord revision, LicensingEvent rejected, CancellationToken cancellationToken);
 }
 
 public static class CapacitySource
