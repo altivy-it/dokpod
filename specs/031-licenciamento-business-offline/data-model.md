@@ -12,7 +12,7 @@ Payload do JWS ([contracts/license-format.md](contracts/license-format.md)):
 | --- | --- | --- |
 | `schemaVersion` | int | suportado: `1` |
 | `meteringVersion` | int | suportado: `1` (fórmula de D-005) |
-| `licenseId`, `organizationId` | string ≤ 128 | IDs opacos do emissor |
+| `licenseId`, `organizationId` | string `[A-Za-z0-9_-]{1,128}` | IDs opacos do emissor; ASCII, sem normalização Unicode |
 | `revision` | int ≥ 1 | estritamente crescente por `licenseId`; reimportação idêntica é idempotente |
 | `product` | string | exatamente `dokpod-business` |
 | `plan` | string ≤ 64 | rótulo comercial; não concede direitos |
@@ -34,8 +34,8 @@ Cada arquivo recebido (licença ou pacote de revogação), aceito ou recusado.
 | `document_type` | text | `license` ou `revocation` |
 | `received_at_utc` | timestamptz | |
 | `received_by` | text | sujeito do Keycloak |
-| `content_sha256` | bytea(32) | hash dos bytes recebidos |
-| `content` | bytea | bytes originais, ≤ 64 KiB (reverificados ao uso, FR-010) |
+| `content_sha256` | bytea(32) | SHA-256 do conteúdo assinado (`header.payload`, ASCII), base da idempotência; assinaturas diferentes do mesmo conteúdo têm o mesmo hash |
+| `content` | bytea null | bytes originais, ≤ 64 KiB, só em documentos aceitos (reverificados ao uso, FR-010); `null` nos recusados |
 | `license_id`, `revision` | text, int | preenchidos após verificação |
 | `outcome` | text | `accepted`, `rejected` |
 | `failure_code` | text null | `license_invalid`, `license_obsolete`… |
@@ -49,6 +49,8 @@ Linha única por instalação; controle otimista por `version`.
 | Coluna | Tipo | Regra |
 | --- | --- | --- |
 | `installation_slot_id` | text | `slotId` informado no `PUT`; precisa existir na licença e ter cota diferente de 0. Trocar de slot exige `licensing:manage` e gera `license.slot_changed` |
+| `installation_id` | uuid | aleatório, gerado na primeira inicialização da composição Business; nunca derivado de hardware ou rede |
+| `chain_head_seq`, `chain_head_hash` | bigint, bytea(32) | último elo da cadeia de `licensing_events` ([report-format.md](contracts/report-format.md#cadeia-de-licenciamento)) |
 | `active_revision_id` | uuid null | FK para a última licença íntegra |
 | `revocation_sequence` | bigint | maior sequência importada |
 | `expiry_grace_until_utc` | timestamptz null | `expiresAt + graceDays` |
@@ -107,10 +109,12 @@ Antes de cada retenção, `dokpod.dokpod_retain_licensing_capacity(p_retention)`
 | Coluna | Tipo |
 | --- | --- |
 | `event_id` | uuid |
+| `chain_seq` | bigint, sem lacunas |
+| `prev_hash`, `record_hash` | bytea(32), cadeia de [report-format.md](contracts/report-format.md#cadeia-de-licenciamento) |
 | `occurred_at_utc` | timestamptz (partição) |
 | `actor_id` | text null (sujeito, ou null para o sistema) |
 | `correlation_id` | uuid |
-| `action` | text: `license.imported`, `license.rejected`, `license.state_changed`, `license.grace_started`, `license.grace_ended`, `license.expiry_warning` (60, 30 e 7 dias, FR-032), `license.report_exported` (FR-033), `license.slot_changed`, `revocation.imported`, `host.linked`, `host.unlinked`, `host.removed` |
+| `action` | text: `license.imported`, `license.rejected`, `license.state_changed`, `license.grace_started`, `license.grace_ended`, `license.expiry_warning` (60, 30 e 7 dias, FR-032), `license.report_exported` (FR-033, com o `challenge`), `license.slot_changed`, `license.trusted_instant_reset`, `capacity.daily_summary` (FR-035), `revocation.imported`, `host.linked`, `host.unlinked`, `host.removed` |
 | `details` | jsonb com allowlist por ação (IDs, revisões, códigos, sem conteúdo da licença) |
 
 Sem retenção automática: trilha de auditoria, como `audit_events`.
@@ -127,7 +131,7 @@ stateDiagram-v2
     restricted --> granted: renovação válida e regular
     granted --> restricted: revogação autenticada
     granted --> indeterminate: relógio regressivo ou estado corrompido
-    indeterminate --> granted: recuperação administrativa rastreável
+    indeterminate --> granted: recuperação administrativa (license.trusted_instant_reset)
 ```
 
 Em nenhum estado há efeito sobre workloads, dados, leitura, backup, exportação, renovação ou recursos da CE (FR-003).
