@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.0](https://github.com/altivy-it/dokpod/compare/v0.1.1...v0.2.0) (2026-10-31)
+
+
+### Adicionado
+
+* **contracts:** crie o verificador Dokpod.Licensing e publique a API de licenciamento ([#84](https://github.com/altivy-it/dokpod/issues/84)) ([40409b1](https://github.com/altivy-it/dokpod/commit/40409b199f65e2b6bdf0d6eae2e19958a3bcfe4a))
+
 ## [0.1.1](https://github.com/altivy-it/dokpod/compare/v0.1.0...v0.1.1) (2026-10-30)
 
 
