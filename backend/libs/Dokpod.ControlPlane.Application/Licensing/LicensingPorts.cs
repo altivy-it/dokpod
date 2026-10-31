@@ -161,10 +161,13 @@ public sealed record LicensingChainRecord(
     byte[] PrevHash,
     byte[] RecordHash);
 
-/// <summary>Leitura da cadeia completa para o relatório; nunca devolve <c>actor_id</c> nem a chave HMAC.</summary>
+/// <summary>
+/// Leitura da cadeia para o relatório, do início até o evento <paramref name="lastEventId"/> inclusive; eventos
+/// gravados depois (avaliação, agentes) ficam para o próximo relatório. Nunca devolve <c>actor_id</c> nem a chave HMAC.
+/// </summary>
 public interface ILicensingChainReader
 {
-    Task<IReadOnlyList<LicensingChainRecord>> ReadChainAsync(CancellationToken cancellationToken);
+    Task<IReadOnlyList<LicensingChainRecord>> ReadChainAsync(Guid lastEventId, CancellationToken cancellationToken);
 }
 
 /// <summary>Marca um caso de uso exclusivo Business; ele precisa depender de <see cref="IBusinessCapabilityGate"/> (T074).</summary>

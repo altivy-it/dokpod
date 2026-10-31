@@ -16,7 +16,8 @@ public sealed record LicensingReport(
 /// <summary>
 /// Exportação local do relatório (spec 031 T060, FR-033 a FR-035). Grava <c>license.report_exported</c> com o desafio
 /// antes de montar o documento, então esse evento é o último da cadeia exportada. Funciona sem licença importada
-/// (auditoria inicial da contratação). Nada é enviado: o cliente entrega o arquivo ao fornecedor (D-013).
+/// (auditoria inicial da contratação). A cadeia é cortada nesse evento, então gravações concorrentes ou a própria
+/// leitura do estado não o tiram do fim. Nada é enviado: o cliente entrega o arquivo ao fornecedor (D-013).
 /// </summary>
 public sealed partial class LicensingReportService(
     LicenseStatusService statusService,
@@ -32,15 +33,16 @@ public sealed partial class LicensingReportService(
     {
         if (!IsValidChallenge(challenge)) throw new ArgumentException("Challenge must match [A-Za-z0-9_-]{8,64}.", nameof(challenge));
         var now = timeProvider.GetUtcNow();
+        var reportEventId = Guid.NewGuid();
         await auditWriter.AppendAsync(
-            new LicensingEvent(Guid.NewGuid(), now, actorId, correlationId, LicensingEventAction.LicenseReportExported, new JsonObject { ["challenge"] = challenge }),
+            new LicensingEvent(reportEventId, now, actorId, correlationId, LicensingEventAction.LicenseReportExported, new JsonObject { ["challenge"] = challenge }),
             cancellationToken).ConfigureAwait(false);
 
         var status = await statusService.GetAsync(cancellationToken).ConfigureAwait(false);
         var hosts = await hostService.ListAsync(cancellationToken).ConfigureAwait(false);
         var state = await stateReader.ReadAsync(cancellationToken).ConfigureAwait(false)
             ?? throw new InvalidOperationException("Licensing state must exist after the report event.");
-        var events = await chainReader.ReadChainAsync(cancellationToken).ConfigureAwait(false);
+        var events = await chainReader.ReadChainAsync(reportEventId, cancellationToken).ConfigureAwait(false);
         return new LicensingReport(state.InstallationId, state.InstallationSlotId, now, challenge, status, hosts, events);
     }
 

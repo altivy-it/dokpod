@@ -72,6 +72,15 @@ public sealed class LicensingReportTests
         Assert.Equal(ReportVerificationCode.Stale, LicensingReportVerifier.Verify(Encoding.UTF8.GetBytes(first.Body), next with { PreviousHeadSeq = null }).Code);
         Assert.Equal(ReportVerificationCode.Mismatch, LicensingReportVerifier.Verify(Encoding.UTF8.GetBytes(second.Body), next with { IssuedLicenses = next.IssuedLicenses.Skip(1).ToArray() }).Code);
 
+        // A cadeia é cortada no evento do relatório: eventos gravados depois (como o segundo relatório) não entram.
+        await using (var services = fixture.Create())
+        {
+            var firstEventId = Guid.Parse(report["events"]!.AsArray()[^1]!["eventId"]!.GetValue<string>());
+            var cut = await new Dokpod.ControlPlane.Infrastructure.Licensing.LicensingChainReader(services.Context).ReadChainAsync(firstEventId, Ct);
+            Assert.Equal(accepted.HeadSeq, cut[^1].ChainSeq);
+            Assert.Equal(firstEventId, cut[^1].EventId);
+        }
+
         var tampered = JsonNode.Parse(second.Body)!.AsObject();
         tampered["events"]!.AsArray().RemoveAt(0);
         Assert.Equal(ReportVerificationCode.Tampered, LicensingReportVerifier.Verify(Encoding.UTF8.GetBytes(tampered.ToJsonString()), next).Code);
