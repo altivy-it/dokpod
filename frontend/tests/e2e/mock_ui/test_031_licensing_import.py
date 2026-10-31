@@ -32,6 +32,10 @@ def test_import_valid_then_refuse_tampered(page: Page, scenario) -> None:
     expect(page.get_by_text("Licença importada.", exact=True)).to_be_visible()
     expect(section.get_by_text("Licença válida", exact=True)).to_be_visible()
     expect(section.get_by_text("lic_e2e · revisão 1")).to_be_visible()
+    # US3 (T040): apuração e host com medição desconhecida destacado.
+    expect(section.get_by_text("4 nodes equivalentes em", exact=False)).to_be_visible()
+    expect(section.get_by_text("1 host(s) com medição desconhecida", exact=True)).to_be_visible()
+    expect(section.get_by_role("list", name="Hosts com medição desconhecida").get_by_text("srv-legado-n1", exact=False)).to_be_visible()
     screenshot(page, "031-licenca-importada-1440")
 
     upload(page, TAMPERED)

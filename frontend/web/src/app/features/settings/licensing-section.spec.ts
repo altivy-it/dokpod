@@ -22,18 +22,22 @@ const granted: LicensingStatus = {
     capacity: { mode: 'limited', nodeEquivalents: 10 },
   },
   installation: { slotId: 'prd', kind: 'production', quota: 8 },
-  consumption: { vcpuBand: 32, current: null, windowPeak: null, windowPeakAt: null, unknownHosts: 0 },
+  consumption: { vcpuBand: 32, current: 5, windowPeak: 7, windowPeakAt: '2026-11-20T15:00:00Z', unknownHosts: 1 },
   grace: null,
 };
 
 describe('Seção Licença (spec 031 T028)', () => {
-  const api = { status: vi.fn(), importLicense: vi.fn() };
+  const api = { status: vi.fn(), importLicense: vi.fn(), hosts: vi.fn() };
   const toast = { success: vi.fn(), error: vi.fn() };
 
   beforeEach(() => {
     Object.values(api).forEach(fn => fn.mockReset());
     Object.values(toast).forEach(fn => fn.mockReset());
     api.status.mockResolvedValue({ status: granted, etag: '"3"' });
+    api.hosts.mockResolvedValue([
+      { hostId: 'h1', label: 'rack-1', removed: false, environmentIds: ['e1'], vcpus: 32, source: 'engine', nodeEquivalents: 1 },
+      { hostId: 'h2', label: 'legado-n-1', removed: false, environmentIds: ['e2'], vcpus: null, source: 'unknown', nodeEquivalents: null },
+    ]);
     TestBed.configureTestingModule({
       providers: [
         { provide: LicensingApiService, useValue: api },
@@ -68,6 +72,19 @@ describe('Seção Licença (spec 031 T028)', () => {
     expect(text).toContain('10 nodes equivalentes · faixa de 32 vCPU');
     expect(text).toContain('prd (produção) · 8 nodes equivalentes');
     expect(text).toContain('change-windows');
+  });
+
+  it('shows the metering and highlights hosts with unknown measurement (T040)', async () => {
+    const fixture = await render();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const text = fixture.nativeElement.textContent as string;
+    expect(text).toContain('5 nodes equivalentes');
+    expect(text).toContain('7 nodes equivalentes em');
+    expect(text).toContain('32 vCPU por node equivalente');
+    expect(text).toContain('1 host(s) com medição desconhecida');
+    expect(text).toContain('legado-n-1');
+    expect(text).not.toContain('rack-1:');
   });
 
   it('imports with the ETag as If-Match and the chosen slot', async () => {

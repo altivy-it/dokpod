@@ -2868,6 +2868,155 @@ paths:
           $ref: '#/components/responses/LicensingProblem'
         '503':
           $ref: '#/components/responses/DependencyUnavailable'
+  /api/v1/licensing/hosts:
+    get:
+      operationId: listLicensingHosts
+      summary: Hosts de licenciamento com ambientes, CPU e origem (licensing:read)
+      description: Spec 031 (D-004). Um host com vários engines conta uma vez; origem diferente de engine é medição desconhecida.
+      x-dokpod-edition: business
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CorrelationId'
+      responses:
+        '200':
+          description: Hosts conhecidos, inclusive removidos ainda na janela.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LicensingHostList'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '403':
+          $ref: '#/components/responses/LicensingDenied'
+        '503':
+          $ref: '#/components/responses/DependencyUnavailable'
+  /api/v1/licensing/hosts/{hostId}:
+    put:
+      operationId: createLicensingHost
+      summary: Cria o host com o ID informado pelo cliente; repetir não muda nada (licensing:manage)
+      x-dokpod-edition: business
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: hostId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/CorrelationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LicensingHostRequest'
+      responses:
+        '200':
+          description: O host já existia.
+        '201':
+          description: Host criado.
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '403':
+          $ref: '#/components/responses/LicensingDenied'
+        '503':
+          $ref: '#/components/responses/DependencyUnavailable'
+    delete:
+      operationId: removeLicensingHost
+      summary: Remove o host sem apagar o histórico da janela; desassocia os ambientes (licensing:manage)
+      x-dokpod-edition: business
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: hostId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/CorrelationId'
+      responses:
+        '204':
+          description: Removido, ou já estava.
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '403':
+          $ref: '#/components/responses/LicensingDenied'
+        '503':
+          $ref: '#/components/responses/DependencyUnavailable'
+  /api/v1/licensing/hosts/{hostId}/environments/{environmentId}:
+    put:
+      operationId: linkLicensingHostEnvironment
+      summary: Associa o ambiente ao host; se estava em outro host ativo, desassocia de lá (licensing:manage)
+      x-dokpod-edition: business
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: hostId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: environmentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/CorrelationId'
+      responses:
+        '200':
+          description: Associado, ou já estava.
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '403':
+          $ref: '#/components/responses/LicensingDenied'
+        '503':
+          $ref: '#/components/responses/DependencyUnavailable'
+    delete:
+      operationId: unlinkLicensingHostEnvironment
+      summary: Desassocia o ambiente do host (licensing:manage)
+      x-dokpod-edition: business
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: hostId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: environmentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/CorrelationId'
+      responses:
+        '204':
+          description: Desassociado, ou não estava associado.
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '403':
+          $ref: '#/components/responses/LicensingDenied'
+        '503':
+          $ref: '#/components/responses/DependencyUnavailable'
   /api/v1/licensing/trusted-instant:
     post:
       operationId: resetTrustedInstant
@@ -5424,6 +5573,46 @@ components:
           type: string
         recordHash:
           type: string
+    LicensingHostRequest:
+      type: object
+      required: [label]
+      additionalProperties: false
+      properties:
+        label:
+          type: string
+          minLength: 1
+          maxLength: 128
+    LicensingHostList:
+      type: object
+      required: [hosts]
+      properties:
+        hosts:
+          type: array
+          items:
+            $ref: '#/components/schemas/LicensingHost'
+    LicensingHost:
+      type: object
+      required: [hostId, label, removed, environmentIds, vcpus, source, nodeEquivalents]
+      properties:
+        hostId:
+          type: string
+          format: uuid
+        label:
+          type: string
+        removed:
+          type: boolean
+        environmentIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+        vcpus:
+          type: [integer, 'null']
+        source:
+          type: string
+          enum: [engine, process_fallback, unknown]
+        nodeEquivalents:
+          type: [integer, 'null']
     TrustedInstantResetRequest:
       type: object
       required: [reason]

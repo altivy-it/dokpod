@@ -20,18 +20,27 @@ public sealed class LicensingMigrationTests
     {
         await using var connection = await OpenAsync(ConnectionStringOrSkip(), Ct);
 
-        foreach (var table in new[] { "licensing_events", "licensing_capacity_observations" })
+        // licensing_events nunca é purgada: os 132 meses de 2026-01 a 2036-12 ficam. As observações passam pela
+        // retenção de 35 dias (que remove partições antigas), então só os meses a partir do atual são exigidos.
+        var monthsAhead = await ScalarAsync<int>(
+            connection,
+            null,
+            "SELECT ((2036 - extract(year FROM now())::int) * 12 + (12 - extract(month FROM now())::int) + 1)",
+            Ct);
+        foreach (var (table, minimumMonth, expected) in new[] { ("licensing_events", "2026_01", 132L), ("licensing_capacity_observations", null as string, (long)monthsAhead) })
         {
             Assert.Equal('p', await ScalarAsync<char>(connection, null, $"SELECT relkind FROM pg_class WHERE oid = 'dokpod.{table}'::regclass", Ct));
             Assert.NotNull(await ScalarAsync<string>(connection, null, $"SELECT to_regclass('dokpod.{table}_default')::text", Ct));
-            Assert.Equal(132L, await ScalarAsync<long>(
+            Assert.Equal(expected, await ScalarAsync<long>(
                 connection,
                 null,
-                $"""
+                $$"""
                 SELECT count(*) FROM pg_inherits i JOIN pg_class c ON c.oid = i.inhrelid
-                WHERE i.inhparent = 'dokpod.{table}'::regclass AND c.relname ~ '^{table}_20(2[6-9]|3[0-6])_(0[1-9]|1[0-2])$'
+                WHERE i.inhparent = 'dokpod.{{table}}'::regclass AND c.relname ~ '^{{table}}_20(2[6-9]|3[0-6])_(0[1-9]|1[0-2])$'
+                  AND substring(c.relname FROM '(\d{4}_\d{2})$') >= COALESCE(@minimum, to_char(now(), 'YYYY_MM'))
                 """,
-                Ct));
+                Ct,
+                new NpgsqlParameter("minimum", NpgsqlTypes.NpgsqlDbType.Text) { Value = (object?)minimumMonth ?? DBNull.Value }));
         }
 
         var expectedColumns = new (string Table, string Column, string Nullable)[]

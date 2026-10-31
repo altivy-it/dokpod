@@ -69,16 +69,67 @@ public static class CapacitySource
     public const string Unknown = "unknown";
 }
 
-/// <summary>Observação de capacidade de um host; <c>Vcpus</c> é null quando desconhecida (FR-013).</summary>
+/// <summary>Observação de capacidade de um host; <c>Vcpus</c> é null quando a origem não é o engine (FR-013).</summary>
 public sealed record CapacityObservation(Guid HostId, DateTimeOffset ObservedAtUtc, int? Vcpus, string Source, Guid EnvironmentId);
+
+public sealed record LicensingHostRecord(Guid HostId, string Label, DateTimeOffset CreatedAtUtc, DateTimeOffset? RemovedAtUtc);
+
+public sealed record LicensingHostLink(Guid HostId, Guid EnvironmentId, DateTimeOffset LinkedAtUtc, DateTimeOffset? UnlinkedAtUtc);
+
+/// <summary>
+/// Dados brutos da apuração (D-005): hosts e associações que tocam a janela, a última observação de cada ambiente
+/// antes dela (observação retida ou âncora) e todas as observações da janela.
+/// </summary>
+public sealed record MeteringInput(
+    IReadOnlyList<LicensingHostRecord> Hosts,
+    IReadOnlyList<LicensingHostLink> Links,
+    IReadOnlyList<CapacityObservation> Observations);
 
 public interface ICapacityLedger
 {
-    /// <summary>Grava só quando a capacidade confiável muda ou na conexão do agente (D-005).</summary>
+    /// <summary>Grava a observação da conexão do agente no host associado ao ambiente (D-005).</summary>
     Task RecordAsync(CapacityObservation observation, CancellationToken cancellationToken);
 
-    /// <summary>Âncora de cada host mais as observações de [<paramref name="fromUtc"/>, <paramref name="untilUtc"/>).</summary>
-    Task<IReadOnlyList<CapacityObservation>> ReadWindowAsync(DateTimeOffset fromUtc, DateTimeOffset untilUtc, CancellationToken cancellationToken);
+    Task<MeteringInput> ReadMeteringInputAsync(DateTimeOffset windowStartUtc, CancellationToken cancellationToken);
+
+    /// <summary>Grava as âncoras e remove observações mais antigas que <paramref name="retention"/> (mínimo 35 dias).</summary>
+    Task<long> ApplyRetentionAsync(TimeSpan retention, CancellationToken cancellationToken);
+}
+
+/// <summary>
+/// Recebe a CPU informada no <c>AgentHello</c> (spec 031 T037). Só a composição Business registra uma implementação;
+/// falha aqui nunca derruba a sessão do agente.
+/// </summary>
+public interface IAgentCapacityObserver
+{
+    Task OnAgentHelloAsync(Guid environmentId, string? hostName, int? cpuCount, string source, DateTimeOffset observedAtUtc, CancellationToken cancellationToken);
+}
+
+public enum LicensingHostChange
+{
+    Applied,
+    Unchanged,
+    NotFound,
+    Removed,
+}
+
+/// <summary>Hosts locais de licenciamento e suas associações (D-004, FR-012); toda mudança gera evento na cadeia.</summary>
+public interface ILicensingHostStore
+{
+    Task<IReadOnlyList<LicensingHostRecord>> ListHostsAsync(CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<LicensingHostLink>> ListActiveLinksAsync(CancellationToken cancellationToken);
+
+    /// <summary>Cria o host com o ID do cliente; repetir com o mesmo ID não muda nada (idempotente).</summary>
+    Task<LicensingHostChange> CreateHostAsync(Guid hostId, string label, string? actorId, Guid correlationId, DateTimeOffset now, CancellationToken cancellationToken);
+
+    /// <summary>Associa o ambiente ao host; se ele estava em outro host ativo, desassocia de lá na mesma transação.</summary>
+    Task<LicensingHostChange> LinkAsync(Guid hostId, Guid environmentId, string? actorId, Guid correlationId, DateTimeOffset now, CancellationToken cancellationToken);
+
+    Task<LicensingHostChange> UnlinkAsync(Guid hostId, Guid environmentId, string? actorId, Guid correlationId, DateTimeOffset now, CancellationToken cancellationToken);
+
+    /// <summary>Encerra a participação futura do host sem apagar o histórico (FR-014).</summary>
+    Task<LicensingHostChange> RemoveHostAsync(Guid hostId, string? actorId, Guid correlationId, DateTimeOffset now, CancellationToken cancellationToken);
 }
 
 /// <summary>Decisão comercial tipada; nunca substitui a autorização do Keycloak (FR-022) nem vira falha de autenticação (FR-024).</summary>

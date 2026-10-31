@@ -75,6 +75,7 @@ Requisitos: Windows 10/11 ou Windows Server com Docker (Docker Desktop ou Docker
 | W8 | Remoção preserva dados | `-Action Remove -Confirm`; o serviço some e `C:\ProgramData\Dokpod\Agent` continua (sem `-RemoveData`) | T003 |
 | W9 | Journal sob crash | Com um comando em andamento (por exemplo, `restart` de um container lento), matar o processo do agente; ao voltar, o comando termina uma vez só, sem efeito duplicado, e o resultado chega à API | T004 |
 | W10 | Revogação | Revogar a identidade no console; a sessão cai e o agente não reconecta | T003 |
+| W11 | Origem e contagem de CPU (spec 031) | Numa instalação Business, `GET /api/v1/licensing/hosts` mostra o host do ambiente com `source = engine` e `vcpus` igual a `docker info --format '{{.NCPU}}'`. Compare com `(Get-CimInstance Win32_Processor \| Measure-Object NumberOfLogicalProcessors -Sum).Sum` e registre a diferença: no Docker Desktop, o `NCPU` é o da VM do engine, não o do Windows. Sem `docker info` respondendo, a origem deve ser `process_fallback` e a CPU não entra na apuração | spec 031 T068 |
 
 Ao terminar, registre os resultados nas tarefas T003 e T004 da 006 e leve a decisão (stable, experimental ou adiada) para o gate 15 da [005](../../specs/005-qualificacao-release-docker-linux/plan.md#matriz-de-gates-t018--2026-10-24).
 

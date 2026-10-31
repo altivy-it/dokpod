@@ -1166,6 +1166,24 @@ export type LicensingChainEvent = {
     recordHash: string;
 };
 
+export type LicensingHostRequest = {
+    label: string;
+};
+
+export type LicensingHostList = {
+    hosts: Array<LicensingHost>;
+};
+
+export type LicensingHost = {
+    hostId: string;
+    label: string;
+    removed: boolean;
+    environmentIds: Array<string>;
+    vcpus: number | null;
+    source: 'engine' | 'process_fallback' | 'unknown';
+    nodeEquivalents: number | null;
+};
+
 export type TrustedInstantResetRequest = {
     reason: string;
 };
@@ -4447,6 +4465,235 @@ export type ImportRevocationResponses = {
 };
 
 export type ImportRevocationResponse = ImportRevocationResponses[keyof ImportRevocationResponses];
+
+export type ListLicensingHostsData = {
+    body?: never;
+    headers?: {
+        /**
+         * Identificador técnico opcional para correlação server-side.
+         */
+        'X-Correlation-Id'?: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/licensing/hosts';
+};
+
+export type ListLicensingHostsErrors = {
+    /**
+     * Autenticação ausente ou inválida.
+     */
+    401: ProblemDetails;
+    /**
+     * Autorização negada pelo Keycloak (authorization_denied) ou recusa por licença (license_expired, license_capacity_exceeded, license_revoked, license_state_indeterminate); nunca encerra a sessão.
+     */
+    403: ProblemDetails;
+    /**
+     * Autorização ou persistência indisponível.
+     */
+    503: ProblemDetails;
+};
+
+export type ListLicensingHostsError = ListLicensingHostsErrors[keyof ListLicensingHostsErrors];
+
+export type ListLicensingHostsResponses = {
+    /**
+     * Hosts conhecidos, inclusive removidos ainda na janela.
+     */
+    200: LicensingHostList;
+};
+
+export type ListLicensingHostsResponse = ListLicensingHostsResponses[keyof ListLicensingHostsResponses];
+
+export type RemoveLicensingHostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Identificador técnico opcional para correlação server-side.
+         */
+        'X-Correlation-Id'?: string;
+    };
+    path: {
+        hostId: string;
+    };
+    query?: never;
+    url: '/api/v1/licensing/hosts/{hostId}';
+};
+
+export type RemoveLicensingHostErrors = {
+    /**
+     * Autenticação ausente ou inválida.
+     */
+    401: ProblemDetails;
+    /**
+     * Autorização negada pelo Keycloak (authorization_denied) ou recusa por licença (license_expired, license_capacity_exceeded, license_revoked, license_state_indeterminate); nunca encerra a sessão.
+     */
+    403: ProblemDetails;
+    /**
+     * O ambiente não foi encontrado após autorização.
+     */
+    404: ProblemDetails;
+    /**
+     * Autorização ou persistência indisponível.
+     */
+    503: ProblemDetails;
+};
+
+export type RemoveLicensingHostError = RemoveLicensingHostErrors[keyof RemoveLicensingHostErrors];
+
+export type RemoveLicensingHostResponses = {
+    /**
+     * Removido, ou já estava.
+     */
+    204: void;
+};
+
+export type RemoveLicensingHostResponse = RemoveLicensingHostResponses[keyof RemoveLicensingHostResponses];
+
+export type CreateLicensingHostData = {
+    body: LicensingHostRequest;
+    headers?: {
+        /**
+         * Identificador técnico opcional para correlação server-side.
+         */
+        'X-Correlation-Id'?: string;
+    };
+    path: {
+        hostId: string;
+    };
+    query?: never;
+    url: '/api/v1/licensing/hosts/{hostId}';
+};
+
+export type CreateLicensingHostErrors = {
+    /**
+     * Requisição inválida.
+     */
+    400: ProblemDetails;
+    /**
+     * Autenticação ausente ou inválida.
+     */
+    401: ProblemDetails;
+    /**
+     * Autorização negada pelo Keycloak (authorization_denied) ou recusa por licença (license_expired, license_capacity_exceeded, license_revoked, license_state_indeterminate); nunca encerra a sessão.
+     */
+    403: ProblemDetails;
+    /**
+     * O ambiente já existe.
+     */
+    409: ProblemDetails;
+    /**
+     * Autorização ou persistência indisponível.
+     */
+    503: ProblemDetails;
+};
+
+export type CreateLicensingHostError = CreateLicensingHostErrors[keyof CreateLicensingHostErrors];
+
+export type CreateLicensingHostResponses = {
+    /**
+     * O host já existia.
+     */
+    200: unknown;
+    /**
+     * Host criado.
+     */
+    201: unknown;
+};
+
+export type UnlinkLicensingHostEnvironmentData = {
+    body?: never;
+    headers?: {
+        /**
+         * Identificador técnico opcional para correlação server-side.
+         */
+        'X-Correlation-Id'?: string;
+    };
+    path: {
+        hostId: string;
+        environmentId: string;
+    };
+    query?: never;
+    url: '/api/v1/licensing/hosts/{hostId}/environments/{environmentId}';
+};
+
+export type UnlinkLicensingHostEnvironmentErrors = {
+    /**
+     * Autenticação ausente ou inválida.
+     */
+    401: ProblemDetails;
+    /**
+     * Autorização negada pelo Keycloak (authorization_denied) ou recusa por licença (license_expired, license_capacity_exceeded, license_revoked, license_state_indeterminate); nunca encerra a sessão.
+     */
+    403: ProblemDetails;
+    /**
+     * O ambiente não foi encontrado após autorização.
+     */
+    404: ProblemDetails;
+    /**
+     * Autorização ou persistência indisponível.
+     */
+    503: ProblemDetails;
+};
+
+export type UnlinkLicensingHostEnvironmentError = UnlinkLicensingHostEnvironmentErrors[keyof UnlinkLicensingHostEnvironmentErrors];
+
+export type UnlinkLicensingHostEnvironmentResponses = {
+    /**
+     * Desassociado, ou não estava associado.
+     */
+    204: void;
+};
+
+export type UnlinkLicensingHostEnvironmentResponse = UnlinkLicensingHostEnvironmentResponses[keyof UnlinkLicensingHostEnvironmentResponses];
+
+export type LinkLicensingHostEnvironmentData = {
+    body?: never;
+    headers?: {
+        /**
+         * Identificador técnico opcional para correlação server-side.
+         */
+        'X-Correlation-Id'?: string;
+    };
+    path: {
+        hostId: string;
+        environmentId: string;
+    };
+    query?: never;
+    url: '/api/v1/licensing/hosts/{hostId}/environments/{environmentId}';
+};
+
+export type LinkLicensingHostEnvironmentErrors = {
+    /**
+     * Autenticação ausente ou inválida.
+     */
+    401: ProblemDetails;
+    /**
+     * Autorização negada pelo Keycloak (authorization_denied) ou recusa por licença (license_expired, license_capacity_exceeded, license_revoked, license_state_indeterminate); nunca encerra a sessão.
+     */
+    403: ProblemDetails;
+    /**
+     * O ambiente não foi encontrado após autorização.
+     */
+    404: ProblemDetails;
+    /**
+     * O ambiente já existe.
+     */
+    409: ProblemDetails;
+    /**
+     * Autorização ou persistência indisponível.
+     */
+    503: ProblemDetails;
+};
+
+export type LinkLicensingHostEnvironmentError = LinkLicensingHostEnvironmentErrors[keyof LinkLicensingHostEnvironmentErrors];
+
+export type LinkLicensingHostEnvironmentResponses = {
+    /**
+     * Associado, ou já estava.
+     */
+    200: unknown;
+};
 
 export type ResetTrustedInstantData = {
     body: TrustedInstantResetRequest;
