@@ -127,7 +127,9 @@ public sealed class LicenseStore(ControlPlaneDbContext dbContext, ILicensingAudi
             dbTransaction,
             """
             UPDATE dokpod.licensing_state
-            SET active_revision_id = COALESCE(@revision, active_revision_id), installation_slot_id = @slot, version = version + 1
+            SET active_revision_id = COALESCE(@revision, active_revision_id), installation_slot_id = @slot, version = version + 1,
+                -- Licença nova tem expiração própria; o prazo da anterior não vale para ela (reimportação idêntica não chega aqui).
+                expiry_grace_until_utc = CASE WHEN @revision IS NULL THEN expiry_grace_until_utc ELSE NULL END
             WHERE version = @expected
             """,
             [

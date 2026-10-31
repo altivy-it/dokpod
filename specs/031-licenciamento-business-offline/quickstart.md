@@ -73,6 +73,14 @@ Com relógio injetável:
 3. Avançar além do prazo → `restricted`; nova execução de capability Business → `403 license_expired`; containers seguem rodando; leitura, backup, exportação e renovação funcionam; suítes CE verdes.
 4. Excesso e expiração ao mesmo tempo → prazo único, o menor.
 5. Retroceder o relógio abaixo do último instante confiável → `indeterminate`, sem tolerância nova.
+6. Recuperar com `POST /api/v1/licensing/trusted-instant` (`licensing:manage`, `If-Match`, justificativa) → sai de `indeterminate`, sem prazo novo, com `license.trusted_instant_reset` na cadeia.
+
+Comandos:
+
+```bash
+dotnet test backend/tests/Dokpod.ControlPlane.Application.Tests --filter "LicenseStateEvaluator|ExpiryWarning|CapacityDailySummary"  # T041, T044, T070
+dotnet test backend/tests/Dokpod.ControlPlane.Api.Tests --filter "GracePersistence|BusinessCapabilityGate|TrustedInstantReset"       # T042, T043, T069
+```
 
 ## Cenário 5: emissão (História 5, SC-009) — repositório da CLI
 
