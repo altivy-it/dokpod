@@ -165,3 +165,4 @@ Decisão do solicitante na revisão do [threat model da spec 031](../../specs/03
 - O relatório traz uma cadeia de eventos com evidência de adulteração, verificada pela ferramenta do fornecedor (FR-035, [D-013](../../specs/031-licenciamento-business-offline/research.md#d-013-relatório-de-apuração-com-evidência-de-adulteração)).
 - A entrega continua pelo cliente, fora de banda; nada sai automaticamente da instalação. O envio pela internet no momento da importação foi avaliado e não adotado (D-013).
 - A verificação anual a pedido do fornecedor continua valendo entre renovações.
+- O resumo diário de capacidade da cadeia mostra ao fornecedor o histórico de picos desde a última auditoria. Continua **sem cobrança retroativa** (decisão do solicitante em 2026-10-31): o histórico só dimensiona a capacidade da renovação e serve de evidência contratual.

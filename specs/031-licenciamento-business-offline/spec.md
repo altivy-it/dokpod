@@ -30,6 +30,8 @@
 - O solicitante aceitou o [threat model](threat-model.md): premissa central, lacunas L1 a L9 com as correções propostas e riscos residuais R1 a R8.
 - Decisão do solicitante: a auditoria pelo relatório de apuração é **obrigatória em toda contratação e em toda renovação**, e não mais um pedido eventual do fornecedor (FR-034). O relatório precisa evitar ou dificultar a manipulação dos dados pelo administrador do host (FR-035).
 - P: Vale enviar o relatório ao fornecedor (Altivy) pela internet no momento da importação da licença, tornando a conexão obrigatória só nesse momento? → Avaliado em [D-013](research.md#d-013-relatório-de-apuração-com-evidência-de-adulteração): não adotado. A entrega continua fora de banda e a exigência fica na emissão, onde ela de fato condiciona a licença. Confirmado pelo solicitante em 2026-10-31, junto da fronteira B10 e do risco R9 do threat model.
+- P: O sujeito do Keycloak gravado como autor dos eventos é dado pessoal pseudônimo (LGPD) e iria no relatório. Como tratar? → R: HMAC. A cadeia e o relatório levam só `actorRef`, HMAC-SHA256 do sujeito com uma chave aleatória da instalação que nunca é exportada; o sujeito real fica só na trilha local.
+- P: Com o resumo diário, o fornecedor passa a ver o histórico de picos. Cobrar o excesso passado? → R: Não (opção A). Continua sem cobrança retroativa; o histórico só dimensiona a renovação e serve de evidência.
 
 ### Decisões herdadas do plano (2026-10-28)
 

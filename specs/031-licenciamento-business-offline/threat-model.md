@@ -183,7 +183,7 @@ CLIENTE (instalação offline)                                                  
 | S | Relatório de outra instalação, ou de uma instalação recriada para zerar a história | `installationId` aleatório gravado na contratação; troca dá `discontinuous` e exige aprovação dupla com justificativa | FR-034; T072 |
 | R | Relatório antigo reapresentado na renovação | `challenge` do pedido gravado na cadeia antes da exportação; ausente ou diferente dá `stale` | FR-034; T060, T071 |
 | E | Fornecedor emite renovação sem auditoria | CLI exige `--report` com resultado `ok` (código 6); exceção só com aprovação dupla registrada | FR-029, FR-034; T072, T073 |
-| I | Relatório leva dado pessoal, hostname ou endereço ao fornecedor | Só IDs opacos, contagens e códigos, como os eventos | FR-007, FR-026; T060 |
+| I | Relatório leva dado pessoal, hostname ou endereço ao fornecedor | Só IDs opacos, contagens e códigos; o autor de cada evento vai como `actorRef` (HMAC com chave da instalação que nunca é exportada), não como sujeito do Keycloak (decisão de 2026-10-31) | FR-007, FR-026; T009, T060 |
 | I | Envio pela internet expõe dados e cria dependência do fornecedor | Não adotado (D-013): o produto nunca envia; entrega fora de banda pelo cliente | FR-002, D-013; T015 |
 | D | Cadeia cresce sem limite | Volume baixo (importações, mudanças de host, um resumo por dia); sem retenção por ser trilha de auditoria | D-013 |
 

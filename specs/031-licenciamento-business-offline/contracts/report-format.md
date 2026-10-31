@@ -12,7 +12,8 @@ Toda linha de `licensing_events` recebe, na mesma transação em que é gravada:
 | --- | --- |
 | `chain_seq` | inteiro ≥ 1, sem lacunas, atribuído a partir de `licensing_state.chain_head_seq` |
 | `prev_hash` | `record_hash` do evento anterior; no primeiro, `SHA-256("dokpod-licensing-chain-v1" ‖ installationId)` |
-| `record_hash` | `SHA-256(prev_hash ‖ JSON canônico de {chain_seq, event_id, occurred_at_utc, actor_id, correlation_id, action, details})` |
+| `actor_ref` | `BASE64URL(HMAC-SHA256(licensing_state.actor_hmac_key, UTF-8(sujeito do Keycloak)))`, ou `null` para o sistema; o sujeito real (`actor_id`) fica fora da cadeia e nunca é exportado |
+| `record_hash` | `SHA-256(prev_hash ‖ JSON canônico de {chain_seq, event_id, occurred_at_utc, actor_ref, correlation_id, action, details})` |
 
 JSON canônico: UTF-8, propriedades em ordem lexicográfica, sem espaços, instantes em RFC 3339 UTC com `Z` e precisão de microssegundo. A atualização de `licensing_state.chain_head_seq` e `chain_head_hash` com `version` otimista serializa a gravação: dois eventos nunca recebem o mesmo `chain_seq`.
 
@@ -41,13 +42,13 @@ Dias perdidos (API parada) são gravados na execução seguinte com `late: true`
   "license": { "licenseId": "lic_7f3c9a", "revision": 2 },
   "summary": { "status": { }, "hosts": [ ] },
   "chain": { "headSeq": 1342, "headHash": "base64url…" },
-  "events": [ { "chainSeq": 1, "eventId": "…", "occurredAt": "…", "actorId": null, "correlationId": "…", "action": "…", "details": { }, "prevHash": "…", "recordHash": "…" } ]
+  "events": [ { "chainSeq": 1, "eventId": "…", "occurredAt": "…", "actorRef": null, "correlationId": "…", "action": "…", "details": { }, "prevHash": "…", "recordHash": "…" } ]
 }
 ```
 
 - `installationId`: UUID aleatório gerado na primeira inicialização da composição Business e gravado em `licensing_state`; nunca derivado de hardware, hostname ou rede.
 - `challenge`: texto de 8 a 64 caracteres `[A-Za-z0-9_-]` informado pelo fornecedor no pedido de renovação ou contratação. A exportação grava `license.report_exported` com o `challenge` antes de montar o documento; esse evento é o último da cadeia exportada.
-- `events`: a cadeia completa desde o primeiro evento. Sem dados pessoais, nomes de host ou endereços: só IDs opacos, contagens e códigos (FR-007, FR-026).
+- `events`: a cadeia completa desde o primeiro evento. Sem dados pessoais, nomes de host ou endereços: só IDs opacos, contagens e códigos (FR-007, FR-026). O autor de cada evento aparece só como `actorRef`: o fornecedor vê que o mesmo ator repetiu uma ação, mas não consegue identificá-lo, porque `actor_hmac_key` nunca sai da instalação (decisão de 2026-10-31, LGPD).
 - Funciona também sem licença (`authenticity = absent`), para a auditoria inicial da contratação.
 
 ## Verificação pelo fornecedor
