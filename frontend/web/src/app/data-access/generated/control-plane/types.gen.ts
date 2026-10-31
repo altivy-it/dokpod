@@ -1074,40 +1074,50 @@ export type LicensingProblemCode = 'authorization_denied' | 'license_invalid' | 
 export type LicensingStatus = {
     entitlement: 'ce_only' | 'granted' | 'granted_in_grace' | 'restricted' | 'indeterminate';
     authenticity: 'absent' | 'valid' | 'invalid' | 'revoked';
-    validity: 'not_started' | 'active' | 'expired_in_grace' | 'expired';
+    /**
+     * null sem licença importada ou com licença que não passa na reverificação.
+     */
+    validity: 'not_started' | 'active' | 'expired_in_grace' | 'expired' | null;
     metering: 'regular' | 'excess_in_grace' | 'excess' | 'unknown';
-    reasons?: Array<string>;
-    license?: LicensingLicenseSummary | null;
-    installation?: LicensingInstallation;
-    consumption?: LicensingConsumption;
-    grace?: LicensingGrace | null;
+    reasons: Array<string>;
+    license: LicensingLicenseSummary | null;
+    installation: LicensingInstallation;
+    consumption: LicensingConsumption;
+    grace: LicensingGrace | null;
 };
 
 export type LicensingLicenseSummary = {
-    licenseId?: string;
-    organizationId?: string;
-    revision?: number;
-    plan?: string;
-    notBefore?: string;
-    expiresAt?: string;
-    capabilities?: Array<string>;
+    licenseId: string;
+    organizationId: string;
+    revision: number;
+    plan: string;
+    notBefore: string;
+    expiresAt: string;
+    capabilities: Array<string>;
+    capacity: {
+        mode: 'limited' | 'unlimited';
+        /**
+         * null quando ilimitada; nunca zero nem negativa.
+         */
+        nodeEquivalents?: number | null;
+    };
 };
 
 export type LicensingInstallation = {
-    slotId?: string | null;
-    kind?: 'production' | 'staging' | null;
+    slotId: string | null;
+    kind: 'production' | 'staging' | null;
     /**
      * null quando ilimitado.
      */
-    quota?: number | null;
+    quota: number | null;
 };
 
 export type LicensingConsumption = {
-    vcpuBand?: number | null;
-    current?: number | null;
-    windowPeak?: number | null;
-    windowPeakAt?: string | null;
-    unknownHosts?: number;
+    vcpuBand: number | null;
+    current: number | null;
+    windowPeak: number | null;
+    windowPeakAt: string | null;
+    unknownHosts: number;
 };
 
 export type LicensingGrace = {

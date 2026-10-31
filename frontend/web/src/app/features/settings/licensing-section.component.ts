@@ -1,0 +1,99 @@
+import { ChangeDetectionStrategy, Component, computed, inject, OnInit, signal } from '@angular/core';
+import { FormsModule } from '@angular/forms';
+import {
+  DokButton,
+  DokEmptyState,
+  DokField,
+  DokKeyValue,
+  DokStatusChip,
+  formatDateTime,
+  type KeyValueItem,
+  ToastService,
+} from '../../design-system';
+import { importFailureMessage, ENTITLEMENT } from './licensing-labels';
+import { LicensingApiService, MAX_LICENSE_BYTES, toLicensingFailure, type LicensingSnapshot } from './licensing-api.service';
+
+/**
+ * Seção Licença de Configurações → Instalação (spec 031 T028), só na edição Business: estado, organização, plano,
+ * vigência, capacidade, cota da instalação, capabilities e importação com `If-Match`. O conteúdo do arquivo nunca
+ * aparece na tela, em notificação ou em erro (FR-027).
+ */
+@Component({
+  selector: 'app-licensing-section',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [DokButton, DokEmptyState, DokField, DokKeyValue, DokStatusChip, FormsModule],
+  templateUrl: './licensing-section.component.html',
+})
+export class LicensingSection implements OnInit {
+  private readonly api = inject(LicensingApiService);
+  private readonly toast = inject(ToastService);
+
+  protected readonly snapshot = signal<LicensingSnapshot | null>(null);
+  protected readonly loadStatus = signal<number | null>(null);
+  protected readonly file = signal<File | null>(null);
+  protected readonly importing = signal(false);
+  protected slotId = '';
+
+  protected readonly entitlement = computed(() => {
+    const status = this.snapshot()?.status;
+    return status ? ENTITLEMENT[status.entitlement] : null;
+  });
+
+  protected readonly details = computed<KeyValueItem[]>(() => {
+    const status = this.snapshot()?.status;
+    if (!status?.license) return [];
+    const license = status.license;
+    const capacity = license.capacity?.mode === 'unlimited' ? 'Ilimitada' : `${license.capacity?.nodeEquivalents ?? '—'} nodes equivalentes`;
+    const quota = status.installation.quota === null || status.installation.quota === undefined ? 'sem limite próprio' : `${status.installation.quota} nodes equivalentes`;
+    return [
+      { label: 'Organização', value: license.organizationId ?? '—', mono: true },
+      { label: 'Licença', value: `${license.licenseId ?? '—'} · revisão ${license.revision ?? '—'}`, mono: true },
+      { label: 'Plano', value: license.plan ?? '—' },
+      { label: 'Vigência', value: `${formatDateTime(license.notBefore ?? '')} até ${formatDateTime(license.expiresAt ?? '')}` },
+      { label: 'Capacidade', value: `${capacity} · faixa de ${status.consumption?.vcpuBand ?? '—'} vCPU` },
+      { label: 'Instalação', value: `${status.installation.slotId ?? '—'} (${status.installation.kind === 'staging' ? 'homologação' : 'produção'}) · ${quota}` },
+      { label: 'Recursos', value: license.capabilities?.length ? license.capabilities.join(', ') : 'nenhum' },
+    ];
+  });
+
+  ngOnInit(): void {
+    void this.load();
+  }
+
+  protected async load(): Promise<void> {
+    try {
+      const snapshot = await this.api.status();
+      this.snapshot.set(snapshot);
+      this.slotId ||= snapshot.status.installation.slotId ?? '';
+      this.loadStatus.set(null);
+    } catch (error: unknown) {
+      this.loadStatus.set(toLicensingFailure(error).status || 0);
+    }
+  }
+
+  protected chooseFile(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    this.file.set(input.files?.[0] ?? null);
+  }
+
+  protected async importLicense(): Promise<void> {
+    const file = this.file();
+    const snapshot = this.snapshot();
+    if (!file || !snapshot || !this.slotId.trim()) return;
+    if (file.size > MAX_LICENSE_BYTES) {
+      this.toast.error(importFailureMessage('payload_too_large', 413));
+      return;
+    }
+    this.importing.set(true);
+    try {
+      this.snapshot.set(await this.api.importLicense(file, this.slotId.trim(), snapshot.etag));
+      this.toast.success('Licença importada.');
+    } catch (error: unknown) {
+      const failure = toLicensingFailure(error);
+      this.toast.error(importFailureMessage(failure.code, failure.status));
+      if (failure.code === 'license_revision_conflict') await this.load();
+    } finally {
+      this.importing.set(false);
+    }
+  }
+}
