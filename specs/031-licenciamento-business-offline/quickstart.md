@@ -90,6 +90,19 @@ dotnet test backend/tests/Dokpod.ControlPlane.Api.Tests --filter "GracePersisten
 4. Interromper o processo em cada etapa e reexecutar → uma única revisão.
 5. Importar o arquivo emitido no cenário 2 → aceito.
 
+Comandos (repositório `altivy-it/dokpod-license-admin`):
+
+```bash
+DOKPOD_LICENSE_ADMIN_TEST_REGISTRY='Host=...;Database=license_admin;Username=...' dotnet test Dokpod.LicenseAdmin.slnx   # T057, T072
+```
+
+E o passo 5 neste repositório, com o arquivo e a chave pública emitidos pela CLI:
+
+```bash
+DOKPOD_CLI_ISSUED_LICENSE=licenca.jws DOKPOD_CLI_PUBLIC_KEY=<kid>.pub.pem DOKPOD_CLI_KEY_ID=<kid> \
+  dotnet test backend/tests/Dokpod.ControlPlane.Api.Tests --filter CliIssuedLicense   # T059
+```
+
 ## Cenário 6: rotação e revogação (História 6)
 
 1. Build com duas chaves no trust store; importar licenças assinadas por cada uma → ambas aceitas.
