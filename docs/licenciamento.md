@@ -49,7 +49,10 @@ A CE não terá limites artificiais de nodes, usuários ou containers. Limites t
 
 ## Business
 
-**A Business é uma edição futura e nenhuma das funcionalidades exclusivas abaixo foi iniciada.** Quando implementada, incluirá todo o baseline da CE e concentrará valor em governança, automação e suporte:
+**A Business é uma edição futura e nenhuma das funcionalidades exclusivas abaixo foi iniciada.** O mecanismo de
+licenciamento offline que as habilitará já existe ([spec 031](../specs/031-licenciamento-business-offline/spec.md)): a
+imagem Business verifica a licença, apura nodes e aplica tolerância e restrição; a CE não contém nada disso ativo.
+Quando implementada, incluirá todo o baseline da CE e concentrará valor em governança, automação e suporte:
 
 - permissões por equipe e por recurso individual, geridas no console (a CE já autoriza por ambiente e por ação);
 - retenção configurável de auditoria e exportação para SIEM por syslog e OpenTelemetry ([spec 027](../specs/027-exportacao-auditoria-siem/spec.md));
@@ -133,6 +136,12 @@ Expiração, arquivo inválido ou excesso de nodes nunca poderá parar container
 5. manter workloads existentes sem interferência.
 
 O período de tolerância e o SLA serão definidos no contrato antes da implementação; não devem ser codificados sem essa decisão.
+
+A [spec 031](../specs/031-licenciamento-business-offline/spec.md) implementou essa política com os valores aprovados
+nela: tolerância vem da própria licença, avisos em 60, 30 e 7 dias, e restrição só de novas execuções Business. A
+contratação e cada renovação exigem a exportação do relatório de apuração com o desafio do fornecedor; o arquivo é
+encadeado por hashes e o fornecedor o verifica sem rede (D-013). Operação: [runbook de importação](runbooks/licenciamento-importacao.md)
+e [runbook de rotação e revogação](runbooks/licenciamento-rotacao-e-revogacao.md).
 
 ## Suporte e atualizações
 

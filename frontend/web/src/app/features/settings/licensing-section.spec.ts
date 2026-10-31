@@ -27,7 +27,7 @@ const granted: LicensingStatus = {
 };
 
 describe('Seção Licença (spec 031 T028)', () => {
-  const api = { status: vi.fn(), importLicense: vi.fn(), importRevocation: vi.fn(), hosts: vi.fn() };
+  const api = { status: vi.fn(), importLicense: vi.fn(), importRevocation: vi.fn(), exportReport: vi.fn(), hosts: vi.fn() };
   const toast = { success: vi.fn(), error: vi.fn() };
 
   beforeEach(() => {
@@ -141,6 +141,32 @@ describe('Seção Licença (spec 031 T028)', () => {
     (fixture.nativeElement.querySelector('form[aria-label="Importar pacote de revogação"]') as HTMLFormElement).dispatchEvent(new Event('submit'));
     await fixture.whenStable();
     expect(toast.error).toHaveBeenCalledWith('A sequência do pacote não é maior que a já importada.');
+  });
+
+  it('exports the report only with a valid challenge and saves it locally (T060)', async () => {
+    api.exportReport.mockResolvedValue(new Blob(['{}'], { type: 'application/json' }));
+    const create = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:relatorio');
+    const revoke = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined);
+    const fixture = await render();
+    const form = () => fixture.nativeElement.querySelector('form[aria-label="Exportar relatório de apuração"]') as HTMLFormElement;
+    const input = form().querySelector('input') as HTMLInputElement;
+
+    input.value = 'curto';
+    input.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+    form().dispatchEvent(new Event('submit'));
+    expect(api.exportReport).not.toHaveBeenCalled();
+
+    input.value = 'rnw-2027-org-a91f';
+    input.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+    form().dispatchEvent(new Event('submit'));
+    await fixture.whenStable();
+
+    expect(api.exportReport).toHaveBeenCalledWith('rnw-2027-org-a91f');
+    expect(create).toHaveBeenCalled();
+    expect(revoke).toHaveBeenCalledWith('blob:relatorio');
+    expect(toast.success).toHaveBeenCalledWith('Relatório exportado. Envie o arquivo ao fornecedor pelo canal combinado.');
   });
 
   it('shows a typed refusal without echoing the file and keeps the current license', async () => {

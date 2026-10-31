@@ -34,6 +34,7 @@ export class LicensingSection implements OnInit {
   protected readonly file = signal<File | null>(null);
   protected readonly importing = signal(false);
   protected readonly revocationFile = signal<File | null>(null);
+  protected challenge = '';
   protected readonly hosts = signal<LicensingHost[]>([]);
 
   /** Motivos (`reasons`), tolerância e aviso de vencimento (T048); a mesma informação fica na trilha de licenciamento. */
@@ -100,6 +101,31 @@ export class LicensingSection implements OnInit {
       this.hosts.set(snapshot.status.license ? await this.api.hosts().catch(() => []) : []);
     } catch (error: unknown) {
       this.loadStatus.set(toLicensingFailure(error).status || 0);
+    }
+  }
+
+  /** Desafio do pedido de contratação ou renovação: 8 a 64 caracteres `[A-Za-z0-9_-]` (report-format.md). */
+  protected validChallenge(): boolean {
+    return /^[A-Za-z0-9_-]{8,64}$/.test(this.challenge.trim());
+  }
+
+  protected async exportReport(): Promise<void> {
+    if (!this.validChallenge()) return;
+    this.importing.set(true);
+    try {
+      const report = await this.api.exportReport(this.challenge.trim());
+      const url = URL.createObjectURL(report);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `relatorio-licenciamento-${new Date().toISOString().slice(0, 10)}.json`;
+      link.click();
+      URL.revokeObjectURL(url);
+      this.toast.success('Relatório exportado. Envie o arquivo ao fornecedor pelo canal combinado.');
+    } catch (error: unknown) {
+      const failure = toLicensingFailure(error);
+      this.toast.error(failure.status === 403 ? 'Exportar o relatório exige a permissão licensing:read.' : 'Não foi possível exportar o relatório.');
+    } finally {
+      this.importing.set(false);
     }
   }
 

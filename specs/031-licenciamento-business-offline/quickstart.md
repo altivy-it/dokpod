@@ -2,7 +2,7 @@
 
 **Feature**: [spec.md](spec.md) | **Plano**: [plan.md](plan.md)
 
-Cenários ponta a ponta para comprovar a feature depois da implementação. Tudo roda em containers (constituição, restrições técnicas); navegador e cliente HTTP usam a borda nginx. Licenças e chaves são sintéticas, geradas pelos vetores de teste do verificador; a chave de teste nunca está no trust store de produção.
+Cenários ponta a ponta (sete do desenho mais o do relatório, acrescentado na Fase 9) para comprovar a feature depois da implementação. Tudo roda em containers (constituição, restrições técnicas); navegador e cliente HTTP usam a borda nginx. Licenças e chaves são sintéticas, geradas pelos vetores de teste do verificador; a chave de teste nunca está no trust store de produção.
 
 ## Pré-requisitos
 
@@ -108,3 +108,24 @@ Procedimentos: [runbook de rotação e revogação](../../docs/runbooks/licencia
 ## Cenário 7: artefatos do cliente (SC-008)
 
 Inspecionar camadas e histórico das imagens CE e Business: nenhum emissor, nenhuma chave privada; a CE não contém o módulo de licenciamento registrado.
+
+Comandos:
+
+```bash
+pwsh ./tools/scripts/test-licensing-image-contents.ps1 -Build                     # T062: camadas, histórico e edição
+pwsh ./tools/scripts/test-licensing-no-egress.ps1 -ApiImage dokpod-api:business-inspect   # T015 na imagem Business
+dotnet test backend/tests/Dokpod.Architecture.Tests --filter BusinessGate         # T074
+```
+
+## Cenário 8: relatório de apuração (FR-033 a FR-035, SC-010)
+
+1. `GET /api/v1/licensing/report?challenge=<desafio>` sem licença e com licença → `200`; último evento `license.report_exported` com o desafio.
+2. O verificador aceita o relatório (`ok`) e a exportação seguinte como continuação.
+3. Remover, reordenar ou editar um evento → `tampered`; outra instalação ou cadeia recomeçada → `discontinuous`; importação sem emissão → `mismatch`; desafio antigo → `stale`.
+
+Comandos:
+
+```bash
+dotnet test backend/tests/Dokpod.Licensing.Tests --filter LicensingReportVerifier       # T071: vetores
+dotnet test backend/tests/Dokpod.ControlPlane.Api.Tests --filter LicensingReport        # T060/T071: PostgreSQL real
+```
