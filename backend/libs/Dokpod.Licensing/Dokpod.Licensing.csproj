@@ -1,0 +1,11 @@
+<!--
+  SPDX-License-Identifier: MIT
+  Verificador de licença do Dokpod (spec 031, D-002). Licença MIT, distinta da
+  AGPL-3.0-only do restante do repositório: veja LICENSE nesta pasta.
+  Só BCL: este projeto não pode ter PackageReference nem ProjectReference.
+-->
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+  </PropertyGroup>
+</Project>
