@@ -1,4 +1,8 @@
-namespace Dokpod.ControlPlane.Api.Licensing;
+#if DOKPOD_BUSINESS
+using Dokpod.ControlPlane.Api.Licensing;
+#endif
+
+namespace Dokpod.ControlPlane.Api;
 
 /// <summary>
 /// Edição fixada no build (spec 031 D-009): <c>-p:DokpodEdition=Business</c> define <c>DOKPOD_BUSINESS</c>; sem a
@@ -14,6 +18,21 @@ public static class ProductEdition
 #else
     public const string Current = Community;
 #endif
+
+    /// <summary>
+    /// Diagnóstico para a inspeção de imagens (T062): edição e <c>kid</c> do trust store embarcado, sem iniciar o host.
+    /// Não expõe nada além do que o próprio binário contém; chaves privadas nunca existem nele.
+    /// </summary>
+    public static string Describe()
+    {
+#if DOKPOD_BUSINESS
+        using var trustStore = EmbeddedTrustStore.Load();
+        var keyIds = trustStore.KeyIds.Order(StringComparer.Ordinal).ToArray();
+#else
+        var keyIds = Array.Empty<string>();
+#endif
+        return System.Text.Json.JsonSerializer.Serialize(new { edition = Current, trustStoreKeyIds = keyIds });
+    }
 
     public static void AddServices(IServiceCollection services)
     {

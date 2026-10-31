@@ -149,6 +149,31 @@ public sealed record BusinessCapabilityDecision(bool Allowed, string? DenialCode
     public static BusinessCapabilityDecision Deny(string denialCode, IReadOnlyList<string> reasons) => new(false, denialCode, reasons);
 }
 
+/// <summary>Elo da cadeia como gravado (report-format.md): <c>Details</c> é o JSON canônico de <c>details</c>.</summary>
+public sealed record LicensingChainRecord(
+    long ChainSeq,
+    Guid EventId,
+    DateTimeOffset OccurredAtUtc,
+    string? ActorRef,
+    Guid CorrelationId,
+    string Action,
+    string Details,
+    byte[] PrevHash,
+    byte[] RecordHash);
+
+/// <summary>Leitura da cadeia completa para o relatório; nunca devolve <c>actor_id</c> nem a chave HMAC.</summary>
+public interface ILicensingChainReader
+{
+    Task<IReadOnlyList<LicensingChainRecord>> ReadChainAsync(CancellationToken cancellationToken);
+}
+
+/// <summary>Marca um caso de uso exclusivo Business; ele precisa depender de <see cref="IBusinessCapabilityGate"/> (T074).</summary>
+[AttributeUsage(AttributeTargets.Class, Inherited = false)]
+public sealed class BusinessCapabilityAttribute(string capability) : Attribute
+{
+    public string Capability { get; } = capability;
+}
+
 /// <summary>Só existe na composição Business; casos de uso da CE nunca dependem dele (D-009).</summary>
 public interface IBusinessCapabilityGate
 {

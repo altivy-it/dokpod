@@ -1141,12 +1141,15 @@ export type LicensingReport = {
     events: Array<LicensingChainEvent>;
 };
 
+/**
+ * Só o ID opaco do host; o nome nunca sai da instalação (report-format.md, FR-007).
+ */
 export type LicensingReportHost = {
     hostId?: string;
-    label?: string;
     vcpus?: number | null;
     source?: 'engine' | 'process_fallback' | 'unknown';
     nodeEquivalents?: number | null;
+    removed?: boolean;
 };
 
 export type LicensingChainEvent = {

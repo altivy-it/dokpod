@@ -1,4 +1,3 @@
-using Dokpod.ControlPlane.Api.Licensing;
 using Dokpod.ControlPlane.Application.Licensing;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;
