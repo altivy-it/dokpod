@@ -10,7 +10,7 @@
 
 > Redija esta especificação em português brasileiro (pt-BR). Preserve identificadores, nomes de API, comandos e termos técnicos necessários.
 
-**Depende de**: [ADR 2026-0003](../../docs/adr/2026-0003-licenciamento-e-edicoes.md) (`approved`: edições, CE sem chave, Business por arquivo assinado verificado offline), [ADR 2026-0007](../../docs/adr/2026-0007-precificacao-por-node-e-faixa-de-vcpu.md) (`proposed`: nodes equivalentes por faixa de vCPU), [política de licenciamento](../../docs/licenciamento.md) e [constituição](../../.specify/memory/constitution.md).
+**Depende de**: [ADR 2026-0003](../../docs/adr/2026-0003-licenciamento-e-edicoes.md) (`approved`: edições, CE sem chave, Business por arquivo assinado verificado offline), [ADR 2026-0007](../../docs/adr/2026-0007-precificacao-por-node-e-faixa-de-vcpu.md) (`accepted`: nodes equivalentes por faixa de vCPU), [ADR 2026-0008](../../docs/adr/2026-0008-licenca-assinada-e-verificacao-offline.md) (`accepted`: formato da licença e verificação offline), [política de licenciamento](../../docs/licenciamento.md) e [constituição](../../.specify/memory/constitution.md).
 
 ## Esclarecimentos
 
@@ -265,7 +265,7 @@ Recursos da coluna Business só viram direitos da licença (FR-006) quando tiver
 
 ## Premissas
 
-- A revisão jurídica (titularidade, contribuições, MIT do verificador, composição CE/Business, contrato) acontece antes de código Business (FR-030) e pode alterar requisitos desta spec.
+- A revisão jurídica (titularidade, contribuições, MIT do verificador, composição CE/Business, contrato) foi declarada cumprida em 2026-10-30 (FR-030); a confirmação tributária segue pendente antes da primeira venda.
 - O ADR 2026-0007 foi aceito em 2026-10-30; faixa, janela e tolerância continuam como parâmetros da licença, e só a regra de cálculo é do produto (FR-031).
 - Preço, moeda, tributação, pacote adicional de nodes e meio de cobrança ficam fora desta spec.
 - Checkout, servidor de ativação, telemetria comercial, fingerprint de hardware e qualquer kill switch estão fora de escopo e proibidos.

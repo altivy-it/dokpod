@@ -51,6 +51,7 @@ paths:
       parameters:
         - { name: If-Match, in: header, required: true, schema: { type: string } }
         - { name: X-Dokpod-Antiforgery, in: header, required: true, schema: { type: string } }
+        - { name: slotId, in: query, required: true, schema: { type: string, maxLength: 64 } }
       requestBody:
         required: true
         content:
@@ -58,14 +59,14 @@ paths:
             schema: { type: string, maxLength: 65536 }
       responses:
         '200':
-          description: Licença aceita; estado atualizado
+          description: Licença aceita, ou reimportação idêntica sem efeito; estado atualizado
           content:
             application/json:
               schema: { $ref: '#/components/schemas/LicensingStatus' }
         '403': { $ref: '#/components/responses/Problem' }
         '412': { description: Estado mudou desde a leitura (license_revision_conflict), $ref: '#/components/responses/Problem' }
         '413': { $ref: '#/components/responses/Problem' }
-        '422': { description: Arquivo recusado (license_invalid, license_obsolete); a licença anterior continua, $ref: '#/components/responses/Problem' }
+        '422': { description: Arquivo recusado (license_invalid, license_obsolete, license_slot_unknown, license_slot_disabled); a licença anterior continua, $ref: '#/components/responses/Problem' }
   /api/v1/licensing/revocations:
     post:
       operationId: importRevocation
@@ -102,7 +103,7 @@ components:
         status: { type: integer }
         code:
           type: string
-          enum: [authorization_denied, license_invalid, license_obsolete, license_expired, license_capacity_exceeded, license_revoked, license_state_indeterminate, license_revision_conflict, payload_too_large]
+          enum: [authorization_denied, license_invalid, license_obsolete, license_expired, license_capacity_exceeded, license_revoked, license_state_indeterminate, license_revision_conflict, license_slot_unknown, license_slot_disabled, payload_too_large]
         correlationId: { type: string, format: uuid }
     LicensingStatus:
       type: object

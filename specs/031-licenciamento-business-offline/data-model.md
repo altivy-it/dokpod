@@ -13,7 +13,7 @@ Payload do JWS ([contracts/license-format.md](contracts/license-format.md)):
 | `schemaVersion` | int | suportado: `1` |
 | `meteringVersion` | int | suportado: `1` (fórmula de D-005) |
 | `licenseId`, `organizationId` | string ≤ 128 | IDs opacos do emissor |
-| `revision` | int ≥ 1 | estritamente crescente por `licenseId` |
+| `revision` | int ≥ 1 | estritamente crescente por `licenseId`; reimportação idêntica é idempotente |
 | `product` | string | exatamente `dokpod-business` |
 | `plan` | string ≤ 64 | rótulo comercial; não concede direitos |
 | `issuedAt`, `notBefore`, `expiresAt` | instante UTC | `issuedAt ≤ notBefore < expiresAt` |
@@ -48,7 +48,7 @@ Linha única por instalação; controle otimista por `version`.
 
 | Coluna | Tipo | Regra |
 | --- | --- | --- |
-| `installation_slot_id` | text | slot escolhido na importação |
+| `installation_slot_id` | text | `slotId` informado no `PUT`; precisa existir na licença e ter cota diferente de 0. Trocar de slot exige `licensing:manage` e gera `license.slot_changed` |
 | `active_revision_id` | uuid null | FK para a última licença íntegra |
 | `revocation_sequence` | bigint | maior sequência importada |
 | `expiry_grace_until_utc` | timestamptz null | `expiresAt + graceDays` |
@@ -66,6 +66,8 @@ entitlement:  ce_only | granted | granted_in_grace | restricted | indeterminate
 ```
 
 `entitlement` = `granted` só com `authenticity=valid`, `validity=active` e `metering=regular`. Com tolerância ativa (expiração ou excesso): `granted_in_grace`. Com prazo encerrado ou revogação: `restricted`. Com relógio abaixo de `last_trusted_instant_utc`, estado corrompido ou medição desconhecida que impeça a decisão: `indeterminate`. Os prazos não se somam: vale o menor entre os ativos.
+
+`metering = excess*` quando `windowPeak > quota` do slot ativo (`installation.quota`). `quota = null` significa ilimitado e nunca gera excesso. Hosts `unknown` resultam em `metering = unknown`, e não em excesso.
 
 ## licensing_hosts e licensing_host_environments
 
@@ -86,7 +88,19 @@ Toda criação, associação, desassociação e remoção gera evento de licenci
 | `source` | text | `engine`, `process_fallback`, `unknown` |
 | `environment_id` | uuid | ambiente que reportou |
 
-Gravada só quando a capacidade confiável do host muda ou na conexão do agente. Retenção ≥ 35 dias mais a âncora mais recente de cada host anterior à janela (D-005).
+Gravada só quando a capacidade confiável do host muda ou na conexão do agente. Retenção ≥ 35 dias; a âncora fica em `licensing_capacity_anchors` (D-005).
+
+## licensing_capacity_anchors (não particionada)
+
+| Coluna | Tipo | Regra |
+| --- | --- | --- |
+| `host_id` | uuid | PK |
+| `observed_at_utc` | timestamptz | instante da observação mais recente anterior ao corte de retenção |
+| `vcpus` | int null | |
+| `source` | text | `engine`, `process_fallback`, `unknown` |
+| `environment_id` | uuid | |
+
+Antes de cada retenção, `dokpod.dokpod_retain_licensing_capacity(p_retention)` grava, para cada host, a última observação anterior ao corte, numa única transação e mantendo sempre o `observed_at_utc` mais recente. Em seguida chama `dokpod_apply_temporal_retention`. A apuração lê a âncora junto com as observações da janela.
 
 ## licensing_events (particionada por mês, append-only)
 
@@ -96,8 +110,10 @@ Gravada só quando a capacidade confiável do host muda ou na conexão do agente
 | `occurred_at_utc` | timestamptz (partição) |
 | `actor_id` | text null (sujeito, ou null para o sistema) |
 | `correlation_id` | uuid |
-| `action` | text: `license.imported`, `license.rejected`, `license.state_changed`, `license.grace_started`, `license.grace_ended`, `license.expiry_warning` (60, 30 e 7 dias, FR-032), `license.report_exported` (FR-033), `revocation.imported`, `host.linked`, `host.unlinked`, `host.removed` |
+| `action` | text: `license.imported`, `license.rejected`, `license.state_changed`, `license.grace_started`, `license.grace_ended`, `license.expiry_warning` (60, 30 e 7 dias, FR-032), `license.report_exported` (FR-033), `license.slot_changed`, `revocation.imported`, `host.linked`, `host.unlinked`, `host.removed` |
 | `details` | jsonb com allowlist por ação (IDs, revisões, códigos, sem conteúdo da licença) |
+
+Sem retenção automática: trilha de auditoria, como `audit_events`.
 
 ## Transições
 
