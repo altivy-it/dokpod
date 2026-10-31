@@ -34,7 +34,8 @@ internal sealed class LicensingUs4Fixture : IDisposable
         CapacityLedger Ledger,
         LicensingEvaluationStore Evaluation,
         LicenseStatusService Status,
-        LicenseImportService Import) : IAsyncDisposable
+        LicenseImportService Import,
+        RevocationImportService Revocations) : IAsyncDisposable
     {
         public ValueTask DisposeAsync() => Context.DisposeAsync();
     }
@@ -49,24 +50,38 @@ internal sealed class LicensingUs4Fixture : IDisposable
         var ledger = new CapacityLedger(context, new LicensingHostStore(context, writer));
         var evaluation = new LicensingEvaluationStore(context, writer);
         var evaluator = new LicenseStateEvaluator(TrustStore);
+        var status = new LicenseStatusService(licenses, licenses, evaluator, clock, ledger, evaluation);
         return new Services(
             context,
             licenses,
             ledger,
             evaluation,
-            new LicenseStatusService(licenses, licenses, evaluator, clock, ledger, evaluation),
-            new LicenseImportService(licenses, licenses, evaluator, TrustStore, clock));
+            status,
+            new LicenseImportService(licenses, licenses, evaluator, TrustStore, clock),
+            new RevocationImportService(licenses, licenses, status, TrustStore, clock));
     }
 
-    public byte[] License(string licenseId, DateTimeOffset notBefore, DateTimeOffset expiresAt, int productionQuota = 8, string capabilities = "\"change-windows\"")
+    public byte[] Revocation(int sequence, string licenseId, int revisionsUpTo = 1, string organizationId = "org_us4") =>
+        Sign("dokpod-revocation+jws", $$"""
+            {"schemaVersion":1,"organizationId":"{{organizationId}}","sequence":{{sequence}},"issuedAt":"{{Iso(DateTimeOffset.UtcNow)}}",
+            "revokedLicenses":[{"licenseId":"{{licenseId}}","revisionsUpTo":{{revisionsUpTo}}}]}
+            """);
+
+    public byte[] License(string licenseId, DateTimeOffset notBefore, DateTimeOffset expiresAt, int productionQuota = 8, string capabilities = "\"change-windows\"", int revision = 1)
     {
         var payload = $$"""
-            {"schemaVersion":1,"meteringVersion":1,"licenseId":"{{licenseId}}","organizationId":"org_us4","revision":1,
+            {"schemaVersion":1,"meteringVersion":1,"licenseId":"{{licenseId}}","organizationId":"org_us4","revision":{{revision}},
             "product":"dokpod-business","plan":"business","issuedAt":"{{Iso(notBefore)}}","notBefore":"{{Iso(notBefore)}}",
             "expiresAt":"{{Iso(expiresAt)}}","capacity":{"mode":"limited","nodeEquivalents":10},"vcpuBand":16,"windowDays":30,
             "graceDays":30,"slots":[{"slotId":"prd","kind":"production","enabled":true,"nodeEquivalents":{{productionQuota}}}],"capabilities":[{{capabilities}}]}
             """;
-        var input = $"{Base64Url.EncodeToString("""{"alg":"ES256","kid":"dokpod-test-1","typ":"dokpod-license+jws"}"""u8)}.{Base64Url.EncodeToString(Encoding.UTF8.GetBytes(payload))}";
+        return Sign("dokpod-license+jws", payload);
+    }
+
+    private byte[] Sign(string type, string payload)
+    {
+        var header = $$"""{"alg":"ES256","kid":"dokpod-test-1","typ":"{{type}}"}""";
+        var input = $"{Base64Url.EncodeToString(Encoding.UTF8.GetBytes(header))}.{Base64Url.EncodeToString(Encoding.UTF8.GetBytes(payload))}";
         var signature = key.SignData(Encoding.ASCII.GetBytes(input), HashAlgorithmName.SHA256, DSASignatureFormat.IeeeP1363FixedFieldConcatenation);
         return Encoding.ASCII.GetBytes($"{input}.{Base64Url.EncodeToString(signature)}");
     }

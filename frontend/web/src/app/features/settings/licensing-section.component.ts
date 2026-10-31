@@ -10,7 +10,7 @@ import {
   type KeyValueItem,
   ToastService,
 } from '../../design-system';
-import { ENTITLEMENT, expiryWarningDays, GRACE_CAUSE, importFailureMessage, REASON } from './licensing-labels';
+import { ENTITLEMENT, expiryWarningDays, GRACE_CAUSE, importFailureMessage, REASON, revocationFailureMessage } from './licensing-labels';
 import type { LicensingHost } from '../../data-access/generated/control-plane';
 import { LicensingApiService, MAX_LICENSE_BYTES, toLicensingFailure, type LicensingSnapshot } from './licensing-api.service';
 
@@ -33,6 +33,7 @@ export class LicensingSection implements OnInit {
   protected readonly loadStatus = signal<number | null>(null);
   protected readonly file = signal<File | null>(null);
   protected readonly importing = signal(false);
+  protected readonly revocationFile = signal<File | null>(null);
   protected readonly hosts = signal<LicensingHost[]>([]);
 
   /** Motivos (`reasons`), tolerância e aviso de vencimento (T048); a mesma informação fica na trilha de licenciamento. */
@@ -99,6 +100,29 @@ export class LicensingSection implements OnInit {
       this.hosts.set(snapshot.status.license ? await this.api.hosts().catch(() => []) : []);
     } catch (error: unknown) {
       this.loadStatus.set(toLicensingFailure(error).status || 0);
+    }
+  }
+
+  protected chooseRevocation(event: Event): void {
+    this.revocationFile.set((event.target as HTMLInputElement).files?.[0] ?? null);
+  }
+
+  protected async importRevocation(): Promise<void> {
+    const file = this.revocationFile();
+    if (!file) return;
+    if (file.size > MAX_LICENSE_BYTES) {
+      this.toast.error(importFailureMessage('payload_too_large', 413));
+      return;
+    }
+    this.importing.set(true);
+    try {
+      this.snapshot.set(await this.api.importRevocation(file));
+      this.toast.success('Pacote de revogação importado.');
+    } catch (error: unknown) {
+      const failure = toLicensingFailure(error);
+      this.toast.error(revocationFailureMessage(failure.code, failure.status));
+    } finally {
+      this.importing.set(false);
     }
   }
 

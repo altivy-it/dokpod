@@ -60,6 +60,15 @@ public interface ILicenseStore
 
     /// <summary>Registra o documento recusado e o evento, sem tocar o estado (FR-009).</summary>
     Task RecordRejectedAsync(LicenseRevisionRecord revision, LicensingEvent rejected, CancellationToken cancellationToken);
+
+    /// <summary>Conteúdo dos pacotes de revogação aceitos, reverificados a cada avaliação (FR-010).</summary>
+    Task<IReadOnlyList<byte[]>> GetAcceptedRevocationsAsync(CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Grava o pacote aceito e avança <c>revocation_sequence</c> na mesma transação, só se <paramref name="sequence"/>
+    /// for maior que a já importada; senão, <see cref="LicenseActivationOutcome.Conflict"/>.
+    /// </summary>
+    Task<LicenseActivationOutcome> AcceptRevocationAsync(LicenseRevisionRecord revision, int sequence, IReadOnlyList<LicensingEvent> events, CancellationToken cancellationToken);
 }
 
 public static class CapacitySource

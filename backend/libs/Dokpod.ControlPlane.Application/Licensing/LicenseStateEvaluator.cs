@@ -75,6 +75,7 @@ public static class LicenseReasons
     public const string CapacityExceeded = "license_capacity_exceeded";
     public const string Indeterminate = "license_state_indeterminate";
     public const string MeteringUnknown = "metering_unknown";
+    public const string Revoked = "license_revoked";
 }
 
 /// <summary>
@@ -91,7 +92,12 @@ public sealed class LicenseStateEvaluator(TrustStore trustStore)
     public LicenseStatus Evaluate(LicensingStateRecord? state, LicenseRevisionRecord? active, DateTimeOffset now) =>
         Assess(state, active, now, null).Status;
 
-    public LicensingAssessment Assess(LicensingStateRecord? state, LicenseRevisionRecord? active, DateTimeOffset now, CapacitySnapshot? snapshot)
+    public LicensingAssessment Assess(
+        LicensingStateRecord? state,
+        LicenseRevisionRecord? active,
+        DateTimeOffset now,
+        CapacitySnapshot? snapshot,
+        IReadOnlyList<byte[]>? revocations = null)
     {
         var version = state?.Version ?? 0;
         var none = new LicensingStateUpdate(null, null, null, null, false);
@@ -118,6 +124,18 @@ public sealed class LicenseStateEvaluator(TrustStore trustStore)
             license.Capabilities, license.Capacity.IsUnlimited, license.Capacity.NodeEquivalents);
         var installation = new LicenseStatusInstallation(state.InstallationSlotId, slot?.Kind, quota);
         var consumption = snapshot is null ? null : LicenseStatusConsumption.From(snapshot);
+
+        // Revogação autenticada (D-011, FR-021): cada pacote é reverificado; vale o que cobrir esta licença e revisão.
+        if (revocations?.Any(content => RevocationVerifier.Verify(content, trustStore) is { IsValid: true, Document: { } document }
+                && document.Revokes(license.OrganizationId, license.LicenseId, license.Revision)) == true)
+        {
+            return new LicensingAssessment(
+                new LicenseStatus("restricted", "revoked", Validity(verification.Validity, now, license), "regular", [LicenseReasons.Revoked], summary, installation, license.VcpuBand, null, version)
+                {
+                    Consumption = consumption,
+                },
+                none);
+        }
 
         if (now < state.LastTrustedInstantUtc - ClockTolerance)
         {
@@ -238,7 +256,8 @@ public sealed class LicenseStatusService(
             snapshot = CapacityMeter.Compute(input, vcpuBand, now);
         }
 
-        var assessment = evaluator.Assess(state, active, now, snapshot);
+        var revocations = state?.RevocationSequence > 0 ? await store.GetAcceptedRevocationsAsync(cancellationToken).ConfigureAwait(false) : null;
+        var assessment = evaluator.Assess(state, active, now, snapshot, revocations);
         if (evaluationStore is not null && state is not null)
         {
             await PersistAsync(assessment, now, cancellationToken).ConfigureAwait(false);

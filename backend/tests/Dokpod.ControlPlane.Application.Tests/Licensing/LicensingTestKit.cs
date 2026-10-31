@@ -95,6 +95,11 @@ internal sealed class InMemoryLicensing(LicensingStateRecord state, LicenseRevis
 
     public Task RecordRejectedAsync(LicenseRevisionRecord revision, LicensingEvent rejected, CancellationToken cancellationToken) => throw new NotSupportedException();
 
+    public Task<IReadOnlyList<byte[]>> GetAcceptedRevocationsAsync(CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<byte[]>>([]);
+
+    public Task<LicenseActivationOutcome> AcceptRevocationAsync(LicenseRevisionRecord revision, int sequence, IReadOnlyList<LicensingEvent> events, CancellationToken cancellationToken) =>
+        throw new NotSupportedException();
+
     public Task RecordAsync(CapacityObservation observation, CancellationToken cancellationToken) => throw new NotSupportedException();
 
     public Task<MeteringInput> ReadMeteringInputAsync(DateTimeOffset windowStartUtc, CancellationToken cancellationToken) =>

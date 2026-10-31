@@ -67,6 +67,40 @@ public static partial class LicensingEndpoints
         endpoints.MapGet("/api/v1/licensing/status", StatusAsync).RequireAuthorization();
         endpoints.MapPut("/api/v1/licensing/license", ImportAsync).RequireAuthorization();
         endpoints.MapPost("/api/v1/licensing/trusted-instant", ResetTrustedInstantAsync).RequireAuthorization();
+        endpoints.MapPost("/api/v1/licensing/revocations", ImportRevocationAsync).RequireAuthorization();
+    }
+
+    /// <summary>
+    /// Pacote de revogação assinado (T052, D-011): mesma ordem e limites da importação de licença; sem <c>If-Match</c>,
+    /// porque a sequência estritamente crescente serializa a aplicação.
+    /// </summary>
+    public static async Task<IResult> ImportRevocationAsync(
+        HttpContext context,
+        IEnvironmentAuthorizationDecider authorizationDecider,
+        RevocationImportService importService,
+        LicensingUploadRateLimiter rateLimiter,
+        CancellationToken cancellationToken)
+    {
+        if (!TryAuthenticate(context, out var actor, out var token, out var unauthorized)) return unauthorized!;
+        var denied = await AuthorizeAsync(context, authorizationDecider, actor!, token!, LicensingAuthorization.ManageScope, cancellationToken);
+        if (denied is not null) return denied;
+
+        if (!rateLimiter.TryAcquire(actor!.Subject))
+        {
+            return LicensingProblems.Create(context, LicensingProblems.RateLimited, "Limite de importações por minuto atingido. Tente de novo em instantes.");
+        }
+
+        if (context.Request.ContentLength > JwsCompactReader.MaxDocumentBytes || await ReadBodyAsync(context.Request, cancellationToken) is not { } content)
+        {
+            return LicensingProblems.Create(context, LicensingProblems.PayloadTooLarge, "O pacote de revogação tem mais de 64 KiB.");
+        }
+
+        var result = await importService.ImportAsync(content, actor.Subject, GetCorrelationId(context), cancellationToken);
+        return result.Outcome == LicenseImportOutcome.Accepted
+            ? Ok(context, result.Status!)
+            : LicensingProblems.Create(context, result.ProblemCode!, result.ProblemCode == LicenseImportCodes.Obsolete
+                ? "A sequência do pacote não é maior que a já importada."
+                : "O pacote de revogação foi recusado na verificação ou não é da organização da licença ativa.");
     }
 
     /// <summary>

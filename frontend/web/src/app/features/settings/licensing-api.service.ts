@@ -32,6 +32,25 @@ export class LicensingApiService {
     return (await listLicensingHosts({ throwOnError: true })).data.hosts;
   }
 
+  /** Pacote de revogação assinado (spec 031 T052): sem `If-Match`, a sequência crescente serializa a aplicação. */
+  async importRevocation(file: Blob): Promise<LicensingSnapshot> {
+    const [{ requestToken }, body] = await Promise.all([
+      firstValueFrom(this.http.get<{ requestToken: string }>('bff/antiforgery')),
+      file.text(),
+    ]);
+    try {
+      const response = await firstValueFrom(
+        this.http.post<LicensingStatus>('api/v1/licensing/revocations', body, {
+          headers: { 'Content-Type': 'application/jose', 'X-Dokpod-Antiforgery': requestToken },
+          observe: 'response',
+        }),
+      );
+      return { status: response.body!, etag: response.headers.get('ETag') ?? '"0"' };
+    } catch (error: unknown) {
+      throw toLicensingFailure(error);
+    }
+  }
+
   /** Envia o arquivo como `application/jose`, com `If-Match` e antiforgery do BFF. */
   async importLicense(file: Blob, slotId: string, etag: string): Promise<LicensingSnapshot> {
     const [{ requestToken }, body] = await Promise.all([
