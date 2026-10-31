@@ -4223,10 +4223,14 @@ components:
       properties:
         controlPlane:
           type: object
-          required: [version]
+          required: [version, edition]
           properties:
             version:
               type: string
+            edition:
+              type: string
+              enum: [community, business]
+              description: Edição fixada no build da API (spec 031, D-009); o console só mostra a seção Licença na business.
         protocolVersion:
           type: string
         database:

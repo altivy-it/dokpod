@@ -18,6 +18,15 @@ Cenários ponta a ponta para comprovar a feature depois da implementação. Tudo
 
 **Esperado**: suítes verdes; nenhuma tela ou endpoint de licença; zero tentativas externas do licenciamento.
 
+Comandos (job `Licensing CE` do CI):
+
+```bash
+frontend/tests/e2e/mock/run-mock-e2e.sh -- -k test_031        # T014: Configurações sem seção Licença na CE
+pwsh ./tools/scripts/test-licensing-no-egress.ps1 -Build       # T015: captura do namespace de rede da API
+```
+
+O relatório da captura fica em `artifacts/licensing-no-egress/report.json`.
+
 ## Cenário 2: importação e recusa (História 2, SC-003)
 
 1. Na composição Business, `GET /api/v1/licensing/status` → `entitlement: ce_only`.
