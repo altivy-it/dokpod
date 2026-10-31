@@ -127,6 +127,16 @@ message AgentHello {
   uint64 memory_bytes = 11;
   string engine_api_version = 12;
   bool engine_rootless = 13;
+  // Spec 031 (FR-013, FR-017): origem de cpu_count. Agente N-1 não envia (UNSPECIFIED) e a CPU conta como desconhecida.
+  CpuCountSource cpu_count_source = 14;
+}
+
+enum CpuCountSource {
+  CPU_COUNT_SOURCE_UNSPECIFIED = 0;
+  // Informado pelo engine (Docker/Podman info): confiável para a apuração.
+  CPU_COUNT_SOURCE_ENGINE = 1;
+  // Environment.ProcessorCount do processo do agente: pode refletir o limite do container; nunca confiável.
+  CPU_COUNT_SOURCE_PROCESS_FALLBACK = 2;
 }
 
 message SessionEstablished {

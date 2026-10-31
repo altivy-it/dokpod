@@ -20,13 +20,26 @@ public static class LicensingModule
         services.AddScoped<ILicenseStore>(provider => provider.GetRequiredService<LicenseStore>());
         services.AddScoped<ILicenseStateReader>(provider => provider.GetRequiredService<LicenseStore>());
         services.AddScoped<LicenseImportService>();
-        services.AddScoped<LicenseStatusService>();
+        services.AddScoped<LicensingHostStore>();
+        services.AddScoped<ILicensingHostStore>(provider => provider.GetRequiredService<LicensingHostStore>());
+        services.AddScoped<CapacityLedger>();
+        services.AddScoped<ICapacityLedger>(provider => provider.GetRequiredService<CapacityLedger>());
+        services.AddScoped<IAgentCapacityObserver>(provider => provider.GetRequiredService<CapacityLedger>());
+        services.AddScoped<LicenseStatusService>(provider => new LicenseStatusService(
+            provider.GetRequiredService<ILicenseStateReader>(),
+            provider.GetRequiredService<ILicenseStore>(),
+            provider.GetRequiredService<LicenseStateEvaluator>(),
+            provider.GetRequiredService<TimeProvider>(),
+            provider.GetRequiredService<ICapacityLedger>()));
+        services.AddScoped<LicensingHostService>();
+        services.AddHostedService<CapacityRetentionWorker>();
         return services;
     }
 
     public static IEndpointRouteBuilder MapLicensingEndpoints(this IEndpointRouteBuilder endpoints)
     {
         LicensingEndpoints.Map(endpoints);
+        LicensingHostEndpoints.Map(endpoints);
         return endpoints;
     }
 }

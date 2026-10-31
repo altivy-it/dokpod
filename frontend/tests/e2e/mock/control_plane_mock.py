@@ -681,6 +681,14 @@ def problem(status: int, title: str, code: str | None = None) -> dict:
 MOCK_VALID_LICENSE = "mock-license.e2e-fixture.not-signed"
 
 
+MOCK_LICENSING_HOSTS = [
+    {"hostId": "a1000000-0000-4000-8000-000000000001", "label": "srv-prod-01", "removed": False,
+     "environmentIds": ["e1000000-0000-4000-8000-000000000001"], "vcpus": 64, "source": "engine", "nodeEquivalents": 2},
+    {"hostId": "a1000000-0000-4000-8000-000000000002", "label": "srv-legado-n1", "removed": False,
+     "environmentIds": ["e1000000-0000-4000-8000-000000000002"], "vcpus": None, "source": "unknown", "nodeEquivalents": None},
+]
+
+
 def licensing_status(state: dict) -> dict:
     if not state["license"]:
         return {"entitlement": "ce_only", "authenticity": "absent", "validity": None, "metering": "regular", "reasons": [],
@@ -692,7 +700,7 @@ def licensing_status(state: dict) -> dict:
                         "notBefore": "2026-11-01T00:00:00Z", "expiresAt": "2027-11-01T00:00:00Z", "capabilities": ["change-windows"],
                         "capacity": {"mode": "limited", "nodeEquivalents": 10}},
             "installation": {"slotId": state["slot"], "kind": "production", "quota": 8},
-            "consumption": {"vcpuBand": 32, "current": None, "windowPeak": None, "windowPeakAt": None, "unknownHosts": 0},
+            "consumption": {"vcpuBand": 32, "current": 3, "windowPeak": 4, "windowPeakAt": "2026-11-20T15:00:00Z", "unknownHosts": 1},
             "grace": None}
 
 
@@ -743,6 +751,8 @@ class Handler(BaseHTTPRequestHandler):
         state = STATE.setdefault("licensing", {"version": 0, "license": None, "slot": None})
         if path == "/api/v1/licensing/status" and method == "GET":
             return self.send_json(200, licensing_status(state), headers={"ETag": f'"{state["version"]}"'})
+        if path == "/api/v1/licensing/hosts" and method == "GET":
+            return self.send_json(200, {"hosts": MOCK_LICENSING_HOSTS})
         if path == "/api/v1/licensing/license" and method == "PUT":
             length = int(self.headers.get("Content-Length") or 0)
             body = self.rfile.read(length).decode("ascii", errors="replace") if length else ""

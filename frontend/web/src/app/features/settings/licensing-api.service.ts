@@ -1,7 +1,7 @@
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
-import { getLicensingStatus, type LicensingStatus } from '../../data-access/generated/control-plane';
+import { getLicensingStatus, listLicensingHosts, type LicensingHost, type LicensingStatus } from '../../data-access/generated/control-plane';
 
 /** Estado da licença e a versão (`ETag`) exigida no `If-Match` da importação (spec 031 T028). */
 export interface LicensingSnapshot {
@@ -25,6 +25,11 @@ export class LicensingApiService {
   async status(): Promise<LicensingSnapshot> {
     const result = await getLicensingStatus({ throwOnError: true });
     return { status: result.data, etag: result.response.headers.get('ETag') ?? '"0"' };
+  }
+
+  /** Hosts de licenciamento com CPU e origem (spec 031 T039); medição desconhecida não entra na apuração. */
+  async hosts(): Promise<LicensingHost[]> {
+    return (await listLicensingHosts({ throwOnError: true })).data.hosts;
   }
 
   /** Envia o arquivo como `application/jose`, com `If-Match` e antiforgery do BFF. */

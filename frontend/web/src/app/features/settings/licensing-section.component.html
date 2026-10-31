@@ -12,6 +12,18 @@
     }
     @if (details().length) {
       <dok-key-value [items]="details()" [labelWidth]="150" />
+      <h3 class="st-block__title">Apuração</h3>
+      <dok-key-value [items]="consumption()" [labelWidth]="150" />
+      @if (unknownHosts().length) {
+        <div class="dok-stack" role="status">
+          <p><dok-status-chip size="sm" color="warning" [label]="unknownHosts().length + ' host(s) com medição desconhecida'" /></p>
+          <ul class="st-list" aria-label="Hosts com medição desconhecida">
+            @for (host of unknownHosts(); track host.hostId) {
+              <li class="app-small">{{ host.label }}: CPU sem origem confiável; vale o último valor informado pelo engine.</li>
+            }
+          </ul>
+        </div>
+      }
     } @else {
       <p class="app-small st-muted">Nenhuma licença importada. A instalação opera como Community Edition até a importação.</p>
     }

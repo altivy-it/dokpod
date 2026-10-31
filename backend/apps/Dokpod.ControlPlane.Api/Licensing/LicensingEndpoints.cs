@@ -153,10 +153,10 @@ public static partial class LicensingEndpoints
         consumption = new
         {
             vcpuBand = status.VcpuBand,
-            current = (int?)null,
-            windowPeak = (int?)null,
-            windowPeakAt = (DateTimeOffset?)null,
-            unknownHosts = 0,
+            current = status.Consumption?.Current,
+            windowPeak = status.Consumption?.WindowPeak,
+            windowPeakAt = status.Consumption?.WindowPeakAt,
+            unknownHosts = status.Consumption?.UnknownHosts ?? 0,
         },
         grace = status.Grace is not { } grace ? null : new { cause = grace.Cause, startedAt = grace.StartedAt, until = grace.Until },
     };
@@ -167,7 +167,7 @@ public static partial class LicensingEndpoints
         return Results.Ok(ToResponse(status));
     }
 
-    private static async Task<IResult?> AuthorizeAsync(
+    internal static async Task<IResult?> AuthorizeAsync(
         HttpContext context,
         IEnvironmentAuthorizationDecider authorizationDecider,
         AuthenticatedActor actor,

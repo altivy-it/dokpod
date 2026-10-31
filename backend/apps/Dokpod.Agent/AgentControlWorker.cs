@@ -840,6 +840,7 @@ public sealed class AgentControlWorker(
 
     private static AgentMessage CreateHello(EngineDescriptor descriptor, EngineHostInfo? hostInfo, bool execAvailable)
     {
+        var (cpuCount, cpuCountSource) = CpuCountResolver.Resolve(hostInfo, System.Environment.ProcessorCount);
         var hello = new AgentHello
         {
             // Spec 022: versão do produto (a mesma de API, BFF e console), sem a revisão do código-fonte.
@@ -851,7 +852,8 @@ public sealed class AgentControlWorker(
             EngineApiVersion = descriptor.ApiVersion,
             EngineRootless = hostInfo?.Rootless ?? false,
             HostName = hostInfo?.HostName ?? System.Environment.MachineName,
-            CpuCount = hostInfo?.CpuCount is > 0 ? (uint)hostInfo.CpuCount.Value : (uint)System.Environment.ProcessorCount,
+            CpuCount = cpuCount,
+            CpuCountSource = cpuCountSource,
             MemoryBytes = hostInfo?.MemoryBytes is > 0 ? (ulong)hostInfo.MemoryBytes.Value : 0,
             OperatingSystem = System.OperatingSystem.IsWindows()
                 ? Dokpod.Agent.Contracts.V1.OperatingSystem.Windows

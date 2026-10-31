@@ -27,6 +27,13 @@ public sealed record LicenseStatusInstallation(string? SlotId, string? Kind, int
 
 public sealed record LicenseStatusGrace(string Cause, DateTimeOffset StartedAt, DateTimeOffset Until);
 
+/// <summary>Consumo apurado com a faixa da licença vigente (US3); nulo sem licença válida.</summary>
+public sealed record LicenseStatusConsumption(int Current, int WindowPeak, DateTimeOffset? WindowPeakAt, int UnknownHosts)
+{
+    public static LicenseStatusConsumption From(CapacitySnapshot snapshot) =>
+        new(snapshot.Current, snapshot.WindowPeak, snapshot.WindowPeakAtUtc, snapshot.UnknownHosts);
+}
+
 /// <summary>Estado efetivo com os eixos separados (FR-018); <see cref="Version"/> é o <c>If-Match</c> da gestão.</summary>
 public sealed record LicenseStatus(
     string Entitlement,
@@ -38,7 +45,10 @@ public sealed record LicenseStatus(
     LicenseStatusInstallation Installation,
     int? VcpuBand,
     LicenseStatusGrace? Grace,
-    long Version);
+    long Version)
+{
+    public LicenseStatusConsumption? Consumption { get; init; }
+}
 
 /// <summary>
 /// Avalia autenticidade e vigência (spec 031 T026; a apuração entra na US3 e os prazos persistidos na US4).
@@ -93,12 +103,22 @@ public sealed class LicenseStatusService(
     ILicenseStateReader stateReader,
     ILicenseStore store,
     LicenseStateEvaluator evaluator,
-    TimeProvider timeProvider)
+    TimeProvider timeProvider,
+    ICapacityLedger? ledger = null)
 {
     public async Task<LicenseStatus> GetAsync(CancellationToken cancellationToken)
     {
+        var now = timeProvider.GetUtcNow();
         var state = await stateReader.ReadAsync(cancellationToken).ConfigureAwait(false);
         var active = state?.ActiveRevisionId is null ? null : await store.GetActiveAsync(cancellationToken).ConfigureAwait(false);
-        return evaluator.Evaluate(state, active, timeProvider.GetUtcNow());
+        var status = evaluator.Evaluate(state, active, now);
+        if (ledger is null || status.VcpuBand is not { } band)
+        {
+            return status;
+        }
+
+        // Faixa da licença vigente sobre os dados brutos: trocar a licença reapura a janela inteira (FR-015).
+        var input = await ledger.ReadMeteringInputAsync(now.AddDays(-CapacityMeter.WindowDays), cancellationToken).ConfigureAwait(false);
+        return status with { Consumption = LicenseStatusConsumption.From(CapacityMeter.Compute(input, band, now)) };
     }
 }

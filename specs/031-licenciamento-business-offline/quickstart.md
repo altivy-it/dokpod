@@ -56,6 +56,14 @@ Com hosts sintéticos e faixa 16:
 
 Trocar para licença de faixa 32 → pico recalculado dos dados brutos.
 
+Comandos:
+
+```bash
+dotnet test backend/tests/Dokpod.ControlPlane.Application.Tests --filter CapacityMetering   # T032: linhas da tabela
+dotnet test backend/tests/Dokpod.ControlPlane.Api.Tests --filter Licensing                  # T031, T033, T034
+DOKPOD_TEST_PODMAN_SOCKET=/run/podman.sock dotnet test backend/tests/Dokpod.Agent.Podman.IntegrationTests --filter CpuCountSource  # T067
+```
+
 ## Cenário 4: tolerância e restrição (História 4, SC-005, SC-006)
 
 Com relógio injetável:

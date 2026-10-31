@@ -107,7 +107,9 @@ public sealed class OpenApiContractTests
         Assert.Contains("operationId: resetTrustedInstant", contract, StringComparison.Ordinal);
         Assert.Contains("application/jose:", contract, StringComparison.Ordinal);
         Assert.Contains("LicensingProblemCode:", contract, StringComparison.Ordinal);
-        Assert.Equal(5, CountOccurrences(contract, "\n      x-dokpod-edition: business"));
+        Assert.Equal(10, CountOccurrences(contract, "\n      x-dokpod-edition: business"));
+        Assert.Contains("operationId: listLicensingHosts", contract, StringComparison.Ordinal);
+        Assert.Contains("operationId: linkLicensingHostEnvironment", contract, StringComparison.Ordinal);
         Assert.DoesNotContain("operationId: listHosts", contract, StringComparison.Ordinal);
         Assert.DoesNotContain("AuditEventEntity", contract, StringComparison.Ordinal);
         Assert.DoesNotContain("EnvironmentRegistrationEntity", contract, StringComparison.Ordinal);
