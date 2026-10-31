@@ -7,5 +7,22 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <!-- Spec 031 T054: versão própria do pacote, independente da versão do produto; consumidores fixam a exata. -->
+    <Version>0.1.0</Version>
+    <PackageId>Dokpod.Licensing</PackageId>
+    <Authors>Altivy</Authors>
+    <Company>Altivy</Company>
+    <Description>Verificador offline da licença Business do Dokpod: JWS ES256 de perfil fechado, trust store, revogação e verificação do relatório de apuração. Inclui vetores de conformidade em conformance/.</Description>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <RepositoryUrl>https://github.com/altivy-it/dokpod</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
   </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="/" />
+    <None Include="LICENSE" Pack="true" PackagePath="/" />
+    <None Include="../../tests/Dokpod.Licensing.Tests/ConformanceVectors/**/*" Exclude="../../tests/Dokpod.Licensing.Tests/ConformanceVectors/**/.*" Pack="true" PackagePath="conformance/%(RecursiveDir)%(Filename)%(Extension)" Visible="false" />
+  </ItemGroup>
 </Project>

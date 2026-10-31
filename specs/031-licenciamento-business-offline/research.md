@@ -66,6 +66,11 @@ Origem: plano privado de licenciamento (2026-10-28), aprovado como entrada pelo 
 - **Justificativa**: cumpre FR-028 e FR-029 e o requisito de nenhum emissor nas imagens do cliente (SC-008).
 - **Alternativas**: emissor em `backend/apps/` (proibido pelo plano: entraria no build do produto); serviço web de emissão (servidor 24x7 desnecessário e superfície de ataque).
 - **Pendente (F2)**: o armazenamento do registro (SQLite proposto) exige seleção de versão e licença; provedor de chave (HSM ou equivalente) exige seleção própria.
+- **Decisões da F2 (2026-10-31, Origem: humano, lzocateli, T055)**:
+  - repositório `altivy-it/dokpod-license-admin`, **privado**, licença **proprietária** (ferramenta interna do fornecedor, nunca distribuída ao cliente), responsável lzocateli;
+  - provedor de chave na primeira versão: **arquivo PKCS#8 cifrado** (P-256, PBES2 com AES-256-CBC e PBKDF2-SHA256) fora do repositório, com a passphrase lida do terminal ou de um descritor de arquivo, nunca por argumento nem variável de ambiente; acesso atrás de uma interface de provedor, para trocar por HSM/PKCS#11 sem mudar os comandos;
+  - registro de emissões em **PostgreSQL** (escolhido no lugar do SQLite proposto), por `Npgsql` (PostgreSQL License, permissiva) com versão fixada; transações serializáveis por pedido;
+  - `Dokpod.Licensing` publicado **já** no GitHub Packages da organização (substitui o "sem publicar antes do GO de F7" da T054), versão exata `0.1.0`, com os vetores de conformidade em `conformance/`; publicação manual pelo workflow `licensing-package.yml` na `main`.
 
 ## D-011: Revogação e rotação
 

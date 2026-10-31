@@ -1,0 +1,198 @@
+{
+  "formatVersion": 1,
+  "description": "Relatórios de apuração (report-format.md) com o contexto do fornecedor e o resultado esperado de LicensingReportVerifier.",
+  "cases": [
+    {
+      "file": "intact.json",
+      "context": {
+        "challenge": "rnw-2027-org_51d2e0-a91f",
+        "installationId": "3f0c5a1e-2b4d-4c6e-8f90-a1b2c3d4e5f6",
+        "previousHeadSeq": null,
+        "previousHeadHash": null,
+        "issuedLicenses": [
+          {
+            "licenseId": "lic_7f3c9a",
+            "revision": 2,
+            "contentSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          }
+        ],
+        "issuedRevocationSequences": [
+          3
+        ]
+      },
+      "expected": "ok"
+    },
+    {
+      "file": "continued.json",
+      "context": {
+        "challenge": "rnw-2028-next-0001",
+        "installationId": "3f0c5a1e-2b4d-4c6e-8f90-a1b2c3d4e5f6",
+        "previousHeadSeq": 5,
+        "previousHeadHash": "k72rNlQolgL8nbkhcZNXm6KmeE_t1SM4-3sxTLc7xMA",
+        "issuedLicenses": [
+          {
+            "licenseId": "lic_7f3c9a",
+            "revision": 2,
+            "contentSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          }
+        ],
+        "issuedRevocationSequences": [
+          3
+        ]
+      },
+      "expected": "ok"
+    },
+    {
+      "file": "tampered-detail.json",
+      "context": {
+        "challenge": "rnw-2027-org_51d2e0-a91f",
+        "installationId": "3f0c5a1e-2b4d-4c6e-8f90-a1b2c3d4e5f6",
+        "previousHeadSeq": null,
+        "previousHeadHash": null,
+        "issuedLicenses": [
+          {
+            "licenseId": "lic_7f3c9a",
+            "revision": 2,
+            "contentSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          }
+        ],
+        "issuedRevocationSequences": [
+          3
+        ]
+      },
+      "expected": "tampered"
+    },
+    {
+      "file": "tampered-removed.json",
+      "context": {
+        "challenge": "rnw-2027-org_51d2e0-a91f",
+        "installationId": "3f0c5a1e-2b4d-4c6e-8f90-a1b2c3d4e5f6",
+        "previousHeadSeq": null,
+        "previousHeadHash": null,
+        "issuedLicenses": [
+          {
+            "licenseId": "lic_7f3c9a",
+            "revision": 2,
+            "contentSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          }
+        ],
+        "issuedRevocationSequences": [
+          3
+        ]
+      },
+      "expected": "tampered"
+    },
+    {
+      "file": "tampered-reordered.json",
+      "context": {
+        "challenge": "rnw-2027-org_51d2e0-a91f",
+        "installationId": "3f0c5a1e-2b4d-4c6e-8f90-a1b2c3d4e5f6",
+        "previousHeadSeq": null,
+        "previousHeadHash": null,
+        "issuedLicenses": [
+          {
+            "licenseId": "lic_7f3c9a",
+            "revision": 2,
+            "contentSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          }
+        ],
+        "issuedRevocationSequences": [
+          3
+        ]
+      },
+      "expected": "tampered"
+    },
+    {
+      "file": "discontinuous-head.json",
+      "context": {
+        "challenge": "rnw-2027-org_51d2e0-a91f",
+        "installationId": "3f0c5a1e-2b4d-4c6e-8f90-a1b2c3d4e5f6",
+        "previousHeadSeq": 4,
+        "previousHeadHash": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "issuedLicenses": [
+          {
+            "licenseId": "lic_7f3c9a",
+            "revision": 2,
+            "contentSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          }
+        ],
+        "issuedRevocationSequences": [
+          3
+        ]
+      },
+      "expected": "discontinuous"
+    },
+    {
+      "file": "discontinuous-installation.json",
+      "context": {
+        "challenge": "rnw-2027-org_51d2e0-a91f",
+        "installationId": "9f0c5a1e-2b4d-4c6e-8f90-a1b2c3d4e5f6",
+        "previousHeadSeq": null,
+        "previousHeadHash": null,
+        "issuedLicenses": [
+          {
+            "licenseId": "lic_7f3c9a",
+            "revision": 2,
+            "contentSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          }
+        ],
+        "issuedRevocationSequences": [
+          3
+        ]
+      },
+      "expected": "discontinuous"
+    },
+    {
+      "file": "mismatch-license.json",
+      "context": {
+        "challenge": "rnw-2027-org_51d2e0-a91f",
+        "installationId": "3f0c5a1e-2b4d-4c6e-8f90-a1b2c3d4e5f6",
+        "previousHeadSeq": null,
+        "previousHeadHash": null,
+        "issuedLicenses": [],
+        "issuedRevocationSequences": [
+          3
+        ]
+      },
+      "expected": "mismatch"
+    },
+    {
+      "file": "mismatch-revocation.json",
+      "context": {
+        "challenge": "rnw-2027-org_51d2e0-a91f",
+        "installationId": "3f0c5a1e-2b4d-4c6e-8f90-a1b2c3d4e5f6",
+        "previousHeadSeq": null,
+        "previousHeadHash": null,
+        "issuedLicenses": [
+          {
+            "licenseId": "lic_7f3c9a",
+            "revision": 2,
+            "contentSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          }
+        ],
+        "issuedRevocationSequences": []
+      },
+      "expected": "mismatch"
+    },
+    {
+      "file": "stale.json",
+      "context": {
+        "challenge": "rnw-2026-old-0001",
+        "installationId": "3f0c5a1e-2b4d-4c6e-8f90-a1b2c3d4e5f6",
+        "previousHeadSeq": null,
+        "previousHeadHash": null,
+        "issuedLicenses": [
+          {
+            "licenseId": "lic_7f3c9a",
+            "revision": 2,
+            "contentSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          }
+        ],
+        "issuedRevocationSequences": [
+          3
+        ]
+      },
+      "expected": "stale"
+    }
+  ]
+}

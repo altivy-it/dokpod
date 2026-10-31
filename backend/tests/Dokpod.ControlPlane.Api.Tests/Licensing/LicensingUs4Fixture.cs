@@ -16,10 +16,11 @@ internal sealed class LicensingUs4Fixture : IDisposable
 {
     private readonly ECDsa key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
 
-    public LicensingUs4Fixture(string connectionString)
+    /// <param name="trustedKeys">Chaves extras do trust store, além da sintética (T059: chave pública da CLI de emissão).</param>
+    public LicensingUs4Fixture(string connectionString, params TrustedKey[] trustedKeys)
     {
         ConnectionString = connectionString;
-        TrustStore = new TrustStore([TrustedKey.FromPublicKey("dokpod-test-1", key)]);
+        TrustStore = new TrustStore([TrustedKey.FromPublicKey("dokpod-test-1", key), .. trustedKeys]);
     }
 
     public string ConnectionString { get; }
