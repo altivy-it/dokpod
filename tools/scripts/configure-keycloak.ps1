@@ -231,6 +231,7 @@ if (-not $SkipUser -and -not $PSBoundParameters.ContainsKey('InitialUserEmail'))
 $plannedResources = @(
     'clients dokpod-api, dokpod-provisioner, dokpod-bff, dokpod-lab e dokpod-authorization-spike',
     'client scope e mapper de audience dokpod-api',
+    'scopes UMA do dokpod-api e recurso urn:dokpod:installation (licensing:read, licensing:manage)',
     'roles Administrator, Operator, Auditor e Reader',
     'grupos /dokpod/administrators, /dokpod/operators, /dokpod/auditors e /dokpod/readers'
 )
@@ -492,7 +493,10 @@ function Ensure-AuthorizationScopes {
         # Spec 018: remoção de volumes sem uso.
         'volume:delete',
         # Spec 019: remoção de redes sem uso.
-        'network:delete')) {
+        'network:delete',
+        # Spec 031: leitura e gestão do licenciamento da instalação (recurso urn:dokpod:installation).
+        'licensing:read',
+        'licensing:manage')) {
         $encodedScope = [Uri]::EscapeDataString($scopeName)
         $scope = @(Invoke-KeycloakApi GET "$authzBase/scope?name=$encodedScope&exact=true") |
             Where-Object name -eq $scopeName | Select-Object -First 1
@@ -500,6 +504,46 @@ function Ensure-AuthorizationScopes {
             Invoke-KeycloakApi POST "$authzBase/scope" @{ name = $scopeName } | Out-Null
             Write-Output "Criado scope UMA $scopeName em $ClientUuid."
         }
+    }
+}
+
+function Ensure-InstallationResource {
+    param([Parameter(Mandatory)][string] $ClientUuid)
+
+    # Spec 031 D-008: recurso único da instalação, com os scopes de licenciamento. A concessão a usuários ou
+    # grupos é feita por permission no Keycloak; o Dokpod não cria roles locais.
+    $authzBase = "/admin/realms/$Realm/clients/$ClientUuid/authz/resource-server"
+    $resourceName = 'urn:dokpod:installation'
+    $scopeNames = @('licensing:read', 'licensing:manage')
+    $scopes = foreach ($scopeName in $scopeNames) {
+        $encodedScope = [Uri]::EscapeDataString($scopeName)
+        $scope = @(Invoke-KeycloakApi GET "$authzBase/scope?name=$encodedScope&exact=true") |
+            Where-Object name -eq $scopeName | Select-Object -First 1
+        if (-not $scope) { throw "Scope UMA $scopeName não encontrado em $ClientUuid." }
+        @{ id = $scope.id; name = $scope.name }
+    }
+
+    $encodedResource = [Uri]::EscapeDataString($resourceName)
+    $resource = @(Invoke-KeycloakApi GET "$authzBase/resource?name=$encodedResource&exactName=true") |
+        Where-Object { $null -ne $_ -and $_.name -eq $resourceName } | Select-Object -First 1
+    $representation = @{
+        name = $resourceName
+        displayName = 'Dokpod installation'
+        scopes = @($scopes)
+        ownerManagedAccess = $false
+    }
+    if (-not $resource) {
+        Invoke-KeycloakApi POST "$authzBase/resource" $representation | Out-Null
+        Write-Output "Criado recurso UMA $resourceName em $ClientUuid."
+        return
+    }
+
+    $resourceId = if ($resource.PSObject.Properties.Name -contains '_id' -and $resource._id) { $resource._id } else { $resource.id }
+    $currentScopes = @($resource.scopes | ForEach-Object { $_.name })
+    if (@($scopeNames | Where-Object { $currentScopes -notcontains $_ }).Count -gt 0) {
+        $representation._id = $resourceId
+        Invoke-KeycloakApi PUT "$authzBase/resource/$resourceId" $representation | Out-Null
+        Write-Output "Atualizados os scopes do recurso UMA $resourceName."
     }
 }
 
@@ -653,6 +697,7 @@ $apiClient = @{
 }
 $apiClientUuid = Ensure-Client $apiClient
 Ensure-AuthorizationScopes -ClientUuid $apiClientUuid
+Ensure-InstallationResource -ClientUuid $apiClientUuid
 
 $provisionerClient = @{
     clientId = 'dokpod-provisioner'; name = 'Dokpod Provisioner'; enabled = $true; publicClient = $false
