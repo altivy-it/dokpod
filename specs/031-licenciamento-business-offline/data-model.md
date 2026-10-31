@@ -50,6 +50,7 @@ Linha única por instalação; controle otimista por `version`.
 | --- | --- | --- |
 | `installation_slot_id` | text | `slotId` informado no `PUT`; precisa existir na licença e ter cota diferente de 0. Trocar de slot exige `licensing:manage` e gera `license.slot_changed` |
 | `installation_id` | uuid | aleatório, gerado na primeira inicialização da composição Business; nunca derivado de hardware ou rede |
+| `actor_hmac_key` | bytea(32) | aleatória, gerada junto do `installation_id`; nunca exportada nem registrada em log |
 | `chain_head_seq`, `chain_head_hash` | bigint, bytea(32) | último elo da cadeia de `licensing_events` ([report-format.md](contracts/report-format.md#cadeia-de-licenciamento)) |
 | `active_revision_id` | uuid null | FK para a última licença íntegra |
 | `revocation_sequence` | bigint | maior sequência importada |
@@ -112,7 +113,8 @@ Antes de cada retenção, `dokpod.dokpod_retain_licensing_capacity(p_retention)`
 | `chain_seq` | bigint, sem lacunas |
 | `prev_hash`, `record_hash` | bytea(32), cadeia de [report-format.md](contracts/report-format.md#cadeia-de-licenciamento) |
 | `occurred_at_utc` | timestamptz (partição) |
-| `actor_id` | text null (sujeito, ou null para o sistema) |
+| `actor_id` | text null (sujeito, ou null para o sistema); só na trilha local, fora da cadeia e do relatório |
+| `actor_ref` | text null: HMAC-SHA256 do sujeito com `actor_hmac_key`, em Base64URL; entra na cadeia e no relatório |
 | `correlation_id` | uuid |
 | `action` | text: `license.imported`, `license.rejected`, `license.state_changed`, `license.grace_started`, `license.grace_ended`, `license.expiry_warning` (60, 30 e 7 dias, FR-032), `license.report_exported` (FR-033, com o `challenge`), `license.slot_changed`, `license.trusted_instant_reset`, `capacity.daily_summary` (FR-035), `revocation.imported`, `host.linked`, `host.unlinked`, `host.removed` |
 | `details` | jsonb com allowlist por ação (IDs, revisões, códigos, sem conteúdo da licença) |
