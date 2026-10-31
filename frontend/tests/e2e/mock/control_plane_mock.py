@@ -676,6 +676,26 @@ def problem(status: int, title: str, code: str | None = None) -> dict:
     return {"type": "about:blank", "title": title, "status": status, "detail": title, "code": code}
 
 
+
+# Spec 031 (T029): arquivo de referência aceito pelo mock; o conteúdo não é uma licença assinada de verdade.
+MOCK_VALID_LICENSE = "mock-license.e2e-fixture.not-signed"
+
+
+def licensing_status(state: dict) -> dict:
+    if not state["license"]:
+        return {"entitlement": "ce_only", "authenticity": "absent", "validity": None, "metering": "regular", "reasons": [],
+                "license": None, "installation": {"slotId": state["slot"], "kind": None, "quota": None},
+                "consumption": {"vcpuBand": None, "current": None, "windowPeak": None, "windowPeakAt": None, "unknownHosts": 0},
+                "grace": None}
+    return {"entitlement": "granted", "authenticity": "valid", "validity": "active", "metering": "regular", "reasons": [],
+            "license": {"licenseId": "lic_e2e", "organizationId": "org_e2e", "revision": 1, "plan": "business",
+                        "notBefore": "2026-11-01T00:00:00Z", "expiresAt": "2027-11-01T00:00:00Z", "capabilities": ["change-windows"],
+                        "capacity": {"mode": "limited", "nodeEquivalents": 10}},
+            "installation": {"slotId": state["slot"], "kind": "production", "quota": 8},
+            "consumption": {"vcpuBand": 32, "current": None, "windowPeak": None, "windowPeakAt": None, "unknownHosts": 0},
+            "grace": None}
+
+
 class Handler(BaseHTTPRequestHandler):
     server_version = "DokpodMock/1"
 
@@ -683,11 +703,13 @@ class Handler(BaseHTTPRequestHandler):
         if os.environ.get("DOKPOD_MOCK_VERBOSE"):
             super().log_message(fmt, *args)
 
-    def send_json(self, status: int, payload, content_type: str = "application/json") -> None:
+    def send_json(self, status: int, payload, content_type: str = "application/json", headers: dict | None = None) -> None:
         body = b"" if payload is None else json.dumps(payload).encode()
         self.send_response(status)
         self.send_header("Content-Type", content_type)
         self.send_header("Cache-Control", "no-store")
+        for name, value in (headers or {}).items():
+            self.send_header(name, value)
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
@@ -713,6 +735,29 @@ class Handler(BaseHTTPRequestHandler):
     def do_DELETE(self) -> None:
         self.route("DELETE")
 
+    def licensing(self, method: str, path: str, q) -> None:
+        """Spec 031 (T029): licenciamento da edição Business. A assinatura é verificada pela API real (T021); aqui só
+        o arquivo de referência é aceito, e qualquer outro conteúdo é recusado como license_invalid."""
+        if STATE["scenario"] != "business":
+            return self.send_json(404, problem(404, "Não encontrado"), "application/problem+json")
+        state = STATE.setdefault("licensing", {"version": 0, "license": None, "slot": None})
+        if path == "/api/v1/licensing/status" and method == "GET":
+            return self.send_json(200, licensing_status(state), headers={"ETag": f'"{state["version"]}"'})
+        if path == "/api/v1/licensing/license" and method == "PUT":
+            length = int(self.headers.get("Content-Length") or 0)
+            body = self.rfile.read(length).decode("ascii", errors="replace") if length else ""
+            if self.headers.get("X-Dokpod-Antiforgery") != "mock-antiforgery":
+                return self.send_json(400, problem(400, "Token antiforgery ausente ou inválido"), "application/problem+json")
+            if self.headers.get("If-Match") != f'"{state["version"]}"':
+                return self.send_json(412, {**problem(412, "Estado da licença mudou"), "code": "license_revision_conflict"}, "application/problem+json")
+            if body.strip() != MOCK_VALID_LICENSE:
+                STATE.setdefault("submitted", []).append(("license_import", q("slotId"), "rejected"))
+                return self.send_json(422, {**problem(422, "Arquivo de licença recusado"), "code": "license_invalid"}, "application/problem+json")
+            state.update(version=state["version"] + 1, license=True, slot=q("slotId"))
+            STATE.setdefault("submitted", []).append(("license_import", q("slotId"), "accepted"))
+            return self.send_json(200, licensing_status(state), headers={"ETag": f'"{state["version"]}"'})
+        return self.send_json(404, problem(404, "Não encontrado"), "application/problem+json")
+
     def route(self, method: str) -> None:
         url = urlparse(self.path)
         path = url.path
@@ -732,6 +777,7 @@ class Handler(BaseHTTPRequestHandler):
             STATE["removed_networks"] = set()
             STATE["registry_policies"] = {}
             STATE["pod_status"] = {}
+            STATE["licensing"] = {"version": 0, "license": None, "slot": None}
             ALERTS.clear()
             ALERTS.update(seed_alerts())
             AUDIT[:] = seed_audit()
@@ -749,6 +795,8 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_json(200, {"version": "0.1.0"})
         if path == "/bff/antiforgery":
             return self.send_json(200, {"requestToken": "mock-antiforgery"})
+        if path.startswith("/api/v1/licensing/"):
+            return self.licensing(method, path, q)
         if path == "/bff/logout" and method == "POST":
             # Como o BFF real: POST de formulário com o token antiforgery no campo padrão do ASP.NET Core e
             # redirecionamento de página (o encerramento no Keycloak volta ao console). Sem o token, 400.

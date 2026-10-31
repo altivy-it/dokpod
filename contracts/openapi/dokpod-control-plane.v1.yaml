@@ -5237,7 +5237,7 @@ components:
       enum: [authorization_denied, license_invalid, license_obsolete, license_expired, license_capacity_exceeded, license_revoked, license_state_indeterminate, license_revision_conflict, license_slot_unknown, license_slot_disabled, payload_too_large, rate_limited]
     LicensingStatus:
       type: object
-      required: [entitlement, authenticity, validity, metering]
+      required: [entitlement, authenticity, validity, metering, reasons, license, installation, consumption, grace]
       properties:
         entitlement:
           type: string
@@ -5246,8 +5246,9 @@ components:
           type: string
           enum: [absent, valid, invalid, revoked]
         validity:
-          type: string
-          enum: [not_started, active, expired_in_grace, expired]
+          type: [string, 'null']
+          description: null sem licença importada ou com licença que não passa na reverificação.
+          enum: [not_started, active, expired_in_grace, expired, null]
         metering:
           type: string
           enum: [regular, excess_in_grace, excess, unknown]
@@ -5269,6 +5270,7 @@ components:
             - type: 'null'
     LicensingLicenseSummary:
       type: object
+      required: [licenseId, organizationId, revision, plan, notBefore, expiresAt, capabilities, capacity]
       properties:
         licenseId:
           type: string
@@ -5293,8 +5295,19 @@ components:
           maxItems: 64
           items:
             type: string
+        capacity:
+          type: object
+          required: [mode]
+          properties:
+            mode:
+              type: string
+              enum: [limited, unlimited]
+            nodeEquivalents:
+              type: [integer, 'null']
+              description: null quando ilimitada; nunca zero nem negativa.
     LicensingInstallation:
       type: object
+      required: [slotId, kind, quota]
       properties:
         slotId:
           type: [string, 'null']
@@ -5306,6 +5319,7 @@ components:
           description: null quando ilimitado.
     LicensingConsumption:
       type: object
+      required: [vcpuBand, current, windowPeak, windowPeakAt, unknownHosts]
       properties:
         vcpuBand:
           type: [integer, 'null']

@@ -12,14 +12,21 @@ public static class LicensingModule
     public static IServiceCollection AddDokpodBusinessLicensing(this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
+        services.AddSingleton(_ => EmbeddedTrustStore.Load());
+        services.AddSingleton<LicenseStateEvaluator>();
+        services.AddSingleton<LicensingUploadRateLimiter>();
         services.AddScoped<ILicensingAuditWriter, LicensingAuditWriter>();
+        services.AddScoped<LicenseStore>();
+        services.AddScoped<ILicenseStore>(provider => provider.GetRequiredService<LicenseStore>());
+        services.AddScoped<ILicenseStateReader>(provider => provider.GetRequiredService<LicenseStore>());
+        services.AddScoped<LicenseImportService>();
+        services.AddScoped<LicenseStatusService>();
         return services;
     }
 
-    /// <summary>As rotas de <c>/api/v1/licensing</c> entram com as histórias US2 a US6.</summary>
     public static IEndpointRouteBuilder MapLicensingEndpoints(this IEndpointRouteBuilder endpoints)
     {
-        ArgumentNullException.ThrowIfNull(endpoints);
+        LicensingEndpoints.Map(endpoints);
         return endpoints;
     }
 }
