@@ -23,7 +23,8 @@ public sealed class AgentHostActivity(
     EngineSupportOptions engineSupport,
     TimeProvider timeProvider,
     ILogger<AgentHostActivity> logger,
-    ControlPlaneMetrics? metrics = null)
+    ControlPlaneMetrics? metrics = null,
+    Dokpod.ControlPlane.Application.Licensing.IAgentCapacityObserver? capacityObserver = null)
 {
     public const int MaxEventsPerBatch = 100;
 
@@ -121,7 +122,29 @@ public sealed class AgentHostActivity(
         {
             pendingSessionStart = RegisterAsync;
         }
+
+        // Spec 031 T037: só a composição Business registra o observador; falha aqui nunca derruba a sessão.
+        if (capacityObserver is not null)
+        {
+            await Guard(
+                () => capacityObserver.OnAgentHelloAsync(
+                    session.EnvironmentId,
+                    hello.HostName,
+                    descriptor.CpuCount,
+                    CapacitySourceOf(hello.CpuCountSource),
+                    now,
+                    cancellationToken),
+                "capacity_observation");
+        }
     }
+
+    /// <summary>Agente N-1 não envia a origem (UNSPECIFIED): a CPU vira medição desconhecida (FR-013, FR-017).</summary>
+    public static string CapacitySourceOf(CpuCountSource source) => source switch
+    {
+        CpuCountSource.Engine => Dokpod.ControlPlane.Application.Licensing.CapacitySource.Engine,
+        CpuCountSource.ProcessFallback => Dokpod.ControlPlane.Application.Licensing.CapacitySource.ProcessFallback,
+        _ => Dokpod.ControlPlane.Application.Licensing.CapacitySource.Unknown,
+    };
 
     public async Task OnHeartbeatAsync(Guid environmentId, ulong inventoryRevision, CancellationToken cancellationToken)
     {

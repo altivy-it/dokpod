@@ -79,7 +79,11 @@ public sealed class AgentHostActivityTests
         Assert.Equal(0, Interlocked.Read(ref connected));
     }
 
-    private static AgentHostActivity Create(FlakyHostStore store, RecordingEventStore events, ControlPlaneMetrics? metrics = null)
+    internal static AgentHostActivity Create(
+        FlakyHostStore store,
+        RecordingEventStore events,
+        ControlPlaneMetrics? metrics = null,
+        Dokpod.ControlPlane.Application.Licensing.IAgentCapacityObserver? capacityObserver = null)
     {
         var notifier = new NullControlPlaneNotifier();
         return new AgentHostActivity(
@@ -91,10 +95,11 @@ public sealed class AgentHostActivityTests
             new EngineSupportOptions(),
             TimeProvider.System,
             NullLogger<AgentHostActivity>.Instance,
-            metrics);
+            metrics,
+            capacityObserver);
     }
 
-    private static AgentHello Hello() => new()
+    internal static AgentHello Hello() => new()
     {
         Engine = EngineKind.Docker,
         EngineVersion = "28.0.0",
@@ -102,7 +107,7 @@ public sealed class AgentHostActivityTests
         AgentVersion = "1.0.0",
     };
 
-    private sealed class FlakyHostStore(int failuresLeft) : IAgentHostStore
+    internal sealed class FlakyHostStore(int failuresLeft) : IAgentHostStore
     {
         public bool? Connected { get; private set; }
         public int DescriptorWrites { get; private set; }
@@ -132,7 +137,7 @@ public sealed class AgentHostActivityTests
         public Task<IReadOnlyList<Guid>> ListConnectedAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
     }
 
-    private sealed class RecordingEventStore : IOperationalEventStore
+    internal sealed class RecordingEventStore : IOperationalEventStore
     {
         public List<OperationalEvent> Events { get; } = [];
 

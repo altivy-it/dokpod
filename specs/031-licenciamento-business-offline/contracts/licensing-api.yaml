@@ -101,6 +101,9 @@ paths:
         '403': { $ref: '#/components/responses/Problem' }
         '422': { description: Pacote inválido ou sequência não crescente, $ref: '#/components/responses/Problem' }
         '429': { description: Limite de importações por minuto (rate_limited), $ref: '#/components/responses/Problem' }
+  # Hosts de licenciamento (T039): GET /api/v1/licensing/hosts (licensing:read); PUT e DELETE /api/v1/licensing/hosts/{hostId}
+  # e PUT e DELETE /api/v1/licensing/hosts/{hostId}/environments/{environmentId} (licensing:manage). Esquema normativo no
+  # contrato público (LicensingHost, LicensingHostList, LicensingHostRequest).
   /api/v1/licensing/trusted-instant:
     post:
       operationId: resetTrustedInstant

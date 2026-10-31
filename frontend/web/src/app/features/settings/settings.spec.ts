@@ -112,7 +112,7 @@ describe('settings page', () => {
         provideHttpClient(),
         { provide: SettingsApiService, useValue: api },
         { provide: JustificationPolicyService, useValue: { set } },
-        { provide: LicensingApiService, useValue: { status: vi.fn().mockResolvedValue({ status: licensingStatus, etag: '"1"' }), importLicense: vi.fn() } },
+        { provide: LicensingApiService, useValue: { status: vi.fn().mockResolvedValue({ status: licensingStatus, etag: '"1"' }), importLicense: vi.fn(), hosts: vi.fn().mockResolvedValue([]) } },
       ],
     });
   });
