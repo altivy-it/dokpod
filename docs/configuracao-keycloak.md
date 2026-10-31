@@ -76,6 +76,15 @@ Scopes iniciais:
 | `volume:delete` | remover volume sem uso do host; nunca forçado (spec 018) |
 | `network:delete` | remover rede sem uso, local e fora do sistema; nunca desconecta containers (spec 019) |
 
+O licenciamento da edição Business (spec 031) usa um recurso único da instalação, `urn:dokpod:installation`, e não um recurso por ambiente:
+
+| Scope | Permissão |
+| --- | --- |
+| `licensing:read` | ver o estado da licença, o consumo e os prazos e exportar o relatório de apuração |
+| `licensing:manage` | importar licença e pacote de revogação, associar hosts e recuperar o estado `indeterminate` |
+
+O `configure-keycloak.ps1` cria os dois scopes e o recurso, de forma idempotente. A concessão é feita por permission do tipo `scope` no Authorization Services do `dokpod-api`, ligada a um grupo restrito (por exemplo `/dokpod/administrators`); o Dokpod não cria roles locais nem trata licença válida como permissão (FR-022). A imagem CE não expõe rotas que usem esses scopes.
+
 Os scopes são criados por `tools/scripts/configure-keycloak.ps1` no resource server `dokpod-api` e concedidos por ambiente com `tools/scripts/provision-environment-authorization.ps1 -Scope <scope>`. Scopes de operações privilegiadas (`container:create`, `container:exec`, `volume:delete`, `network:delete`) devem ser concedidos a grupos restritos e revisados periodicamente.
 
 Roles podem agrupar permissões para administração, operação e auditoria, mas a decisão final continua associada ao recurso e scope. O Dokpod não persiste cópia de role ou membership como autorização local.

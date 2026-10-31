@@ -4,6 +4,15 @@
     <RootNamespace>Dokpod.ControlPlane.Api</RootNamespace>
   </PropertyGroup>
 
+  <!-- Spec 031 D-009: edição fixada no build. Sem propriedade = CE; `-p:DokpodEdition=Business` compõe o licenciamento. -->
+  <PropertyGroup Condition="'$(DokpodEdition)' == 'Business'">
+    <DefineConstants>$(DefineConstants);DOKPOD_BUSINESS</DefineConstants>
+  </PropertyGroup>
+
+  <Target Name="ValidateDokpodEdition" BeforeTargets="BeforeBuild" Condition="'$(DokpodEdition)' != '' and '$(DokpodEdition)' != 'Business'">
+    <Error Text="DokpodEdition aceita somente 'Business'; omita a propriedade para compilar a CE." />
+  </Target>
+
   <ItemGroup>
     <PackageReference Include="Grpc.AspNetCore" />
     <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" />
