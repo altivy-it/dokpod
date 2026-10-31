@@ -75,14 +75,14 @@ description: "Tarefas da spec 031: licenciamento Business offline"
 
 ### Testes da História 1
 
-- [ ] T013 [P] [US1] Teste em `backend/tests/Dokpod.ControlPlane.Api.Tests/Licensing/CeCompositionTests.cs`: na composição CE, `GET /api/v1/licensing/status` responde `404`, nenhum serviço `ILicenseStateReader` ou `IBusinessCapabilityGate` está registrado e o startup não toca tabelas `licensing_*`
-- [ ] T014 [P] [US1] Teste E2E em `frontend/tests/e2e/test_licensing_ce.py`: na CE, Configurações não tem seção Licença nem chamada a `/api/v1/licensing/*`
-- [ ] T015 [US1] Script de captura de rede sem egress em `tools/scripts/test-licensing-no-egress.ps1` (D-012): sobe a stack de `deploy/e2e/docker-compose-dokpod.yaml` em rede interna (só PostgreSQL e Keycloak), captura DNS/TCP/UDP do container da API durante início, operação e reinício, e falha com qualquer destino externo; também procura canários de licença em logs, métricas e traces exportados
+- [x] T013 [P] [US1] Teste em `backend/tests/Dokpod.ControlPlane.Api.Tests/Licensing/CeCompositionTests.cs`: na composição CE, `GET /api/v1/licensing/status` responde `404`, nenhum serviço `ILicenseStateReader` ou `IBusinessCapabilityGate` está registrado e o startup não toca tabelas `licensing_*`
+- [x] T014 [P] [US1] Teste E2E em `frontend/tests/e2e/mock_ui/test_031_licensing_ce.py` (suíte com respostas simuladas pela borda nginx, que roda no CI sem credenciais; a suíte autenticada exige a plataforma de identidade externa): na CE, Configurações não tem seção Licença nem chamada a `/api/v1/licensing/*`; com a edição Business informada pela API, a seção aparece
+- [x] T015 [US1] Script de captura de rede sem egress em `tools/scripts/test-licensing-no-egress.ps1` (D-012): sobe a imagem da API numa rede de containers interna própria (só PostgreSQL e Keycloak; a stack de `deploy/e2e` depende de redes e secrets externos), com rota para vizinho fictício para que tentativas a IP externo virem pacote, captura DNS/TCP/UDP do container da API durante início, operação e reinício, e falha com qualquer destino externo; também procura canários de licença em logs, métricas e traces exportados
 
 ### Implementação da História 1
 
-- [ ] T016 [US1] Garantir no frontend que a seção Licença só existe quando o BFF informa a edição Business (campo `edition` lido de `frontend/web/src/app/features/settings/settings-api.service.ts`), sem chamada na CE
-- [ ] T017 [US1] Incluir T013, T014 e T015 no CI da CE em `.github/workflows/ci.yml`, rodando sobre a imagem CE
+- [x] T016 [US1] Garantir no frontend que a seção Licença só existe quando o BFF informa a edição Business (campo `controlPlane.edition` de `GET /api/v1/settings/installation`, novo no contrato, lido de `frontend/web/src/app/features/settings/settings-api.service.ts`), sem chamada na CE
+- [x] T017 [US1] Incluir T013, T014 e T015 no CI da CE em `.github/workflows/ci.yml`, rodando sobre a imagem CE
 
 **Checkpoint**: História 1 validável sozinha; vale para cada versão Business daqui em diante.
 

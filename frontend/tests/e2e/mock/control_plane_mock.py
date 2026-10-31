@@ -1501,7 +1501,9 @@ def _settings_routes(self, path: str) -> object:
             by_engine[key] = by_engine.get(key, 0) + 1
         keycloak_down = STATE["scenario"] == "keycloak-down"
         return self.send_json(200, {
-            "controlPlane": {"version": "0.1.0"}, "protocolVersion": "1",
+            # Spec 031: edição fixada no build da API; o cenário "business" simula a imagem Business.
+            "controlPlane": {"version": "0.1.0", "edition": "business" if STATE["scenario"] == "business" else "community"},
+            "protocolVersion": "1",
             "database": {"configured": True, "lastMigration": "202610160001_PodInventory", "pendingMigrations": 0},
             "dependencies": [
                 {"name": "controlplane-api", "status": "healthy", "description": None, "durationMs": 0},
