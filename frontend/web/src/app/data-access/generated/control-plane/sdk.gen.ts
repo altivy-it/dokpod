@@ -2,7 +2,7 @@
 
 import type { Client, ClientMeta, Options as Options2, RequestResult, TDataShape } from './client';
 import { client } from './client.gen';
-import type { AcknowledgeAlertData, AcknowledgeAlertErrors, AcknowledgeAlertResponses, CreateAlertRuleData, CreateAlertRuleErrors, CreateAlertRuleResponses, CreateAlertSilenceData, CreateAlertSilenceErrors, CreateAlertSilenceResponses, CreateContainerData, CreateContainerErrors, CreateContainerResponses, DeleteAlertRuleData, DeleteAlertRuleErrors, DeleteAlertRuleResponses, EndAlertSilenceData, EndAlertSilenceErrors, EndAlertSilenceResponses, ExportAuditEventsData, ExportAuditEventsErrors, ExportAuditEventsResponses, GetAlertData, GetAlertErrors, GetAlertResponses, GetAlertSummaryData, GetAlertSummaryErrors, GetAlertSummaryResponses, GetAuditEventData, GetAuditEventErrors, GetAuditEventResponses, GetAuditSummaryData, GetAuditSummaryErrors, GetAuditSummaryResponses, GetContainerCommandData, GetContainerCommandErrors, GetContainerCommandResponses, GetContainerCreateOptionsData, GetContainerCreateOptionsErrors, GetContainerCreateOptionsResponses, GetContainerData, GetContainerErrors, GetContainerLogsData, GetContainerLogsErrors, GetContainerLogsResponses, GetContainerMetricsData, GetContainerMetricsErrors, GetContainerMetricsResponses, GetContainerResponses, GetContainerSummaryData, GetContainerSummaryErrors, GetContainerSummaryResponses, GetEnvironmentData, GetEnvironmentErrors, GetEnvironmentResponses, GetNetworkData, GetNetworkErrors, GetNetworkResponses, GetOverviewData, GetOverviewErrors, GetOverviewResponses, GetPodData, GetPodErrors, GetPodResponses, GetRegistryData, GetRegistryErrors, GetRegistryPolicyImpactData, GetRegistryPolicyImpactErrors, GetRegistryPolicyImpactResponses, GetRegistryResponses, GetSettingsAccessData, GetSettingsAccessErrors, GetSettingsAccessResponses, GetSettingsInstallationData, GetSettingsInstallationErrors, GetSettingsInstallationResponses, GetStageMetricsData, GetStageMetricsErrors, GetStageMetricsResponses, GetTerminalPolicyData, GetTerminalPolicyErrors, GetTerminalPolicyResponses, GetVolumeData, GetVolumeErrors, GetVolumeResponses, GetVolumeUsageData, GetVolumeUsageErrors, GetVolumeUsageResponses, InspectContainerData, InspectContainerErrors, InspectContainerResponses, ListActionJustificationPoliciesData, ListActionJustificationPoliciesErrors, ListActionJustificationPoliciesResponses, ListAlertRulesData, ListAlertRulesErrors, ListAlertRulesResponses, ListAlertsData, ListAlertsErrors, ListAlertSilencesData, ListAlertSilencesErrors, ListAlertSilencesResponses, ListAlertsResponses, ListAuditEventsData, ListAuditEventsErrors, ListAuditEventsResponses, ListContainerJustificationsData, ListContainerJustificationsErrors, ListContainerJustificationsResponses, ListContainersData, ListContainersErrors, ListContainersResponses, ListEnvironmentContainersData, ListEnvironmentContainersErrors, ListEnvironmentContainersResponses, ListEnvironmentJustificationsData, ListEnvironmentJustificationsErrors, ListEnvironmentJustificationsResponses, ListEnvironmentsData, ListEnvironmentsErrors, ListEnvironmentsResponses, ListEventsData, ListEventsErrors, ListEventsResponses, ListHostMetricsData, ListHostMetricsErrors, ListHostMetricsResponses, ListImagesData, ListImagesErrors, ListImagesResponses, ListNetworksData, ListNetworksErrors, ListNetworksResponses, ListPodsData, ListPodsErrors, ListPodsResponses, ListRegistriesData, ListRegistriesErrors, ListRegistriesResponses, ListRegistryPoliciesData, ListRegistryPoliciesErrors, ListRegistryPoliciesResponses, ListSettingsParametersData, ListSettingsParametersErrors, ListSettingsParametersResponses, ListVolumesData, ListVolumesErrors, ListVolumesResponses, LookupImageData, LookupImageErrors, LookupImageResponses, PullImageData, PullImageErrors, PullImageResponses, RegisterEnvironmentData, RegisterEnvironmentErrors, RegisterEnvironmentResponses, RemoveNetworkData, RemoveNetworkErrors, RemoveNetworkResponses, RemoveVolumeData, RemoveVolumeErrors, RemoveVolumeResponses, RenewTerminalSessionData, RenewTerminalSessionErrors, RenewTerminalSessionResponses, ResolveAlertData, ResolveAlertErrors, ResolveAlertResponses, RevokeAgentIdentityData, RevokeAgentIdentityErrors, RevokeAgentIdentityResponses, SetActionJustificationPolicyData, SetActionJustificationPolicyErrors, SetActionJustificationPolicyResponses, SetEnvironmentStageData, SetEnvironmentStageErrors, SetEnvironmentStageResponses, SetRegistryPolicyData, SetRegistryPolicyErrors, SetRegistryPolicyResponses, SilenceAlertData, SilenceAlertErrors, SilenceAlertResponses, SubmitContainerCommandData, SubmitContainerCommandErrors, SubmitContainerCommandResponses, SubmitPodActionData, SubmitPodActionErrors, SubmitPodActionResponses, UpdateAlertRuleData, UpdateAlertRuleErrors, UpdateAlertRuleResponses } from './types.gen';
+import type { AcknowledgeAlertData, AcknowledgeAlertErrors, AcknowledgeAlertResponses, CreateAlertRuleData, CreateAlertRuleErrors, CreateAlertRuleResponses, CreateAlertSilenceData, CreateAlertSilenceErrors, CreateAlertSilenceResponses, CreateContainerData, CreateContainerErrors, CreateContainerResponses, DeleteAlertRuleData, DeleteAlertRuleErrors, DeleteAlertRuleResponses, EndAlertSilenceData, EndAlertSilenceErrors, EndAlertSilenceResponses, ExportAuditEventsData, ExportAuditEventsErrors, ExportAuditEventsResponses, ExportLicensingReportData, ExportLicensingReportErrors, ExportLicensingReportResponses, GetAlertData, GetAlertErrors, GetAlertResponses, GetAlertSummaryData, GetAlertSummaryErrors, GetAlertSummaryResponses, GetAuditEventData, GetAuditEventErrors, GetAuditEventResponses, GetAuditSummaryData, GetAuditSummaryErrors, GetAuditSummaryResponses, GetContainerCommandData, GetContainerCommandErrors, GetContainerCommandResponses, GetContainerCreateOptionsData, GetContainerCreateOptionsErrors, GetContainerCreateOptionsResponses, GetContainerData, GetContainerErrors, GetContainerLogsData, GetContainerLogsErrors, GetContainerLogsResponses, GetContainerMetricsData, GetContainerMetricsErrors, GetContainerMetricsResponses, GetContainerResponses, GetContainerSummaryData, GetContainerSummaryErrors, GetContainerSummaryResponses, GetEnvironmentData, GetEnvironmentErrors, GetEnvironmentResponses, GetLicensingStatusData, GetLicensingStatusErrors, GetLicensingStatusResponses, GetNetworkData, GetNetworkErrors, GetNetworkResponses, GetOverviewData, GetOverviewErrors, GetOverviewResponses, GetPodData, GetPodErrors, GetPodResponses, GetRegistryData, GetRegistryErrors, GetRegistryPolicyImpactData, GetRegistryPolicyImpactErrors, GetRegistryPolicyImpactResponses, GetRegistryResponses, GetSettingsAccessData, GetSettingsAccessErrors, GetSettingsAccessResponses, GetSettingsInstallationData, GetSettingsInstallationErrors, GetSettingsInstallationResponses, GetStageMetricsData, GetStageMetricsErrors, GetStageMetricsResponses, GetTerminalPolicyData, GetTerminalPolicyErrors, GetTerminalPolicyResponses, GetVolumeData, GetVolumeErrors, GetVolumeResponses, GetVolumeUsageData, GetVolumeUsageErrors, GetVolumeUsageResponses, ImportLicenseData, ImportLicenseErrors, ImportLicenseResponses, ImportRevocationData, ImportRevocationErrors, ImportRevocationResponses, InspectContainerData, InspectContainerErrors, InspectContainerResponses, ListActionJustificationPoliciesData, ListActionJustificationPoliciesErrors, ListActionJustificationPoliciesResponses, ListAlertRulesData, ListAlertRulesErrors, ListAlertRulesResponses, ListAlertsData, ListAlertsErrors, ListAlertSilencesData, ListAlertSilencesErrors, ListAlertSilencesResponses, ListAlertsResponses, ListAuditEventsData, ListAuditEventsErrors, ListAuditEventsResponses, ListContainerJustificationsData, ListContainerJustificationsErrors, ListContainerJustificationsResponses, ListContainersData, ListContainersErrors, ListContainersResponses, ListEnvironmentContainersData, ListEnvironmentContainersErrors, ListEnvironmentContainersResponses, ListEnvironmentJustificationsData, ListEnvironmentJustificationsErrors, ListEnvironmentJustificationsResponses, ListEnvironmentsData, ListEnvironmentsErrors, ListEnvironmentsResponses, ListEventsData, ListEventsErrors, ListEventsResponses, ListHostMetricsData, ListHostMetricsErrors, ListHostMetricsResponses, ListImagesData, ListImagesErrors, ListImagesResponses, ListNetworksData, ListNetworksErrors, ListNetworksResponses, ListPodsData, ListPodsErrors, ListPodsResponses, ListRegistriesData, ListRegistriesErrors, ListRegistriesResponses, ListRegistryPoliciesData, ListRegistryPoliciesErrors, ListRegistryPoliciesResponses, ListSettingsParametersData, ListSettingsParametersErrors, ListSettingsParametersResponses, ListVolumesData, ListVolumesErrors, ListVolumesResponses, LookupImageData, LookupImageErrors, LookupImageResponses, PullImageData, PullImageErrors, PullImageResponses, RegisterEnvironmentData, RegisterEnvironmentErrors, RegisterEnvironmentResponses, RemoveNetworkData, RemoveNetworkErrors, RemoveNetworkResponses, RemoveVolumeData, RemoveVolumeErrors, RemoveVolumeResponses, RenewTerminalSessionData, RenewTerminalSessionErrors, RenewTerminalSessionResponses, ResetTrustedInstantData, ResetTrustedInstantErrors, ResetTrustedInstantResponses, ResolveAlertData, ResolveAlertErrors, ResolveAlertResponses, RevokeAgentIdentityData, RevokeAgentIdentityErrors, RevokeAgentIdentityResponses, SetActionJustificationPolicyData, SetActionJustificationPolicyErrors, SetActionJustificationPolicyResponses, SetEnvironmentStageData, SetEnvironmentStageErrors, SetEnvironmentStageResponses, SetRegistryPolicyData, SetRegistryPolicyErrors, SetRegistryPolicyResponses, SilenceAlertData, SilenceAlertErrors, SilenceAlertResponses, SubmitContainerCommandData, SubmitContainerCommandErrors, SubmitContainerCommandResponses, SubmitPodActionData, SubmitPodActionErrors, SubmitPodActionResponses, UpdateAlertRuleData, UpdateAlertRuleErrors, UpdateAlertRuleResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -653,6 +653,71 @@ export const getPod = <ThrowOnError extends boolean = false>(options: Options<Ge
 export const submitPodAction = <ThrowOnError extends boolean = false>(options: Options<SubmitPodActionData, ThrowOnError>): RequestResult<SubmitPodActionResponses, SubmitPodActionErrors, ThrowOnError> => (options.client ?? client).post<SubmitPodActionResponses, SubmitPodActionErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
     url: '/api/v1/environments/{environmentId}/pods/{podId}/actions',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Estado da licença, consumo e prazos (licensing:read)
+ *
+ * Spec 031. Existe só na composição Business; na CE a rota não é registrada e responde 404.
+ */
+export const getLicensingStatus = <ThrowOnError extends boolean = false>(options?: Options<GetLicensingStatusData, ThrowOnError>): RequestResult<GetLicensingStatusResponses, GetLicensingStatusErrors, ThrowOnError> => (options?.client ?? client).get<GetLicensingStatusResponses, GetLicensingStatusErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/licensing/status',
+    ...options
+});
+
+/**
+ * Relatório de apuração para exportação local (licensing:read); o produto nunca o envia ao fornecedor
+ *
+ * Spec 031 (FR-033 a FR-035; formato em specs/031-licenciamento-business-offline/contracts/report-format.md). Grava license.report_exported com o challenge antes de montar o documento e funciona sem licença importada.
+ */
+export const exportLicensingReport = <ThrowOnError extends boolean = false>(options: Options<ExportLicensingReportData, ThrowOnError>): RequestResult<ExportLicensingReportResponses, ExportLicensingReportErrors, ThrowOnError> => (options.client ?? client).get<ExportLicensingReportResponses, ExportLicensingReportErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/licensing/report',
+    ...options
+});
+
+/**
+ * Importa ou renova a licença (licensing:manage)
+ *
+ * Spec 031. Ordem autenticar, autorizar no Keycloak, avaliar e persistir (FR-022). Reimportação idêntica não tem efeito.
+ */
+export const importLicense = <ThrowOnError extends boolean = false>(options: Options<ImportLicenseData, ThrowOnError>): RequestResult<ImportLicenseResponses, ImportLicenseErrors, ThrowOnError> => (options.client ?? client).put<ImportLicenseResponses, ImportLicenseErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/licensing/license',
+    ...options,
+    headers: {
+        'Content-Type': 'application/jose',
+        ...options.headers
+    }
+});
+
+/**
+ * Importa pacote de revogação assinado (licensing:manage)
+ */
+export const importRevocation = <ThrowOnError extends boolean = false>(options: Options<ImportRevocationData, ThrowOnError>): RequestResult<ImportRevocationResponses, ImportRevocationErrors, ThrowOnError> => (options.client ?? client).post<ImportRevocationResponses, ImportRevocationErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/licensing/revocations',
+    ...options,
+    headers: {
+        'Content-Type': 'application/jose',
+        ...options.headers
+    }
+});
+
+/**
+ * Sai de indeterminate regravando o instante confiável com o relógio atual (licensing:manage)
+ *
+ * Spec 031 (D-006). Nunca concede tolerância nova; grava license.trusted_instant_reset na cadeia.
+ */
+export const resetTrustedInstant = <ThrowOnError extends boolean = false>(options: Options<ResetTrustedInstantData, ThrowOnError>): RequestResult<ResetTrustedInstantResponses, ResetTrustedInstantErrors, ThrowOnError> => (options.client ?? client).post<ResetTrustedInstantResponses, ResetTrustedInstantErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/licensing/trusted-instant',
     ...options,
     headers: {
         'Content-Type': 'application/json',

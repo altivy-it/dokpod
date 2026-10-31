@@ -2,7 +2,10 @@ openapi: 3.1.0
 info:
   title: Dokpod Control Plane API
   version: 1.0.0
-  description: Contrato público inicial do cadastro de ambientes do Dokpod.
+  description: >-
+    Contrato público inicial do cadastro de ambientes do Dokpod.
+    Operações marcadas com a extensão x-dokpod-edition: business existem só na composição Business
+    (spec 031, D-009); na Community Edition a rota não é registrada e responde 404.
 servers:
   - url: https://localhost:7443
 paths:
@@ -2718,6 +2721,193 @@ paths:
                 $ref: '#/components/schemas/ProblemDetails'
         '503':
           $ref: '#/components/responses/DependencyUnavailable'
+  /api/v1/licensing/status:
+    get:
+      operationId: getLicensingStatus
+      summary: Estado da licença, consumo e prazos (licensing:read)
+      description: Spec 031. Existe só na composição Business; na CE a rota não é registrada e responde 404.
+      x-dokpod-edition: business
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CorrelationId'
+      responses:
+        '200':
+          description: Estado atual.
+          headers:
+            ETag:
+              description: Versão do estado, para If-Match nas operações de gestão.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LicensingStatus'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '403':
+          $ref: '#/components/responses/LicensingDenied'
+        '503':
+          $ref: '#/components/responses/DependencyUnavailable'
+  /api/v1/licensing/report:
+    get:
+      operationId: exportLicensingReport
+      summary: Relatório de apuração para exportação local (licensing:read); o produto nunca o envia ao fornecedor
+      description: >-
+        Spec 031 (FR-033 a FR-035; formato em specs/031-licenciamento-business-offline/contracts/report-format.md).
+        Grava license.report_exported com o challenge antes de montar o documento e funciona sem licença importada.
+      x-dokpod-edition: business
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: challenge
+          in: query
+          required: true
+          schema:
+            type: string
+            pattern: '^[A-Za-z0-9_-]{8,64}$'
+        - $ref: '#/components/parameters/CorrelationId'
+      responses:
+        '200':
+          description: Cadeia de licenciamento completa e resumo de consumo, pico, faixa, hosts com origem da CPU e prazos.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LicensingReport'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '403':
+          $ref: '#/components/responses/LicensingDenied'
+        '503':
+          $ref: '#/components/responses/DependencyUnavailable'
+  /api/v1/licensing/license:
+    put:
+      operationId: importLicense
+      summary: Importa ou renova a licença (licensing:manage)
+      description: Spec 031. Ordem autenticar, autorizar no Keycloak, avaliar e persistir (FR-022). Reimportação idêntica não tem efeito.
+      x-dokpod-edition: business
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: If-Match
+          in: header
+          required: true
+          schema:
+            type: string
+        - name: slotId
+          in: query
+          required: true
+          schema:
+            type: string
+            maxLength: 64
+        - $ref: '#/components/parameters/CorrelationId'
+      requestBody:
+        required: true
+        content:
+          application/jose:
+            schema:
+              type: string
+              maxLength: 65536
+      responses:
+        '200':
+          description: Licença aceita, ou reimportação idêntica sem efeito; estado atualizado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LicensingStatus'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '403':
+          $ref: '#/components/responses/LicensingDenied'
+        '412':
+          $ref: '#/components/responses/LicensingProblem'
+        '413':
+          $ref: '#/components/responses/LicensingProblem'
+        '422':
+          $ref: '#/components/responses/LicensingProblem'
+        '429':
+          $ref: '#/components/responses/LicensingProblem'
+        '503':
+          $ref: '#/components/responses/DependencyUnavailable'
+  /api/v1/licensing/revocations:
+    post:
+      operationId: importRevocation
+      summary: Importa pacote de revogação assinado (licensing:manage)
+      x-dokpod-edition: business
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CorrelationId'
+      requestBody:
+        required: true
+        content:
+          application/jose:
+            schema:
+              type: string
+              maxLength: 65536
+      responses:
+        '200':
+          description: Pacote aceito.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LicensingStatus'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '403':
+          $ref: '#/components/responses/LicensingDenied'
+        '413':
+          $ref: '#/components/responses/LicensingProblem'
+        '422':
+          $ref: '#/components/responses/LicensingProblem'
+        '429':
+          $ref: '#/components/responses/LicensingProblem'
+        '503':
+          $ref: '#/components/responses/DependencyUnavailable'
+  /api/v1/licensing/trusted-instant:
+    post:
+      operationId: resetTrustedInstant
+      summary: Sai de indeterminate regravando o instante confiável com o relógio atual (licensing:manage)
+      description: Spec 031 (D-006). Nunca concede tolerância nova; grava license.trusted_instant_reset na cadeia.
+      x-dokpod-edition: business
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: If-Match
+          in: header
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/CorrelationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TrustedInstantResetRequest'
+      responses:
+        '200':
+          description: Instante regravado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LicensingStatus'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '403':
+          $ref: '#/components/responses/LicensingDenied'
+        '409':
+          $ref: '#/components/responses/LicensingProblem'
+        '412':
+          $ref: '#/components/responses/LicensingProblem'
+        '503':
+          $ref: '#/components/responses/DependencyUnavailable'
 components:
   securitySchemes:
     bearerAuth:
@@ -5037,6 +5227,194 @@ components:
           type: string
         code:
           type: string
+    LicensingProblemCode:
+      type: string
+      description: Valor de ProblemDetails.code nas respostas de licenciamento (spec 031).
+      enum: [authorization_denied, license_invalid, license_obsolete, license_expired, license_capacity_exceeded, license_revoked, license_state_indeterminate, license_revision_conflict, license_slot_unknown, license_slot_disabled, payload_too_large, rate_limited]
+    LicensingStatus:
+      type: object
+      required: [entitlement, authenticity, validity, metering]
+      properties:
+        entitlement:
+          type: string
+          enum: [ce_only, granted, granted_in_grace, restricted, indeterminate]
+        authenticity:
+          type: string
+          enum: [absent, valid, invalid, revoked]
+        validity:
+          type: string
+          enum: [not_started, active, expired_in_grace, expired]
+        metering:
+          type: string
+          enum: [regular, excess_in_grace, excess, unknown]
+        reasons:
+          type: array
+          items:
+            type: string
+        license:
+          oneOf:
+            - $ref: '#/components/schemas/LicensingLicenseSummary'
+            - type: 'null'
+        installation:
+          $ref: '#/components/schemas/LicensingInstallation'
+        consumption:
+          $ref: '#/components/schemas/LicensingConsumption'
+        grace:
+          oneOf:
+            - $ref: '#/components/schemas/LicensingGrace'
+            - type: 'null'
+    LicensingLicenseSummary:
+      type: object
+      properties:
+        licenseId:
+          type: string
+          pattern: '^[A-Za-z0-9_-]{1,128}$'
+        organizationId:
+          type: string
+          pattern: '^[A-Za-z0-9_-]{1,128}$'
+        revision:
+          type: integer
+          minimum: 1
+        plan:
+          type: string
+          maxLength: 64
+        notBefore:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+        capabilities:
+          type: array
+          maxItems: 64
+          items:
+            type: string
+    LicensingInstallation:
+      type: object
+      properties:
+        slotId:
+          type: [string, 'null']
+        kind:
+          type: [string, 'null']
+          enum: [production, staging, null]
+        quota:
+          type: [integer, 'null']
+          description: null quando ilimitado.
+    LicensingConsumption:
+      type: object
+      properties:
+        vcpuBand:
+          type: [integer, 'null']
+        current:
+          type: [integer, 'null']
+        windowPeak:
+          type: [integer, 'null']
+        windowPeakAt:
+          type: [string, 'null']
+          format: date-time
+        unknownHosts:
+          type: integer
+          minimum: 0
+    LicensingGrace:
+      type: object
+      required: [cause, startedAt, until]
+      properties:
+        cause:
+          type: string
+          enum: [expiry, excess]
+        startedAt:
+          type: string
+          format: date-time
+        until:
+          type: string
+          format: date-time
+    LicensingReport:
+      type: object
+      required: [reportVersion, installationId, generatedAt, challenge, status, hosts, chain, events]
+      properties:
+        reportVersion:
+          type: integer
+          enum: [1]
+        installationId:
+          type: string
+          format: uuid
+        slotId:
+          type: [string, 'null']
+        generatedAt:
+          type: string
+          format: date-time
+        challenge:
+          type: string
+        status:
+          $ref: '#/components/schemas/LicensingStatus'
+        hosts:
+          type: array
+          items:
+            $ref: '#/components/schemas/LicensingReportHost'
+        chain:
+          type: object
+          required: [headSeq, headHash]
+          properties:
+            headSeq:
+              type: integer
+              format: int64
+            headHash:
+              type: string
+        events:
+          type: array
+          items:
+            $ref: '#/components/schemas/LicensingChainEvent'
+    LicensingReportHost:
+      type: object
+      properties:
+        hostId:
+          type: string
+          format: uuid
+        label:
+          type: string
+        vcpus:
+          type: [integer, 'null']
+        source:
+          type: string
+          enum: [engine, process_fallback, unknown]
+        nodeEquivalents:
+          type: [integer, 'null']
+    LicensingChainEvent:
+      type: object
+      required: [chainSeq, eventId, occurredAt, actorRef, correlationId, action, details, prevHash, recordHash]
+      properties:
+        chainSeq:
+          type: integer
+          format: int64
+        eventId:
+          type: string
+          format: uuid
+        occurredAt:
+          type: string
+          format: date-time
+        actorRef:
+          type: [string, 'null']
+          description: HMAC-SHA256 do sujeito com chave da instalação; nunca o sujeito do Keycloak.
+        correlationId:
+          type: string
+          format: uuid
+        action:
+          type: string
+        details:
+          type: object
+        prevHash:
+          type: string
+        recordHash:
+          type: string
+    TrustedInstantResetRequest:
+      type: object
+      required: [reason]
+      additionalProperties: false
+      properties:
+        reason:
+          type: string
+          minLength: 10
+          maxLength: 500
   responses:
     InvalidRequest:
       description: Requisição inválida.
@@ -5070,6 +5448,18 @@ components:
             $ref: '#/components/schemas/ProblemDetails'
     DependencyUnavailable:
       description: Autorização ou persistência indisponível.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+    LicensingDenied:
+      description: Autorização negada pelo Keycloak (authorization_denied) ou recusa por licença (license_expired, license_capacity_exceeded, license_revoked, license_state_indeterminate); nunca encerra a sessão.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+    LicensingProblem:
+      description: Recusa tipada de licenciamento; ProblemDetails.code segue LicensingProblemCode. A licença íntegra anterior continua em vigor.
       content:
         application/problem+json:
           schema:

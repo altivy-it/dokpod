@@ -1063,6 +1063,100 @@ export type ProblemDetails = {
 };
 
 /**
+ * Valor de ProblemDetails.code nas respostas de licenciamento (spec 031).
+ */
+export type LicensingProblemCode = 'authorization_denied' | 'license_invalid' | 'license_obsolete' | 'license_expired' | 'license_capacity_exceeded' | 'license_revoked' | 'license_state_indeterminate' | 'license_revision_conflict' | 'license_slot_unknown' | 'license_slot_disabled' | 'payload_too_large' | 'rate_limited';
+
+export type LicensingStatus = {
+    entitlement: 'ce_only' | 'granted' | 'granted_in_grace' | 'restricted' | 'indeterminate';
+    authenticity: 'absent' | 'valid' | 'invalid' | 'revoked';
+    validity: 'not_started' | 'active' | 'expired_in_grace' | 'expired';
+    metering: 'regular' | 'excess_in_grace' | 'excess' | 'unknown';
+    reasons?: Array<string>;
+    license?: LicensingLicenseSummary | null;
+    installation?: LicensingInstallation;
+    consumption?: LicensingConsumption;
+    grace?: LicensingGrace | null;
+};
+
+export type LicensingLicenseSummary = {
+    licenseId?: string;
+    organizationId?: string;
+    revision?: number;
+    plan?: string;
+    notBefore?: string;
+    expiresAt?: string;
+    capabilities?: Array<string>;
+};
+
+export type LicensingInstallation = {
+    slotId?: string | null;
+    kind?: 'production' | 'staging' | null;
+    /**
+     * null quando ilimitado.
+     */
+    quota?: number | null;
+};
+
+export type LicensingConsumption = {
+    vcpuBand?: number | null;
+    current?: number | null;
+    windowPeak?: number | null;
+    windowPeakAt?: string | null;
+    unknownHosts?: number;
+};
+
+export type LicensingGrace = {
+    cause: 'expiry' | 'excess';
+    startedAt: string;
+    until: string;
+};
+
+export type LicensingReport = {
+    reportVersion: 1;
+    installationId: string;
+    slotId?: string | null;
+    generatedAt: string;
+    challenge: string;
+    status: LicensingStatus;
+    hosts: Array<LicensingReportHost>;
+    chain: {
+        headSeq: number;
+        headHash: string;
+    };
+    events: Array<LicensingChainEvent>;
+};
+
+export type LicensingReportHost = {
+    hostId?: string;
+    label?: string;
+    vcpus?: number | null;
+    source?: 'engine' | 'process_fallback' | 'unknown';
+    nodeEquivalents?: number | null;
+};
+
+export type LicensingChainEvent = {
+    chainSeq: number;
+    eventId: string;
+    occurredAt: string;
+    /**
+     * HMAC-SHA256 do sujeito com chave da instalação; nunca o sujeito do Keycloak.
+     */
+    actorRef: string | null;
+    correlationId: string;
+    action: string;
+    details: {
+        [key: string]: unknown;
+    };
+    prevHash: string;
+    recordHash: string;
+};
+
+export type TrustedInstantResetRequest = {
+    reason: string;
+};
+
+/**
  * Identificador técnico opcional para correlação server-side.
  */
 export type CorrelationId = string;
@@ -4142,3 +4236,252 @@ export type SubmitPodActionResponses = {
 };
 
 export type SubmitPodActionResponse = SubmitPodActionResponses[keyof SubmitPodActionResponses];
+
+export type GetLicensingStatusData = {
+    body?: never;
+    headers?: {
+        /**
+         * Identificador técnico opcional para correlação server-side.
+         */
+        'X-Correlation-Id'?: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/licensing/status';
+};
+
+export type GetLicensingStatusErrors = {
+    /**
+     * Autenticação ausente ou inválida.
+     */
+    401: ProblemDetails;
+    /**
+     * Autorização negada pelo Keycloak (authorization_denied) ou recusa por licença (license_expired, license_capacity_exceeded, license_revoked, license_state_indeterminate); nunca encerra a sessão.
+     */
+    403: ProblemDetails;
+    /**
+     * Autorização ou persistência indisponível.
+     */
+    503: ProblemDetails;
+};
+
+export type GetLicensingStatusError = GetLicensingStatusErrors[keyof GetLicensingStatusErrors];
+
+export type GetLicensingStatusResponses = {
+    /**
+     * Estado atual.
+     */
+    200: LicensingStatus;
+};
+
+export type GetLicensingStatusResponse = GetLicensingStatusResponses[keyof GetLicensingStatusResponses];
+
+export type ExportLicensingReportData = {
+    body?: never;
+    headers?: {
+        /**
+         * Identificador técnico opcional para correlação server-side.
+         */
+        'X-Correlation-Id'?: string;
+    };
+    path?: never;
+    query: {
+        challenge: string;
+    };
+    url: '/api/v1/licensing/report';
+};
+
+export type ExportLicensingReportErrors = {
+    /**
+     * Requisição inválida.
+     */
+    400: ProblemDetails;
+    /**
+     * Autenticação ausente ou inválida.
+     */
+    401: ProblemDetails;
+    /**
+     * Autorização negada pelo Keycloak (authorization_denied) ou recusa por licença (license_expired, license_capacity_exceeded, license_revoked, license_state_indeterminate); nunca encerra a sessão.
+     */
+    403: ProblemDetails;
+    /**
+     * Autorização ou persistência indisponível.
+     */
+    503: ProblemDetails;
+};
+
+export type ExportLicensingReportError = ExportLicensingReportErrors[keyof ExportLicensingReportErrors];
+
+export type ExportLicensingReportResponses = {
+    /**
+     * Cadeia de licenciamento completa e resumo de consumo, pico, faixa, hosts com origem da CPU e prazos.
+     */
+    200: LicensingReport;
+};
+
+export type ExportLicensingReportResponse = ExportLicensingReportResponses[keyof ExportLicensingReportResponses];
+
+export type ImportLicenseData = {
+    body: string;
+    headers: {
+        'If-Match': string;
+        /**
+         * Identificador técnico opcional para correlação server-side.
+         */
+        'X-Correlation-Id'?: string;
+    };
+    path?: never;
+    query: {
+        slotId: string;
+    };
+    url: '/api/v1/licensing/license';
+};
+
+export type ImportLicenseErrors = {
+    /**
+     * Requisição inválida.
+     */
+    400: ProblemDetails;
+    /**
+     * Autenticação ausente ou inválida.
+     */
+    401: ProblemDetails;
+    /**
+     * Autorização negada pelo Keycloak (authorization_denied) ou recusa por licença (license_expired, license_capacity_exceeded, license_revoked, license_state_indeterminate); nunca encerra a sessão.
+     */
+    403: ProblemDetails;
+    /**
+     * Recusa tipada de licenciamento; ProblemDetails.code segue LicensingProblemCode. A licença íntegra anterior continua em vigor.
+     */
+    412: ProblemDetails;
+    /**
+     * Recusa tipada de licenciamento; ProblemDetails.code segue LicensingProblemCode. A licença íntegra anterior continua em vigor.
+     */
+    413: ProblemDetails;
+    /**
+     * Recusa tipada de licenciamento; ProblemDetails.code segue LicensingProblemCode. A licença íntegra anterior continua em vigor.
+     */
+    422: ProblemDetails;
+    /**
+     * Recusa tipada de licenciamento; ProblemDetails.code segue LicensingProblemCode. A licença íntegra anterior continua em vigor.
+     */
+    429: ProblemDetails;
+    /**
+     * Autorização ou persistência indisponível.
+     */
+    503: ProblemDetails;
+};
+
+export type ImportLicenseError = ImportLicenseErrors[keyof ImportLicenseErrors];
+
+export type ImportLicenseResponses = {
+    /**
+     * Licença aceita, ou reimportação idêntica sem efeito; estado atualizado.
+     */
+    200: LicensingStatus;
+};
+
+export type ImportLicenseResponse = ImportLicenseResponses[keyof ImportLicenseResponses];
+
+export type ImportRevocationData = {
+    body: string;
+    headers?: {
+        /**
+         * Identificador técnico opcional para correlação server-side.
+         */
+        'X-Correlation-Id'?: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/licensing/revocations';
+};
+
+export type ImportRevocationErrors = {
+    /**
+     * Autenticação ausente ou inválida.
+     */
+    401: ProblemDetails;
+    /**
+     * Autorização negada pelo Keycloak (authorization_denied) ou recusa por licença (license_expired, license_capacity_exceeded, license_revoked, license_state_indeterminate); nunca encerra a sessão.
+     */
+    403: ProblemDetails;
+    /**
+     * Recusa tipada de licenciamento; ProblemDetails.code segue LicensingProblemCode. A licença íntegra anterior continua em vigor.
+     */
+    413: ProblemDetails;
+    /**
+     * Recusa tipada de licenciamento; ProblemDetails.code segue LicensingProblemCode. A licença íntegra anterior continua em vigor.
+     */
+    422: ProblemDetails;
+    /**
+     * Recusa tipada de licenciamento; ProblemDetails.code segue LicensingProblemCode. A licença íntegra anterior continua em vigor.
+     */
+    429: ProblemDetails;
+    /**
+     * Autorização ou persistência indisponível.
+     */
+    503: ProblemDetails;
+};
+
+export type ImportRevocationError = ImportRevocationErrors[keyof ImportRevocationErrors];
+
+export type ImportRevocationResponses = {
+    /**
+     * Pacote aceito.
+     */
+    200: LicensingStatus;
+};
+
+export type ImportRevocationResponse = ImportRevocationResponses[keyof ImportRevocationResponses];
+
+export type ResetTrustedInstantData = {
+    body: TrustedInstantResetRequest;
+    headers: {
+        'If-Match': string;
+        /**
+         * Identificador técnico opcional para correlação server-side.
+         */
+        'X-Correlation-Id'?: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/licensing/trusted-instant';
+};
+
+export type ResetTrustedInstantErrors = {
+    /**
+     * Requisição inválida.
+     */
+    400: ProblemDetails;
+    /**
+     * Autenticação ausente ou inválida.
+     */
+    401: ProblemDetails;
+    /**
+     * Autorização negada pelo Keycloak (authorization_denied) ou recusa por licença (license_expired, license_capacity_exceeded, license_revoked, license_state_indeterminate); nunca encerra a sessão.
+     */
+    403: ProblemDetails;
+    /**
+     * Recusa tipada de licenciamento; ProblemDetails.code segue LicensingProblemCode. A licença íntegra anterior continua em vigor.
+     */
+    409: ProblemDetails;
+    /**
+     * Recusa tipada de licenciamento; ProblemDetails.code segue LicensingProblemCode. A licença íntegra anterior continua em vigor.
+     */
+    412: ProblemDetails;
+    /**
+     * Autorização ou persistência indisponível.
+     */
+    503: ProblemDetails;
+};
+
+export type ResetTrustedInstantError = ResetTrustedInstantErrors[keyof ResetTrustedInstantErrors];
+
+export type ResetTrustedInstantResponses = {
+    /**
+     * Instante regravado.
+     */
+    200: LicensingStatus;
+};
+
+export type ResetTrustedInstantResponse = ResetTrustedInstantResponses[keyof ResetTrustedInstantResponses];

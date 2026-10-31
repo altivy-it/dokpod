@@ -1,4 +1,6 @@
-# Fragmento a incorporar em contracts/openapi/dokpod-control-plane.v1.yaml (só na composição Business).
+# Fragmento de desenho incorporado em contracts/openapi/dokpod-control-plane.v1.yaml pela T004 (2026-10-31);
+# o contrato público é a fonte normativa (respostas padrão, nulidade OpenAPI 3.1, x-dokpod-edition: business).
+# O antiforgery é validado no BFF (docs/bff.md), não na API.
 # Decisão: research.md D-008. Recurso Keycloak urn:dokpod:installation; scopes licensing:read e licensing:manage.
 openapi: 3.1.0
 info:
@@ -63,7 +65,6 @@ paths:
       summary: Importar ou renovar a licença (licensing:manage)
       parameters:
         - { name: If-Match, in: header, required: true, schema: { type: string } }
-        - { name: X-Dokpod-Antiforgery, in: header, required: true, schema: { type: string } }
         - { name: slotId, in: query, required: true, schema: { type: string, maxLength: 64 } }
       requestBody:
         required: true
@@ -86,7 +87,6 @@ paths:
       operationId: importRevocation
       summary: Importar pacote de revogação assinado (licensing:manage)
       parameters:
-        - { name: X-Dokpod-Antiforgery, in: header, required: true, schema: { type: string } }
       requestBody:
         required: true
         content:
@@ -107,7 +107,6 @@ paths:
       summary: Sair de indeterminate regravando o instante confiável com o relógio atual (licensing:manage); nunca concede tolerância nova
       parameters:
         - { name: If-Match, in: header, required: true, schema: { type: string } }
-        - { name: X-Dokpod-Antiforgery, in: header, required: true, schema: { type: string } }
       requestBody:
         required: true
         content:
