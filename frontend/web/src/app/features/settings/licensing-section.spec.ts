@@ -98,6 +98,29 @@ describe('Seção Licença (spec 031 T028)', () => {
     expect(fixture.nativeElement.textContent).toContain('revisão 3');
   });
 
+  it('shows reasons, the grace deadline and the expiry warning (T048)', async () => {
+    const soon = new Date(Date.now() + 20 * 86_400_000).toISOString();
+    api.status.mockResolvedValue({
+      status: {
+        ...granted,
+        entitlement: 'granted_in_grace',
+        metering: 'excess_in_grace',
+        reasons: ['license_capacity_exceeded', 'metering_unknown'],
+        license: { ...granted.license!, expiresAt: soon },
+        grace: { cause: 'excess', startedAt: '2026-11-01T00:00:00Z', until: '2026-12-01T00:00:00Z' },
+      },
+      etag: '"3"',
+    });
+
+    const text = (await render()).nativeElement.textContent as string;
+
+    expect(text).toContain('Em tolerância');
+    expect(text).toContain('Consumo acima da cota da instalação');
+    expect(text).toContain('Há hosts com medição desconhecida');
+    expect(text).toContain('Tolerância por excesso de consumo até');
+    expect(text).toMatch(/Vence em (19|20) dia\(s\)/);
+  });
+
   it('shows a typed refusal without echoing the file and keeps the current license', async () => {
     api.importLicense.mockRejectedValue({ status: 422, code: 'license_invalid' });
     const fixture = await render();

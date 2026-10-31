@@ -146,7 +146,7 @@ components:
         status: { type: integer }
         code:
           type: string
-          enum: [authorization_denied, license_invalid, license_obsolete, license_expired, license_capacity_exceeded, license_revoked, license_state_indeterminate, license_revision_conflict, license_slot_unknown, license_slot_disabled, payload_too_large, rate_limited]
+          enum: [authorization_denied, license_invalid, license_obsolete, license_expired, license_capacity_exceeded, license_revoked, license_state_indeterminate, license_revision_conflict, license_slot_unknown, license_slot_disabled, payload_too_large, rate_limited, license_not_indeterminate]
         correlationId: { type: string, format: uuid }
     LicensingStatus:
       type: object

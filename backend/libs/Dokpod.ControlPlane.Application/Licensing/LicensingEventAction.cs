@@ -32,7 +32,7 @@ public static class LicensingEventAction
             [LicenseExpiryWarning] = Keys("daysBefore", "expiresAt"),
             [LicenseReportExported] = Keys("challenge"),
             [LicenseSlotChanged] = Keys("fromSlotId", "toSlotId"),
-            [LicenseTrustedInstantReset] = Keys("previousInstant", "newInstant"),
+            [LicenseTrustedInstantReset] = Keys("previousInstant", "newInstant", "reason"),
             [CapacityDailySummary] = Keys("date", "vcpuBand", "peakNodeEquivalents", "unknownHosts", "hosts", "late"),
             [RevocationImported] = Keys("sequence", "revokedLicenses"),
             [HostLinked] = Keys("hostId", "environmentId"),
