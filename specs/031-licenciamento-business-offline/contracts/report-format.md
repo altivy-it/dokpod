@@ -11,11 +11,11 @@ Toda linha de `licensing_events` recebe, na mesma transação em que é gravada:
 | Campo | Regra |
 | --- | --- |
 | `chain_seq` | inteiro ≥ 1, sem lacunas, atribuído a partir de `licensing_state.chain_head_seq` |
-| `prev_hash` | `record_hash` do evento anterior; no primeiro, `SHA-256("dokpod-licensing-chain-v1" ‖ installationId)` |
+| `prev_hash` | `record_hash` do evento anterior; no primeiro, `SHA-256(UTF-8("dokpod-licensing-chain-v1") ‖ UTF-8(installationId))`, com o UUID em minúsculas no formato `8-4-4-4-12` |
 | `actor_ref` | `BASE64URL(HMAC-SHA256(licensing_state.actor_hmac_key, UTF-8(sujeito do Keycloak)))`, ou `null` para o sistema; o sujeito real (`actor_id`) fica fora da cadeia e nunca é exportado |
 | `record_hash` | `SHA-256(prev_hash ‖ JSON canônico de {chain_seq, event_id, occurred_at_utc, actor_ref, correlation_id, action, details})` |
 
-JSON canônico: UTF-8, propriedades em ordem lexicográfica, sem espaços, instantes em RFC 3339 UTC com `Z` e precisão de microssegundo. A atualização de `licensing_state.chain_head_seq` e `chain_head_hash` com `version` otimista serializa a gravação: dois eventos nunca recebem o mesmo `chain_seq`.
+JSON canônico: UTF-8, propriedades ordenadas por ordinal UTF-16, sem espaços; strings escapam só aspas, barra invertida e caracteres de controle (`\b`, `\f`, `\n`, `\r`, `\t`, demais como `\u00xx`); números só inteiros; UUIDs em minúsculas; `occurred_at_utc` como `yyyy-MM-ddTHH:mm:ss.ffffffZ` (microssegundos, a precisão do PostgreSQL). `actor_ref` é `BASE64URL` sem padding. A gravação trava a linha de `licensing_state` (`FOR UPDATE`) e só avança `chain_head_seq` e `chain_head_hash` se a cabeça ainda for a lida, então dois eventos nunca recebem o mesmo `chain_seq`. O `version` do estado não muda com eventos: ele é o `If-Match` das operações administrativas. Vetor de referência em `backend/tests/Dokpod.ControlPlane.Api.Tests/Licensing/LicensingChainTests.cs`.
 
 ### Resumo diário de capacidade
 
