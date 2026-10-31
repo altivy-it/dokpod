@@ -114,6 +114,22 @@ Escala horizontal da API não faz parte da primeira release. Quando disponibilid
 
 Não adicionar broker, cache distribuído ou microsserviço antes de métricas demonstrarem a necessidade e um ADR definir operação e recuperação.
 
+## Licenciamento Business (spec 031)
+
+A edição é fixada no build (`-p:DokpodEdition=Business`, `--build-arg DOKPOD_EDITION=Business`); não existe chave
+de runtime. `ProductEdition` é o único ponto de composição: na CE ele não registra serviços nem rotas de licenciamento
+e não embarca trust store, e `Dokpod.Architecture.Tests.BusinessGateTests` impede que código da CE referencie o módulo.
+
+| Peça | Local | Papel |
+| --- | --- | --- |
+| Verificador | `backend/libs/Dokpod.Licensing` (MIT, só BCL) | JWS ES256 de perfil fechado, trust store, revogação e verificação do relatório |
+| Casos de uso | `Dokpod.ControlPlane.Application/Licensing` | estado, importação, hosts, revogação, relatório e `IBusinessCapabilityGate` |
+| Persistência | `Dokpod.ControlPlane.Infrastructure/Licensing` | cadeia `licensing_events` com hash SHA-256, observações de capacidade particionadas por mês |
+| Host | `Dokpod.ControlPlane.Api/Licensing` | endpoints `/api/v1/licensing/*`, jobs de avaliação (5 min) e retenção (35 dias) |
+
+A apuração vem do `AgentHello` (vCPUs por host); nenhuma decisão de licença para containers ou bloqueia a CE. Nada sai
+da instalação: o relatório é exportado como arquivo e entregue pelo cliente.
+
 ## Decisões adiadas
 
 - matriz de Windows Server, RID, conta de serviço e versões de Docker suportadas;

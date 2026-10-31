@@ -50,6 +50,14 @@
       </div>
     </form>
 
+    <form class="dok-stack" aria-label="Exportar relatório de apuração" (submit)="$event.preventDefault(); exportReport()">
+      <dok-field label="Desafio informado pelo fornecedor" placeholder="rnw-2027-..." [mono]="true" name="challenge" [(ngModel)]="challenge" />
+      <p class="app-caption st-muted">Obrigatório na contratação e em cada renovação. O arquivo fica no seu computador; o Dokpod não envia nada.</p>
+      <div class="dok-actions">
+        <button dok-button variant="outline" size="sm" startIcon="download" type="submit" [loading]="importing()" [disabled]="!validChallenge()">Exportar relatório</button>
+      </div>
+    </form>
+
     @if (current.status.license) {
       <form class="dok-stack" aria-label="Importar pacote de revogação" (submit)="$event.preventDefault(); importRevocation()">
         <label class="app-small" for="rev-file">Pacote de revogação recebido do fornecedor (.jws, até 64 KiB)</label>

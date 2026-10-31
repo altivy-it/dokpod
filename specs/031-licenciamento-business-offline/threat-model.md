@@ -238,6 +238,27 @@ CLIENTE (instalação offline)                                                  
 - **Auditoria**: `licensing_events` global, append-only, sem conteúdo da licença (FR-025, FR-026).
 - **Dados**: a licença não contém dado pessoal, inventário ou preço (FR-007).
 
+## Revisão de segurança e privacidade da implementação (T064)
+
+Origem: IA assistida, sobre o código das US1 a US4, US6 e da Fase 9 (branch `feat/031-acabamento`). Revisor humano:
+pendente.
+
+| Ponto | Verificação | Resultado |
+| --- | --- | --- |
+| Rede | `test-licensing-no-egress.ps1` com a imagem CE (CI) e com a Business (`--build-arg DOKPOD_EDITION=Business`, local) | 0 pacotes externos, 0 DNS inesperado, canário ausente dos logs nas duas |
+| Conteúdo das imagens | `test-licensing-image-contents.ps1 -Build`, refutado com uma imagem com PEM privado fictício | Nenhuma chave privada, nenhum emissor; CE `community` sem trust store; Business sem `kid` de teste (L8) |
+| Composição | `BusinessGateTests` (L7): código da CE não referencia o módulo; casos de uso `[BusinessCapability]` dependem do gate | Passa; ainda não há caso de uso marcado (specs 025–029) |
+| Logs | Únicos logs do módulo: falha da avaliação (exceção) e contagem da retenção. `Hosting.Diagnostics` e `HttpClient` filtrados em `Warning`, então a URL com `challenge` não vai ao log de requisição | Sem conteúdo de licença, sujeito ou nome de host |
+| Telemetria | Só exporta com endpoint OTLP configurado pelo operador; `/health` excluído dos traces. O `challenge` pode aparecer em `url.query` de traces, conforme a redação da instrumentação ASP.NET Core | Aceitável: o desafio não é segredo e já vai ao fornecedor no relatório |
+| Relatório | Teste com PostgreSQL real: sem sujeito do Keycloak, sem chave HMAC (hex e Base64) e sem nome de host; hosts só pelo ID | Passa; `label` removido do contrato `LicensingReportHost` |
+| Justificativa do reset | Vai à cadeia e ao fornecedor; 10 a 500 caracteres, sem caracteres de controle | Risco de dado pessoal digitado pelo administrador; orientação no runbook e no texto do campo |
+| Rate limit | 10 por minuto nos uploads de licença e revogação (L4), por réplica | Com N réplicas o limite efetivo é N×10; aceitável para o objetivo (evitar acúmulo e força bruta não se aplica a assinatura ES256) |
+| Endpoints de host | Vincular e desvincular host (`licensing:manage`) sem rate limit | Escrevem só eventos pequenos e autorizados; sem ação |
+| Verificador do relatório | Implementação independente do JSON canônico (BCL), cruzada com o vetor de referência da Fundação e com relatório real | `tampered`, `discontinuous`, `mismatch`, `stale` cobertos (SC-010); recuo de relógio virou informativo (`clockRegressions`), pois a ordem é garantida pelos hashes |
+
+Lacunas novas: nenhuma bloqueante. A publicação da imagem Business (canal, assinatura e registry) continua pendente
+da decisão U4 e de pedido separado.
+
 ## Decisão do revisor
 
 | Campo | Valor |

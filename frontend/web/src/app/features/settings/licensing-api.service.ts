@@ -32,6 +32,18 @@ export class LicensingApiService {
     return (await listLicensingHosts({ throwOnError: true })).data.hosts;
   }
 
+  /**
+   * Relatório de apuração (spec 031 T060) com o desafio do fornecedor; o arquivo é salvo pelo navegador e o produto
+   * nunca o envia a ninguém (D-013).
+   */
+  async exportReport(challenge: string): Promise<Blob> {
+    try {
+      return await firstValueFrom(this.http.get('api/v1/licensing/report', { params: { challenge }, responseType: 'blob' }));
+    } catch (error: unknown) {
+      throw toLicensingFailure(error);
+    }
+  }
+
   /** Pacote de revogação assinado (spec 031 T052): sem `If-Match`, a sequência crescente serializa a aplicação. */
   async importRevocation(file: Blob): Promise<LicensingSnapshot> {
     const [{ requestToken }, body] = await Promise.all([

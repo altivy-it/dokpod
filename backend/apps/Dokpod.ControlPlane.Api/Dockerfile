@@ -24,7 +24,9 @@ ENTRYPOINT ["dotnet", "watch", "run", "--no-restore", "--project", "backend/apps
 
 FROM build AS publish
 
-RUN dotnet publish backend/apps/Dokpod.ControlPlane.Api/Dokpod.ControlPlane.Api.csproj --configuration Release --no-restore --output /app/publish /p:UseAppHost=false
+# Spec 031 T061 (D-009): edição fixada no build. Vazio = CE; `--build-arg DOKPOD_EDITION=Business` compõe o licenciamento.
+ARG DOKPOD_EDITION=
+RUN dotnet publish backend/apps/Dokpod.ControlPlane.Api/Dokpod.ControlPlane.Api.csproj --configuration Release --no-restore --output /app/publish /p:UseAppHost=false ${DOKPOD_EDITION:+/p:DokpodEdition=$DOKPOD_EDITION}
 
 FROM lzocateli/dotnet-aspnet:10.0.13-noble-v1 AS runtime
 LABEL org.opencontainers.image.title="dokpod-api" \

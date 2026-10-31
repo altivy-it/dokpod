@@ -76,7 +76,7 @@ public static class SettingsEndpoints
         var hosts = await hostQuery.DescribeAsync(registrations, cancellationToken);
         return Results.Ok(new
         {
-            controlPlane = new { version = ProductVersion, edition = Dokpod.ControlPlane.Api.Licensing.ProductEdition.Current },
+            controlPlane = new { version = ProductVersion, edition = Dokpod.ControlPlane.Api.ProductEdition.Current },
             protocolVersion = "1",
             database = new { configured = dbContext is not null, lastMigration, pendingMigrations = pending },
             // Só nome, situação e descrição curta dos health checks já existentes (sem exceções nem dados de conexão).
