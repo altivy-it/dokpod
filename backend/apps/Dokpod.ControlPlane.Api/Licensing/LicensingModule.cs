@@ -25,14 +25,19 @@ public static class LicensingModule
         services.AddScoped<CapacityLedger>();
         services.AddScoped<ICapacityLedger>(provider => provider.GetRequiredService<CapacityLedger>());
         services.AddScoped<IAgentCapacityObserver>(provider => provider.GetRequiredService<CapacityLedger>());
+        services.AddScoped<ILicensingEvaluationStore, LicensingEvaluationStore>();
         services.AddScoped<LicenseStatusService>(provider => new LicenseStatusService(
             provider.GetRequiredService<ILicenseStateReader>(),
             provider.GetRequiredService<ILicenseStore>(),
             provider.GetRequiredService<LicenseStateEvaluator>(),
             provider.GetRequiredService<TimeProvider>(),
-            provider.GetRequiredService<ICapacityLedger>()));
+            provider.GetRequiredService<ICapacityLedger>(),
+            provider.GetRequiredService<ILicensingEvaluationStore>()));
         services.AddScoped<LicensingHostService>();
+        services.AddScoped<LicensingMaintenance>();
+        services.AddScoped<IBusinessCapabilityGate, BusinessCapabilityGate>();
         services.AddHostedService<CapacityRetentionWorker>();
+        services.AddHostedService<LicensingEvaluationService>();
         return services;
     }
 

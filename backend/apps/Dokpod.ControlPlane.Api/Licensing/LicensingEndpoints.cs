@@ -9,6 +9,8 @@ using static Dokpod.ControlPlane.Api.Endpoints.ConsoleEndpoints;
 
 namespace Dokpod.ControlPlane.Api.Licensing;
 
+public sealed record TrustedInstantResetRequest(string? Reason);
+
 /// <summary>Chaves públicas embutidas em <c>Licensing/TrustStore/&lt;kid&gt;.pem</c> (T027); nenhuma chave privada.</summary>
 public static class EmbeddedTrustStore
 {
@@ -64,6 +66,58 @@ public static partial class LicensingEndpoints
         ArgumentNullException.ThrowIfNull(endpoints);
         endpoints.MapGet("/api/v1/licensing/status", StatusAsync).RequireAuthorization();
         endpoints.MapPut("/api/v1/licensing/license", ImportAsync).RequireAuthorization();
+        endpoints.MapPost("/api/v1/licensing/trusted-instant", ResetTrustedInstantAsync).RequireAuthorization();
+    }
+
+    /// <summary>
+    /// Saída de <c>indeterminate</c> por relógio (T069, threat model L2): regrava o instante confiável com o relógio
+    /// atual, nunca cria nem estende tolerância e grava <c>license.trusted_instant_reset</c> com a justificativa.
+    /// </summary>
+    public static async Task<IResult> ResetTrustedInstantAsync(
+        TrustedInstantResetRequest? request,
+        HttpContext context,
+        IEnvironmentAuthorizationDecider authorizationDecider,
+        LicenseStatusService statusService,
+        ILicenseStateReader stateReader,
+        ILicensingEvaluationStore evaluationStore,
+        TimeProvider timeProvider,
+        CancellationToken cancellationToken)
+    {
+        if (!TryAuthenticate(context, out var actor, out var token, out var unauthorized)) return unauthorized!;
+        var denied = await AuthorizeAsync(context, authorizationDecider, actor!, token!, LicensingAuthorization.ManageScope, cancellationToken);
+        if (denied is not null) return denied;
+
+        var reason = request?.Reason?.Trim();
+        if (reason is null || reason.Length is < 10 or > 500 || reason.Any(char.IsControl))
+        {
+            return Problem(context, StatusCodes.Status400BadRequest, "invalid_reason", "Informe a justificativa (10 a 500 caracteres, sem dados pessoais).");
+        }
+
+        if (!TryReadIfMatch(context, out var expectedVersion))
+        {
+            return Problem(context, StatusCodes.Status400BadRequest, "if_match_required", "Informe o If-Match com a versão lida do estado.");
+        }
+
+        var status = await statusService.GetAsync(cancellationToken);
+        var state = await stateReader.ReadAsync(cancellationToken);
+        if (status.Entitlement != "indeterminate" || state is null)
+        {
+            return LicensingProblems.Create(context, LicensingProblems.LicenseNotIndeterminate, "O estado não está indeterminado por relógio; nada a recuperar.");
+        }
+
+        var now = timeProvider.GetUtcNow();
+        var reset = new LicensingEvent(Guid.NewGuid(), now, actor!.Subject, GetCorrelationId(context), LicensingEventAction.LicenseTrustedInstantReset, new System.Text.Json.Nodes.JsonObject
+        {
+            ["previousInstant"] = LicenseStatusService.Iso(state.LastTrustedInstantUtc),
+            ["newInstant"] = LicenseStatusService.Iso(now),
+            ["reason"] = reason,
+        });
+        if (!await evaluationStore.ResetTrustedInstantAsync(now, expectedVersion, reset, cancellationToken))
+        {
+            return LicensingProblems.Create(context, LicensingProblems.LicenseRevisionConflict, "O estado da licença mudou desde a leitura. Atualize e tente de novo.");
+        }
+
+        return Ok(context, await statusService.GetAsync(cancellationToken));
     }
 
     public static async Task<IResult> StatusAsync(

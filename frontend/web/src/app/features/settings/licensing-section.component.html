@@ -10,6 +10,19 @@
     @if (entitlement(); as state) {
       <p><dok-status-chip size="sm" [color]="state.tone" [label]="state.label" /></p>
     }
+    @if (expiryWarning(); as warning) {
+      <p role="status"><dok-status-chip size="sm" color="warning" [label]="warning" /></p>
+    }
+    @if (grace(); as deadline) {
+      <p class="app-small" role="status">{{ deadline }}</p>
+    }
+    @if (reasons().length) {
+      <ul class="st-list" aria-label="Motivos do estado da licença">
+        @for (reason of reasons(); track reason) {
+          <li class="app-small">{{ reason }}</li>
+        }
+      </ul>
+    }
     @if (details().length) {
       <dok-key-value [items]="details()" [labelWidth]="150" />
       <h3 class="st-block__title">Apuração</h3>
