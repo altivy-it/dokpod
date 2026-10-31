@@ -33,34 +33,12 @@ public static class LicenseVerifier
 {
     public static LicenseVerificationResult Verify(ReadOnlySpan<byte> document, TrustStore trustStore, DateTimeOffset instant)
     {
-        ArgumentNullException.ThrowIfNull(trustStore);
-        if (!JwsCompactReader.TryRead(document, out var jws, out var failure))
+        if (!TryAuthenticate(document, trustStore, JwsCompactReader.LicenseType, out var jws, out var failure, out var contentSha256))
         {
-            return Failed(failure, null, SHA256.HashData(document));
+            return Failed(failure, jws?.KeyId, contentSha256);
         }
 
-        var contentSha256 = SHA256.HashData(jws!.SigningInput);
-        if (jws.Type != JwsCompactReader.LicenseType)
-        {
-            return Failed(LicenseFailure.UnsupportedProfile, jws.KeyId, contentSha256);
-        }
-
-        var candidates = trustStore.Find(jws.KeyId);
-        if (candidates.Count == 0)
-        {
-            return Failed(LicenseFailure.UnknownKey, jws.KeyId, contentSha256);
-        }
-
-        if (!candidates.Any(key => key.PublicKey.VerifyData(
-                jws.SigningInput,
-                jws.Signature,
-                HashAlgorithmName.SHA256,
-                DSASignatureFormat.IeeeP1363FixedFieldConcatenation)))
-        {
-            return Failed(LicenseFailure.BadSignature, jws.KeyId, contentSha256);
-        }
-
-        if (!LicensePayloadParser.TryParse(jws.Payload, out var license, out failure))
+        if (!LicensePayloadParser.TryParse(jws!.Payload, out var license, out failure))
         {
             return Failed(failure, jws.KeyId, contentSha256);
         }
@@ -69,6 +47,53 @@ public static class LicenseVerifier
             ? LicenseValidity.NotStarted
             : instant < license.ExpiresAt ? LicenseValidity.Active : LicenseValidity.Expired;
         return new LicenseVerificationResult(null, license, jws.KeyId, contentSha256, validity);
+    }
+
+    /// <summary>
+    /// Envelope, tipo, <c>kid</c> no trust store e assinatura ES256 sobre os bytes recebidos, nessa ordem, antes de
+    /// interpretar o payload. Um tipo nunca é aceito como outro: licença não vale como revogação e vice-versa (D-011).
+    /// </summary>
+    internal static bool TryAuthenticate(
+        ReadOnlySpan<byte> document,
+        TrustStore trustStore,
+        string expectedType,
+        out JwsCompact? jws,
+        out LicenseFailure failure,
+        out byte[] contentSha256)
+    {
+        ArgumentNullException.ThrowIfNull(trustStore);
+        if (!JwsCompactReader.TryRead(document, out jws, out failure))
+        {
+            contentSha256 = SHA256.HashData(document);
+            return false;
+        }
+
+        contentSha256 = SHA256.HashData(jws!.SigningInput);
+        if (jws.Type != expectedType)
+        {
+            failure = LicenseFailure.UnsupportedProfile;
+            return false;
+        }
+
+        var candidates = trustStore.Find(jws.KeyId);
+        if (candidates.Count == 0)
+        {
+            failure = LicenseFailure.UnknownKey;
+            return false;
+        }
+
+        var signed = jws;
+        if (!candidates.Any(key => key.PublicKey.VerifyData(
+                signed.SigningInput,
+                signed.Signature,
+                HashAlgorithmName.SHA256,
+                DSASignatureFormat.IeeeP1363FixedFieldConcatenation)))
+        {
+            failure = LicenseFailure.BadSignature;
+            return false;
+        }
+
+        return true;
     }
 
     private static LicenseVerificationResult Failed(LicenseFailure failure, string? keyId, byte[] contentSha256) =>

@@ -27,7 +27,7 @@ const granted: LicensingStatus = {
 };
 
 describe('Seção Licença (spec 031 T028)', () => {
-  const api = { status: vi.fn(), importLicense: vi.fn(), hosts: vi.fn() };
+  const api = { status: vi.fn(), importLicense: vi.fn(), importRevocation: vi.fn(), hosts: vi.fn() };
   const toast = { success: vi.fn(), error: vi.fn() };
 
   beforeEach(() => {
@@ -59,7 +59,7 @@ describe('Seção Licença (spec 031 T028)', () => {
     Object.defineProperty(input, 'files', { value: [file], configurable: true });
     input.dispatchEvent(new Event('change'));
     fixture.detectChanges();
-    (fixture.nativeElement.querySelector('form') as HTMLFormElement).dispatchEvent(new Event('submit'));
+    (fixture.nativeElement.querySelector('form[aria-label="Importar licença"]') as HTMLFormElement).dispatchEvent(new Event('submit'));
     await fixture.whenStable();
     fixture.detectChanges();
   }
@@ -119,6 +119,28 @@ describe('Seção Licença (spec 031 T028)', () => {
     expect(text).toContain('Há hosts com medição desconhecida');
     expect(text).toContain('Tolerância por excesso de consumo até');
     expect(text).toMatch(/Vence em (19|20) dia\(s\)/);
+  });
+
+  it('imports a revocation package and shows the revoked state (T052)', async () => {
+    api.importRevocation.mockResolvedValue({ status: { ...granted, entitlement: 'restricted', authenticity: 'revoked', reasons: ['license_revoked'] }, etag: '"4"' });
+    const fixture = await render();
+    const input = fixture.nativeElement.querySelector('#rev-file') as HTMLInputElement;
+    Object.defineProperty(input, 'files', { value: [new File(['pacote'], 'revogacao.jws')], configurable: true });
+    input.dispatchEvent(new Event('change'));
+    fixture.detectChanges();
+
+    (fixture.nativeElement.querySelector('form[aria-label="Importar pacote de revogação"]') as HTMLFormElement).dispatchEvent(new Event('submit'));
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(api.importRevocation).toHaveBeenCalledWith(expect.any(File));
+    expect(toast.success).toHaveBeenCalledWith('Pacote de revogação importado.');
+    expect(fixture.nativeElement.textContent).toContain('Licença revogada pelo fornecedor');
+
+    api.importRevocation.mockRejectedValue({ status: 422, code: 'license_obsolete' });
+    (fixture.nativeElement.querySelector('form[aria-label="Importar pacote de revogação"]') as HTMLFormElement).dispatchEvent(new Event('submit'));
+    await fixture.whenStable();
+    expect(toast.error).toHaveBeenCalledWith('A sequência do pacote não é maior que a já importada.');
   });
 
   it('shows a typed refusal without echoing the file and keeps the current license', async () => {

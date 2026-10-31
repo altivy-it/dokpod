@@ -180,14 +180,14 @@ description: "Tarefas da spec 031: licenciamento Business offline"
 
 ### Testes da História 6
 
-- [ ] T049 [P] [US6] Vetores de revogação em `backend/tests/Dokpod.Licensing.Tests/Vectors/` e `RevocationVerifierTests.cs`: `typ: dokpod-revocation+jws` aceito só como revogação e licença nunca aceita como revogação; até 64 entradas; trust store com duas chaves aceita licenças de ambas
-- [ ] T050 [P] [US6] Testes de API em `backend/tests/Dokpod.ControlPlane.Api.Tests/Licensing/RevocationEndpointsTests.cs`: pacote válido → `restricted` e `revocation.imported`; sequência menor ou igual → `422`; IDs de outra organização → recusa; CE e workloads intactos
+- [x] T049 [P] [US6] Vetores de revogação em `backend/tests/Dokpod.Licensing.Tests/Vectors/` e `RevocationVerifierTests.cs`: `typ: dokpod-revocation+jws` aceito só como revogação e licença nunca aceita como revogação; até 64 entradas; trust store com duas chaves aceita licenças de ambas
+- [x] T050 [P] [US6] Testes de API em `backend/tests/Dokpod.ControlPlane.Api.Tests/Licensing/RevocationEndpointsTests.cs`: pacote válido → `restricted` e `revocation.imported`; sequência menor ou igual → `422`; IDs de outra organização → recusa; CE e workloads intactos
 
 ### Implementação da História 6
 
-- [ ] T051 [US6] `RevocationDocument` e `RevocationVerifier` em `backend/libs/Dokpod.Licensing/` (payload de [license-format.md](contracts/license-format.md#payload-do-pacote-de-revogação), sequência monotônica)
-- [ ] T052 [US6] `POST /api/v1/licensing/revocations` em `backend/apps/Dokpod.ControlPlane.Api/Licensing/LicensingEndpoints.cs`, atualizando `revocation_sequence` na mesma transação do estado, e upload do pacote na seção Licença
-- [ ] T053 [US6] Procedimento de rotação de chave (inclusão da chave nova no trust store, sobreposição, retirada da antiga) e de comprometimento (chave nova, release com a comprometida removida, reemissão das licenças assinadas por ela, comunicação aos clientes) em `docs/runbooks/licenciamento-rotacao-e-revogacao.md`
+- [x] T051 [US6] `RevocationDocument` e `RevocationVerifier` em `backend/libs/Dokpod.Licensing/` (payload de [license-format.md](contracts/license-format.md#payload-do-pacote-de-revogação), sequência monotônica)
+- [x] T052 [US6] `POST /api/v1/licensing/revocations` em `backend/apps/Dokpod.ControlPlane.Api/Licensing/LicensingEndpoints.cs`, atualizando `revocation_sequence` na mesma transação do estado, e upload do pacote na seção Licença
+- [x] T053 [US6] Procedimento de rotação de chave (inclusão da chave nova no trust store, sobreposição, retirada da antiga) e de comprometimento (chave nova, release com a comprometida removida, reemissão das licenças assinadas por ela, comunicação aos clientes) em `docs/runbooks/licenciamento-rotacao-e-revogacao.md`
 
 **Checkpoint**: rotação e revogação funcionam sem rede.
 
