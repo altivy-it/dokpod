@@ -597,6 +597,10 @@ export type SettingsEngineCount = {
 export type SettingsInstallation = {
     controlPlane: {
         version: string;
+        /**
+         * Edição fixada no build da API (spec 031, D-009); o console só mostra a seção Licença na business.
+         */
+        edition: 'community' | 'business';
     };
     protocolVersion: string;
     database: {

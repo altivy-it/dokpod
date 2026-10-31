@@ -136,6 +136,41 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+  # Spec 031 História 1 (T013 a T015): a CE continua sem licença. T013 roda no job Backend; aqui ficam a tela
+  # de Configurações sem seção Licença (E2E com respostas simuladas pela borda nginx) e a prova de que a API CE não
+  # tenta nenhuma comunicação externa durante início, operação e reinício (D-012, SC-002).
+  licensing-ce:
+    name: Licensing CE
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: CE settings without licensing (mock E2E)
+        env:
+          CONTAINER_ENGINE: docker
+        run: bash frontend/tests/e2e/mock/run-mock-e2e.sh -- -k test_031
+
+      - name: CE API without egress
+        shell: pwsh
+        run: ./tools/scripts/test-licensing-no-egress.ps1 -Build -Engine docker
+
+      - name: Upload licensing evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: licensing-ce
+          path: |
+            artifacts/licensing-no-egress/report.json
+            artifacts/e2e/mock/junit.xml
+          if-no-files-found: warn
+          retention-days: 14
+
   # Spec 005 T012: imagens publicadas por digest, assinadas sem chave (identidade OIDC deste workflow) e com atestado de
   # proveniência. Só roda em tag `v*`, depois dos gates de backend, frontend e imagens (inclusive a política de
   # vulnerabilidades). A verificação exige a identidade exata do workflow e o emissor do GitHub.
@@ -148,6 +183,7 @@ jobs:
       - backend
       - frontend
       - images
+      - licensing-ce
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions: {}

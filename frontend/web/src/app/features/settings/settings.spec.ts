@@ -27,7 +27,7 @@ const registry = (stage: RegistryPolicy['stage'], registries: string[], canEdit:
 });
 
 const installation: SettingsInstallation = {
-  controlPlane: { version: '0.1.0' },
+  controlPlane: { version: '0.1.0', edition: 'community' },
   protocolVersion: '1',
   database: { configured: true, lastMigration: '202610160001_PodInventory', pendingMigrations: 0 },
   dependencies: [
@@ -154,6 +154,17 @@ describe('settings page', () => {
     expect(text).toContain('Keycloak indisponível');
     expect(text).toContain('1 · ver em Hosts');
     expect(text).toContain('5.4.2');
+  });
+
+  it('shows the licensing section only in the Business edition (spec 031 T016)', async () => {
+    const community = await render('instalacao');
+    expect(community.nativeElement.textContent).toContain('Community Edition');
+    expect(community.nativeElement.querySelector('#st-licensing')).toBeNull();
+
+    api.installation.mockResolvedValue({ ...installation, controlPlane: { version: '0.2.0', edition: 'business' } });
+    const business = await render('instalacao');
+    expect(business.nativeElement.textContent).toContain('Business');
+    expect(business.nativeElement.querySelector('#st-licensing')?.textContent).toContain('Licença');
   });
 
   it('shows effective values with their source and the forbidden state', async () => {

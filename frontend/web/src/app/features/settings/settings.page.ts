@@ -93,10 +93,14 @@ export class SettingsPage {
   protected readonly formatDateTime = formatDateTime;
   protected readonly changedBy = changedBy;
 
+  /** Spec 031 D-009: a edição vem da API; a seção Licença só existe na Business e a CE nunca chama `/api/v1/licensing`. */
+  protected readonly isBusiness = computed(() => this.installation()?.controlPlane.edition === 'business');
+
   protected readonly versions = computed<KeyValueItem[]>(() => {
     const info = this.installation();
     if (!info) return [];
     return [
+      { label: 'Edição', value: info.controlPlane.edition === 'business' ? 'Business' : 'Community Edition' },
       { label: 'Plano de controle', value: info.controlPlane.version, mono: true },
       { label: 'BFF', value: this.bffVersion() ?? 'indisponível', mono: true },
       { label: 'Console', value: CONSOLE_VERSION, mono: true },
