@@ -49,5 +49,15 @@
         <button dok-button size="sm" startIcon="upload" type="submit" [loading]="importing()" [disabled]="!file() || !slotId.trim()">Importar licença</button>
       </div>
     </form>
+
+    @if (current.status.license) {
+      <form class="dok-stack" aria-label="Importar pacote de revogação" (submit)="$event.preventDefault(); importRevocation()">
+        <label class="app-small" for="rev-file">Pacote de revogação recebido do fornecedor (.jws, até 64 KiB)</label>
+        <input id="rev-file" type="file" accept=".jws,.txt,application/jose" (change)="chooseRevocation($event)" />
+        <div class="dok-actions">
+          <button dok-button variant="outline" size="sm" startIcon="upload" type="submit" [loading]="importing()" [disabled]="!revocationFile()">Importar revogação</button>
+        </div>
+      </form>
+    }
   </div>
 }

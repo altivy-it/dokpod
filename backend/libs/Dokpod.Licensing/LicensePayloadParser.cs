@@ -217,7 +217,7 @@ public static partial class LicensePayloadParser
         return true;
     }
 
-    private static bool TryInt(JsonElement element, string name, out int value)
+    internal static bool TryInt(JsonElement element, string name, out int value)
     {
         value = 0;
         return element.TryGetProperty(name, out var property) && property.ValueKind == JsonValueKind.Number && property.TryGetInt32(out value);
@@ -231,10 +231,10 @@ public static partial class LicensePayloadParser
         return value is not null && value.Length is > 0 && value.Length <= maxLength;
     }
 
-    private static bool TryId(JsonElement element, string name, out string? value) =>
+    internal static bool TryId(JsonElement element, string name, out string? value) =>
         TryString(element, name, MaxStringLength, out value) && IdPattern().IsMatch(value!);
 
-    private static bool TryInstant(JsonElement element, string name, out DateTimeOffset value)
+    internal static bool TryInstant(JsonElement element, string name, out DateTimeOffset value)
     {
         value = default;
         return TryString(element, name, MaxStringLength, out var text)
@@ -243,7 +243,7 @@ public static partial class LicensePayloadParser
     }
 
     /// <summary>Primeira passada: JSON bem formado em UTF-8 estrito, dentro da profundidade, sem chave repetida no mesmo objeto.</summary>
-    private static bool HasNoDuplicateProperties(ReadOnlySpan<byte> payload)
+    internal static bool HasNoDuplicateProperties(ReadOnlySpan<byte> payload)
     {
         try
         {
@@ -285,7 +285,7 @@ public static partial class LicensePayloadParser
     }
 
     [GeneratedRegex(@"\A[A-Za-z0-9_-]{1,128}\z")]
-    private static partial Regex IdPattern();
+    internal static partial Regex IdPattern();
 
     [GeneratedRegex(@"\A[A-Za-z0-9_-]{1,64}\z")]
     private static partial Regex SlotPattern();
