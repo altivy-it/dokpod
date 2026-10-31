@@ -11,6 +11,7 @@ import {
   ToastService,
 } from '../../design-system';
 import { importFailureMessage, ENTITLEMENT } from './licensing-labels';
+import type { LicensingHost } from '../../data-access/generated/control-plane';
 import { LicensingApiService, MAX_LICENSE_BYTES, toLicensingFailure, type LicensingSnapshot } from './licensing-api.service';
 
 /**
@@ -32,6 +33,23 @@ export class LicensingSection implements OnInit {
   protected readonly loadStatus = signal<number | null>(null);
   protected readonly file = signal<File | null>(null);
   protected readonly importing = signal(false);
+  protected readonly hosts = signal<LicensingHost[]>([]);
+  protected readonly unknownHosts = computed(() => this.hosts().filter(host => !host.removed && host.source !== 'engine'));
+
+  /** Consumo apurado (US3): atual, pico da janela de 30 dias com horário, faixa e cota da instalação. */
+  protected readonly consumption = computed<KeyValueItem[]>(() => {
+    const status = this.snapshot()?.status;
+    if (!status?.license) return [];
+    const usage = status.consumption;
+    const quota = status.installation.quota;
+    const peakAt = usage.windowPeakAt ? ` em ${formatDateTime(usage.windowPeakAt)}` : '';
+    return [
+      { label: 'Consumo atual', value: usage.current === null ? '—' : `${usage.current} nodes equivalentes` },
+      { label: 'Pico em 30 dias', value: usage.windowPeak === null ? '—' : `${usage.windowPeak} nodes equivalentes${peakAt}` },
+      { label: 'Faixa', value: usage.vcpuBand === null ? '—' : `${usage.vcpuBand} vCPU por node equivalente` },
+      { label: 'Cota da instalação', value: quota === null ? 'sem limite próprio' : `${quota} nodes equivalentes` },
+    ];
+  });
   protected slotId = '';
 
   protected readonly entitlement = computed(() => {
@@ -66,6 +84,7 @@ export class LicensingSection implements OnInit {
       this.snapshot.set(snapshot);
       this.slotId ||= snapshot.status.installation.slotId ?? '';
       this.loadStatus.set(null);
+      this.hosts.set(snapshot.status.license ? await this.api.hosts().catch(() => []) : []);
     } catch (error: unknown) {
       this.loadStatus.set(toLicensingFailure(error).status || 0);
     }
@@ -88,6 +107,7 @@ export class LicensingSection implements OnInit {
     try {
       this.snapshot.set(await this.api.importLicense(file, this.slotId.trim(), snapshot.etag));
       this.toast.success('Licença importada.');
+      this.hosts.set(await this.api.hosts().catch(() => []));
     } catch (error: unknown) {
       const failure = toLicensingFailure(error);
       this.toast.error(importFailureMessage(failure.code, failure.status));

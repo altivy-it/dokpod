@@ -79,7 +79,7 @@ entitlement:  ce_only | granted | granted_in_grace | restricted | indeterminate
 | `licensing_hosts` | `host_id` uuid PK, `label` text, `created_at_utc`, `removed_at_utc` null | ID opaco local; remoção fecha a participação futura |
 | `licensing_host_environments` | `host_id`, `environment_id`, `linked_at_utc`, `unlinked_at_utc` null | um ambiente pertence a no máximo um host ativo |
 
-Toda criação, associação, desassociação e remoção gera evento de licenciamento.
+Associação, desassociação e remoção geram evento de licenciamento (`host.linked`, `host.unlinked`, `host.removed`); a criação não tem ação própria na cadeia e aparece no primeiro `host.linked`. Na primeira conexão de um ambiente sem associação, a composição Business cria um host só dele, com o nome de host informado pelo agente como rótulo local, e grava `host.linked` com ator `null` (sistema). Associar o ambiente a outro host desassocia do anterior na mesma transação, o que permite juntar dois engines da mesma máquina. O rótulo fica só na instalação.
 
 ## licensing_capacity_observations (particionada por mês)
 
