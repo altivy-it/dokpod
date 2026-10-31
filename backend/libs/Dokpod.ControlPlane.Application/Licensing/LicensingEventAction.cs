@@ -25,7 +25,7 @@ public static class LicensingEventAction
         new Dictionary<string, IReadOnlySet<string>>(StringComparer.Ordinal)
         {
             [LicenseImported] = Keys("licenseId", "revision", "slotId", "contentSha256"),
-            [LicenseRejected] = Keys("documentType", "failureCode", "contentSha256"),
+            [LicenseRejected] = Keys("documentType", "failureCode", "reason", "contentSha256"),
             [LicenseStateChanged] = Keys("from", "to", "reasons"),
             [LicenseGraceStarted] = Keys("cause", "startedAt", "until"),
             [LicenseGraceEnded] = Keys("cause", "endedAt"),

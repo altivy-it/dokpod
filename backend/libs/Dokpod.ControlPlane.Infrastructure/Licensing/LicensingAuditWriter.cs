@@ -1,5 +1,4 @@
 using System.Data.Common;
-using System.Security.Cryptography;
 using System.Text.Json.Nodes;
 using Dokpod.ControlPlane.Application.Licensing;
 using Microsoft.EntityFrameworkCore;
@@ -32,20 +31,7 @@ public sealed class LicensingAuditWriter(ControlPlaneDbContext dbContext) : ILic
         var transaction = dbContext.Database.CurrentTransaction!.GetDbTransaction();
         var connection = transaction.Connection!;
 
-        await ExecuteAsync(
-            connection,
-            transaction,
-            """
-            INSERT INTO dokpod.licensing_state (installation_id, actor_hmac_key, last_trusted_instant_utc)
-            VALUES (@installation, @key, @at)
-            ON CONFLICT (singleton) DO NOTHING
-            """,
-            [
-                new NpgsqlParameter("installation", Guid.NewGuid()),
-                new NpgsqlParameter("key", NpgsqlDbType.Bytea) { Value = RandomNumberGenerator.GetBytes(32) },
-                new NpgsqlParameter("at", occurredAtUtc),
-            ],
-            cancellationToken).ConfigureAwait(false);
+        await LicensingStateRow.EnsureAsync(connection, transaction, occurredAtUtc, cancellationToken).ConfigureAwait(false);
 
         Guid installationId;
         byte[] hmacKey;

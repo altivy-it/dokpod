@@ -31,8 +31,16 @@ O relatório da captura fica em `artifacts/licensing-no-egress/report.json`.
 
 1. Na composição Business, `GET /api/v1/licensing/status` → `entitlement: ce_only`.
 2. `PUT /api/v1/licensing/license` com licença válida e `If-Match` do status → `200`, `entitlement: granted`, evento `license.imported`.
-3. Repetir com cada vetor inválido (bit alterado, `kid` desconhecido, `alg: none`, produto errado, propriedade duplicada, 65 KiB, revisão menor) → `422` com o código esperado; status inalterado.
+3. Repetir com cada vetor inválido (bit alterado, `kid` desconhecido, `alg: none`, produto errado, propriedade duplicada, revisão menor) → `422` com o código esperado, e arquivo de 65 KiB → `413`; status inalterado.
 4. Usuário sem `licensing:manage` → `403 authorization_denied`, mesmo com licença válida.
+
+Comandos:
+
+```bash
+dotnet test backend/tests/Dokpod.Licensing.Tests                       # T018/T019: vetores e desempenho
+dotnet test backend/tests/Dokpod.ControlPlane.Api.Tests --filter Licensing   # T021: API com PostgreSQL real
+frontend/tests/e2e/mock/run-mock-e2e.sh -- -k test_031                  # T029: jornada pela borda nginx
+```
 
 ## Cenário 3: apuração (História 3, SC-004)
 

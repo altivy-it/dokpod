@@ -25,6 +25,7 @@ import { ShellContextService } from '../../shell/shell-context.service';
 import { toLoadError, type LoadError } from '../overview/overview.facade';
 import { RegistriesApiService } from '../registries/registries-api.service';
 import { RegistryPolicyDrawer } from '../registries/registry-policy.drawer';
+import { LicensingSection } from './licensing-section.component';
 import { CONSOLE_VERSION, SettingsApiService } from './settings-api.service';
 import { DEPENDENCY_LABEL, DEPENDENCY_STATUS, migrationLabel, PARAMETER_GROUPS, SOURCE_LABEL, STAGES } from './settings-labels';
 
@@ -57,7 +58,7 @@ export function changedBy(updatedBy: string | null | undefined, updatedAt: strin
 @Component({
   selector: 'app-settings-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [DokButton, DokCheckbox, DokEmptyState, DokKeyValue, DokStatusChip, DokTabs, FormsModule, RegistryPolicyDrawer, RouterLink],
+  imports: [DokButton, DokCheckbox, DokEmptyState, DokKeyValue, DokStatusChip, DokTabs, FormsModule, LicensingSection, RegistryPolicyDrawer, RouterLink],
   styleUrl: './settings.page.css',
   templateUrl: './settings.page.html',
 })

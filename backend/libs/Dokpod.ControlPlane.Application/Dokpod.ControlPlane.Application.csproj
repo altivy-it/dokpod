@@ -2,5 +2,7 @@
   <ItemGroup>
     <ProjectReference Include="../Dokpod.Agent.Contracts/Dokpod.Agent.Contracts.csproj" />
     <ProjectReference Include="../Dokpod.Domain/Dokpod.Domain.csproj" />
+    <!-- Spec 031: verificador MIT, só BCL; usado apenas pelos casos de uso de licenciamento da composição Business. -->
+    <ProjectReference Include="../Dokpod.Licensing/Dokpod.Licensing.csproj" />
   </ItemGroup>
 </Project>
