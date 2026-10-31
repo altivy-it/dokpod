@@ -12,7 +12,7 @@
 
 A edição Business passa a aceitar uma licença assinada (JWS `ES256`, perfil fechado) verificada na própria instalação por uma biblioteca .NET sem I/O (`Dokpod.Licensing`, MIT proposta). O plano de controle guarda revisões, estado efetivo com prazos de tolerância e observações de capacidade por host, e apura nodes equivalentes pelo maior total simultâneo em 30 dias. Recursos exclusivos Business consultam `IBusinessCapabilityGate` depois da autorização do Keycloak; nenhum estado de licença afeta workloads, dados ou a CE. A emissão fica numa CLI em repositório separado, que consome o mesmo verificador. A edição é fixada no build (D-009): a imagem CE não registra o módulo.
 
-Este plano não autoriza código: FR-030 (revisão jurídica) e FR-031 (aceite do ADR 2026-0007) são gates antes de `/speckit-implement`.
+Os gates FR-030 (revisão jurídica) e FR-031 (aceite do ADR 2026-0007) foram cumpridos em 2026-10-30 ([spec.md](spec.md#sessão-2026-10-30-aceite-dos-adrs)); `/speckit-implement` continua exigindo autorização humana explícita.
 
 ## Contexto Tecnico
 
@@ -48,7 +48,7 @@ Este plano não autoriza código: FR-030 (revisão jurídica) e FR-031 (aceite d
 | VI. Qualidade por plataforma | Integração PostgreSQL real, E2E pela borda, prova de rede, Docker/Podman/Windows testados separadamente para a origem da CPU | ok |
 | Dependências permissivas | Nenhuma nova no produto; CLI decide em F2 com verificação de licença | ok, pendente F2 |
 | Threat model para novas fronteiras | Importação de arquivo e trust store são fronteira nova: threat model é entrega da fase F1, antes de código | pendente F1 |
-| ADR para decisão duradoura | Formato de licença e verificação offline viram ADR `proposed` a partir de D-001, D-002 e D-009 | a criar |
+| ADR para decisão duradoura | Formato de licença e verificação offline: [ADR 2026-0008](../../docs/adr/2026-0008-licenca-assinada-e-verificacao-offline.md), a partir de D-001, D-002 e D-009 | ok (accepted 2026-10-30) |
 
 Reavaliação após o desenho da Fase 1: sem violações; a tabela de complexidade fica vazia. Dois itens dependem de entregas futuras (threat model em F1, dependências da CLI em F2).
 

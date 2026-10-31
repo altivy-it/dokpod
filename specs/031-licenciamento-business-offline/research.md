@@ -52,6 +52,7 @@ Origem: plano privado de licenciamento (2026-10-28), aprovado como entrada pelo 
 - **Decisão**: recurso Keycloak da instalação `urn:dokpod:installation` com scopes `licensing:read` e `licensing:manage`, criados por `tools/scripts/configure-keycloak.ps1`. Endpoints `GET /api/v1/licensing/status`, `PUT /api/v1/licensing/license` (`If-Match`, antiforgery, 64 KiB) e `POST /api/v1/licensing/revocations` no OpenAPI existente. Recusa por licença usa `403` com `application/problem+json` e código tipado (`license_expired`, `license_capacity_exceeded`, `license_revoked`, `license_state_indeterminate`); upload inválido `422`; revisão em conflito `412`; nunca `401`.
 - **Justificativa**: cumpre FR-022 a FR-024 seguindo o padrão de recurso e scope da spec 023 e o `problem+json` já usado na API.
 - **Alternativas**: roles locais (proibido pela constituição III); middleware global de licença (bloquearia a CE, viola FR-003).
+- **Slot da instalação**: o `PUT` recebe `slotId` na query; o slot precisa existir na licença e ter cota diferente de 0 (`license_slot_unknown`, `license_slot_disabled`), e a troca gera `license.slot_changed`. Limitação: offline, nada impede que duas instalações escolham o mesmo slot; o controle é o relatório exportado (FR-033) e o contrato com o cliente, não a técnica.
 
 ## D-009: Separação de edições
 
