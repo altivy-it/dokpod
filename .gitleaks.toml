@@ -94,3 +94,7 @@ regexes = [
 description = "Certificado e chave de teste públicos da biblioteca Happy DOM (O=Happy DOM, autoassinado) embutidos no bundle exportado de docs/design/app"
 regexTarget = "line"
 regexes = ['''-----END CERTIFICATE-----`,key:`-----BEGIN [A-Z ]*PRIVATE KEY-----''']
+
+[[allowlists]]
+description = "Vetores de conformidade da spec 031 (T054): JWS assinados por chave sintética descartada na geração; não são credenciais"
+paths = ['''backend/tests/Dokpod\.Licensing\.Tests/ConformanceVectors/license/[a-z-]+\.jws$''']

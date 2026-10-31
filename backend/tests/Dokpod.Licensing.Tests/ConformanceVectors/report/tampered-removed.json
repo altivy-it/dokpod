@@ -1,0 +1,76 @@
+{
+  "reportVersion": 1,
+  "installationId": "3f0c5a1e-2b4d-4c6e-8f90-a1b2c3d4e5f6",
+  "slotId": "prd",
+  "generatedAt": "2027-10-02T13:00:00Z",
+  "challenge": "rnw-2027-org_51d2e0-a91f",
+  "status": {},
+  "hosts": [],
+  "chain": {
+    "headSeq": 5,
+    "headHash": "9_1fJs60ll4QCMnv9prAss87DwZJGxRmQkTB18115so"
+  },
+  "events": [
+    {
+      "chainSeq": 1,
+      "eventId": "00000000-0000-4000-8000-000000000033",
+      "occurredAt": "2026-11-14T13:00:00.000000Z",
+      "actorRef": "actor-ref-1",
+      "correlationId": "00000000-0000-4000-8000-000000000034",
+      "action": "license.imported",
+      "details": {
+        "contentSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "licenseId": "lic_7f3c9a",
+        "revision": 2,
+        "slotId": "prd"
+      },
+      "prevHash": "8Jm3sc75qZgd7JwejlkxgvwckB2yzCdMtfyX2PM1D14",
+      "recordHash": "uqoWtf_HJ60VVIKG5xkRbgAuRyknhUq5aISczAwn-7s"
+    },
+    {
+      "chainSeq": 3,
+      "eventId": "00000000-0000-4000-8000-000000000037",
+      "occurredAt": "2026-11-15T13:00:00.000000Z",
+      "actorRef": null,
+      "correlationId": "00000000-0000-4000-8000-000000000038",
+      "action": "capacity.daily_summary",
+      "details": {
+        "date": "2026-11-14",
+        "hosts": [],
+        "late": false,
+        "peakNodeEquivalents": 3,
+        "unknownHosts": 0,
+        "vcpuBand": 16
+      },
+      "prevHash": "jEJA018jbIa0Il_W6jmpNI_uHRwKEr4uPzXsKUDUskE",
+      "recordHash": "uNgL63ngjlzaJBv19LXcN-dRa-hfi8gpCaq3eoOEA2M"
+    },
+    {
+      "chainSeq": 4,
+      "eventId": "00000000-0000-4000-8000-000000000039",
+      "occurredAt": "2026-11-15T15:00:00.000000Z",
+      "actorRef": "actor-ref-1",
+      "correlationId": "00000000-0000-4000-8000-000000000040",
+      "action": "revocation.imported",
+      "details": {
+        "revokedLicenses": 1,
+        "sequence": 3
+      },
+      "prevHash": "uNgL63ngjlzaJBv19LXcN-dRa-hfi8gpCaq3eoOEA2M",
+      "recordHash": "vvY4bzvJeV1j8oA8N9NapJRJeUf-HOnUo4Q_hh8vcoM"
+    },
+    {
+      "chainSeq": 5,
+      "eventId": "00000000-0000-4000-8000-000000000041",
+      "occurredAt": "2026-11-15T16:00:00.000000Z",
+      "actorRef": "actor-ref-1",
+      "correlationId": "00000000-0000-4000-8000-000000000042",
+      "action": "license.report_exported",
+      "details": {
+        "challenge": "rnw-2027-org_51d2e0-a91f"
+      },
+      "prevHash": "vvY4bzvJeV1j8oA8N9NapJRJeUf-HOnUo4Q_hh8vcoM",
+      "recordHash": "9_1fJs60ll4QCMnv9prAss87DwZJGxRmQkTB18115so"
+    }
+  ]
+}

@@ -1,0 +1,92 @@
+# Pertence ao projeto (spec 031 T054): empacota Dokpod.Licensing com os vetores de conformidade.
+# Em PR que toque o verificador, só testa e empacota (artifact). A publicação no GitHub Packages da
+# organização é manual (workflow_dispatch na main), por decisão do solicitante em 2026-10-31.
+name: Licensing package
+
+on:
+  pull_request:
+    paths:
+      - backend/libs/Dokpod.Licensing/**
+      - backend/tests/Dokpod.Licensing.Tests/**
+      - .github/workflows/licensing-package.yml
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Publica o pacote no GitHub Packages da organização
+        type: boolean
+        default: false
+
+permissions: {}
+
+jobs:
+  pack:
+    name: Pack
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    container:
+      image: lzocateli/dotnet-sdk:10.0.402-noble-v1
+      options: --user 0
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Test verifier and conformance vectors
+        run: dotnet test backend/tests/Dokpod.Licensing.Tests --configuration Release --verbosity minimal
+
+      - name: Pack
+        run: dotnet pack backend/libs/Dokpod.Licensing --configuration Release --output artifacts/nupkg
+
+      - name: Check package contents
+        shell: pwsh
+        run: |
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $package = Get-Item artifacts/nupkg/Dokpod.Licensing.*.nupkg
+          $zip = [IO.Compression.ZipFile]::OpenRead($package.FullName)
+          try {
+            $names = @($zip.Entries.FullName)
+            foreach ($required in 'LICENSE', 'README.md', 'lib/net10.0/Dokpod.Licensing.dll', 'conformance/license/manifest.json', 'conformance/report/manifest.json', 'conformance/license/dokpod-test-1.pem') {
+              if ($names -notcontains $required) { Write-Output "::error::$required ausente do pacote"; exit 1 }
+            }
+            foreach ($entry in $zip.Entries | Where-Object FullName -like 'conformance/*') {
+              $reader = [IO.StreamReader]::new($entry.Open())
+              try { if ($reader.ReadToEnd() -match 'PRIVATE KEY') { Write-Output "::error::chave privada em $($entry.FullName)"; exit 1 } }
+              finally { $reader.Dispose() }
+            }
+          }
+          finally { $zip.Dispose() }
+
+      - name: Upload package
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: dokpod-licensing-nupkg
+          path: artifacts/nupkg/*.nupkg
+          if-no-files-found: error
+
+  publish:
+    name: Publish
+    needs: pack
+    if: github.event_name == 'workflow_dispatch' && inputs.publish && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Download package
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: dokpod-licensing-nupkg
+          path: artifacts/nupkg
+
+      - name: Push to GitHub Packages
+        env:
+          NUGET_TOKEN: ${{ github.token }}
+        run: >-
+          dotnet nuget push "artifacts/nupkg/*.nupkg"
+          --source "https://nuget.pkg.github.com/${GITHUB_REPOSITORY_OWNER}/index.json"
+          --api-key "${NUGET_TOKEN}"
+          --skip-duplicate
