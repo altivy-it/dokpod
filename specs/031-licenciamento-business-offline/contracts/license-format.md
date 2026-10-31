@@ -50,7 +50,7 @@ ECDSA P-256 com SHA-256 sobre `ASCII(header_b64 + "." + payload_b64)` recebidos,
 }
 ```
 
-Os valores são fictícios. As regras de cada campo estão em [data-model.md](../data-model.md#licença-documento-assinado-não-tabela). Instantes UTC em RFC 3339 com `Z`; propriedades duplicadas ou desconhecidas recusam o documento; nenhum campo de preço, contato ou inventário existe no schema.
+Os valores são fictícios. As regras de cada campo estão em [data-model.md](../data-model.md#licença-documento-assinado-não-tabela). Instantes UTC em RFC 3339 com `Z`; propriedades duplicadas ou desconhecidas recusam o documento; nenhum campo de preço, contato ou inventário existe no schema. `licenseId` e `organizationId` aceitam só `[A-Za-z0-9_-]`, de 1 a 128 caracteres; o resto é `malformed`.
 
 ## Payload do pacote de revogação
 

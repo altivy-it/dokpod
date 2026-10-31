@@ -21,16 +21,29 @@ paths:
   /api/v1/licensing/report:
     get:
       operationId: exportLicensingReport
-      summary: Relatório de apuração para exportação local (licensing:read, FR-033); nada é enviado ao fornecedor
+      summary: Relatório de apuração para exportação local (licensing:read, FR-033 a FR-035); o produto nunca o envia ao fornecedor
+      description: Formato e verificação em report-format.md. Grava license.report_exported com o challenge antes de montar o documento. Funciona sem licença importada.
+      parameters:
+        - { name: challenge, in: query, required: true, schema: { type: string, pattern: '^[A-Za-z0-9_-]{8,64}$' } }
       responses:
         '200':
-          description: Consumo atual, pico da janela, faixa, hosts com origem da CPU e prazos
+          description: Cadeia de licenciamento completa e resumo de consumo, pico, faixa, hosts com origem da CPU e prazos
           content:
             application/json:
               schema:
                 type: object
-                required: [generatedAt, status, hosts]
+                required: [reportVersion, installationId, generatedAt, challenge, status, hosts, chain, events]
                 properties:
+                  reportVersion: { type: integer, enum: [1] }
+                  installationId: { type: string, format: uuid }
+                  slotId: { type: string, nullable: true }
+                  challenge: { type: string }
+                  chain:
+                    type: object
+                    properties:
+                      headSeq: { type: integer, format: int64 }
+                      headHash: { type: string }
+                  events: { type: array, items: { type: object } }
                   generatedAt: { type: string, format: date-time }
                   status: { $ref: '#/components/schemas/LicensingStatus' }
                   hosts:
@@ -66,6 +79,7 @@ paths:
         '403': { $ref: '#/components/responses/Problem' }
         '412': { description: Estado mudou desde a leitura (license_revision_conflict), $ref: '#/components/responses/Problem' }
         '413': { $ref: '#/components/responses/Problem' }
+        '429': { description: Limite de importações por minuto (rate_limited), $ref: '#/components/responses/Problem' }
         '422': { description: Arquivo recusado (license_invalid, license_obsolete, license_slot_unknown, license_slot_disabled); a licença anterior continua, $ref: '#/components/responses/Problem' }
   /api/v1/licensing/revocations:
     post:
@@ -86,6 +100,33 @@ paths:
               schema: { $ref: '#/components/schemas/LicensingStatus' }
         '403': { $ref: '#/components/responses/Problem' }
         '422': { description: Pacote inválido ou sequência não crescente, $ref: '#/components/responses/Problem' }
+        '429': { description: Limite de importações por minuto (rate_limited), $ref: '#/components/responses/Problem' }
+  /api/v1/licensing/trusted-instant:
+    post:
+      operationId: resetTrustedInstant
+      summary: Sair de indeterminate regravando o instante confiável com o relógio atual (licensing:manage); nunca concede tolerância nova
+      parameters:
+        - { name: If-Match, in: header, required: true, schema: { type: string } }
+        - { name: X-Dokpod-Antiforgery, in: header, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              additionalProperties: false
+              properties:
+                reason: { type: string, minLength: 10, maxLength: 500 }
+      responses:
+        '200':
+          description: Instante regravado; license.trusted_instant_reset na cadeia
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LicensingStatus' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '409': { description: Estado não está indeterminate por relógio, $ref: '#/components/responses/Problem' }
+        '412': { $ref: '#/components/responses/Problem' }
 components:
   responses:
     Problem:
@@ -103,7 +144,7 @@ components:
         status: { type: integer }
         code:
           type: string
-          enum: [authorization_denied, license_invalid, license_obsolete, license_expired, license_capacity_exceeded, license_revoked, license_state_indeterminate, license_revision_conflict, license_slot_unknown, license_slot_disabled, payload_too_large]
+          enum: [authorization_denied, license_invalid, license_obsolete, license_expired, license_capacity_exceeded, license_revoked, license_state_indeterminate, license_revision_conflict, license_slot_unknown, license_slot_disabled, payload_too_large, rate_limited]
         correlationId: { type: string, format: uuid }
     LicensingStatus:
       type: object
