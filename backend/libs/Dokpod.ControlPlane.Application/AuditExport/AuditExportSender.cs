@@ -67,15 +67,21 @@ public sealed class AuditExportSender(
 
             // Relido com o lease: outra réplica pode ter avançado o cursor antes.
             if (await store.GetAsync(id, cancellationToken).ConfigureAwait(false) is not { Destination.Active: true } state) continue;
-            if (await SkipGapAsync(state, owner, now, cancellationToken).ConfigureAwait(false))
-            {
-                state = await store.GetAsync(id, cancellationToken).ConfigureAwait(false);
-                if (state is null) continue;
-            }
 
             // Horizonte lido antes do lote: tudo abaixo dele já está no lote ou fora do filtro (D-001).
             var horizon = await trail.HorizonAsync(cancellationToken).ConfigureAwait(false);
             var items = await trail.ReadAsync(state.Cursor.Position, state.Destination.Actions, AuditExportLimits.MaxBatch, cancellationToken).ConfigureAwait(false);
+
+            // A lacuna só existe se o primeiro pendente passou da janela; o lote já o traz, na mesma ordem e com o mesmo
+            // filtro, e a busca da lacuna (que abre todas as partições da trilha) fica fora do ciclo normal (SC-004).
+            if (items.Count > 0 && items[0].Event.OccurredAtUtc < now - AuditExportLimits.GapWindow
+                && await SkipGapAsync(state, owner, now, cancellationToken).ConfigureAwait(false))
+            {
+                state = await store.GetAsync(id, cancellationToken).ConfigureAwait(false);
+                if (state is null) continue;
+                horizon = await trail.HorizonAsync(cancellationToken).ConfigureAwait(false);
+                items = await trail.ReadAsync(state.Cursor.Position, state.Destination.Actions, AuditExportLimits.MaxBatch, cancellationToken).ConfigureAwait(false);
+            }
             if (items.Count == 0)
             {
                 // Eventos fora do filtro ficam para trás: mudar as categorias depois não reenvia o passado.
