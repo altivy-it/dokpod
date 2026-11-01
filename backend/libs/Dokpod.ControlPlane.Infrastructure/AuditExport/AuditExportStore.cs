@@ -175,6 +175,27 @@ public sealed class AuditExportStore(ControlPlaneDbContext dbContext) : IAuditEx
             [P("id", destinationId), P("owner", owner)],
             cancellationToken).ConfigureAwait(false);
 
+    public async Task<bool> SkipGapAsync(
+        Guid destinationId, string owner, AuditExportPosition last, DateTimeOffset atUtc,
+        Func<CancellationToken, Task> withinTransaction, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(withinTransaction);
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+        var updated = await ExecuteAsync(
+            dbContext,
+            """
+            UPDATE dokpod.audit_export_cursors
+            SET last_tx_id = @tx::text::xid8, last_seq = @seq, last_gap_at_utc = @at
+            WHERE destination_id = @id AND lease_owner = @owner AND (last_tx_id, last_seq) < (@tx::text::xid8, @seq)
+            """,
+            [P("id", destinationId), P("owner", owner), Xid8Parameter("tx", last.TxId), P("seq", last.Seq), P("at", atUtc)],
+            cancellationToken).ConfigureAwait(false);
+        if (updated != 1) return false;
+        await withinTransaction(cancellationToken).ConfigureAwait(false);
+        await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+        return true;
+    }
+
     private async Task<bool> ExistsAsync(Guid destinationId, CancellationToken cancellationToken) =>
         (await QueryAsync(
             dbContext, "SELECT 1 FROM dokpod.audit_export_destinations WHERE destination_id = @id", [P("id", destinationId)], _ => true, cancellationToken)

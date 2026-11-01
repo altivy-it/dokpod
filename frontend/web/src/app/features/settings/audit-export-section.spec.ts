@@ -111,6 +111,26 @@ describe('Seção Exportação para SIEM (spec 027 T022)', () => {
     expect(text).toContain('Falha de TLS');
   });
 
+  it('mostra fila limitada, idade do mais antigo e aviso persistente de lacuna (T028)', async () => {
+    const oldest = new Date(Date.now() - 2 * 3600_000).toISOString();
+    api.list.mockResolvedValue([
+      {
+        ...destination,
+        state: 'gap',
+        pending: { count: 10000, capped: true, oldestAt: oldest },
+        lastGapAt: '2026-11-01T13:00:00Z',
+      },
+    ]);
+    const fixture = await render();
+    const text = fixture.nativeElement.textContent as string;
+
+    expect(text).toContain('Lacuna recente');
+    expect(text).toContain('pendentes: 10.000+');
+    expect(text).toContain('(mais antigo há 2 h)');
+    expect(text).toContain('Lacuna na exportação');
+    expect(text).toContain('audit_export.gap');
+  });
+
   it('não aparece sem a capability audit-siem-export na licença', async () => {
     licensing.status.mockResolvedValue({
       status: license('granted', ['change-windows']),
