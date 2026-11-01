@@ -1,0 +1,184 @@
+@if (available()) {
+  <section class="st-card alt-glass" aria-labelledby="st-audit-export">
+    <h2 class="st-card__title" id="st-audit-export">Exportação para SIEM</h2>
+    @if (loadStatus() !== null) {
+      <dok-empty-state
+        [kind]="loadStatus() === 403 ? 'forbidden' : 'error'"
+        [title]="
+          loadStatus() === 403
+            ? 'Ver a exportação exige a permissão audit-export:read.'
+            : 'Não foi possível ler os destinos de exportação.'
+        "
+      >
+        <button
+          dok-button
+          variant="outline"
+          size="sm"
+          startIcon="refresh"
+          type="button"
+          (click)="load()"
+        >
+          Tentar novamente
+        </button>
+      </dok-empty-state>
+    } @else if (destinations(); as items) {
+      <div class="dok-stack">
+        <p class="app-small st-muted">
+          Envia a trilha de auditoria a até 5 destinos syslog com TLS. A categoria Exportação para
+          SIEM vai sempre, para o SOC ver mudanças nos próprios destinos.
+        </p>
+        @if (restricted()) {
+          <div class="dok-stack" role="status">
+            <p><dok-status-chip size="sm" color="warning" label="Licença restrita" /></p>
+            <p class="app-small">
+              O envio continua, mas criar, editar, reativar e testar destinos estão bloqueados.
+              Desativar e excluir seguem disponíveis.
+            </p>
+          </div>
+        }
+
+        @if (items.length === 0) {
+          <p class="app-small st-muted">Nenhum destino configurado.</p>
+        }
+        <ul class="st-list" aria-label="Destinos de exportação">
+          @for (item of items; track item.destinationId) {
+            <li class="st-list__row" [attr.data-destination]="item.name">
+              <span>
+                <strong>{{ item.name }}</strong>
+                <span class="app-caption st-muted"> · {{ item.host }}:{{ item.port }}</span>
+              </span>
+              <span class="st-list__value">
+                <dok-status-chip
+                  size="sm"
+                  [color]="stateLabel[item.state].tone"
+                  [label]="stateLabel[item.state].label"
+                />
+              </span>
+              <span class="app-caption st-muted st-list__note">
+                {{ secretSummary(item) }} · pendentes:
+                {{ item.pending.capped ? '10.000+' : item.pending.count }}
+                @if (item.lastSentAt) {
+                  · último envio {{ formatDateTime(item.lastSentAt) }}
+                }
+                @if (item.lastError; as lastError) {
+                  · {{ errorLabel[lastError.code] ?? lastError.code }} em
+                  {{ formatDateTime(lastError.at) }}
+                }
+              </span>
+              <span class="dok-actions st-list__note">
+                <button
+                  dok-button
+                  variant="outline"
+                  size="sm"
+                  type="button"
+                  [disabled]="busy() || restricted()"
+                  (click)="test(item)"
+                >
+                  Enviar evento de teste
+                </button>
+                <button
+                  dok-button
+                  variant="outline"
+                  size="sm"
+                  type="button"
+                  [disabled]="busy() || restricted()"
+                  (click)="startEdit(item)"
+                >
+                  Editar
+                </button>
+                <button
+                  dok-button
+                  variant="outline"
+                  size="sm"
+                  type="button"
+                  [disabled]="busy() || (!item.active && restricted())"
+                  (click)="toggle(item)"
+                >
+                  {{ item.active ? 'Desativar' : 'Reativar' }}
+                </button>
+                <button
+                  dok-button
+                  variant="outline"
+                  size="sm"
+                  type="button"
+                  [disabled]="busy()"
+                  (click)="remove(item)"
+                >
+                  Excluir
+                </button>
+              </span>
+            </li>
+          }
+        </ul>
+
+        @if (form(); as current) {
+          <form
+            class="dok-stack"
+            [attr.aria-label]="current.destination ? 'Editar destino' : 'Novo destino'"
+            (submit)="$event.preventDefault(); save()"
+          >
+            <dok-field label="Nome" placeholder="siem-soc" name="name" [(ngModel)]="current.name" />
+            <dok-field
+              label="Host"
+              placeholder="siem.exemplo.interno"
+              [mono]="true"
+              name="host"
+              [(ngModel)]="current.host"
+            />
+            <dok-field label="Porta" type="number" name="port" [(ngModel)]="current.port" />
+            <dok-field
+              label="Secret montado (opcional)"
+              placeholder="siem-soc"
+              [mono]="true"
+              help="Pasta em /run/secrets/dokpod-audit-export/ com ca.pem, tls.crt e tls.key."
+              name="secretRef"
+              [(ngModel)]="current.secretRef"
+            />
+            <fieldset class="dok-stack" aria-label="Categorias enviadas">
+              @for (category of categories; track category.id) {
+                <dok-checkbox
+                  [label]="category.label"
+                  [name]="'cat-' + category.id"
+                  [disabled]="category.id === mandatory"
+                  [help]="category.id === mandatory ? 'Sempre enviada.' : null"
+                  [(ngModel)]="current.categories[category.id]"
+                />
+              }
+            </fieldset>
+            <dok-checkbox label="Ativo" name="active" [(ngModel)]="current.active" />
+            <div class="dok-actions">
+              <button
+                dok-button
+                size="sm"
+                type="submit"
+                [loading]="busy()"
+                [disabled]="!valid(current) || restricted()"
+              >
+                Salvar destino
+              </button>
+              <button dok-button variant="ghost" size="sm" type="button" (click)="cancel()">
+                Cancelar
+              </button>
+            </div>
+          </form>
+        } @else {
+          <div class="dok-actions">
+            <button
+              dok-button
+              size="sm"
+              startIcon="plus"
+              type="button"
+              [disabled]="busy() || restricted() || full()"
+              (click)="startCreate()"
+            >
+              Novo destino
+            </button>
+          </div>
+          @if (full()) {
+            <p class="app-caption st-muted">Limite de 5 destinos atingido.</p>
+          }
+        }
+      </div>
+    }
+  </section>
+}

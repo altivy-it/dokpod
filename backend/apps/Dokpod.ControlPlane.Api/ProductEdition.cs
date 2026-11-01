@@ -49,6 +49,7 @@ public static class ProductEdition
         ArgumentNullException.ThrowIfNull(endpoints);
 #if DOKPOD_BUSINESS
         endpoints.MapLicensingEndpoints();
+        endpoints.MapAuditExportEndpoints();
 #endif
     }
 }
