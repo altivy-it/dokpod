@@ -18,6 +18,14 @@ public enum AuditOutcome
 public sealed record AuditEvent
 {
     public const int MaxActorIdLength = 128;
+
+    /// <summary>
+    /// Ambiente reservado dos eventos da instalação inteira (spec 027 D-012). Só as ações <c>audit_export.*</c> o usam;
+    /// nenhum ambiente real tem esse ID, então a consulta por ambiente da spec 017 nunca os revela.
+    /// </summary>
+    public static readonly Guid InstallationScopeId = new("00000000-0000-0000-0000-00000000d0c0");
+
+    private const string InstallationActionPrefix = "audit_export.";
     public const int MaxFailureCodeLength = 128;
 
     private static readonly HashSet<string> SupportedActions =
@@ -152,6 +160,9 @@ public sealed record AuditEvent
         "registries", "previousRegistries",
         // Spec 021: identificador do pod.
         "podId",
+        // Spec 027: destino de exportação, sem segredos (só se há secretRef).
+        "destinationId", "protocol", "host", "port", "categories", "hasSecretRef", "active", "changed", "delivered", "errorCode",
+        "fromUtc", "toUtc",
     ];
 
     /// <summary>Justificativa do terminal (spec 014 D-009): única exceção de texto livre além do comando equivalente.</summary>
@@ -180,6 +191,8 @@ public sealed record AuditEvent
                 {
                     "command" => MaxCommandDetailLength,
                     "justification" => MaxJustificationDetailLength,
+                    "host" => 253,
+                    "categories" or "changed" => 512,
                     _ => 128,
                 }) ?? string.Empty;
                 size += key.Length + normalized.Length;
@@ -255,6 +268,11 @@ public sealed record AuditEvent
         if (environmentId == Guid.Empty)
         {
             throw new ArgumentException("Environment ID is required.", nameof(environmentId));
+        }
+
+        if ((environmentId == InstallationScopeId) != action.StartsWith(InstallationActionPrefix, StringComparison.Ordinal))
+        {
+            throw new ArgumentException("Only installation actions use the installation scope.", nameof(environmentId));
         }
 
         if (!Enum.IsDefined(outcome))

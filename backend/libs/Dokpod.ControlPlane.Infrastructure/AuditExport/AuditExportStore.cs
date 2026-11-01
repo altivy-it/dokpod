@@ -32,7 +32,8 @@ public sealed class AuditExportStore(ControlPlaneDbContext dbContext) : IAuditEx
             .SingleOrDefault();
 
     public async Task<AuditExportWriteResult> CreateAsync(
-        AuditExportDestinationInput input, string idempotencyKey, DateTimeOffset nowUtc, CancellationToken cancellationToken)
+        AuditExportDestinationInput input, string idempotencyKey, DateTimeOffset nowUtc, CancellationToken cancellationToken,
+        Func<AuditExportDestination, CancellationToken, Task>? withinTransaction = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(idempotencyKey);
         if (idempotencyKey.Length > 128) throw new ArgumentException("Idempotency key is too long.", nameof(idempotencyKey));
@@ -75,13 +76,17 @@ public sealed class AuditExportStore(ControlPlaneDbContext dbContext) : IAuditEx
             """,
             [.. Parameters(destinationId, input), P("key", idempotencyKey), P("expires", nowUtc + AuditExportLimits.IdempotencyWindow), P("now", nowUtc)],
             cancellationToken).ConfigureAwait(false);
+        var created = (await GetAsync(destinationId, cancellationToken).ConfigureAwait(false))!.Destination;
+        if (withinTransaction is not null) await withinTransaction(created, cancellationToken).ConfigureAwait(false);
         await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
-        return new AuditExportWriteResult(AuditExportWriteOutcome.Created, (await GetAsync(destinationId, cancellationToken).ConfigureAwait(false))!.Destination);
+        return new AuditExportWriteResult(AuditExportWriteOutcome.Created, created);
     }
 
     public async Task<AuditExportWriteResult> UpdateAsync(
-        Guid destinationId, AuditExportDestinationInput input, long expectedVersion, DateTimeOffset nowUtc, CancellationToken cancellationToken)
+        Guid destinationId, AuditExportDestinationInput input, long expectedVersion, DateTimeOffset nowUtc, CancellationToken cancellationToken,
+        Func<AuditExportDestination, CancellationToken, Task>? withinTransaction = null)
     {
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
         int updated;
         try
         {
@@ -101,19 +106,32 @@ public sealed class AuditExportStore(ControlPlaneDbContext dbContext) : IAuditEx
             return new AuditExportWriteResult(AuditExportWriteOutcome.NameTaken, null);
         }
 
-        if (updated == 1) return new AuditExportWriteResult(AuditExportWriteOutcome.Updated, (await GetAsync(destinationId, cancellationToken).ConfigureAwait(false))?.Destination);
-        return new AuditExportWriteResult(await ExistsAsync(destinationId, cancellationToken).ConfigureAwait(false) ? AuditExportWriteOutcome.VersionConflict : AuditExportWriteOutcome.NotFound, null);
+        if (updated != 1)
+        {
+            return new AuditExportWriteResult(await ExistsAsync(destinationId, cancellationToken).ConfigureAwait(false) ? AuditExportWriteOutcome.VersionConflict : AuditExportWriteOutcome.NotFound, null);
+        }
+
+        var destination = (await GetAsync(destinationId, cancellationToken).ConfigureAwait(false))!.Destination;
+        if (withinTransaction is not null) await withinTransaction(destination, cancellationToken).ConfigureAwait(false);
+        await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+        return new AuditExportWriteResult(AuditExportWriteOutcome.Updated, destination);
     }
 
-    public async Task<AuditExportWriteOutcome> DeleteAsync(Guid destinationId, long expectedVersion, CancellationToken cancellationToken)
+    public async Task<AuditExportWriteOutcome> DeleteAsync(
+        Guid destinationId, long expectedVersion, CancellationToken cancellationToken,
+        Func<AuditExportDestination, CancellationToken, Task>? withinTransaction = null)
     {
-        var deleted = await ExecuteAsync(
-            dbContext,
-            "DELETE FROM dokpod.audit_export_destinations WHERE destination_id = @id AND version = @version",
-            [P("id", destinationId), P("version", expectedVersion)],
-            cancellationToken).ConfigureAwait(false);
-        if (deleted == 1) return AuditExportWriteOutcome.Deleted;
-        return await ExistsAsync(destinationId, cancellationToken).ConfigureAwait(false) ? AuditExportWriteOutcome.VersionConflict : AuditExportWriteOutcome.NotFound;
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+        var existing = (await QueryAsync(
+            dbContext, $"{Select} WHERE d.destination_id = @id FOR UPDATE OF d", [P("id", destinationId)], Read, cancellationToken).ConfigureAwait(false)).SingleOrDefault();
+        if (existing is null) return AuditExportWriteOutcome.NotFound;
+        if (existing.Destination.Version != expectedVersion) return AuditExportWriteOutcome.VersionConflict;
+
+        await ExecuteAsync(
+            dbContext, "DELETE FROM dokpod.audit_export_destinations WHERE destination_id = @id", [P("id", destinationId)], cancellationToken).ConfigureAwait(false);
+        if (withinTransaction is not null) await withinTransaction(existing.Destination, cancellationToken).ConfigureAwait(false);
+        await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+        return AuditExportWriteOutcome.Deleted;
     }
 
     public async Task<bool> TryAcquireLeaseAsync(Guid destinationId, string owner, DateTimeOffset nowUtc, TimeSpan duration, CancellationToken cancellationToken) =>
@@ -126,15 +144,21 @@ public sealed class AuditExportStore(ControlPlaneDbContext dbContext) : IAuditEx
             [P("id", destinationId), P("owner", owner), P("now", nowUtc), P("until", nowUtc + duration)],
             cancellationToken).ConfigureAwait(false) == 1;
 
-    public async Task<bool> AdvanceAsync(Guid destinationId, string owner, AuditExportPosition position, DateTimeOffset sentAtUtc, CancellationToken cancellationToken) =>
+    public async Task<bool> AdvanceAsync(Guid destinationId, string owner, AuditExportPosition position, DateTimeOffset? sentAtUtc, CancellationToken cancellationToken) =>
         await ExecuteAsync(
             dbContext,
             """
             UPDATE dokpod.audit_export_cursors
-            SET last_tx_id = @tx::text::xid8, last_seq = @seq, last_sent_at_utc = @sent, last_error_code = NULL, last_error_at_utc = NULL
+            SET last_tx_id = @tx::text::xid8, last_seq = @seq,
+                last_sent_at_utc = COALESCE(@sent, last_sent_at_utc),
+                last_error_code = CASE WHEN @sent IS NULL THEN last_error_code END,
+                last_error_at_utc = CASE WHEN @sent IS NULL THEN last_error_at_utc END
             WHERE destination_id = @id AND lease_owner = @owner AND (last_tx_id, last_seq) < (@tx::text::xid8, @seq)
             """,
-            [P("id", destinationId), P("owner", owner), Xid8Parameter("tx", position.TxId), P("seq", position.Seq), P("sent", sentAtUtc)],
+            [
+                P("id", destinationId), P("owner", owner), Xid8Parameter("tx", position.TxId), P("seq", position.Seq),
+                new NpgsqlParameter("sent", NpgsqlDbType.TimestampTz) { Value = (object?)sentAtUtc ?? DBNull.Value },
+            ],
             cancellationToken).ConfigureAwait(false) == 1;
 
     public async Task<bool> RecordFailureAsync(Guid destinationId, string owner, string errorCode, DateTimeOffset atUtc, CancellationToken cancellationToken) =>

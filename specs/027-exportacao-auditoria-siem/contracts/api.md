@@ -59,6 +59,8 @@ Regras em [data-model.md](../data-model.md#audit_export_destinations). Proprieda
 | Status | `code` | Quando |
 | --- | --- | --- |
 | 400 | `audit_export_invalid_destination` | campo inválido, propriedade desconhecida, categoria inexistente |
+| 400 | `idempotency_key_required` | criação sem `Idempotency-Key` (UUID) |
+| 400 | `if_match_required` | edição ou exclusão sem `If-Match` |
 | 403 | `authorization_denied` | sem o scope |
 | 403 | `license_expired`, `license_revoked`, `license_capacity_exceeded`, `license_state_indeterminate`, `license_invalid` | gate da licença (spec 031); `license_invalid` cobre também licença sem a capability `audit-siem-export` |
 | 404 | `audit_export_not_found` | destino inexistente |

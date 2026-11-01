@@ -171,4 +171,26 @@ public sealed class AuditEventTests
 
         Assert.Equal("commandId", exception.ParamName);
     }
+
+    [Fact]
+    public void InstallationScope_IsOnlyForAuditExportActions()
+    {
+        var created = AuditEvent.Create(
+            Guid.NewGuid(), DateTimeOffset.UtcNow, Guid.NewGuid(), AuditActorKind.User, "user-123",
+            "audit_export.destination_created", AuditEvent.InstallationScopeId, AuditOutcome.Succeeded)
+            .WithSubject(Guid.NewGuid().ToString("D"), new Dictionary<string, string>
+            {
+                ["host"] = new string('a', 253),
+                ["categories"] = string.Join(',', AuditCategories.Actions.Keys),
+                ["hasSecretRef"] = "true",
+            });
+        Assert.Equal(AuditEvent.InstallationScopeId, created.EnvironmentId);
+
+        Assert.Equal("environmentId", Assert.Throws<ArgumentException>(() => AuditEvent.Create(
+            Guid.NewGuid(), DateTimeOffset.UtcNow, Guid.NewGuid(), AuditActorKind.User, "user-123",
+            "container.restart", AuditEvent.InstallationScopeId, AuditOutcome.Succeeded, commandId: Guid.NewGuid())).ParamName);
+        Assert.Equal("environmentId", Assert.Throws<ArgumentException>(() => AuditEvent.Create(
+            Guid.NewGuid(), DateTimeOffset.UtcNow, Guid.NewGuid(), AuditActorKind.User, "user-123",
+            "audit_export.test_sent", Guid.NewGuid(), AuditOutcome.Succeeded)).ParamName);
+    }
 }
