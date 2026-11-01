@@ -6,7 +6,7 @@
 
 ## Qualidade do Conteúdo
 
-- [x] Sem detalhes de implementação (linguagens, frameworks, APIs)
+- [ ] Sem detalhes de implementação (linguagens, frameworks, APIs)
 - [x] Foco no valor para o usuário e nas necessidades de negócio
 - [x] Redação voltada a stakeholders não técnicos
 - [x] Todas as seções obrigatórias preenchidas
@@ -27,10 +27,11 @@
 - [x] Todos os requisitos funcionais possuem critérios claros de aceitação
 - [x] Cenários de usuário cobrem os fluxos principais
 - [x] Feature atende aos resultados mensuráveis dos critérios de sucesso
-- [x] Nenhum detalhe de implementação indevido na especificação
+- [ ] Nenhum detalhe de implementação indevido na especificação
 
 ## Notas
 
 - Validação em 1 iteração. syslog, OpenTelemetry e TLS aparecem como protocolos exigidos pelo cliente (requisito de integração), não como escolha de implementação; PostgreSQL só nas premissas, como restrição da constituição (princípio V).
 - Escolhas sem resposta do solicitante foram registradas em "Esclarecimentos" como recomendações sujeitas à aprovação, sem marcadores pendentes.
 - Checkboxes registram a validação da spec, não aprovação humana (constituição).
+- Revalidação em 2026-11-01 (`/speckit-clarify`): o alinhamento com a spec 031 trouxe para os requisitos nomes de implementação (`audit_events`, `[BusinessCapability]`, `IBusinessCapabilityGate`, lock no PostgreSQL). São decisões aceitas, mas pertencem ao plano; mover para `plan.md` em `/speckit-plan` e voltar a marcar os dois itens.
