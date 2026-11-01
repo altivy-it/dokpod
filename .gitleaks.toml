@@ -48,6 +48,8 @@ regexes = [
 	# Placeholder de template (`{{v.secret}}`) e lista de chaves em documentação (`password=`, `secret=`).
 	'''^\s*['"]?\{\{[A-Za-z_][A-Za-z0-9_.]*\}\}''',
 	'''^`,\s*`''',
+	# Duas chaves em código inline ligadas por "e", como na mensagem do commit 8bc426c (spec 025), quebrada depois da segunda chave.
+	'''^`\s+e\s+`[A-Za-z_][A-Za-z0-9_]*\s*$''',
 	# Valores sintéticos dos testes de mascaramento e do catálogo de desenvolvimento.
 	'''^'segredo-do-cofre'$''',
 	'''(?i)\bhunter2\b''',
