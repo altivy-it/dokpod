@@ -175,6 +175,49 @@ describe('Seção Exportação para SIEM (spec 027 T022)', () => {
     expect(toast.success).toHaveBeenCalled();
   });
 
+  it('cria destino OTLP com caminho e porta padrão e mostra o token como presença (T032)', async () => {
+    api.create.mockResolvedValue(destination);
+    api.list.mockResolvedValue([
+      {
+        ...destination,
+        name: 'otel-soc',
+        protocol: 'otlp',
+        port: 4318,
+        path: '/v1/logs',
+        secretRef: 'otel-soc',
+        secretFiles: { ca: true, clientCertificate: false, token: true },
+        state: 'ok',
+        lastError: null,
+      },
+    ]);
+    const fixture = await render();
+    expect(fixture.nativeElement.textContent).toContain('OTLP · siem.exemplo.interno:4318/v1/logs');
+    expect(fixture.nativeElement.textContent).toContain('otel-soc: CA, token');
+
+    button(fixture, 'Novo destino').click();
+    await settle(fixture);
+    const component = fixture.componentInstance as unknown as {
+      form: () => { name: string; host: string; port: string; path: string; protocol: string };
+      changeProtocol: (form: unknown, protocol: string) => void;
+      save: () => Promise<void>;
+    };
+    component.changeProtocol(component.form(), 'otlp');
+    await settle(fixture);
+    expect(component.form().port).toBe('4318');
+    expect(fixture.nativeElement.textContent).toContain('token (vai como Authorization: Bearer)');
+    Object.assign(component.form(), {
+      name: 'otel-2',
+      host: 'otel.interno',
+      path: '/coletor/v1/logs',
+    });
+    await component.save();
+
+    expect(api.create).toHaveBeenCalledWith(
+      expect.objectContaining({ protocol: 'otlp', port: 4318, path: '/coletor/v1/logs' }),
+      expect.any(String),
+    );
+  });
+
   it('com a licença restrita, criar, editar e testar ficam desabilitados; desativar e excluir não', async () => {
     licensing.status.mockResolvedValue({ status: license('restricted'), etag: '"1"' });
     const fixture = await render();
