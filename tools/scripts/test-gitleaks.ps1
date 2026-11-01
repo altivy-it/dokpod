@@ -86,6 +86,8 @@ $cases = @(
     @{ Name = 'JS boolean coercion'; Text = 'const secret = !!p.secret;'; Rule = $null }
     @{ Name = 'template placeholder'; Text = '<dc-import secret="{{v.secret}}" mono="{{yes}}">'; Rule = $null }
     @{ Name = 'documented key list'; Text = 'Mascaramento (`password=`, `secret=`, `token=`)'; Rule = $null }
+    @{ Name = 'documented key pair'; Text = 'porque `' + (New-CredentialAssignment 'Password ' ('` e `' + 'Sec' + 'ret')); Rule = $null }
+    @{ Name = 'literal in inline code'; Text = New-CredentialAssignment 'Password' ('`' + $credential + '`'); Rule = $connectionRule }
     @{ Name = 'synthetic canary'; Text = '"DATABASE_PASSWORD={{Canary}}-env"'; Rule = $null }
     @{ Name = 'shell empty default'; Text = New-CredentialAssignment 'secret' '${DOKPOD_PROVISIONER_CLIENT_SECRET:-}'; Rule = $null }
     @{ Name = 'shell env file lookup'; Text = New-CredentialAssignment '  secret' ("`$(sed -n 's/^" + (New-CredentialAssignment 'DOKPOD_PROVISIONER_CLIENT_SECRET' "//p' `"`$HOME/.env`" | tr -d '\r')")); Rule = $null }
