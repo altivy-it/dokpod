@@ -213,7 +213,7 @@ description: "Tarefas da implementação da exportação de auditoria para SIEM"
 
 ### Testes da História de Usuário 2
 
-- [ ] T024 [P] [US2] Testes de resiliência em `backend/tests/Dokpod.ControlPlane.Api.Tests/AuditExport/AuditExportResilienceTests.cs`, com PostgreSQL real e relógio injetável:
+- [x] T024 [P] [US2] Testes de resiliência em `backend/tests/Dokpod.ControlPlane.Api.Tests/AuditExport/AuditExportResilienceTests.cs`, com PostgreSQL real e relógio injetável:
   - destino fora: o cursor para, o estado vira `failing` com `last_error_code` e a fila conta até 10.000 e marca `capped`;
   - destino de volta: todos os eventos chegam na ordem de `(tx_id, export_seq)`, sem duplicar a trilha (SC-002);
   - pendente com mais de 72 h: o cursor pula, grava `audit_export.gap` com `fromUtc`, `toUtc` e `count`, e `last_gap_at_utc` é preenchido;
@@ -221,19 +221,22 @@ description: "Tarefas da implementação da exportação de auditoria para SIEM"
   - espera exponencial até 60 s;
   - dois destinos, um fora e outro ativo: o ativo continua entregando;
   - uma transação longa aberta em outra conexão segura o cursor sem perder eventos, e o atraso do pendente mais antigo aparece na tela e na métrica (D-001).
-- [ ] T025 [P] [US2] Teste de réplicas em `backend/tests/Dokpod.ControlPlane.Api.Tests/AuditExport/AuditExportLeaseTests.cs`: duas instâncias do remetente no mesmo banco dão um só remetente por destino; matar a dona do lease faz a outra assumir em até 30 s; o lote não confirmado é reenviado com os mesmos `eventId` (SC-006).
+  - Nota de execução: o próprio `audit_export.destination_created` entra na fila do destino (categoria obrigatória, L7). A lacuna de D-002 é a sequência inicial de pendentes fora da janela; o teste entrega antes o evento da criação para reproduzir isso.
+- [x] T025 [P] [US2] Teste de réplicas em `backend/tests/Dokpod.ControlPlane.Api.Tests/AuditExport/AuditExportLeaseTests.cs`: duas instâncias do remetente no mesmo banco dão um só remetente por destino; matar a dona do lease faz a outra assumir em até 30 s; o lote não confirmado é reenviado com os mesmos `eventId` (SC-006).
 
 ### Implementação da História de Usuário 2
 
-- [ ] T026 [US2] No `AuditExportSender`:
+- [x] T026 [US2] No `AuditExportSender`:
   - a janela de 72 h e as lacunas de [D-002](research.md#d-002-janela-de-72-horas-e-lacunas);
   - os estados de [data-model.md](data-model.md#estado-exibido-de-um-destino-calculado);
   - a espera exponencial até 60 s;
   - `rejected` (4xx que não seja 408 ou 429) sem avançar o cursor.
 
   Lease e cursor ficam no `AuditExportStore`.
-- [ ] T027 [P] [US2] Métricas `dokpod.audit_export.pending`, `dokpod.audit_export.lag_seconds` (atraso do pendente mais antigo), `dokpod.audit_export.failures` e `dokpod.audit_export.gaps`, com rótulo do destino por ID, sem host nem segredo, em `backend/libs/Dokpod.ControlPlane.Application/Hosts/ControlPlaneMetrics.cs`. Logs só com código de erro e ID do destino.
-- [ ] T028 [US2] Na seção de Configurações (`audit-export-section.component.*`): estado, último envio, tamanho da fila ("10.000+" quando `capped`), idade do mais antigo e aviso persistente de lacuna. Teste no `audit-export-section.spec.ts` e caso de destino indisponível com lacuna no `test_027_audit_export.py`.
+  - Nota de execução: o pulo da lacuna e o `audit_export.gap` (ator de sistema `dokpod-audit-export`, `failureCode` `retention_window_exceeded`) gravam na mesma transação, só pelo dono do lease (`IAuditExportStore.SkipGapAsync`).
+- [x] T027 [P] [US2] Métricas `dokpod.audit_export.pending`, `dokpod.audit_export.lag_seconds` (atraso do pendente mais antigo), `dokpod.audit_export.failures` e `dokpod.audit_export.gaps`, com rótulo do destino por ID, sem host nem segredo, em `backend/libs/Dokpod.ControlPlane.Application/Hosts/ControlPlaneMetrics.cs`. Logs só com código de erro e ID do destino.
+  - Nota de execução: as métricas ficaram em `backend/libs/Dokpod.ControlPlane.Application/AuditExport/AuditExportMetrics.cs`, no mesmo meter `Dokpod.ControlPlane`, para a CE não carregar nada da exportação. O único rótulo é `destination.id` (no máximo 5); falhas também levam `error.code`.
+- [x] T028 [US2] Na seção de Configurações (`audit-export-section.component.*`): estado, último envio, tamanho da fila ("10.000+" quando `capped`), idade do mais antigo e aviso persistente de lacuna. Teste no `audit-export-section.spec.ts` e caso de destino indisponível com lacuna no `test_027_audit_export.py`.
 
 **Checkpoint**: indisponibilidade e lacunas tratadas; sem perda com o destino fora até 72 h.
 

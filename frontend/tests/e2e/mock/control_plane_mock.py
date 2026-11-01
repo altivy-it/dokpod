@@ -719,9 +719,12 @@ AUDIT_EXPORT_FIELDS = {"name", "protocol", "host", "port", "path", "secretRef", 
 
 
 def audit_export_destination(item: dict) -> dict:
-    return {**item, "secretFiles": {"ca": bool(item.get("secretRef")), "clientCertificate": False, "token": False},
+    """Situação simulada; "health" (só no mock) sobrepõe estado, fila, erro e lacuna de um destino indisponível."""
+    view = {key: value for key, value in item.items() if key != "health"}
+    return {**view, "secretFiles": {"ca": bool(item.get("secretRef")), "clientCertificate": False, "token": False},
             "state": "ok" if item["active"] else "disabled", "lastSentAt": None, "lastError": None,
-            "pending": {"count": 0, "capped": False, "oldestAt": None}, "lastGapAt": None}
+            "pending": {"count": 0, "capped": False, "oldestAt": None}, "lastGapAt": None,
+            **(item.get("health") or {})}
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -867,6 +870,13 @@ class Handler(BaseHTTPRequestHandler):
                 STATE["licensing"].update(license=True, slot="prd", capabilities=["change-windows", "audit-siem-export"],
                                           entitlement="restricted" if STATE["scenario"].endswith("restricted") else "granted")
             STATE["audit_export"] = []
+            if STATE["scenario"] == "business-siem-gap":
+                STATE["audit_export"].append({
+                    "destinationId": "d0000000-0000-4000-8000-000000000098", "name": "siem-soc", "protocol": "syslog",
+                    "host": "siem.exemplo.interno", "port": 6514, "path": None, "secretRef": "siem-soc",
+                    "categories": ["audit_export", "containers"], "active": True, "version": 4,
+                    "health": {"state": "gap", "lastSentAt": iso(4400), "lastError": {"code": "connection_refused", "at": iso(1)},
+                               "pending": {"count": 10000, "capped": True, "oldestAt": iso(4300)}, "lastGapAt": iso(5)}})
             if STATE["scenario"] == "business-siem-restricted":
                 STATE["audit_export"].append({
                     "destinationId": "d0000000-0000-4000-8000-000000000099", "name": "siem-soc", "protocol": "syslog",
