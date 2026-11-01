@@ -61,6 +61,7 @@ Regras em [data-model.md](../data-model.md#audit_export_destinations). Proprieda
 | 400 | `audit_export_invalid_destination` | campo inválido, propriedade desconhecida, categoria inexistente |
 | 403 | `authorization_denied` | sem o scope |
 | 403 | `license_expired`, `license_revoked`, `license_capacity_exceeded`, `license_state_indeterminate`, `license_invalid` | gate da licença (spec 031); `license_invalid` cobre também licença sem a capability `audit-siem-export` |
+| 404 | `audit_export_not_found` | destino inexistente |
 | 409 | `audit_export_limit_reached` | já existem 5 destinos |
 | 409 | `audit_export_name_taken` | nome repetido |
 | 412 | `audit_export_version_conflict` | `If-Match` desatualizado |

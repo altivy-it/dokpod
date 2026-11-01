@@ -65,7 +65,7 @@ Uma linha por destino, com `ON DELETE CASCADE` a partir de `audit_export_destina
 
 ## Eventos de auditoria novos
 
-`AuditCategories` ganha a categoria `audit_export` com estas ações:
+`AuditCategories` ganha a categoria `audit_export` com estas ações. Todas são gravadas com o ambiente reservado `AuditEvent.InstallationScopeId` ([D-012](research.md#d-012-eventos-da-instalação-na-trilha)): não aparecem na tela de auditoria por ambiente e saem no SIEM com `environmentId: null`.
 
 | Ação | Detalhes (sem segredos) |
 | --- | --- |

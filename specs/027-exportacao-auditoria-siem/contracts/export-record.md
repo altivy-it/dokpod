@@ -17,13 +17,14 @@ Mesmos campos e mesma sanitização da trilha que o console e o CSV da spec 017 
   "category": "containers",
   "environmentId": "…",
   "subjectId": "web-1",
-  "outcome": "success",
+  "outcome": "succeeded",
   "failureCode": null,
   "details": { },
   "test": false
 }
 ```
 
+- `environmentId` é `null` nos eventos da instalação (`audit_export.*`, [D-012](../research.md#d-012-eventos-da-instalação-na-trilha)).
 - `eventId` é o identificador único para deduplicação no destino. Uma reentrega leva o mesmo `eventId`.
 - O evento de teste tem `action` `audit_export.test`, `test: true` e `eventId` novo; ele não entra na trilha local, só o registro `audit_export.test_sent`.
 - Campos novos podem ser acrescentados no mesmo `formatVersion`; remover ou mudar o significado de um campo exige `formatVersion` 2.
@@ -34,7 +35,7 @@ Mesmos campos e mesma sanitização da trilha que o console e o CSV da spec 017 
 
 | Campo | Valor |
 | --- | --- |
-| `PRI` | facility `security/authorization` (10, *authpriv*); severidade `notice` (5) para sucesso e `warning` (4) para negado ou falha |
+| `PRI` | facility `security/authorization` (10, *authpriv*); severidade `notice` (5) para `succeeded` e `warning` (4) para `denied`, `failed` ou `indeterminate` |
 | `TIMESTAMP` | `occurredAt` com microssegundos |
 | `HOSTNAME` | nome configurado da instalação ou `-` |
 | `APP-NAME` | `dokpod` |
@@ -50,7 +51,7 @@ Mesmos campos e mesma sanitização da trilha que o console e o CSV da spec 017 
 | `Resource.attributes` | `service.name=dokpod`, `dokpod.installation.id` |
 | `ScopeLogs.scope.name` | `dokpod.audit` |
 | `LogRecord.time_unix_nano` | `occurredAt` |
-| `LogRecord.severity_number` / `severity_text` | `INFO` (9) para sucesso; `WARN` (13) para negado ou falha |
+| `LogRecord.severity_number` / `severity_text` | `INFO` (9) para `succeeded`; `WARN` (13) para `denied`, `failed` ou `indeterminate` |
 | `LogRecord.body` | `action` |
 | `LogRecord.attributes` | `dokpod.event.id`, `dokpod.correlation.id`, `dokpod.command.id`, `dokpod.actor.kind`, `dokpod.actor.id`, `dokpod.actor.name`, `dokpod.action.category`, `dokpod.environment.id`, `dokpod.subject.id`, `dokpod.outcome`, `dokpod.failure.code`, `dokpod.details` (JSON), `dokpod.test` |
 | Cabeçalho | `Authorization: Bearer <token>` quando o secret traz `token` |

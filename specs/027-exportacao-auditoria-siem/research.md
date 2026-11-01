@@ -70,3 +70,9 @@ Cada decisão resolve um ponto do contexto técnico do [plano](plan.md). As deci
 
 - **Decisão**: até 5 destinos por instalação, conferidos na mesma transação que cria o destino, sob lock. O tamanho da fila é contado até 10.000 e mostrado como "10.000+" acima disso. A idade do pendente mais antigo vem do primeiro evento após o cursor.
 - **Justificativa**: contar sem limite sobre uma trilha grande custa caro a cada atualização da tela.
+
+## D-012: Eventos da instalação na trilha
+
+- **Decisão**: os eventos `audit_export.*` são da instalação inteira e são gravados com um identificador de ambiente reservado, `AuditEvent.InstallationScopeId`, aceito pelo domínio somente para as ações da categoria `audit_export`. Nenhum ambiente real usa esse identificador, então esses eventos não aparecem na tela de auditoria, que filtra por ambiente autorizado. Eles vão para o SIEM (a categoria `audit_export` é obrigatória, L7), com `environmentId: null` no registro exportado.
+- **Justificativa**: a trilha exige ambiente em todo evento e a tela de auditoria da spec 017 é por ambiente. Um identificador reservado mantém a gravação única, sem duplicar o evento no SIEM, e não muda a spec 017. Decisão humana de 2026-11-01 (opção recomendada).
+- **Alternativas**: gravar um evento por ambiente existente, como o `audit.exported` faz hoje (visível na tela de auditoria, mas duplicado no SIEM); criar uma permissão de leitura da auditoria da instalação na tela de auditoria (mais completo, mas muda a spec 017).
