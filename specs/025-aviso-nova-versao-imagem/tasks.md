@@ -54,7 +54,7 @@ description: "Tarefas da implementação do aviso de nova versão de imagem"
   - telemetria sem referência nem registro ([D-012](research.md#d-012-observabilidade-e-segredos));
   - comportamento sob licença restrita (FR-009).
 
-  Registrar lacunas, riscos residuais e a decisão do revisor humano. Bloqueia todas as tarefas de código. Nota (2026-11-01): aceito pelo solicitante ("executar suas recomendações"), com as lacunas L1–L4 aplicadas na T009 e na T011, L5 e os riscos R1–R5 aceitos, e o agente Windows sem a capability por enquanto. O ADR da saída direta do agente para registros é recomendado e depende de `/dokpod-create-adr`, invocada pelo solicitante.
+  Registrar lacunas, riscos residuais e a decisão do revisor humano. Bloqueia todas as tarefas de código. Nota (2026-11-01): aceito pelo solicitante ("executar suas recomendações"), com as lacunas L1–L4 aplicadas na T009 e na T011, L5 e os riscos R1–R5 aceitos, e o agente Windows sem a capability por enquanto. A saída direta do agente para registros está no [ADR 2026-0009](../../docs/adr/2026-0009-agente-consulta-registros-oci.md) (`proposed`).
 - [ ] T002 [P] Registro OCI de teste para os testes do agente:
   - receptor HTTPS em processo, em `backend/tests/Dokpod.Agent.Infrastructure.Tests/Registries/OciTestRegistry.cs`, com desafio `Bearer` e `Basic`, índice multiarquitetura, respostas `401/403/404/429/5xx`, redirecionamento e corpo grande configuráveis, e certificado de uma CA gerada na execução;
   - fixture `OciRegistryFixture.cs` para um `registry:2` real em container, com versão fixada, licença Apache-2.0 conferida e `htpasswd` gerado na execução. A fixture usa a URL de `DOKPOD_TEST_OCI_REGISTRY` e fica ignorada sem ela.
