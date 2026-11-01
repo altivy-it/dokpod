@@ -231,7 +231,7 @@ if (-not $SkipUser -and -not $PSBoundParameters.ContainsKey('InitialUserEmail'))
 $plannedResources = @(
     'clients dokpod-api, dokpod-provisioner, dokpod-bff, dokpod-lab e dokpod-authorization-spike',
     'client scope e mapper de audience dokpod-api',
-    'scopes UMA do dokpod-api e recurso urn:dokpod:installation (licensing:read, licensing:manage)',
+    'scopes UMA do dokpod-api e recurso urn:dokpod:installation (licensing:read, licensing:manage, audit-export:read, audit-export:manage)',
     'roles Administrator, Operator, Auditor e Reader',
     'grupos /dokpod/administrators, /dokpod/operators, /dokpod/auditors e /dokpod/readers'
 )
@@ -496,7 +496,10 @@ function Ensure-AuthorizationScopes {
         'network:delete',
         # Spec 031: leitura e gestão do licenciamento da instalação (recurso urn:dokpod:installation).
         'licensing:read',
-        'licensing:manage')) {
+        'licensing:manage',
+        # Spec 027: destinos de exportação da auditoria para SIEM (recurso urn:dokpod:installation).
+        'audit-export:read',
+        'audit-export:manage')) {
         $encodedScope = [Uri]::EscapeDataString($scopeName)
         $scope = @(Invoke-KeycloakApi GET "$authzBase/scope?name=$encodedScope&exact=true") |
             Where-Object name -eq $scopeName | Select-Object -First 1
@@ -510,11 +513,12 @@ function Ensure-AuthorizationScopes {
 function Ensure-InstallationResource {
     param([Parameter(Mandatory)][string] $ClientUuid)
 
-    # Spec 031 D-008: recurso único da instalação, com os scopes de licenciamento. A concessão a usuários ou
-    # grupos é feita por permission no Keycloak; o Dokpod não cria roles locais.
+    # Spec 031 D-008: recurso único da instalação, com os scopes de licenciamento e, desde a spec 027, os da
+    # exportação de auditoria. A concessão a usuários ou grupos é feita por permission no Keycloak; o Dokpod não
+    # cria roles locais.
     $authzBase = "/admin/realms/$Realm/clients/$ClientUuid/authz/resource-server"
     $resourceName = 'urn:dokpod:installation'
-    $scopeNames = @('licensing:read', 'licensing:manage')
+    $scopeNames = @('licensing:read', 'licensing:manage', 'audit-export:read', 'audit-export:manage')
     $scopes = foreach ($scopeName in $scopeNames) {
         $encodedScope = [Uri]::EscapeDataString($scopeName)
         $scope = @(Invoke-KeycloakApi GET "$authzBase/scope?name=$encodedScope&exact=true") |

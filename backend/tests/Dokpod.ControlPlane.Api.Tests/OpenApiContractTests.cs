@@ -107,7 +107,14 @@ public sealed class OpenApiContractTests
         Assert.Contains("operationId: resetTrustedInstant", contract, StringComparison.Ordinal);
         Assert.Contains("application/jose:", contract, StringComparison.Ordinal);
         Assert.Contains("LicensingProblemCode:", contract, StringComparison.Ordinal);
-        Assert.Equal(10, CountOccurrences(contract, "\n      x-dokpod-edition: business"));
+        // Spec 031 (10) e spec 027 (5): operações só da composição Business.
+        Assert.Equal(15, CountOccurrences(contract, "\n      x-dokpod-edition: business"));
+        foreach (var operation in new[] { "listAuditExportDestinations", "createAuditExportDestination", "updateAuditExportDestination", "deleteAuditExportDestination", "testAuditExportDestination" })
+        {
+            Assert.Contains($"operationId: {operation}", contract, StringComparison.Ordinal);
+        }
+
+        Assert.Contains("AuditExportProblemCode:", contract, StringComparison.Ordinal);
         Assert.Contains("operationId: listLicensingHosts", contract, StringComparison.Ordinal);
         Assert.Contains("operationId: linkLicensingHostEnvironment", contract, StringComparison.Ordinal);
         Assert.DoesNotContain("operationId: listHosts", contract, StringComparison.Ordinal);
