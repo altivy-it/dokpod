@@ -34,3 +34,4 @@
 - Validação em 1 iteração. Docker e Podman citados como engines suportados pelo produto, não como escolha de implementação.
 - Escolhas sem resposta do solicitante foram registradas em "Esclarecimentos" como recomendações sujeitas à aprovação, sem marcadores pendentes.
 - Checkboxes registram a validação da spec, não aprovação humana (constituição).
+- Revalidação em 2026-11-01 (`/speckit-clarify`, alinhamento com as specs 031 e 027): capability `image-update-notice`, licença restrita, permissões, guarda só do último resultado e meta medível do SC-004. Nenhum item mudou de estado; o SC-004 deixou de usar "não perceptível".
