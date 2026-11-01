@@ -673,7 +673,7 @@ export type IntentionalAction = {
     reason: string;
 };
 
-export type AuditCategory = 'environments' | 'containers' | 'commands' | 'images' | 'volumes' | 'networks' | 'pods' | 'inspection' | 'terminal' | 'governance' | 'audit';
+export type AuditCategory = 'environments' | 'containers' | 'commands' | 'images' | 'volumes' | 'networks' | 'pods' | 'inspection' | 'terminal' | 'governance' | 'audit' | 'audit_export';
 
 export type AuditOutcome = 'succeeded' | 'denied' | 'failed' | 'indeterminate';
 
@@ -1055,6 +1055,75 @@ export type OperationalEventPage = {
     events: Array<OperationalEvent>;
     nextCursor?: string | null;
 };
+
+export type AuditExportDestinationInput = {
+    name: string;
+    protocol: 'syslog' | 'otlp';
+    /**
+     * Nome DNS ou IP; loopback, link-local, metadados e a rede do plano de controle são recusados.
+     */
+    host: string;
+    port: number;
+    /**
+     * Só OTLP; padrão /v1/logs. Precisa ser nulo no syslog.
+     */
+    path?: string | null;
+    /**
+     * Pasta em /run/secrets/dokpod-audit-export/ com ca.pem, tls.crt, tls.key e token, todos opcionais.
+     */
+    secretRef?: string | null;
+    categories: Array<AuditCategory>;
+    active: boolean;
+};
+
+export type AuditExportDestination = {
+    destinationId: string;
+    name: string;
+    protocol: 'syslog' | 'otlp';
+    host: string;
+    port: number;
+    path: string | null;
+    secretRef: string | null;
+    secretFiles: {
+        ca: boolean;
+        clientCertificate: boolean;
+        token: boolean;
+    };
+    categories: Array<AuditCategory>;
+    active: boolean;
+    state: 'disabled' | 'ok' | 'catching_up' | 'failing' | 'gap';
+    lastSentAt: string | null;
+    lastError: null | AuditExportError;
+    pending: AuditExportPending;
+    lastGapAt: string | null;
+    version: number;
+};
+
+export type AuditExportError = {
+    code: AuditExportErrorCode;
+    at: string;
+};
+
+export type AuditExportErrorCode = 'tls_error' | 'connection_refused' | 'timeout' | 'secret_missing' | 'rejected' | 'address_blocked';
+
+export type AuditExportPending = {
+    count: number;
+    /**
+     * Verdadeiro quando há mais de 10.000 pendentes.
+     */
+    capped: boolean;
+    /**
+     * Horário do pendente mais antigo; a diferença para agora é o atraso do destino.
+     */
+    oldestAt: string | null;
+};
+
+export type AuditExportTestResult = {
+    delivered: boolean;
+    errorCode: null | AuditExportErrorCode;
+};
+
+export type AuditExportProblemCode = 'audit_export_invalid_destination' | 'audit_export_invalid_secret_ref' | 'audit_export_limit_reached' | 'audit_export_name_taken' | 'audit_export_version_conflict' | 'audit_export_address_blocked' | 'audit_export_not_found' | 'rate_limited';
 
 export type ProblemDetails = {
     type: string;
@@ -4752,3 +4821,258 @@ export type ResetTrustedInstantResponses = {
 };
 
 export type ResetTrustedInstantResponse = ResetTrustedInstantResponses[keyof ResetTrustedInstantResponses];
+
+export type ListAuditExportDestinationsData = {
+    body?: never;
+    headers?: {
+        /**
+         * Identificador técnico opcional para correlação server-side.
+         */
+        'X-Correlation-Id'?: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/settings/audit-export/destinations';
+};
+
+export type ListAuditExportDestinationsErrors = {
+    /**
+     * Autenticação ausente ou inválida.
+     */
+    401: ProblemDetails;
+    /**
+     * Autorização negada pelo Keycloak (authorization_denied) ou recusa por licença (license_expired, license_capacity_exceeded, license_revoked, license_state_indeterminate, license_invalid).
+     */
+    403: ProblemDetails;
+    /**
+     * Autorização ou persistência indisponível.
+     */
+    503: ProblemDetails;
+};
+
+export type ListAuditExportDestinationsError = ListAuditExportDestinationsErrors[keyof ListAuditExportDestinationsErrors];
+
+export type ListAuditExportDestinationsResponses = {
+    /**
+     * Destinos, em ordem de nome.
+     */
+    200: Array<AuditExportDestination>;
+};
+
+export type ListAuditExportDestinationsResponse = ListAuditExportDestinationsResponses[keyof ListAuditExportDestinationsResponses];
+
+export type CreateAuditExportDestinationData = {
+    body: AuditExportDestinationInput;
+    headers: {
+        /**
+         * Identifica de forma estável a intenção lógica para retries seguros; vale 24 horas.
+         */
+        'Idempotency-Key': string;
+        /**
+         * Identificador técnico opcional para correlação server-side.
+         */
+        'X-Correlation-Id'?: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/settings/audit-export/destinations';
+};
+
+export type CreateAuditExportDestinationErrors = {
+    /**
+     * Recusa tipada da exportação de auditoria; ProblemDetails.code segue AuditExportProblemCode.
+     */
+    400: ProblemDetails;
+    /**
+     * Autenticação ausente ou inválida.
+     */
+    401: ProblemDetails;
+    /**
+     * Autorização negada pelo Keycloak (authorization_denied) ou recusa por licença (license_expired, license_capacity_exceeded, license_revoked, license_state_indeterminate, license_invalid).
+     */
+    403: ProblemDetails;
+    /**
+     * Recusa tipada da exportação de auditoria; ProblemDetails.code segue AuditExportProblemCode.
+     */
+    409: ProblemDetails;
+    /**
+     * Recusa tipada da exportação de auditoria; ProblemDetails.code segue AuditExportProblemCode.
+     */
+    422: ProblemDetails;
+    /**
+     * Autorização ou persistência indisponível.
+     */
+    503: ProblemDetails;
+};
+
+export type CreateAuditExportDestinationError = CreateAuditExportDestinationErrors[keyof CreateAuditExportDestinationErrors];
+
+export type CreateAuditExportDestinationResponses = {
+    /**
+     * Destino criado (ou repetição idempotente); o cursor começa no fim da trilha.
+     */
+    201: AuditExportDestination;
+};
+
+export type CreateAuditExportDestinationResponse = CreateAuditExportDestinationResponses[keyof CreateAuditExportDestinationResponses];
+
+export type DeleteAuditExportDestinationData = {
+    body?: never;
+    headers: {
+        'If-Match': string;
+        /**
+         * Identificador técnico opcional para correlação server-side.
+         */
+        'X-Correlation-Id'?: string;
+    };
+    path: {
+        destinationId: string;
+    };
+    query?: never;
+    url: '/api/v1/settings/audit-export/destinations/{destinationId}';
+};
+
+export type DeleteAuditExportDestinationErrors = {
+    /**
+     * Autenticação ausente ou inválida.
+     */
+    401: ProblemDetails;
+    /**
+     * Autorização negada pelo Keycloak (authorization_denied) ou recusa por licença (license_expired, license_capacity_exceeded, license_revoked, license_state_indeterminate, license_invalid).
+     */
+    403: ProblemDetails;
+    /**
+     * Recusa tipada da exportação de auditoria; ProblemDetails.code segue AuditExportProblemCode.
+     */
+    404: ProblemDetails;
+    /**
+     * Recusa tipada da exportação de auditoria; ProblemDetails.code segue AuditExportProblemCode.
+     */
+    412: ProblemDetails;
+    /**
+     * Autorização ou persistência indisponível.
+     */
+    503: ProblemDetails;
+};
+
+export type DeleteAuditExportDestinationError = DeleteAuditExportDestinationErrors[keyof DeleteAuditExportDestinationErrors];
+
+export type DeleteAuditExportDestinationResponses = {
+    /**
+     * Destino e cursor removidos.
+     */
+    204: void;
+};
+
+export type DeleteAuditExportDestinationResponse = DeleteAuditExportDestinationResponses[keyof DeleteAuditExportDestinationResponses];
+
+export type UpdateAuditExportDestinationData = {
+    body: AuditExportDestinationInput;
+    headers: {
+        'If-Match': string;
+        /**
+         * Identificador técnico opcional para correlação server-side.
+         */
+        'X-Correlation-Id'?: string;
+    };
+    path: {
+        destinationId: string;
+    };
+    query?: never;
+    url: '/api/v1/settings/audit-export/destinations/{destinationId}';
+};
+
+export type UpdateAuditExportDestinationErrors = {
+    /**
+     * Recusa tipada da exportação de auditoria; ProblemDetails.code segue AuditExportProblemCode.
+     */
+    400: ProblemDetails;
+    /**
+     * Autenticação ausente ou inválida.
+     */
+    401: ProblemDetails;
+    /**
+     * Autorização negada pelo Keycloak (authorization_denied) ou recusa por licença (license_expired, license_capacity_exceeded, license_revoked, license_state_indeterminate, license_invalid).
+     */
+    403: ProblemDetails;
+    /**
+     * Recusa tipada da exportação de auditoria; ProblemDetails.code segue AuditExportProblemCode.
+     */
+    404: ProblemDetails;
+    /**
+     * Recusa tipada da exportação de auditoria; ProblemDetails.code segue AuditExportProblemCode.
+     */
+    409: ProblemDetails;
+    /**
+     * Recusa tipada da exportação de auditoria; ProblemDetails.code segue AuditExportProblemCode.
+     */
+    412: ProblemDetails;
+    /**
+     * Recusa tipada da exportação de auditoria; ProblemDetails.code segue AuditExportProblemCode.
+     */
+    422: ProblemDetails;
+    /**
+     * Autorização ou persistência indisponível.
+     */
+    503: ProblemDetails;
+};
+
+export type UpdateAuditExportDestinationError = UpdateAuditExportDestinationErrors[keyof UpdateAuditExportDestinationErrors];
+
+export type UpdateAuditExportDestinationResponses = {
+    /**
+     * Destino atualizado.
+     */
+    200: AuditExportDestination;
+};
+
+export type UpdateAuditExportDestinationResponse = UpdateAuditExportDestinationResponses[keyof UpdateAuditExportDestinationResponses];
+
+export type TestAuditExportDestinationData = {
+    body?: never;
+    headers?: {
+        /**
+         * Identificador técnico opcional para correlação server-side.
+         */
+        'X-Correlation-Id'?: string;
+    };
+    path: {
+        destinationId: string;
+    };
+    query?: never;
+    url: '/api/v1/settings/audit-export/destinations/{destinationId}/test';
+};
+
+export type TestAuditExportDestinationErrors = {
+    /**
+     * Autenticação ausente ou inválida.
+     */
+    401: ProblemDetails;
+    /**
+     * Autorização negada pelo Keycloak (authorization_denied) ou recusa por licença (license_expired, license_capacity_exceeded, license_revoked, license_state_indeterminate, license_invalid).
+     */
+    403: ProblemDetails;
+    /**
+     * Recusa tipada da exportação de auditoria; ProblemDetails.code segue AuditExportProblemCode.
+     */
+    404: ProblemDetails;
+    /**
+     * Recusa tipada da exportação de auditoria; ProblemDetails.code segue AuditExportProblemCode.
+     */
+    429: ProblemDetails;
+    /**
+     * Autorização ou persistência indisponível.
+     */
+    503: ProblemDetails;
+};
+
+export type TestAuditExportDestinationError = TestAuditExportDestinationErrors[keyof TestAuditExportDestinationErrors];
+
+export type TestAuditExportDestinationResponses = {
+    /**
+     * Resultado do envio; errorCode presente quando não entregue.
+     */
+    200: AuditExportTestResult;
+};
+
+export type TestAuditExportDestinationResponse = TestAuditExportDestinationResponses[keyof TestAuditExportDestinationResponses];

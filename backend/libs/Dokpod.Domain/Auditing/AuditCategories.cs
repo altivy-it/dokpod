@@ -20,7 +20,16 @@ public static class AuditCategories
             "alert.silence_created", "alert.silence_ended", "container.justification_policy_changed", "registry.policy_changed",
         ],
         ["audit"] = ["audit.exported"],
+        // Spec 027: destinos de exportação para SIEM; obrigatória em todo destino (threat model L7).
+        [AuditExport] =
+        [
+            "audit_export.destination_created", "audit_export.destination_updated", "audit_export.destination_deleted",
+            "audit_export.test_sent", "audit_export.gap",
+        ],
     };
+
+    /// <summary>Categoria que todo destino de exportação recebe, para o SOC sempre ver mudanças de destino (spec 027 L7).</summary>
+    public const string AuditExport = "audit_export";
 
     public static string? CategoryOf(string action) =>
         Actions.FirstOrDefault(entry => entry.Value.Contains(action, StringComparer.Ordinal)).Key;

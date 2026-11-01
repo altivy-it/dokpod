@@ -3057,6 +3057,203 @@ paths:
           $ref: '#/components/responses/LicensingProblem'
         '503':
           $ref: '#/components/responses/DependencyUnavailable'
+  /api/v1/settings/audit-export/destinations:
+    get:
+      operationId: listAuditExportDestinations
+      summary: Lista os destinos de exportação da auditoria com situação e fila (audit-export:read)
+      description: >-
+        Spec 027 (FR-005, FR-006). Não passa pelo gate da licença: com a licença restrita, a situação continua visível.
+        O conteúdo dos secrets nunca sai; secretFiles diz só se cada arquivo existe.
+      x-dokpod-edition: business
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CorrelationId'
+      responses:
+        '200':
+          description: Destinos, em ordem de nome.
+          content:
+            application/json:
+              schema:
+                type: array
+                maxItems: 5
+                items:
+                  $ref: '#/components/schemas/AuditExportDestination'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '403':
+          $ref: '#/components/responses/AuditExportDenied'
+        '503':
+          $ref: '#/components/responses/DependencyUnavailable'
+    post:
+      operationId: createAuditExportDestination
+      summary: Cria um destino de exportação (audit-export:manage; capability audit-siem-export)
+      description: >-
+        Spec 027 (FR-005, FR-007). A categoria audit_export é sempre incluída (threat model L7). A repetição com a mesma
+        Idempotency-Key em até 24 h devolve o mesmo destino.
+      x-dokpod-edition: business
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Identifica de forma estável a intenção lógica para retries seguros; vale 24 horas.
+        - $ref: '#/components/parameters/CorrelationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuditExportDestinationInput'
+      responses:
+        '201':
+          description: Destino criado (ou repetição idempotente); o cursor começa no fim da trilha.
+          headers:
+            ETag:
+              schema:
+                type: string
+            Location:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditExportDestination'
+        '400':
+          $ref: '#/components/responses/AuditExportProblem'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '403':
+          $ref: '#/components/responses/AuditExportDenied'
+        '409':
+          $ref: '#/components/responses/AuditExportProblem'
+        '422':
+          $ref: '#/components/responses/AuditExportProblem'
+        '503':
+          $ref: '#/components/responses/DependencyUnavailable'
+  /api/v1/settings/audit-export/destinations/{destinationId}:
+    parameters:
+      - name: destinationId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    put:
+      operationId: updateAuditExportDestination
+      summary: Edita, reativa ou desativa um destino (audit-export:manage)
+      description: >-
+        Spec 027 (FR-005, FR-008). Editar e reativar passam pelo gate da capability audit-siem-export; desativar
+        (active false sem outra mudança) nunca é bloqueado pela licença.
+      x-dokpod-edition: business
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: If-Match
+          in: header
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/CorrelationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuditExportDestinationInput'
+      responses:
+        '200':
+          description: Destino atualizado.
+          headers:
+            ETag:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditExportDestination'
+        '400':
+          $ref: '#/components/responses/AuditExportProblem'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '403':
+          $ref: '#/components/responses/AuditExportDenied'
+        '404':
+          $ref: '#/components/responses/AuditExportProblem'
+        '409':
+          $ref: '#/components/responses/AuditExportProblem'
+        '412':
+          $ref: '#/components/responses/AuditExportProblem'
+        '422':
+          $ref: '#/components/responses/AuditExportProblem'
+        '503':
+          $ref: '#/components/responses/DependencyUnavailable'
+    delete:
+      operationId: deleteAuditExportDestination
+      summary: Exclui um destino (audit-export:manage); nunca bloqueado pela licença
+      x-dokpod-edition: business
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: If-Match
+          in: header
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/CorrelationId'
+      responses:
+        '204':
+          description: Destino e cursor removidos.
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '403':
+          $ref: '#/components/responses/AuditExportDenied'
+        '404':
+          $ref: '#/components/responses/AuditExportProblem'
+        '412':
+          $ref: '#/components/responses/AuditExportProblem'
+        '503':
+          $ref: '#/components/responses/DependencyUnavailable'
+  /api/v1/settings/audit-export/destinations/{destinationId}/test:
+    parameters:
+      - name: destinationId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    post:
+      operationId: testAuditExportDestination
+      summary: Envia um evento de teste ao destino (audit-export:manage; capability audit-siem-export)
+      description: >-
+        Spec 027 (Jornada 1, cenário 2). O evento de teste (audit_export.test) não entra na trilha; o envio é registrado
+        como audit_export.test_sent. Até 5 testes por minuto por instalação (threat model L8).
+      x-dokpod-edition: business
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CorrelationId'
+      responses:
+        '200':
+          description: Resultado do envio; errorCode presente quando não entregue.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditExportTestResult'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '403':
+          $ref: '#/components/responses/AuditExportDenied'
+        '404':
+          $ref: '#/components/responses/AuditExportProblem'
+        '429':
+          $ref: '#/components/responses/AuditExportProblem'
+        '503':
+          $ref: '#/components/responses/DependencyUnavailable'
 components:
   securitySchemes:
     bearerAuth:
@@ -4526,7 +4723,7 @@ components:
           type: string
     AuditCategory:
       type: string
-      enum: [environments, containers, commands, images, volumes, networks, pods, inspection, terminal, governance, audit]
+      enum: [environments, containers, commands, images, volumes, networks, pods, inspection, terminal, governance, audit, audit_export]
     AuditOutcome:
       type: string
       enum: [succeeded, denied, failed, indeterminate]
@@ -5360,6 +5557,146 @@ components:
             $ref: '#/components/schemas/OperationalEvent'
         nextCursor:
           type: [string, 'null']
+    AuditExportDestinationInput:
+      type: object
+      additionalProperties: false
+      required: [name, protocol, host, port, categories, active]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 64
+        protocol:
+          type: string
+          enum: [syslog, otlp]
+        host:
+          type: string
+          minLength: 1
+          maxLength: 253
+          description: Nome DNS ou IP; loopback, link-local, metadados e a rede do plano de controle são recusados.
+        port:
+          type: integer
+          minimum: 1
+          maximum: 65535
+        path:
+          type: [string, 'null']
+          maxLength: 256
+          pattern: '^/[^?# ]*$'
+          description: Só OTLP; padrão /v1/logs. Precisa ser nulo no syslog.
+        secretRef:
+          type: [string, 'null']
+          pattern: '^[a-z0-9-]{1,64}$'
+          description: Pasta em /run/secrets/dokpod-audit-export/ com ca.pem, tls.crt, tls.key e token, todos opcionais.
+        categories:
+          type: array
+          maxItems: 32
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/AuditCategory'
+        active:
+          type: boolean
+    AuditExportDestination:
+      type: object
+      required: [destinationId, name, protocol, host, port, path, secretRef, secretFiles, categories, active, state, lastSentAt, lastError, pending, lastGapAt, version]
+      properties:
+        destinationId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        protocol:
+          type: string
+          enum: [syslog, otlp]
+        host:
+          type: string
+        port:
+          type: integer
+        path:
+          type: [string, 'null']
+        secretRef:
+          type: [string, 'null']
+        secretFiles:
+          type: object
+          required: [ca, clientCertificate, token]
+          properties:
+            ca:
+              type: boolean
+            clientCertificate:
+              type: boolean
+            token:
+              type: boolean
+        categories:
+          type: array
+          items:
+            $ref: '#/components/schemas/AuditCategory'
+        active:
+          type: boolean
+        state:
+          type: string
+          enum: [disabled, ok, catching_up, failing, gap]
+        lastSentAt:
+          type: [string, 'null']
+          format: date-time
+        lastError:
+          oneOf:
+            - type: 'null'
+            - $ref: '#/components/schemas/AuditExportError'
+        pending:
+          $ref: '#/components/schemas/AuditExportPending'
+        lastGapAt:
+          type: [string, 'null']
+          format: date-time
+        version:
+          type: integer
+          format: int64
+    AuditExportError:
+      type: object
+      required: [code, at]
+      properties:
+        code:
+          $ref: '#/components/schemas/AuditExportErrorCode'
+        at:
+          type: string
+          format: date-time
+    AuditExportErrorCode:
+      type: string
+      enum: [tls_error, connection_refused, timeout, secret_missing, rejected, address_blocked]
+    AuditExportPending:
+      type: object
+      required: [count, capped, oldestAt]
+      properties:
+        count:
+          type: integer
+          format: int64
+          maximum: 10000
+        capped:
+          type: boolean
+          description: Verdadeiro quando há mais de 10.000 pendentes.
+        oldestAt:
+          type: [string, 'null']
+          format: date-time
+          description: Horário do pendente mais antigo; a diferença para agora é o atraso do destino.
+    AuditExportTestResult:
+      type: object
+      required: [delivered, errorCode]
+      properties:
+        delivered:
+          type: boolean
+        errorCode:
+          oneOf:
+            - type: 'null'
+            - $ref: '#/components/schemas/AuditExportErrorCode'
+    AuditExportProblemCode:
+      type: string
+      enum:
+        - audit_export_invalid_destination
+        - audit_export_invalid_secret_ref
+        - audit_export_limit_reached
+        - audit_export_name_taken
+        - audit_export_version_conflict
+        - audit_export_address_blocked
+        - audit_export_not_found
+        - rate_limited
     ProblemDetails:
       type: object
       required: [type, title, status, detail]
@@ -5663,6 +6000,18 @@ components:
             $ref: '#/components/schemas/ProblemDetails'
     LicensingDenied:
       description: Autorização negada pelo Keycloak (authorization_denied) ou recusa por licença (license_expired, license_capacity_exceeded, license_revoked, license_state_indeterminate); nunca encerra a sessão.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+    AuditExportDenied:
+      description: Autorização negada pelo Keycloak (authorization_denied) ou recusa por licença (license_expired, license_capacity_exceeded, license_revoked, license_state_indeterminate, license_invalid).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+    AuditExportProblem:
+      description: Recusa tipada da exportação de auditoria; ProblemDetails.code segue AuditExportProblemCode.
       content:
         application/problem+json:
           schema:

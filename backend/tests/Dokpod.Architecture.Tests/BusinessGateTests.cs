@@ -52,10 +52,15 @@ public sealed partial class BusinessGateTests
         Assert.Matches(LicensingModuleReference(), "Dokpod.ControlPlane.Api.Licensing.LicensingModule");
         Assert.Matches(LicensingModuleReference(), "using Dokpod.Licensing;");
         Assert.DoesNotMatch(LicensingModuleReference(), "Dokpod.ControlPlane.Application.Licensing.IAgentCapacityObserver");
+        // Spec 027 T012: a exportação de auditoria é módulo Business, nas três camadas.
+        Assert.Matches(LicensingModuleReference(), "using Dokpod.ControlPlane.Infrastructure.AuditExport;");
+        Assert.Matches(LicensingModuleReference(), "Dokpod.ControlPlane.Api.AuditExport.AuditExportModule");
+        Assert.Matches(LicensingModuleReference(), "using Dokpod.ControlPlane.Application.AuditExport;");
     }
 
     private static bool IsLicensingSource(string file) =>
-        file.Contains($"{Path.DirectorySeparatorChar}Licensing{Path.DirectorySeparatorChar}", StringComparison.Ordinal);
+        file.Contains($"{Path.DirectorySeparatorChar}Licensing{Path.DirectorySeparatorChar}", StringComparison.Ordinal)
+        || file.Contains($"{Path.DirectorySeparatorChar}AuditExport{Path.DirectorySeparatorChar}", StringComparison.Ordinal);
 
     private static IEnumerable<string> ProductSources() =>
         ProductProjects
@@ -67,6 +72,6 @@ public sealed partial class BusinessGateTests
     [GeneratedRegex(@"\[BusinessCapability(Attribute)?\(")]
     private static partial Regex BusinessCapabilityMarker();
 
-    [GeneratedRegex(@"Dokpod\.ControlPlane\.(Infrastructure|Api)\.Licensing\b|\busing\s+Dokpod\.Licensing\s*;|\bDokpod\.Licensing\.[A-Z]")]
+    [GeneratedRegex(@"Dokpod\.ControlPlane\.(Infrastructure|Api)\.(Licensing|AuditExport)\b|Dokpod\.ControlPlane\.Application\.AuditExport\b|\busing\s+Dokpod\.Licensing\s*;|\bDokpod\.Licensing\.[A-Z]")]
     private static partial Regex LicensingModuleReference();
 }
