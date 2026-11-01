@@ -64,6 +64,12 @@ public sealed record AuditEvent
         "registry.policy_changed",
         // Spec 021: ações de pod.
         "pod.start", "pod.stop", "pod.restart", "pod.pause", "pod.unpause",
+        // Spec 027: exportação ao SIEM.
+        "audit_export.destination_created",
+        "audit_export.destination_updated",
+        "audit_export.destination_deleted",
+        "audit_export.test_sent",
+        "audit_export.gap",
     ];
 
     /// <summary>Ações aceitas pela trilha (spec 017: filtros e categorias da consulta).</summary>
