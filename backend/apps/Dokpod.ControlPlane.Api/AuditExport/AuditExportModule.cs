@@ -35,6 +35,7 @@ public static class AuditExportModule
             new SyslogTlsTransportOptions { Hostname = provider.GetRequiredService<IConfiguration>()[HostnameVariable] }));
         services.AddSingleton<IAuditExportTestLimiter, AuditExportTestLimiter>();
         services.AddSingleton<AuditExportBackoff>();
+        services.AddSingleton<AuditExportMetrics>();
         services.AddScoped<AuditExportDestinationService>();
         services.AddScoped<AuditExportSender>();
         services.AddHostedService<AuditExportWorker>();

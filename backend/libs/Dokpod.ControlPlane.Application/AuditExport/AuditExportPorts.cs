@@ -168,7 +168,16 @@ public interface IAuditTrailExportReader
     Task<IReadOnlyList<AuditTrailExportItem>> ReadAsync(AuditExportPosition after, IReadOnlyCollection<string> actions, int limit, CancellationToken cancellationToken);
 
     Task<AuditExportPending> PendingAsync(AuditExportPosition after, IReadOnlyCollection<string> actions, int cap, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Pendentes confirmados anteriores ao primeiro evento dentro da janela (D-002): os que serão pulados. Null quando
+    /// o próximo pendente já está dentro da janela.
+    /// </summary>
+    Task<AuditTrailGap?> GapAsync(AuditExportPosition after, IReadOnlyCollection<string> actions, DateTimeOffset cutoffUtc, CancellationToken cancellationToken);
 }
+
+/// <summary>Lacuna de D-002: último evento pulado, quantidade e o primeiro e o último instante pulados.</summary>
+public sealed record AuditTrailGap(AuditExportPosition Last, long Count, DateTimeOffset FromUtc, DateTimeOffset ToUtc);
 
 /// <summary>Destinos, cursor e lease (data-model.md); o lease garante um só remetente por destino entre réplicas (D-003).</summary>
 public interface IAuditExportStore
@@ -199,6 +208,14 @@ public interface IAuditExportStore
     Task<bool> RecordFailureAsync(Guid destinationId, string owner, string errorCode, DateTimeOffset atUtc, CancellationToken cancellationToken);
 
     Task ReleaseLeaseAsync(Guid destinationId, string owner, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Pula a lacuna (D-002): avança o cursor até <paramref name="last"/> e marca <c>last_gap_at_utc</c>, só pelo dono do
+    /// lease; <paramref name="withinTransaction"/> grava <c>audit_export.gap</c> antes do commit.
+    /// </summary>
+    Task<bool> SkipGapAsync(
+        Guid destinationId, string owner, AuditExportPosition last, DateTimeOffset atUtc,
+        Func<CancellationToken, Task> withinTransaction, CancellationToken cancellationToken);
 }
 
 public sealed record AuditExportSendResult(bool Delivered, string? ErrorCode)

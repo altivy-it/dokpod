@@ -111,3 +111,19 @@ def test_business_without_the_capability_hides_the_section(page: Page, scenario)
     goto(page, "configuracoes?vista=instalacao")
     expect(page.get_by_role("region", name="Licença")).to_be_visible()
     expect(page.get_by_role("heading", name="Exportação para SIEM")).to_have_count(0)
+
+
+def test_unavailable_destination_with_gap_shows_the_persistent_warning(page: Page, scenario) -> None:
+    """T028: destino fora há dias mostra situação, fila "10.000+", idade do mais antigo, último erro e a lacuna."""
+    scenario("business-siem-gap")
+    goto(page, "configuracoes?vista=instalacao")
+    row = section(page).locator('[data-destination="siem-soc"]')
+
+    expect(row.get_by_text("Lacuna recente", exact=True)).to_be_visible()
+    expect(row.get_by_text("pendentes: 10.000+", exact=False)).to_be_visible()
+    expect(row.get_by_text("(mais antigo há 2 dias)", exact=False)).to_be_visible()
+    expect(row.get_by_text("Conexão recusada ou host não encontrado", exact=False)).to_be_visible()
+    expect(row.get_by_text("Lacuna na exportação", exact=True)).to_be_visible()
+    expect(row.get_by_text("audit_export.gap", exact=False)).to_be_visible()
+    assert axe_violations(page) == []
+    screenshot(page, "027-lacuna-1440")

@@ -57,6 +57,9 @@
               <span class="app-caption st-muted st-list__note">
                 {{ secretSummary(item) }} · pendentes:
                 {{ item.pending.capped ? '10.000+' : item.pending.count }}
+                @if (item.pending.oldestAt) {
+                  (mais antigo {{ formatRelative(item.pending.oldestAt) }})
+                }
                 @if (item.lastSentAt) {
                   · último envio {{ formatDateTime(item.lastSentAt) }}
                 }
@@ -65,6 +68,15 @@
                   {{ formatDateTime(lastError.at) }}
                 }
               </span>
+              @if (item.lastGapAt) {
+                <span class="st-list__note" role="status">
+                  <dok-status-chip size="sm" color="error" label="Lacuna na exportação" />
+                  <span class="app-caption">
+                    Em {{ formatDateTime(item.lastGapAt) }}, eventos com mais de 72 h sem entrega
+                    foram pulados. A lacuna está registrada na trilha como audit_export.gap.
+                  </span>
+                </span>
+              }
               <span class="dok-actions st-list__note">
                 <button
                   dok-button
