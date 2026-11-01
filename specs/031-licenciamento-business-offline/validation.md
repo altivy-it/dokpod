@@ -23,5 +23,7 @@ Verificações transversais:
 - OpenAPI: `openapi-spec-validator` 0.7.1 OK; cliente regenerado;
 - Gitleaks 8.30.1 nos arquivos alterados: nenhum achado.
 
-Pendências para o GO: publicação do pacote `Dokpod.Licensing` (workflow `licensing-package.yml`) e o CI da CLI depende dela, canal de publicação da imagem Business (U4, T061 `publish.yml`) e revisão humana
-de `threat-model.md#revisão-de-segurança-e-privacidade-da-implementação-t064`.
+Fechamento (2026-10-31): `Dokpod.Licensing` 0.1.0 publicado privado no GitHub Packages; CI da CLI verde (25 testes);
+revisão humana do threat model registrada (lzocateli); U4 decidida e T061 implementada; chave de produção
+`dokpod-2026-1` no trust store. Pendente só o GO humano de F7 e a confirmação de visibilidade privada da imagem
+`dokpod-api-business` na primeira release que a publicar.

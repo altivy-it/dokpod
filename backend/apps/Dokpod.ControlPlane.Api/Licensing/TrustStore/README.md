@@ -8,5 +8,8 @@ Chaves **públicas** P-256 do fornecedor (PEM `PUBLIC KEY`), embutidas na compos
   (runbook da T053).
 - Chaves sintéticas dos vetores de teste (`dokpod-test-*`) nunca entram aqui (threat model L8).
 
-A primeira chave de produção depende da decisão do provedor de chave na fase F2 (D-010). Sem chave, toda licença é
-recusada como `unknown_key`, o que é o comportamento esperado.
+| `kid` | Desde | SHA-256 do SPKI |
+| --- | --- | --- |
+| `dokpod-2026-1` | 2026-10-31 | `0f95c9fe1aa8094e5a9d832716d11177902655e1ed00d10aad4abcf953d065e0` |
+
+A chave privada correspondente fica só no cofre do fornecedor, em PKCS#8 cifrado (D-010).

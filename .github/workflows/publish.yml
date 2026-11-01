@@ -38,7 +38,8 @@ jobs:
         [{"name":"dokpod-api","context":".","dockerfile":"backend/apps/Dokpod.ControlPlane.Api/Dockerfile"},
         {"name":"dokpod-bff","context":".","dockerfile":"backend/apps/Dokpod.Bff/Dockerfile"},
         {"name":"dokpod-web","context":".","dockerfile":"frontend/web/Dockerfile"},
-        {"name":"dokpod-agent","context":".","dockerfile":"deploy/agent/Dockerfile"}]
+        {"name":"dokpod-agent","context":".","dockerfile":"deploy/agent/Dockerfile"},
+        {"name":"dokpod-api-business","context":".","dockerfile":"backend/apps/Dokpod.ControlPlane.Api/Business.Dockerfile"}]
 
   # Assinatura cosign sem chave por digest (docs/seguranca.md). A identidade é a deste workflow:
   # publish.yml@refs/heads/main no merge do Release PR e publish.yml@refs/tags/vX.Y.Z no republish.
