@@ -33,6 +33,9 @@ public static class AuditExportModule
             provider.GetRequiredService<IDestinationAddressResolver>(),
             provider.GetRequiredService<IAuditExportSecretReader>(),
             new SyslogTlsTransportOptions { Hostname = provider.GetRequiredService<IConfiguration>()[HostnameVariable] }));
+        services.AddSingleton<IAuditExportTransport>(provider => new OtlpHttpTransport(
+            provider.GetRequiredService<IDestinationAddressResolver>(),
+            provider.GetRequiredService<IAuditExportSecretReader>()));
         services.AddSingleton<IAuditExportTestLimiter, AuditExportTestLimiter>();
         services.AddSingleton<AuditExportBackoff>();
         services.AddSingleton<AuditExportMetrics>();

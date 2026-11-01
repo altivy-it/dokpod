@@ -77,16 +77,20 @@ public sealed record AuditExportRecord(
         new Dictionary<string, string>(),
         Test: true);
 
+    /// <summary>Instante com microssegundos, igual no JSON, no syslog e no atributo OTLP.</summary>
+    public string OccurredAt => OccurredAtUtc.UtcDateTime.ToString("yyyy-MM-dd'T'HH:mm:ss.ffffff'Z'", CultureInfo.InvariantCulture);
+
+    /// <summary>Detalhes em ordem de chave; o atributo OTLP <c>dokpod.details</c> é este JSON.</summary>
+    public string DetailsJson() => SortedDetails().ToJsonString(JsonOptions);
+
     /// <summary>JSON do contrato, com microssegundos em <c>occurredAt</c> e detalhes em ordem de chave.</summary>
     public string ToJson()
     {
-        var details = new JsonObject();
-        foreach (var (key, value) in Details.OrderBy(pair => pair.Key, StringComparer.Ordinal)) details[key] = value;
         return new JsonObject
         {
             ["formatVersion"] = FormatVersion,
             ["eventId"] = EventId.ToString("D"),
-            ["occurredAt"] = OccurredAtUtc.UtcDateTime.ToString("yyyy-MM-dd'T'HH:mm:ss.ffffff'Z'", CultureInfo.InvariantCulture),
+            ["occurredAt"] = OccurredAt,
             ["installationId"] = InstallationId.ToString("D"),
             ["correlationId"] = CorrelationId.ToString("D"),
             ["commandId"] = CommandId?.ToString("D"),
@@ -97,8 +101,15 @@ public sealed record AuditExportRecord(
             ["subjectId"] = SubjectId,
             ["outcome"] = Outcome,
             ["failureCode"] = FailureCode,
-            ["details"] = details,
+            ["details"] = SortedDetails(),
             ["test"] = Test,
         }.ToJsonString(JsonOptions);
+    }
+
+    private JsonObject SortedDetails()
+    {
+        var details = new JsonObject();
+        foreach (var (key, value) in Details.OrderBy(pair => pair.Key, StringComparer.Ordinal)) details[key] = value;
+        return details;
     }
 }
