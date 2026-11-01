@@ -107,8 +107,8 @@ public sealed class OpenApiContractTests
         Assert.Contains("operationId: resetTrustedInstant", contract, StringComparison.Ordinal);
         Assert.Contains("application/jose:", contract, StringComparison.Ordinal);
         Assert.Contains("LicensingProblemCode:", contract, StringComparison.Ordinal);
-        // Spec 031 (10) e spec 027 (5): operações só da composição Business.
-        Assert.Equal(15, CountOccurrences(contract, "\n      x-dokpod-edition: business"));
+        // Spec 031 (10), spec 027 (5) e spec 025 (1): operações só da composição Business.
+        Assert.Equal(16, CountOccurrences(contract, "\n      x-dokpod-edition: business"));
         foreach (var operation in new[] { "listAuditExportDestinations", "createAuditExportDestination", "updateAuditExportDestination", "deleteAuditExportDestination", "testAuditExportDestination" })
         {
             Assert.Contains($"operationId: {operation}", contract, StringComparison.Ordinal);
@@ -133,6 +133,28 @@ public sealed class OpenApiContractTests
         }
 
         return count;
+    }
+
+    [Fact]
+    public async Task ImageUpdateContract_IsBusinessAndCarriesNoRegistryData()
+    {
+        // Spec 025 T008 (contracts/api.md): rota Business, estado sem digest remoto nem registro, condição de alerta.
+        var contract = await File.ReadAllTextAsync(FindContractPath(), TestContext.Current.CancellationToken);
+        var path = contract[contract.IndexOf("/api/v1/environments/{environmentId}/images/update-check:", StringComparison.Ordinal)..];
+        path = path[..path.IndexOf("components:", StringComparison.Ordinal)];
+        var schema = contract[contract.IndexOf("    ImageUpdateCheck:", StringComparison.Ordinal)..];
+        schema = schema[..schema.IndexOf("    ImageUpdateCheckRequested:", StringComparison.Ordinal)];
+
+        Assert.Contains("operationId: requestImageUpdateCheck", path, StringComparison.Ordinal);
+        Assert.Contains("x-dokpod-edition: business", path, StringComparison.Ordinal);
+        Assert.DoesNotContain("name: Idempotency-Key", path, StringComparison.Ordinal);
+        Assert.Contains("'429':", path, StringComparison.Ordinal);
+        Assert.Contains("additionalProperties: false", schema, StringComparison.Ordinal);
+        // Nenhuma propriedade de digest ou registro (a descrição pode citá-los).
+        Assert.DoesNotContain("igest:", schema, StringComparison.Ordinal);
+        Assert.DoesNotContain("egistry:", schema, StringComparison.Ordinal);
+        Assert.Contains("enum: [event, metric, image_outdated]", contract, StringComparison.Ordinal);
+        Assert.Contains("imageOutdatedAvailable:", contract, StringComparison.Ordinal);
     }
 
     private static string FindContractPath()

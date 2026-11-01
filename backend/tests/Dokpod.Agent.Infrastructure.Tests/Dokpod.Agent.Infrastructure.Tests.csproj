@@ -11,6 +11,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Spec 025 T002: registro OCI de teste em processo (Kestrel com HTTPS); faz parte do SDK, sem pacote novo. -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="../../libs/Dokpod.Agent.Infrastructure/Dokpod.Agent.Infrastructure.csproj" />
   </ItemGroup>
 </Project>

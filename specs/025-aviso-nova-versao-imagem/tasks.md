@@ -55,9 +55,10 @@ description: "Tarefas da implementação do aviso de nova versão de imagem"
   - comportamento sob licença restrita (FR-009).
 
   Registrar lacunas, riscos residuais e a decisão do revisor humano. Bloqueia todas as tarefas de código. Nota (2026-11-01): aceito pelo solicitante ("executar suas recomendações"), com as lacunas L1–L4 aplicadas na T009 e na T011, L5 e os riscos R1–R5 aceitos, e o agente Windows sem a capability por enquanto. A saída direta do agente para registros está no [ADR 2026-0009](../../docs/adr/2026-0009-agente-consulta-registros-oci.md), aceito em 2026-11-01.
-- [ ] T002 [P] Registro OCI de teste para os testes do agente:
+- [x] T002 [P] Registro OCI de teste para os testes do agente:
   - receptor HTTPS em processo, em `backend/tests/Dokpod.Agent.Infrastructure.Tests/Registries/OciTestRegistry.cs`, com desafio `Bearer` e `Basic`, índice multiarquitetura, respostas `401/403/404/429/5xx`, redirecionamento e corpo grande configuráveis, e certificado de uma CA gerada na execução;
   - fixture `OciRegistryFixture.cs` para um `registry:2` real em container, com versão fixada, licença Apache-2.0 conferida e `htpasswd` gerado na execução. A fixture usa a URL de `DOKPOD_TEST_OCI_REGISTRY` e fica ignorada sem ela.
+  - Nota de execução: `docker.io/library/registry:3.1.2` (a linha 3 do CNCF Distribution, Apache-2.0) no lugar de `registry:2`. O receptor em processo exigiu `FrameworkReference` `Microsoft.AspNetCore.App` no projeto de testes (parte do SDK, sem pacote). A fixture real foi validada em 2026-11-01 com o registro em container, TLS de uma CA de teste e `htpasswd` gerados na execução (`OciRegistryFixtureTests`); no CI fica ignorada sem `DOKPOD_TEST_OCI_REGISTRY`.
 
 ---
 
@@ -67,13 +68,14 @@ description: "Tarefas da implementação do aviso de nova versão de imagem"
 
 **CRÍTICO**: nenhuma história começa antes desta fase.
 
-- [ ] T003 Protocolo em `contracts/agent/v1/agent.proto` exatamente como em [contracts/agent-protocol.md](contracts/agent-protocol.md):
+- [x] T003 Protocolo em `contracts/agent/v1/agent.proto` exatamente como em [contracts/agent-protocol.md](contracts/agent-protocol.md):
   - `CAPABILITY_IMAGE_UPDATE_CHECK = 23`;
   - `ControlPlaneMessage.image_update_check = 17` e `AgentMessage.image_update_check_result = 27`;
   - mensagens `ImageUpdateCheckRequest`, `ImageUpdateCheckItem`, `ImageUpdateCheckResultPage` e `ImageUpdateCheckResult`, e o enum `ImageUpdateState`.
+  - Nota de execução: teste de tags e ida e volta em `backend/tests/Dokpod.Agent.Application.Tests/Images/ImageUpdateProtocolTests.cs`.
 
   Atualizar o registro de números em `contracts/agent/README.md` e os testes de contrato existentes (compatibilidade N/N-1: agente sem a capability não recebe a mensagem 17).
-- [ ] T004 [P] Domínio em `backend/libs/Dokpod.Domain/Images/ImageUpdateCheck.cs`, com testes em `backend/tests/Dokpod.Domain.Tests/Images/ImageUpdateCheckTests.cs`:
+- [x] T004 [P] Domínio em `backend/libs/Dokpod.Domain/Images/ImageUpdateCheck.cs`, com testes em `backend/tests/Dokpod.Domain.Tests/Images/ImageUpdateCheckTests.cs`:
   - estados `up_to_date`, `update_available`, `not_checkable`, `failed`, e o derivado `container_behind`;
   - motivos de [data-model.md](data-model.md#image_update_checks):
     - `not_checkable`: `digest_reference`, `local_image`, `registry_not_allowed`, `insecure_registry`, `agent_unsupported`;
@@ -81,30 +83,34 @@ description: "Tarefas da implementação do aviso de nova versão de imagem"
   - plataforma `os/arquitetura[/variante]` com até 64 caracteres;
   - referência normalizada pelo `ImageReference` existente, com até 512 caracteres;
   - a regra do estado derivado do container ([D-008](research.md#d-008-container-com-a-versão-anterior)).
-- [ ] T005 Migration `backend/libs/Dokpod.ControlPlane.Infrastructure/Migrations/Script/<AAAAMMDDNNNN>_ImageUpdateCheck/Up/01-ImageUpdateCheck.sql` e `Down/01-ImageUpdateCheck.sql`, com a migration EF correspondente:
+  - Nota de execução: o tamanho da referência segue `ImageReference.MaxLength` (255), dentro da coluna de 512.
+- [x] T005 Migration `backend/libs/Dokpod.ControlPlane.Infrastructure/Migrations/Script/<AAAAMMDDNNNN>_ImageUpdateCheck/Up/01-ImageUpdateCheck.sql` e `Down/01-ImageUpdateCheck.sql`, com a migration EF correspondente:
   - `image_update_schedules`: `environment_id uuid` PK com FK em `environments` e `ON DELETE CASCADE`; `next_due_at_utc timestamptz NOT NULL`; `last_requested_at_utc`, `last_manual_at_utc`, `pending_request_id uuid` e `lease_owner varchar(128)` nulos; `lease_until_utc` obrigatório quando houver `lease_owner` (CHECK); índice em `next_due_at_utc`;
   - `image_update_checks`: PK `(environment_id, reference varchar(512), platform varchar(64))` com FK em `environments` e `ON DELETE CASCADE`; `local_image_id varchar(80)` nulo; `state varchar(24) NOT NULL` com CHECK dos quatro estados; `reason varchar(32)` com CHECK dos motivos de T004 e nulo em `up_to_date`/`update_available`; `remote_digest varchar(80)`; `checked_at_utc timestamptz NOT NULL`; `last_success_at_utc` e `outdated_since_utc timestamptz` nulos; índice `(environment_id, state)`;
   - `alert_rules.outdated_days int NULL` com `CHECK (outdated_days BETWEEN 1 AND 365)` (expand-contract).
+  - Nota de execução: os testes acharam que `reason IN (...)` e `outdated_days BETWEEN` com `NULL` passavam no CHECK (lógica de três valores); a migration exige `IS NOT NULL` explicitamente. O `Down` remove as regras `image_outdated` e os alertas delas, porque o código anterior lê qualquer condição diferente de `event` como métrica.
 
   Testes em `backend/tests/Dokpod.ControlPlane.Api.Tests/ImageUpdates/ImageUpdateMigrationTests.cs` com PostgreSQL real: `Up`, `Down` e `Up` de novo, constraints e cascata ao excluir o ambiente.
-- [ ] T006 `ImageUpdateStore` em `backend/libs/Dokpod.ControlPlane.Infrastructure/ImageUpdates/ImageUpdateStore.cs`, com portas em `backend/libs/Dokpod.ControlPlane.Application/ImageUpdates/ImageUpdatePorts.cs`:
+- [x] T006 `ImageUpdateStore` em `backend/libs/Dokpod.ControlPlane.Infrastructure/ImageUpdates/ImageUpdateStore.cs`, com portas em `backend/libs/Dokpod.ControlPlane.Application/ImageUpdates/ImageUpdatePorts.cs`:
   - hosts vencidos e lease de 2 min, com `UPDATE ... WHERE lease_until_utc < now()`, como o `AuditExportStore`;
   - `next_due_at` entre 5 h 24 min e 6 h depois do pedido (variação só para menos, para não passar das 6 h do SC-001);
   - adiantar para agora e o limite de 1 pedido manual por minuto por host;
   - aplicar uma página de resultado e, na última página, remover as referências do host que não vieram no pedido;
   - `outdated_since_utc` preenchido na transição para `update_available`, mantido em `failed` e apagado nos demais estados;
   - `failed` preserva `remote_digest` e `last_success_at_utc`.
+  - Nota de execução: `checked_at_utc` é o instante do recebimento no plano de controle, não o relógio do agente, para a limpeza da última página comparar com o instante do pedido mesmo com relógios diferentes (data-model.md).
 
   Testes com PostgreSQL real em `backend/tests/Dokpod.ControlPlane.Api.Tests/ImageUpdates/ImageUpdateStoreTests.cs`, inclusive duas réplicas disputando o mesmo host.
-- [ ] T007 Composição Business:
+- [x] T007 Composição Business:
   - `ImageUpdateModule` em `backend/apps/Dokpod.ControlPlane.Api/ImageUpdates/ImageUpdateModule.cs`, registrado só pelo `ProductEdition` Business, como o `AuditExportModule`;
   - uso de `LicenseCapabilities.ImageUpdateNotice` (`image-update-notice`), que já existe em `backend/libs/Dokpod.Licensing/LicenseDocument.cs`;
   - extensão de `backend/tests/Dokpod.Architecture.Tests/BusinessGateTests.cs` para o namespace `ImageUpdates`.
-- [ ] T008 OpenAPI em `contracts/openapi/dokpod-control-plane.v1.yaml` conforme [contracts/api.md](contracts/api.md):
+- [x] T008 OpenAPI em `contracts/openapi/dokpod-control-plane.v1.yaml` conforme [contracts/api.md](contracts/api.md):
   - schema `ImageUpdateCheck` e propriedade opcional `updateCheck` nas imagens, nos containers e no resumo;
   - `POST /api/v1/environments/{environmentId}/images/update-check` com `x-dokpod-edition: business`;
   - `conditionKind: image_outdated` com `outdatedDays`;
   - códigos de problema novos (`agent_unsupported`, `environment_disconnected`, `alert_condition_unavailable`).
+  - Nota de execução: `AlertRulePage.imageOutdatedAvailable` para a tela oferecer a condição, e resposta `ImageUpdateDenied` própria para o `403`.
 
   Regerar o cliente do frontend (`npm run generate:api` no container `angular-cli`) e conferir os testes de contrato do OpenAPI.
 
