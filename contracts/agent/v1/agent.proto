@@ -48,6 +48,8 @@ message AgentMessage {
     RegistryInventory registry_inventory = 25;
     // Spec 021: inventário de pods do Podman (capability 21 confirmada).
     PodSnapshotPage pod_snapshot_page = 26;
+    // Spec 025: resultado da verificação de nova versão (capability 23 confirmada).
+    ImageUpdateCheckResultPage image_update_check_result = 27;
   }
 }
 
@@ -64,6 +66,8 @@ message ControlPlaneMessage {
     LogStreamControl log_stream_control = 15;
     // Spec 014: só a agentes com CAPABILITY_CONTAINER_EXEC.
     ExecOpenRequest exec_open = 16;
+    // Spec 025: só a agentes com CAPABILITY_IMAGE_UPDATE_CHECK.
+    ImageUpdateCheckRequest image_update_check = 17;
   }
 }
 
@@ -666,6 +670,8 @@ enum Capability {
   CAPABILITY_REGISTRY_INVENTORY = 20;
   CAPABILITY_POD_INVENTORY = 21;
   CAPABILITY_POD_ACTIONS = 22;
+  // Spec 025: consulta o registro pela API OCI Distribution e compara digests (ADR 2026-0009).
+  CAPABILITY_IMAGE_UPDATE_CHECK = 23;
 }
 
 enum ContainerQueryKind {
@@ -776,4 +782,46 @@ enum CommandResultState {
   COMMAND_RESULT_STATE_SUCCEEDED = 1;
   COMMAND_RESULT_STATE_FAILED = 2;
   COMMAND_RESULT_STATE_INDETERMINATE = 3;
+}
+
+// Spec 025: verificação de nova versão de imagem (contracts/agent-protocol.md da spec). Até 500 itens, com
+// referências já filtradas pela política de registros do estágio.
+message ImageUpdateCheckRequest {
+  string request_id = 1;
+  repeated ImageUpdateCheckItem items = 2;
+}
+
+message ImageUpdateCheckItem {
+  // Como no container (spec 012), com tag; nunca só digest.
+  string reference = 1;
+  // Imagem local com essa referência; vazio se ausente.
+  string image_id = 2;
+}
+
+// Página até 256 KiB; um resultado por item, na ordem dos itens.
+message ImageUpdateCheckResultPage {
+  string request_id = 1;
+  uint32 page_number = 2;
+  bool is_last_page = 3;
+  repeated ImageUpdateCheckResult results = 4;
+}
+
+message ImageUpdateCheckResult {
+  string reference = 1;
+  // os/arquitetura[/variante] da imagem local.
+  string platform = 2;
+  ImageUpdateState state = 3;
+  // Motivo do data-model da spec 025; vazio em UP_TO_DATE e UPDATE_AVAILABLE. Nunca mensagem do registro.
+  string reason = 4;
+  string remote_digest = 5;
+  string matched_local_digest = 6;
+  google.protobuf.Timestamp checked_at = 7;
+}
+
+enum ImageUpdateState {
+  IMAGE_UPDATE_STATE_UNSPECIFIED = 0;
+  IMAGE_UPDATE_STATE_UP_TO_DATE = 1;
+  IMAGE_UPDATE_STATE_UPDATE_AVAILABLE = 2;
+  IMAGE_UPDATE_STATE_NOT_CHECKABLE = 3;
+  IMAGE_UPDATE_STATE_FAILED = 4;
 }

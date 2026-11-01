@@ -44,6 +44,10 @@ export type ImageItem = {
     inUse: boolean;
     observedAt: string;
     canPull: boolean;
+    /**
+     * Spec 025; só na composição Business com a capability image-update-notice. Nulo antes da primeira verificação.
+     */
+    updateCheck?: ImageUpdateCheck | null;
 };
 
 export type ImageLookup = {
@@ -347,6 +351,10 @@ export type ContainerListItem = ContainerInventory & {
     hostConnected: boolean;
     allowedActions: Array<'start' | 'stop' | 'restart' | 'delete' | 'pause' | 'unpause' | 'exec'>;
     intentional?: IntentionalAction;
+    /**
+     * Spec 025; só na composição Business com a capability image-update-notice. Inclui container_behind.
+     */
+    updateCheck?: ImageUpdateCheck | null;
 };
 
 export type ContainerListPage = {
@@ -366,6 +374,10 @@ export type ContainerDetail = ContainerListItem & {
 };
 
 export type ContainerConfigSummary = {
+    /**
+     * Spec 025; só na composição Business com a capability image-update-notice. Inclui container_behind.
+     */
+    updateCheck?: ImageUpdateCheck | null;
     command?: string;
     user?: string;
     workingDir?: string;
@@ -483,10 +495,14 @@ export type AlertRule = {
     id: string;
     name: string;
     description?: string | null;
-    conditionKind: 'event' | 'metric';
+    conditionKind: 'event' | 'metric' | 'image_outdated';
     eventType?: string | null;
     metric?: 'host_cpu' | 'host_memory' | 'container_cpu' | 'container_memory' | null;
     thresholdPercent?: number | null;
+    /**
+     * Spec 025; só em image_outdated.
+     */
+    outdatedDays?: number | null;
     durationSeconds: number;
     minOccurrences: number;
     severity: AlertSeverity;
@@ -499,15 +515,23 @@ export type AlertRule = {
 export type AlertRulePage = {
     rules: Array<AlertRule>;
     canManage: boolean;
+    /**
+     * Spec 025; verdadeiro só na composição Business com a capability image-update-notice na licença.
+     */
+    imageOutdatedAvailable?: boolean;
 };
 
 export type AlertRuleRequest = {
     name: string;
     description?: string | null;
-    conditionKind: 'event' | 'metric';
+    /**
+     * image_outdated (spec 025) só na composição Business; na CE, 422 alert_condition_unavailable.
+     */
+    conditionKind: 'event' | 'metric' | 'image_outdated';
     eventType?: string | null;
     metric?: 'host_cpu' | 'host_memory' | 'container_cpu' | 'container_memory' | null;
     thresholdPercent?: number | null;
+    outdatedDays?: number | null;
     durationSeconds: number;
     minOccurrences?: number | null;
     severity: AlertSeverity;
@@ -1122,6 +1146,34 @@ export type AuditExportTestResult = {
     delivered: boolean;
     errorCode: null | AuditExportErrorCode;
 };
+
+/**
+ * Spec 025. Nunca traz digest remoto, registro resolvido nem resposta do registro.
+ */
+export type ImageUpdateCheck = {
+    /**
+     * container_behind só nos containers (a referência está em dia e o container usa a imagem anterior).
+     */
+    state: 'up_to_date' | 'update_available' | 'not_checkable' | 'failed' | 'container_behind';
+    reason: 'digest_reference' | 'local_image' | 'registry_not_allowed' | 'insecure_registry' | 'agent_unsupported' | 'registry_unavailable' | 'rate_limited' | 'unauthorized' | 'reference_not_found' | 'timeout' | 'invalid_response' | null;
+    checkedAt: string;
+    lastSuccessAt: string | null;
+    outdatedSince: string | null;
+    /**
+     * Host desconectado; o resultado é o último conhecido.
+     */
+    stale: boolean;
+};
+
+export type ImageUpdateCheckRequested = {
+    requestedAt: string;
+    nextDueAt: string;
+};
+
+/**
+ * Valor de ProblemDetails.code nas recusas do aviso de nova versão (spec 025).
+ */
+export type ImageUpdateProblemCode = 'rate_limited' | 'agent_unsupported' | 'environment_disconnected' | 'alert_condition_unavailable';
 
 export type AuditExportProblemCode = 'audit_export_invalid_destination' | 'audit_export_invalid_secret_ref' | 'audit_export_limit_reached' | 'audit_export_name_taken' | 'audit_export_version_conflict' | 'audit_export_address_blocked' | 'audit_export_not_found' | 'rate_limited' | 'idempotency_key_required' | 'if_match_required';
 
@@ -5076,3 +5128,56 @@ export type TestAuditExportDestinationResponses = {
 };
 
 export type TestAuditExportDestinationResponse = TestAuditExportDestinationResponses[keyof TestAuditExportDestinationResponses];
+
+export type RequestImageUpdateCheckData = {
+    body?: never;
+    headers?: {
+        /**
+         * Identificador técnico opcional para correlação server-side.
+         */
+        'X-Correlation-Id'?: string;
+    };
+    path: {
+        environmentId: string;
+    };
+    query?: never;
+    url: '/api/v1/environments/{environmentId}/images/update-check';
+};
+
+export type RequestImageUpdateCheckErrors = {
+    /**
+     * Autenticação ausente ou inválida.
+     */
+    401: ProblemDetails;
+    /**
+     * Sem image:pull no host ou Keycloak indisponível (authorization_denied), ou recusa por licença (license_expired, license_capacity_exceeded, license_revoked, license_state_indeterminate, license_invalid).
+     */
+    403: ProblemDetails;
+    /**
+     * O ambiente não foi encontrado após autorização.
+     */
+    404: ProblemDetails;
+    /**
+     * Recusa tipada do aviso de nova versão; ProblemDetails.code segue ImageUpdateProblemCode. 429 traz Retry-After.
+     */
+    409: ProblemDetails;
+    /**
+     * Recusa tipada do aviso de nova versão; ProblemDetails.code segue ImageUpdateProblemCode. 429 traz Retry-After.
+     */
+    429: ProblemDetails;
+    /**
+     * Autorização ou persistência indisponível.
+     */
+    503: ProblemDetails;
+};
+
+export type RequestImageUpdateCheckError = RequestImageUpdateCheckErrors[keyof RequestImageUpdateCheckErrors];
+
+export type RequestImageUpdateCheckResponses = {
+    /**
+     * Pedido aceito.
+     */
+    202: ImageUpdateCheckRequested;
+};
+
+export type RequestImageUpdateCheckResponse = RequestImageUpdateCheckResponses[keyof RequestImageUpdateCheckResponses];

@@ -56,11 +56,17 @@ public sealed partial class BusinessGateTests
         Assert.Matches(LicensingModuleReference(), "using Dokpod.ControlPlane.Infrastructure.AuditExport;");
         Assert.Matches(LicensingModuleReference(), "Dokpod.ControlPlane.Api.AuditExport.AuditExportModule");
         Assert.Matches(LicensingModuleReference(), "using Dokpod.ControlPlane.Application.AuditExport;");
+        // Spec 025 T007: o aviso de nova versão também é módulo Business, nas três camadas.
+        Assert.Matches(LicensingModuleReference(), "using Dokpod.ControlPlane.Infrastructure.ImageUpdates;");
+        Assert.Matches(LicensingModuleReference(), "Dokpod.ControlPlane.Api.ImageUpdates.ImageUpdateModule");
+        Assert.Matches(LicensingModuleReference(), "using Dokpod.ControlPlane.Application.ImageUpdates;");
+        Assert.DoesNotMatch(LicensingModuleReference(), "using Dokpod.ControlPlane.Application.Images;");
     }
 
     private static bool IsLicensingSource(string file) =>
         file.Contains($"{Path.DirectorySeparatorChar}Licensing{Path.DirectorySeparatorChar}", StringComparison.Ordinal)
-        || file.Contains($"{Path.DirectorySeparatorChar}AuditExport{Path.DirectorySeparatorChar}", StringComparison.Ordinal);
+        || file.Contains($"{Path.DirectorySeparatorChar}AuditExport{Path.DirectorySeparatorChar}", StringComparison.Ordinal)
+        || file.Contains($"{Path.DirectorySeparatorChar}ImageUpdates{Path.DirectorySeparatorChar}", StringComparison.Ordinal);
 
     private static IEnumerable<string> ProductSources() =>
         ProductProjects
@@ -72,6 +78,6 @@ public sealed partial class BusinessGateTests
     [GeneratedRegex(@"\[BusinessCapability(Attribute)?\(")]
     private static partial Regex BusinessCapabilityMarker();
 
-    [GeneratedRegex(@"Dokpod\.ControlPlane\.(Infrastructure|Api)\.(Licensing|AuditExport)\b|Dokpod\.ControlPlane\.Application\.AuditExport\b|\busing\s+Dokpod\.Licensing\s*;|\bDokpod\.Licensing\.[A-Z]")]
+    [GeneratedRegex(@"Dokpod\.ControlPlane\.(Infrastructure|Api)\.(Licensing|AuditExport|ImageUpdates)\b|Dokpod\.ControlPlane\.Application\.(AuditExport|ImageUpdates)\b|\busing\s+Dokpod\.Licensing\s*;|\bDokpod\.Licensing\.[A-Z]")]
     private static partial Regex LicensingModuleReference();
 }

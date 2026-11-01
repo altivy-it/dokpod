@@ -11,7 +11,8 @@ import { actionError } from './alerts.facade';
 interface RuleForm {
   name: string;
   description: string;
-  conditionKind: 'event' | 'metric';
+  // image_outdated (spec 025) só vem da composição Business; o formulário passa a oferecê-la na T023.
+  conditionKind: AlertRule['conditionKind'];
   eventType: string;
   metric: NonNullable<AlertRule['metric']>;
   thresholdPercent: number;
