@@ -48,7 +48,7 @@ Sem `Idempotency-Key`: o pedido não muda o engine nem o inventário, só adiant
 
 ## Regras de alerta (spec 016)
 
-`POST` e `PUT` das regras aceitam `conditionKind: "image_outdated"` com `outdatedDays` (1 a 365).
+`POST` e `PUT` das regras aceitam `conditionKind: "image_outdated"` com `outdatedDays` (1 a 365). `AlertRulePage.imageOutdatedAvailable` diz à tela se a condição pode ser oferecida (verdadeiro só na composição Business com a capability).
 
 | Situação | Resposta |
 | --- | --- |

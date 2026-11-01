@@ -31,7 +31,7 @@ Agenda da verificação por host ([D-006](research.md#d-006-agendamento-réplica
 | `state` | `varchar(24)` | `up_to_date`, `update_available`, `not_checkable`, `failed` |
 | `reason` | `varchar(32)` | nulo em `up_to_date` e `update_available`; valores abaixo |
 | `remote_digest` | `varchar(80)` | último digest remoto conhecido (nulo em `not_checkable`) |
-| `checked_at_utc` | `timestamptz` | obrigatório |
+| `checked_at_utc` | `timestamptz` | obrigatório; instante em que o plano de controle recebeu o resultado (não o relógio do agente), para comparar com o instante do pedido |
 | `last_success_at_utc` | `timestamptz` | nulo até a primeira verificação sem falha |
 | `outdated_since_utc` | `timestamptz` | preenchido na transição para `update_available`, mantido enquanto o estado permanecer, apagado nos demais estados |
 

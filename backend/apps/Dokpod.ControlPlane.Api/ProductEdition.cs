@@ -1,5 +1,6 @@
 #if DOKPOD_BUSINESS
 using Dokpod.ControlPlane.Api.AuditExport;
+using Dokpod.ControlPlane.Api.ImageUpdates;
 using Dokpod.ControlPlane.Api.Licensing;
 #endif
 
@@ -41,6 +42,7 @@ public static class ProductEdition
 #if DOKPOD_BUSINESS
         services.AddDokpodBusinessLicensing();
         services.AddDokpodAuditExport();
+        services.AddDokpodImageUpdates();
 #endif
     }
 
@@ -50,6 +52,7 @@ public static class ProductEdition
 #if DOKPOD_BUSINESS
         endpoints.MapLicensingEndpoints();
         endpoints.MapAuditExportEndpoints();
+        endpoints.MapImageUpdateEndpoints();
 #endif
     }
 }

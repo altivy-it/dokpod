@@ -16,6 +16,8 @@ O arquivo [`v1/agent.proto`](v1/agent.proto) é a fonte canônica do canal opera
 
 A versão inicial é `v1`. Servidor e agente negociam versões por `supported_protocol_versions`; a janela suportada é N/N-1. Campos novos são aditivos. Tags removidas devem ser reservadas e nunca reutilizadas.
 
+Acréscimos por spec que dependem de capability: a spec 025 usa `CAPABILITY_IMAGE_UPDATE_CHECK = 23`, `ControlPlaneMessage.image_update_check = 17` e `AgentMessage.image_update_check_result = 27`. O servidor só envia a mensagem 17 a agentes que anunciaram a capability; o agente consulta o registro diretamente ([ADR 2026-0009](../../docs/adr/2026-0009-agente-consulta-registros-oci.md)).
+
 ## Códigos de falha iniciais
 
 | Código | Significado |

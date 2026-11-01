@@ -3254,6 +3254,44 @@ paths:
           $ref: '#/components/responses/AuditExportProblem'
         '503':
           $ref: '#/components/responses/DependencyUnavailable'
+  /api/v1/environments/{environmentId}/images/update-check:
+    parameters:
+      - name: environmentId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    post:
+      operationId: requestImageUpdateCheck
+      summary: Pede a verificação imediata de nova versão das imagens em uso no host (image:pull; capability image-update-notice)
+      description: >-
+        Spec 025 ("Verificar agora"). Só adianta a agenda do host: o agente consulta o registro e o resultado aparece em
+        updateCheck nas listas. Sem Idempotency-Key, porque não muda o engine; no máximo 1 pedido por minuto por host.
+      x-dokpod-edition: business
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CorrelationId'
+      responses:
+        '202':
+          description: Pedido aceito.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImageUpdateCheckRequested'
+        '401':
+          $ref: '#/components/responses/AuthenticationRequired'
+        '403':
+          $ref: '#/components/responses/ImageUpdateDenied'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/ImageUpdateProblem'
+        '429':
+          $ref: '#/components/responses/ImageUpdateProblem'
+        '503':
+          $ref: '#/components/responses/DependencyUnavailable'
 components:
   securitySchemes:
     bearerAuth:
@@ -3370,6 +3408,11 @@ components:
           format: date-time
         canPull:
           type: boolean
+        updateCheck:
+          description: Spec 025; só na composição Business com a capability image-update-notice. Nulo antes da primeira verificação.
+          oneOf:
+            - $ref: '#/components/schemas/ImageUpdateCheck'
+            - type: 'null'
     ImageLookup:
       type: object
       required: [reference, mutableTag, present]
@@ -4067,6 +4110,11 @@ components:
                 enum: [start, stop, restart, delete, pause, unpause, exec]
             intentional:
               $ref: '#/components/schemas/IntentionalAction'
+            updateCheck:
+              description: Spec 025; só na composição Business com a capability image-update-notice. Inclui container_behind.
+              oneOf:
+                - $ref: '#/components/schemas/ImageUpdateCheck'
+                - type: 'null'
     ContainerListPage:
       type: object
       required: [containers, summary]
@@ -4109,6 +4157,11 @@ components:
     ContainerConfigSummary:
       type: object
       properties:
+        updateCheck:
+          description: Spec 025; só na composição Business com a capability image-update-notice. Inclui container_behind.
+          oneOf:
+            - $ref: '#/components/schemas/ImageUpdateCheck'
+            - type: 'null'
         command:
           type: string
         user:
@@ -4347,7 +4400,7 @@ components:
           type: [string, 'null']
         conditionKind:
           type: string
-          enum: [event, metric]
+          enum: [event, metric, image_outdated]
         eventType:
           type: [string, 'null']
         metric:
@@ -4355,6 +4408,11 @@ components:
           enum: [host_cpu, host_memory, container_cpu, container_memory, null]
         thresholdPercent:
           type: [number, 'null']
+        outdatedDays:
+          description: Spec 025; só em image_outdated.
+          type: [integer, 'null']
+          minimum: 1
+          maximum: 365
         durationSeconds:
           type: integer
           minimum: 0
@@ -4381,6 +4439,9 @@ components:
             $ref: '#/components/schemas/AlertRule'
         canManage:
           type: boolean
+        imageOutdatedAvailable:
+          description: Spec 025; verdadeiro só na composição Business com a capability image-update-notice na licença.
+          type: boolean
     AlertRuleRequest:
       type: object
       required: [name, conditionKind, durationSeconds, severity, enabled]
@@ -4395,7 +4456,8 @@ components:
           maxLength: 500
         conditionKind:
           type: string
-          enum: [event, metric]
+          enum: [event, metric, image_outdated]
+          description: image_outdated (spec 025) só na composição Business; na CE, 422 alert_condition_unavailable.
         eventType:
           type: [string, 'null']
         metric:
@@ -4405,6 +4467,10 @@ components:
           type: [number, 'null']
           minimum: 1
           maximum: 100
+        outdatedDays:
+          type: [integer, 'null']
+          minimum: 1
+          maximum: 365
         durationSeconds:
           type: integer
           minimum: 0
@@ -5686,6 +5752,58 @@ components:
           oneOf:
             - type: 'null'
             - $ref: '#/components/schemas/AuditExportErrorCode'
+    ImageUpdateCheck:
+      type: object
+      description: Spec 025. Nunca traz digest remoto, registro resolvido nem resposta do registro.
+      required: [state, reason, checkedAt, lastSuccessAt, outdatedSince, stale]
+      additionalProperties: false
+      properties:
+        state:
+          type: string
+          description: container_behind só nos containers (a referência está em dia e o container usa a imagem anterior).
+          enum: [up_to_date, update_available, not_checkable, failed, container_behind]
+        reason:
+          type: [string, 'null']
+          enum:
+            - digest_reference
+            - local_image
+            - registry_not_allowed
+            - insecure_registry
+            - agent_unsupported
+            - registry_unavailable
+            - rate_limited
+            - unauthorized
+            - reference_not_found
+            - timeout
+            - invalid_response
+            - null
+        checkedAt:
+          type: string
+          format: date-time
+        lastSuccessAt:
+          type: [string, 'null']
+          format: date-time
+        outdatedSince:
+          type: [string, 'null']
+          format: date-time
+        stale:
+          type: boolean
+          description: Host desconectado; o resultado é o último conhecido.
+    ImageUpdateCheckRequested:
+      type: object
+      required: [requestedAt, nextDueAt]
+      additionalProperties: false
+      properties:
+        requestedAt:
+          type: string
+          format: date-time
+        nextDueAt:
+          type: string
+          format: date-time
+    ImageUpdateProblemCode:
+      type: string
+      description: Valor de ProblemDetails.code nas recusas do aviso de nova versão (spec 025).
+      enum: [rate_limited, agent_unsupported, environment_disconnected, alert_condition_unavailable]
     AuditExportProblemCode:
       type: string
       enum:
@@ -6008,6 +6126,18 @@ components:
             $ref: '#/components/schemas/ProblemDetails'
     AuditExportDenied:
       description: Autorização negada pelo Keycloak (authorization_denied) ou recusa por licença (license_expired, license_capacity_exceeded, license_revoked, license_state_indeterminate, license_invalid).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+    ImageUpdateDenied:
+      description: Sem image:pull no host ou Keycloak indisponível (authorization_denied), ou recusa por licença (license_expired, license_capacity_exceeded, license_revoked, license_state_indeterminate, license_invalid).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+    ImageUpdateProblem:
+      description: Recusa tipada do aviso de nova versão; ProblemDetails.code segue ImageUpdateProblemCode. 429 traz Retry-After.
       content:
         application/problem+json:
           schema:
