@@ -57,4 +57,17 @@ public sealed class AuditExportRecordTests
         Assert.Null(json["environmentId"]);
         Assert.False(record.IsWarning);
     }
+
+    [Fact]
+    public void InstallationEvents_LeaveWithoutEnvironment()
+    {
+        var e = new AuditEventRecord(
+            Guid.NewGuid(), DateTimeOffset.UtcNow, Guid.NewGuid(), AuditActorKind.User, "user-1", null,
+            "audit_export.destination_created", AuditEvent.InstallationScopeId, AuditOutcome.Succeeded, null, "d-1", null, null);
+
+        var json = JsonNode.Parse(AuditExportRecord.FromEvent(e, Installation).ToJson())!;
+
+        Assert.Null(json["environmentId"]);
+        Assert.Equal("audit_export", json["category"]!.GetValue<string>());
+    }
 }

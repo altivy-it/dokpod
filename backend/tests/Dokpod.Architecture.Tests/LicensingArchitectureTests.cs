@@ -32,9 +32,11 @@ public sealed partial class LicensingArchitectureTests
     {
         var applicationRoot = Path.Combine(BackendRoot, "libs/Dokpod.ControlPlane.Application");
         var licensingRoot = Path.Combine(applicationRoot, "Licensing") + Path.DirectorySeparatorChar;
+        // Spec 027: a exportação ao SIEM é exclusiva Business e só entra na composição Business (BusinessGateTests).
+        var auditExportRoot = Path.Combine(applicationRoot, "AuditExport") + Path.DirectorySeparatorChar;
 
         var offenders = SourceFiles(applicationRoot)
-            .Where(file => !file.StartsWith(licensingRoot, StringComparison.Ordinal))
+            .Where(file => !file.StartsWith(licensingRoot, StringComparison.Ordinal) && !file.StartsWith(auditExportRoot, StringComparison.Ordinal))
             .Where(file => File.ReadAllText(file).Contains("IBusinessCapabilityGate", StringComparison.Ordinal))
             .ToArray();
 

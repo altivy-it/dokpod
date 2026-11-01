@@ -1123,7 +1123,7 @@ export type AuditExportTestResult = {
     errorCode: null | AuditExportErrorCode;
 };
 
-export type AuditExportProblemCode = 'audit_export_invalid_destination' | 'audit_export_invalid_secret_ref' | 'audit_export_limit_reached' | 'audit_export_name_taken' | 'audit_export_version_conflict' | 'audit_export_address_blocked' | 'audit_export_not_found' | 'rate_limited';
+export type AuditExportProblemCode = 'audit_export_invalid_destination' | 'audit_export_invalid_secret_ref' | 'audit_export_limit_reached' | 'audit_export_name_taken' | 'audit_export_version_conflict' | 'audit_export_address_blocked' | 'audit_export_not_found' | 'rate_limited' | 'idempotency_key_required' | 'if_match_required';
 
 export type ProblemDetails = {
     type: string;

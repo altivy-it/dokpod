@@ -50,7 +50,8 @@ public sealed record AuditExportRecord(
         e.ActorName,
         e.Action,
         AuditCategories.CategoryOf(e.Action),
-        e.EnvironmentId,
+        // D-012: eventos da instalação saem sem ambiente.
+        e.EnvironmentId == AuditEvent.InstallationScopeId ? Guid.Empty : e.EnvironmentId,
         e.SubjectId,
         e.Outcome switch { AuditOutcome.Succeeded => "succeeded", AuditOutcome.Denied => "denied", AuditOutcome.Failed => "failed", _ => "indeterminate" },
         e.FailureCode,
