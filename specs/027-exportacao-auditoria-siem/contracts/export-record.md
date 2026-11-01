@@ -55,4 +55,4 @@ Mesmos campos e mesma sanitização da trilha que o console e o CSV da spec 017 
 | `LogRecord.attributes` | `dokpod.event.id`, `dokpod.correlation.id`, `dokpod.command.id`, `dokpod.actor.kind`, `dokpod.actor.id`, `dokpod.actor.name`, `dokpod.action.category`, `dokpod.environment.id`, `dokpod.subject.id`, `dokpod.outcome`, `dokpod.failure.code`, `dokpod.details` (JSON), `dokpod.test` |
 | Cabeçalho | `Authorization: Bearer <token>` quando o secret traz `token` |
 
-Uma resposta 2xx confirma o lote inteiro e avança o cursor. Uma resposta 4xx que não seja 408 ou 429 vira `rejected` e não avança o cursor. As demais falhas tentam de novo com espera exponencial até 60 s.
+Uma resposta 2xx confirma o lote inteiro e avança o cursor. Redirecionamentos (3xx) não são seguidos e viram `rejected` (L1). Uma resposta 4xx que não seja 408 ou 429 vira `rejected` e não avança o cursor. As demais falhas tentam de novo com espera exponencial até 60 s. Conexão em até 10 s, envio em até 30 s, corpo da resposta lido até 64 KiB e descartado (L2).

@@ -4,7 +4,7 @@
 
 **Criada em**: 2026-10-27
 
-**Estado**: `draft` - aguardando revisão humana (esclarecida, planejada e analisada em 2026-11-01; a aprovação do solicitante deve ser registrada aqui antes de `/speckit-implement`).
+**Estado**: `approved` - aprovada pelo solicitante (lzocateli) em 2026-11-01: "aprovado, execute a T001 da spec 027", depois de esclarecida, planejada e analisada. Implementação autorizada a partir da T001 (threat model, gate antes de código).
 
 **Entrada**: Pedido do solicitante em 2026-10-27: "Itens de referência que ainda não estão no dokpod, inclua todos no roadmap", item 3 de 5: exportação contínua da auditoria por syslog e OpenTelemetry.
 
