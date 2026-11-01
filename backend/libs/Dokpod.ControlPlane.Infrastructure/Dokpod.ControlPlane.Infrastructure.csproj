@@ -1,5 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
+    <PackageReference Include="Google.Protobuf" />
+    <PackageReference Include="Grpc.Tools" PrivateAssets="All" />
     <PackageReference Include="Microsoft.EntityFrameworkCore" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
   </ItemGroup>
@@ -11,5 +13,13 @@
 
   <ItemGroup>
     <EmbeddedResource Include="Migrations/Script/**/*.sql" />
+  </ItemGroup>
+
+  <!-- Spec 027 D-005: mensagens OTLP de logs do opentelemetry-proto v1.11.1 (Apache-2.0), só para serializar o lote. -->
+  <ItemGroup>
+    <Protobuf Include="../../../contracts/vendor/opentelemetry-proto/opentelemetry/proto/**/*.proto"
+              ProtoRoot="../../../contracts/vendor/opentelemetry-proto"
+              GrpcServices="None"
+              Access="Internal" />
   </ItemGroup>
 </Project>

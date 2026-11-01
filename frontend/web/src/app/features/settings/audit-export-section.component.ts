@@ -12,9 +12,11 @@ import {
   DokCheckbox,
   DokEmptyState,
   DokField,
+  DokSelect,
   DokStatusChip,
   formatDateTime,
   formatRelative,
+  type SelectOption,
   ToastService,
 } from '../../design-system';
 import { AUDIT_CATEGORIES } from '../../data-access/audit-labels';
@@ -36,14 +38,22 @@ import {
 export const AUDIT_EXPORT_CAPABILITY = 'audit-siem-export';
 const MANDATORY: AuditCategory = 'audit_export';
 const MAX_DESTINATIONS = 5;
+/** Portas padrão: syslog sobre TLS (RFC 5425) e OTLP/HTTP; trocar o protocolo troca a porta se ela não foi editada. */
+const DEFAULT_PORT: Record<AuditExportDestination['protocol'], string> = {
+  syslog: '6514',
+  otlp: '4318',
+};
+const DEFAULT_PATH = '/v1/logs';
 
 /** Formulário de criação ou edição; a chave de idempotência vale para a mesma intenção (repetir o clique). */
 interface DestinationForm {
   destination: AuditExportDestination | null;
   idempotencyKey: string;
   name: string;
+  protocol: AuditExportDestination['protocol'];
   host: string;
   port: string;
+  path: string;
   secretRef: string;
   categories: Record<string, boolean>;
   active: boolean;
@@ -57,7 +67,7 @@ interface DestinationForm {
 @Component({
   selector: 'app-audit-export-section',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [DokButton, DokCheckbox, DokEmptyState, DokField, DokStatusChip, FormsModule],
+  imports: [DokButton, DokCheckbox, DokEmptyState, DokField, DokSelect, DokStatusChip, FormsModule],
   templateUrl: './audit-export-section.component.html',
   styleUrl: './settings.page.css',
   // O cartão é item da grade da aba Instalação; sem a capability, nada aparece.
@@ -81,6 +91,10 @@ export class AuditExportSection implements OnInit {
   protected readonly formatDateTime = formatDateTime;
   protected readonly formatRelative = formatRelative;
   protected readonly mandatory = MANDATORY;
+  protected readonly protocols: SelectOption[] = [
+    { value: 'syslog', label: 'Syslog com TLS (RFC 5425)' },
+    { value: 'otlp', label: 'OpenTelemetry (OTLP/HTTP)' },
+  ];
 
   /** Sem a capability na licença a seção não aparece; sem conseguir ler a licença, o servidor decide. */
   protected readonly available = computed(() => {
@@ -124,8 +138,10 @@ export class AuditExportSection implements OnInit {
       destination: null,
       idempotencyKey: newUuid(),
       name: '',
+      protocol: 'syslog',
       host: '',
-      port: '6514',
+      port: DEFAULT_PORT.syslog,
+      path: DEFAULT_PATH,
       secretRef: '',
       categories: { [MANDATORY]: true },
       active: true,
@@ -137,14 +153,23 @@ export class AuditExportSection implements OnInit {
       destination,
       idempotencyKey: newUuid(),
       name: destination.name,
+      protocol: destination.protocol,
       host: destination.host,
       port: String(destination.port),
+      path: destination.path ?? DEFAULT_PATH,
       secretRef: destination.secretRef ?? '',
       categories: Object.fromEntries(
         [...destination.categories, MANDATORY].map((category) => [category, true]),
       ),
       active: destination.active,
     });
+  }
+
+  /** Novo objeto no signal: a tela (OnPush) atualiza porta, caminho e o texto do secret. */
+  protected changeProtocol(form: DestinationForm, protocol: string): void {
+    const next = protocol === 'otlp' ? 'otlp' : 'syslog';
+    const port = form.port === DEFAULT_PORT[form.protocol] ? DEFAULT_PORT[next] : form.port;
+    this.form.set({ ...form, protocol: next, port });
   }
 
   protected cancel(): void {
@@ -159,7 +184,8 @@ export class AuditExportSection implements OnInit {
       Number.isInteger(port) &&
       port >= 1 &&
       port <= 65535 &&
-      (form.secretRef === '' || /^[a-z0-9-]{1,64}$/.test(form.secretRef))
+      (form.secretRef === '' || /^[a-z0-9-]{1,64}$/.test(form.secretRef)) &&
+      (form.protocol === 'syslog' || /^\/[^?# ]{0,255}$/.test(form.path))
     );
   }
 
@@ -168,10 +194,10 @@ export class AuditExportSection implements OnInit {
     if (!form || !this.valid(form) || this.restricted()) return;
     const input: AuditExportDestinationInput = {
       name: form.name.trim(),
-      protocol: 'syslog',
+      protocol: form.protocol,
       host: form.host.trim(),
       port: Number(form.port),
-      path: null,
+      path: form.protocol === 'otlp' ? form.path : null,
       secretRef: form.secretRef || null,
       categories: this.categories
         .map((category) => category.id)

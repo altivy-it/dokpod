@@ -24,8 +24,8 @@
     } @else if (destinations(); as items) {
       <div class="dok-stack">
         <p class="app-small st-muted">
-          Envia a trilha de auditoria a até 5 destinos syslog com TLS. A categoria Exportação para
-          SIEM vai sempre, para o SOC ver mudanças nos próprios destinos.
+          Envia a trilha de auditoria a até 5 destinos syslog ou OpenTelemetry, sempre com TLS. A
+          categoria Exportação para SIEM vai sempre, para o SOC ver mudanças nos próprios destinos.
         </p>
         @if (restricted()) {
           <div class="dok-stack" role="status">
@@ -45,7 +45,11 @@
             <li class="st-list__row" [attr.data-destination]="item.name">
               <span>
                 <strong>{{ item.name }}</strong>
-                <span class="app-caption st-muted"> · {{ item.host }}:{{ item.port }}</span>
+                <span class="app-caption st-muted">
+                  · {{ item.protocol === 'otlp' ? 'OTLP' : 'syslog' }} · {{ item.host }}:{{
+                    item.port
+                  }}{{ item.protocol === 'otlp' ? item.path : '' }}</span
+                >
               </span>
               <span class="st-list__value">
                 <dok-status-chip
@@ -130,6 +134,13 @@
             (submit)="$event.preventDefault(); save()"
           >
             <dok-field label="Nome" placeholder="siem-soc" name="name" [(ngModel)]="current.name" />
+            <dok-select
+              label="Protocolo"
+              name="protocol"
+              [options]="protocols"
+              [ngModel]="current.protocol"
+              (ngModelChange)="changeProtocol(current, $event)"
+            />
             <dok-field
               label="Host"
               placeholder="siem.exemplo.interno"
@@ -138,11 +149,25 @@
               [(ngModel)]="current.host"
             />
             <dok-field label="Porta" type="number" name="port" [(ngModel)]="current.port" />
+            @if (current.protocol === 'otlp') {
+              <dok-field
+                label="Caminho"
+                placeholder="/v1/logs"
+                [mono]="true"
+                help="Caminho do receptor OTLP/HTTP; o padrão é /v1/logs."
+                name="path"
+                [(ngModel)]="current.path"
+              />
+            }
             <dok-field
               label="Secret montado (opcional)"
               placeholder="siem-soc"
               [mono]="true"
-              help="Pasta em /run/secrets/dokpod-audit-export/ com ca.pem, tls.crt e tls.key."
+              [help]="
+                current.protocol === 'otlp'
+                  ? 'Pasta em /run/secrets/dokpod-audit-export/ com ca.pem, tls.crt, tls.key e token (vai como Authorization: Bearer).'
+                  : 'Pasta em /run/secrets/dokpod-audit-export/ com ca.pem, tls.crt e tls.key.'
+              "
               name="secretRef"
               [(ngModel)]="current.secretRef"
             />

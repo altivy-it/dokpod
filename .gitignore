@@ -73,6 +73,8 @@ htmlcov/
 # Runtime state and logs
 **/.data-protection-keys/
 **/logs/
+# Protos OpenTelemetry vendorizados (spec 027): o pacote se chama logs, não é log de runtime
+!contracts/vendor/opentelemetry-proto/opentelemetry/proto/**/logs/
 *.log
 *.pid
 
