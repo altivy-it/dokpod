@@ -44,7 +44,7 @@ description: "Tarefas da implementação do aviso de nova versão de imagem"
 
 **Objetivo**: fronteira de segurança aceita e registro de teste antes de qualquer código de produto.
 
-- [ ] T001 Threat model em `specs/025-aviso-nova-versao-imagem/threat-model.md`, no formato do de `specs/027-exportacao-auditoria-siem/threat-model.md`. Cobrir:
+- [x] T001 Threat model em `specs/025-aviso-nova-versao-imagem/threat-model.md`, no formato do de `specs/027-exportacao-auditoria-siem/threat-model.md`. Cobrir:
   - saída nova do agente para registros ([D-001](research.md#d-001-onde-e-como-consultar-o-registro)), proxy e TLS;
   - uso da credencial do host fora do engine e o desafio Bearer/Basic, sem `Authorization` em redirecionamento para outro host ([D-005](research.md#d-005-limites-no-agente));
   - referências vindas do inventário do próprio host, sem host informado pelo usuário;
@@ -54,7 +54,7 @@ description: "Tarefas da implementação do aviso de nova versão de imagem"
   - telemetria sem referência nem registro ([D-012](research.md#d-012-observabilidade-e-segredos));
   - comportamento sob licença restrita (FR-009).
 
-  Registrar lacunas, riscos residuais e a decisão do revisor humano. Bloqueia todas as tarefas de código. Nota (2026-11-01): rascunho com as lacunas L1–L5 e os riscos R1–R5, aguardando a decisão do revisor.
+  Registrar lacunas, riscos residuais e a decisão do revisor humano. Bloqueia todas as tarefas de código. Nota (2026-11-01): aceito pelo solicitante ("executar suas recomendações"), com as lacunas L1–L4 aplicadas na T009 e na T011, L5 e os riscos R1–R5 aceitos, e o agente Windows sem a capability por enquanto. O ADR da saída direta do agente para registros é recomendado e depende de `/dokpod-create-adr`, invocada pelo solicitante.
 - [ ] T002 [P] Registro OCI de teste para os testes do agente:
   - receptor HTTPS em processo, em `backend/tests/Dokpod.Agent.Infrastructure.Tests/Registries/OciTestRegistry.cs`, com desafio `Bearer` e `Basic`, índice multiarquitetura, respostas `401/403/404/429/5xx`, redirecionamento e corpo grande configuráveis, e certificado de uma CA gerada na execução;
   - fixture `OciRegistryFixture.cs` para um `registry:2` real em container, com versão fixada, licença Apache-2.0 conferida e `htpasswd` gerado na execução. A fixture usa a URL de `DOKPOD_TEST_OCI_REGISTRY` e fica ignorada sem ela.
@@ -126,7 +126,13 @@ description: "Tarefas da implementação do aviso de nova versão de imagem"
   - redirecionamento só para o mesmo host, sem `Authorization` para outro;
   - mapeamento: `401/403` → `unauthorized`, `404` → `reference_not_found`, `429` → `rate_limited`, `5xx` e falha de conexão → `registry_unavailable`, tempo esgotado → `timeout`, resposta sem digest ou corpo inválido → `invalid_response`.
 
-  Nenhum cabeçalho, token ou corpo em log. Testes contra o `OciTestRegistry` (T002) em `backend/tests/Dokpod.Agent.Infrastructure.Tests/Registries/OciDistributionClientTests.cs`.
+  Threat model:
+  - L1: `realm` do desafio só `https`; credencial enviada ao `realm` só quando ele é do mesmo host do registro ou no par `docker.io` → `auth.docker.io`; nos demais casos, token anônimo;
+  - L2: no caminho da verificação, log só com o tipo da exceção e o motivo, nunca mensagem, URL ou referência;
+  - L3: token só em memória e só durante o pedido, por repositório;
+  - L4: resposta do token endpoint lida até 64 KiB, acima disso `invalid_response`.
+
+  Nenhum cabeçalho, token ou corpo em log. Testes contra o `OciTestRegistry` (T002) em `backend/tests/Dokpod.Agent.Infrastructure.Tests/Registries/OciDistributionClientTests.cs`, inclusive `realm` em outro host (sem credencial), `realm` `http` (recusado) e token endpoint grande.
 - [ ] T010 [P] [US1] `ImageUpdateChecker` em `backend/libs/Dokpod.Agent.Application/Images/ImageUpdateChecker.cs`, com a comparação de [D-002](research.md#d-002-comparação-de-digests-e-plataforma) e os casos não verificáveis de [D-003](research.md#d-003-referências-não-verificáveis):
   - digest remoto entre os `repo_digests` locais do mesmo repositório → `up_to_date`;
   - índice mudou mas o manifesto da plataforma do host não → `up_to_date`;
@@ -137,7 +143,8 @@ description: "Tarefas da implementação do aviso de nova versão de imagem"
 - [ ] T011 [US1] Atendimento da mensagem 17 no agente (`backend/apps/Dokpod.Agent/AgentControlWorker.cs` e um handler em `backend/libs/Dokpod.Agent.Application/Images/ImageUpdateCheckHandler.cs`):
   - até 500 itens, 4 consultas simultâneas e 5 min por pedido;
   - resultados em páginas de até 256 KiB, sempre um resultado por item;
-  - `CAPABILITY_IMAGE_UPDATE_CHECK` anunciada pelos agentes Linux com Docker e com Podman. O agente Windows não anuncia até passar no mesmo teste (decisão do plano).
+  - `CAPABILITY_IMAGE_UPDATE_CHECK` anunciada pelos agentes Linux com Docker e com Podman. O agente Windows não anuncia até passar no mesmo teste (decisão do plano);
+  - logs do handler só com tipo de exceção e motivo (L2).
 
   Testes em `backend/tests/Dokpod.Agent.Application.Tests/Images/ImageUpdateCheckHandlerTests.cs`.
 - [ ] T012 [US1] Teste contra registro real em `backend/tests/Dokpod.Agent.Infrastructure.Tests/Registries/OciRegistryIntegrationTests.cs` (fixture de T002):

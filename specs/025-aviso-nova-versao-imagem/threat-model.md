@@ -1,7 +1,7 @@
 # Threat model: aviso de nova versão de imagem
 
 **Spec**: 025, tarefa T001 (gate antes de código) · **Data**: 2026-11-01 · **Origem**: IA assistida, a partir de [spec.md](spec.md), [plan.md](plan.md), [research.md](research.md), [data-model.md](data-model.md) e [contratos](contracts/)
-**Estado**: **rascunho, aguardando revisão humana** ([decisão](#decisão-do-revisor)).
+**Estado**: **revisado e aceito** pelo solicitante em 2026-11-01 ([decisão](#decisão-do-revisor)).
 
 Este documento cobre só as fronteiras novas da 025. As que já existem continuam regidas por [segurança](../../docs/seguranca.md), pelo [threat model da 031](../031-licenciamento-business-offline/threat-model.md) e pelos das specs 012 (pull) e 020 (registros):
 - sessão do navegador;
@@ -105,11 +105,11 @@ HOST GERENCIADO
 
 | # | Risco | Fronteira | Mitigação atual | Aceite |
 | --- | --- | --- | --- | --- |
-| R1 | Quem controla o host altera o `config.json` ou o trust store do agente e faz a verificação mentir | B1, B2 | Fora do modelo: quem controla o host já controla engine e imagens | Pendente |
-| R2 | Um agente comprometido mostra "Atualizada" para imagens do próprio host | B3 | Só afeta o host comprometido; o agente já é confiável para o inventário desse host | Pendente |
-| R3 | Muitos hosts verificando as mesmas imagens geram carga no registro do cliente | B1 | `HEAD`, agenda espalhada, limite manual por host | Pendente |
-| R4 | Em host com proxy só no daemon do engine, a verificação falha (`registry_unavailable`) até configurar `HTTPS_PROXY` no agente | B1 | Falha visível com motivo; runbook | Pendente |
-| R5 | O estado mostra o resultado da última verificação; entre duas verificações, uma tag pode mudar sem aviso por até 6 h | B4 | Data da verificação sempre visível; "Verificar agora" | Pendente |
+| R1 | Quem controla o host altera o `config.json` ou o trust store do agente e faz a verificação mentir | B1, B2 | Fora do modelo: quem controla o host já controla engine e imagens | Aceito (2026-11-01) |
+| R2 | Um agente comprometido mostra "Atualizada" para imagens do próprio host | B3 | Só afeta o host comprometido; o agente já é confiável para o inventário desse host | Aceito (2026-11-01) |
+| R3 | Muitos hosts verificando as mesmas imagens geram carga no registro do cliente | B1 | `HEAD`, agenda espalhada, limite manual por host | Aceito (2026-11-01) |
+| R4 | Em host com proxy só no daemon do engine, a verificação falha (`registry_unavailable`) até configurar `HTTPS_PROXY` no agente | B1 | Falha visível com motivo; runbook | Aceito (2026-11-01) |
+| R5 | O estado mostra o resultado da última verificação; entre duas verificações, uma tag pode mudar sem aviso por até 6 h | B4 | Data da verificação sempre visível; "Verificar agora" | Aceito (2026-11-01) |
 
 ## Controles transversais
 
@@ -123,10 +123,11 @@ HOST GERENCIADO
 
 | Campo | Valor |
 | --- | --- |
-| Revisor | |
-| Data | |
-| Premissa central (referências só do inventário do host; credencial do host) | |
-| Lacunas L1–L5 | |
-| Riscos R1–R5 | |
-| Saída direta do agente para registros exige ADR? (plan.md, itens para a revisão humana) | |
-| Declaração | |
+| Revisor | Solicitante (Origem: humano) |
+| Data | 2026-11-01 |
+| Premissa central (referências só do inventário do host; credencial do host) | Aceita |
+| Lacunas L1–L5 | Recomendações aceitas: L1–L4 aplicadas na T009 e na T011; L5 aceita como está |
+| Riscos R1–R5 | Aceitos |
+| Agente Windows sem a capability até passar no teste contra o registro | Aceito |
+| Saída direta do agente para registros exige ADR? (plan.md, itens para a revisão humana) | Recomendado registrar em ADR `proposed`, porque cria precedente de saída do agente além do engine. O ADR depende de o solicitante rodar `/dokpod-create-adr`, skill reservada à invocação humana; não bloqueia a implementação, que segue esta decisão |
+| Declaração | "Minha decisão é executar suas recomendações, escreva a ADR se fizer sentido e não causar prejuizo ou regreção a funcionalidades e robustes do projeto como um todo" |

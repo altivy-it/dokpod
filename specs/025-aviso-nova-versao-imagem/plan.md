@@ -73,8 +73,8 @@ O inventário de imagens e containers continua sendo a projeção da spec 012.
 | VI. Qualidade por plataforma | Registro OCI real em container; agentes Docker e Podman reais; PostgreSQL real; E2E pela borda | ok |
 | Dependências permissivas | Nenhum pacote novo; `registry:2` (Apache-2.0) só nos testes | ok |
 | Tabelas de alto crescimento particionadas | As duas tabelas crescem com hosts e imagens em uso, não com o tempo, e não têm retenção temporal | ok |
-| Threat model para fronteira nova | Saída nova do agente para registros, credencial do host usada fora do engine e nova mensagem do protocolo: threat model é a primeira tarefa, antes de código | pendente (primeira tarefa) |
-| ADR para decisão duradoura | O agente passa a falar direto com registros, antes só pelo engine. A decisão fica em D-001 e no threat model; ADR só se a revisão humana a considerar duradoura além desta feature | revisar |
+| Threat model para fronteira nova | Saída nova do agente para registros, credencial do host usada fora do engine e nova mensagem do protocolo: [threat model](threat-model.md) aceito em 2026-11-01 (T001) | ok |
+| ADR para decisão duradoura | O agente passa a falar direto com registros, antes só pelo engine. A decisão fica em D-001 e no threat model aceito; ADR `proposed` recomendado, via `/dokpod-create-adr` | pendente (ADR) |
 
 Reavaliação após o desenho da Fase 1: sem violações; a tabela de complexidade fica vazia. O threat model segue como entrega obrigatória antes do código.
 
@@ -145,7 +145,7 @@ Sem violações a justificar.
 
 ## Itens para a revisão humana
 
-- **Saída direta do agente para registros ([D-001](research.md#d-001-onde-e-como-consultar-o-registro))**: antes, só o engine falava com registros. O agente passa a usar a mesma credencial e a respeitar `HTTPS_PROXY` do seu container. Em host com proxy só no daemon, a verificação dá `failed` até configurar o agente. Confirmar se isso pede ADR.
+- **Saída direta do agente para registros ([D-001](research.md#d-001-onde-e-como-consultar-o-registro))**: antes, só o engine falava com registros. O agente passa a usar a mesma credencial e a respeitar `HTTPS_PROXY` do seu container. Em host com proxy só no daemon, a verificação dá `failed` até configurar o agente. Decisão do solicitante em 2026-11-01 ([threat model](threat-model.md#decisão-do-revisor)): seguir as recomendações; o ADR `proposed` é recomendado e depende de `/dokpod-create-adr`.
 - **Registros inseguros ([D-003](research.md#d-003-referências-não-verificáveis))**: ficam como "Não verificável", sem HTTP.
 - **Licença sem a capability ([D-009](research.md#d-009-licença-e-composição))**: diferente da 027, o worker para e o estado some, como pede o esclarecimento. Com a licença restrita, continua.
 - **Agente Windows**: só anuncia a capability depois de passar no teste contra o registro; até lá, os hosts Windows mostram "Não verificável" (`agent_unsupported`).
