@@ -64,18 +64,23 @@ public sealed class AuditExportTelemetryTests : IAsyncLifetime
         tracerProvider.ForceFlush();
         meterProvider.ForceFlush();
 
+        // Cópias sob lock: os listeners são do processo, e spans de outros testes em paralelo chegam a qualquer momento.
+        Activity[] spanSnapshot;
+        lock (spans) spanSnapshot = [.. spans];
+        var tags = metrics.Snapshot();
+
         // Só spans de cliente: o receptor de teste é um Kestrel neste processo e tem os próprios spans de servidor.
-        var spanText = string.Join('\n', spans.Where(span => span.Kind == ActivityKind.Client).Select(span => span.DisplayName + " " + string.Join(' ', span.TagObjects.Select(tag => $"{tag.Key}={tag.Value}"))));
+        var spanText = string.Join('\n', spanSnapshot.Where(span => span.Kind == ActivityKind.Client).Select(span => span.DisplayName + " " + string.Join(' ', span.TagObjects.Select(tag => $"{tag.Key}={tag.Value}"))));
         Assert.Contains("/controle", spanText);
         Assert.DoesNotContain(Host, spanText);
         Assert.DoesNotContain(Path, spanText);
 
-        Assert.Contains(metrics.Tags, tag => tag.StartsWith("http.client.request.duration:", StringComparison.Ordinal));
-        Assert.Contains(metrics.Tags, tag => tag.StartsWith("dns.lookup.duration:", StringComparison.Ordinal));
+        Assert.Contains(tags, tag => tag.StartsWith("http.client.request.duration:", StringComparison.Ordinal));
+        Assert.Contains(tags, tag => tag.StartsWith("dns.lookup.duration:", StringComparison.Ordinal));
         // As métricas do Kestrel do receptor de teste têm endereço próprio; o que importa são as do lado cliente.
-        var clientTags = metrics.Tags.Where(tag => tag.StartsWith("http.client.", StringComparison.Ordinal) || tag.StartsWith("dns.", StringComparison.Ordinal)).ToList();
+        var clientTags = tags.Where(tag => tag.StartsWith("http.client.", StringComparison.Ordinal) || tag.StartsWith("dns.", StringComparison.Ordinal)).ToList();
         Assert.DoesNotContain(clientTags, tag => tag.Contains("server.address", StringComparison.Ordinal) || tag.Contains("dns.question.name", StringComparison.Ordinal));
-        Assert.DoesNotContain(metrics.Tags, tag => tag.Contains("telemetria", StringComparison.Ordinal));
+        Assert.DoesNotContain(tags, tag => tag.Contains("telemetria", StringComparison.Ordinal));
     }
 
     private static AuditExportDestination Destination(string protocol, int port, string? path) => new(
@@ -97,7 +102,12 @@ public sealed class AuditExportTelemetryTests : IAsyncLifetime
     /// <summary>Guarda <c>instrumento:chave=valor</c> de cada ponto exportado.</summary>
     private sealed class MetricCollector : BaseExporter<Metric>
     {
-        public List<string> Tags { get; } = [];
+        private readonly List<string> tags = [];
+
+        public string[] Snapshot()
+        {
+            lock (tags) return [.. tags];
+        }
 
         public override ExportResult Export(in Batch<Metric> batch)
         {
@@ -105,8 +115,11 @@ public sealed class AuditExportTelemetryTests : IAsyncLifetime
             {
                 foreach (ref readonly var point in metric.GetMetricPoints())
                 {
-                    Tags.Add($"{metric.Name}:");
-                    foreach (var tag in point.Tags) Tags.Add($"{metric.Name}:{tag.Key}={tag.Value}");
+                    lock (tags)
+                    {
+                        tags.Add($"{metric.Name}:");
+                        foreach (var tag in point.Tags) tags.Add($"{metric.Name}:{tag.Key}={tag.Value}");
+                    }
                 }
             }
 
