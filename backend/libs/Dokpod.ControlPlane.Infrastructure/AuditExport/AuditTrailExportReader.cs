@@ -39,7 +39,7 @@ public sealed class AuditTrailExportReader(ControlPlaneDbContext dbContext) : IA
             """,
             [Xid8Parameter("tx", after.TxId), P("seq", after.Seq), Actions(actions), P("limit", limit)],
             reader => new AuditTrailExportItem(new AuditExportPosition(Xid8(reader, 13), reader.GetInt64(14)), PostgresAuditEventReader.Read(reader)),
-            cancellationToken).ConfigureAwait(false);
+            cancellationToken, prepare: true).ConfigureAwait(false);
     }
 
     /// <summary>Pendentes já visíveis (confirmados) após o cursor, contados até <paramref name="cap"/>.</summary>
@@ -53,13 +53,13 @@ public sealed class AuditTrailExportReader(ControlPlaneDbContext dbContext) : IA
             $"SELECT count(*) FROM (SELECT 1 FROM dokpod.audit_events WHERE {Pending} LIMIT @cap) AS capped",
             parameters,
             reader => reader.GetInt64(0),
-            cancellationToken).ConfigureAwait(false))[0];
+            cancellationToken, prepare: true).ConfigureAwait(false))[0];
         var oldest = (await QueryAsync(
             dbContext,
             $"SELECT occurred_at_utc FROM dokpod.audit_events WHERE {Pending} ORDER BY tx_id, export_seq LIMIT 1",
             parameters,
             reader => Instant(reader, 0),
-            cancellationToken).ConfigureAwait(false)).FirstOrDefault();
+            cancellationToken, prepare: true).ConfigureAwait(false)).FirstOrDefault();
         return new AuditExportPending(Math.Min(count, cap), count > cap, oldest);
     }
 
@@ -97,7 +97,7 @@ public sealed class AuditTrailExportReader(ControlPlaneDbContext dbContext) : IA
             reader => reader.GetInt64(0) == 0
                 ? null
                 : new AuditTrailGap(new AuditExportPosition(Xid8(reader, 3), reader.GetInt64(4)), reader.GetInt64(0), Instant(reader, 1)!.Value, Instant(reader, 2)!.Value),
-            cancellationToken).ConfigureAwait(false);
+            cancellationToken, prepare: true).ConfigureAwait(false);
         return rows[0];
     }
 

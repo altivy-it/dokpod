@@ -42,9 +42,12 @@ O Prometheus fica em `http://127.0.0.1:19090` e o Jaeger em `http://127.0.0.1:16
 | `dokpod_authorization_decisions_total{authorization_outcome, authorization_failure_code}` | API | Decisões UMA do Keycloak |
 | `dokpod_authorization_duration_seconds` (histograma) | API | Duração das decisões |
 | `dokpod_audit_append_attempts_total`, `dokpod_audit_append_failures_total`, `dokpod_audit_append_canceled_total`, `dokpod_audit_idempotency_conflicts_total`, `dokpod_audit_append_duration_milliseconds` | API | Gravação da auditoria (ADR 2026-0004). Gravação cancelada pelo chamador (agente que caiu, API parando) conta em `canceled`, não em `failures`: a transação é desfeita inteira e o resultado é reentregue |
+| `dokpod_audit_export_pending{destination_id}`, `dokpod_audit_export_lag_seconds{destination_id}`, `dokpod_audit_export_failures_total{destination_id, error_code}`, `dokpod_audit_export_gaps_total{destination_id}` | API Business | Exportação para SIEM (spec 027): pendentes (até 10.001), idade do pendente mais antigo, envios que falharam e lacunas de 72 h. Só o ID do destino, nunca host ou secret; [runbook](auditoria-exportacao-siem.md) |
 | `http_server_request_duration_seconds{http_route, http_response_status_code}` | API e BFF | Latência e status por rota; no BFF, `/api/v1/{**path}` é o relay do console, e `/bff/*` são login, callback, logout e antiforgery |
 | `db_client_connection_count{db_client_connection_state}`, `db_client_connection_max`, `db_client_operation_duration_seconds` | API | Pool e operações do Npgsql |
 | Runtime .NET (GC, threads, memória) | API e BFF | Diagnóstico de processo |
+
+Na API, as métricas de cliente HTTP (`http_client_*`) e de DNS (`dns_lookup_duration_seconds`) não têm `server_address`, `server_port` nem `dns_question_name`, e o envio aos destinos SIEM não gera span: o endereço seria o do SIEM do cliente (spec 027 T038).
 
 ## Traces
 

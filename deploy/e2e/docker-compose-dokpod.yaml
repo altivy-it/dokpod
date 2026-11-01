@@ -49,6 +49,9 @@ services:
       - dokpod-api-keys:/var/lib/dokpod-api
       - ${DOKPOD_E2E_API_CERTIFICATE_PATH:?Defina o caminho absoluto do certificado PFX da API}:/certs/api.pfx:ro
       - ${DOKPOD_E2E_CERTIFICATE_DIRECTORY:?Defina a pasta externa de certificados do Dokpod}:/certs/pki:ro
+      # Spec 027 (só imagem Business): secrets dos destinos SIEM, uma pasta por secretRef com ca.pem, tls.crt,
+      # tls.key e token; fora do repositório e somente leitura. Ver docs/runbooks/auditoria-exportacao-siem.md.
+      # - ${DOKPOD_E2E_AUDIT_EXPORT_SECRETS_DIRECTORY}:/run/secrets/dokpod-audit-export:ro
     restart: "no"
     stop_grace_period: 20s
     networks:

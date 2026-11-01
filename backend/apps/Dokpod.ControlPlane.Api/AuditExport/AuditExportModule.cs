@@ -1,5 +1,6 @@
 using Dokpod.ControlPlane.Application.AuditExport;
 using Dokpod.ControlPlane.Infrastructure.AuditExport;
+using OpenTelemetry;
 
 namespace Dokpod.ControlPlane.Api.AuditExport;
 
@@ -29,13 +30,13 @@ public static class AuditExportModule
         services.AddScoped<IAuditTrailExportReader, AuditTrailExportReader>();
         services.AddScoped<IAuditExportStore, AuditExportStore>();
         services.AddScoped<IAuditExportInstallation, LicensingInstallationIdentity>();
-        services.AddSingleton<IAuditExportTransport>(provider => new SyslogTlsTransport(
+        services.AddSingleton<IAuditExportTransport>(provider => new UnobservedAuditExportTransport(new SyslogTlsTransport(
             provider.GetRequiredService<IDestinationAddressResolver>(),
             provider.GetRequiredService<IAuditExportSecretReader>(),
-            new SyslogTlsTransportOptions { Hostname = provider.GetRequiredService<IConfiguration>()[HostnameVariable] }));
-        services.AddSingleton<IAuditExportTransport>(provider => new OtlpHttpTransport(
+            new SyslogTlsTransportOptions { Hostname = provider.GetRequiredService<IConfiguration>()[HostnameVariable] })));
+        services.AddSingleton<IAuditExportTransport>(provider => new UnobservedAuditExportTransport(new OtlpHttpTransport(
             provider.GetRequiredService<IDestinationAddressResolver>(),
-            provider.GetRequiredService<IAuditExportSecretReader>()));
+            provider.GetRequiredService<IAuditExportSecretReader>())));
         services.AddSingleton<IAuditExportTestLimiter, AuditExportTestLimiter>();
         services.AddSingleton<AuditExportBackoff>();
         services.AddSingleton<AuditExportMetrics>();
@@ -49,5 +50,20 @@ public static class AuditExportModule
     {
         AuditExportEndpoints.Map(endpoints);
         return endpoints;
+    }
+}
+
+/// <summary>
+/// Spec 027 T038: o envio ao SIEM não gera span. O span do <c>HttpClient</c> levaria a URL do destino, e o
+/// <c>SuppressInstrumentationScope</c> faz o sampler da API descartar qualquer span aberto dentro do envio.
+/// </summary>
+public sealed class UnobservedAuditExportTransport(IAuditExportTransport inner) : IAuditExportTransport
+{
+    public string Protocol => inner.Protocol;
+
+    public async Task<AuditExportSendResult> SendAsync(AuditExportDestination destination, IReadOnlyList<AuditExportRecord> batch, CancellationToken cancellationToken)
+    {
+        using var scope = SuppressInstrumentationScope.Begin();
+        return await inner.SendAsync(destination, batch, cancellationToken).ConfigureAwait(false);
     }
 }

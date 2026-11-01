@@ -6,7 +6,7 @@
 
 ## Qualidade do Conteúdo
 
-- [ ] Sem detalhes de implementação (linguagens, frameworks, APIs)
+- [x] Sem detalhes de implementação (linguagens, frameworks, APIs)
 - [x] Foco no valor para o usuário e nas necessidades de negócio
 - [x] Redação voltada a stakeholders não técnicos
 - [x] Todas as seções obrigatórias preenchidas
@@ -27,7 +27,7 @@
 - [x] Todos os requisitos funcionais possuem critérios claros de aceitação
 - [x] Cenários de usuário cobrem os fluxos principais
 - [x] Feature atende aos resultados mensuráveis dos critérios de sucesso
-- [ ] Nenhum detalhe de implementação indevido na especificação
+- [x] Nenhum detalhe de implementação indevido na especificação
 
 ## Notas
 
@@ -35,3 +35,4 @@
 - Escolhas sem resposta do solicitante foram registradas em "Esclarecimentos" como recomendações sujeitas à aprovação, sem marcadores pendentes.
 - Checkboxes registram a validação da spec, não aprovação humana (constituição).
 - Revalidação em 2026-11-01 (`/speckit-clarify`): o alinhamento com a spec 031 trouxe para os requisitos nomes de implementação (`audit_events`, `[BusinessCapability]`, `IBusinessCapabilityGate`, lock no PostgreSQL). São decisões aceitas, mas pertencem ao plano; mover para `plan.md` em `/speckit-plan` e voltar a marcar os dois itens.
+- Revalidação em 2026-11-01 (T037): FR-003, FR-007 e FR-009 voltaram ao nível de comportamento. O cursor sobre `audit_events`, o lease no PostgreSQL e o `[BusinessCapability]` com `IBusinessCapabilityGate` ficam em [plan.md](../plan.md) e [research.md](../research.md) (D-001, D-003, D-008). Os dois itens foram marcados de novo.

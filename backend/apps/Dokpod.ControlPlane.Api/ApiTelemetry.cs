@@ -28,23 +28,45 @@ internal static class ApiTelemetry
         if (metrics)
         {
             telemetry.WithMetrics(meters => meters
-                .AddAspNetCoreInstrumentation()
-                .AddHttpClientInstrumentation()
-                .AddRuntimeInstrumentation()
-                .AddMeter(ControlPlaneMetrics.MeterName, AuditEventMetrics.MeterName, "Npgsql")
+                .AddDokpodApiMetrics()
                 .AddOtlpExporter(options => TelemetrySignals.Configure(options, builder.Configuration, "METRICS")));
         }
 
         if (traces)
         {
             telemetry.WithTracing(tracing => tracing
-                .AddAspNetCoreInstrumentation(options =>
-                    options.Filter = context => !context.Request.Path.StartsWithSegments("/health"))
-                .AddHttpClientInstrumentation()
-                .AddSource("Npgsql")
+                .AddDokpodApiTracing()
                 .AddOtlpExporter(options => TelemetrySignals.Configure(options, builder.Configuration, "TRACES")));
         }
     }
+}
+
+/// <summary>Fontes de métricas e traces da API, sem exportador (os testes montam o mesmo pipeline).</summary>
+public static class ApiTelemetryInstrumentation
+{
+    // Spec 027 T038: as métricas http.client.* e dns.lookup.duration levariam o host dos destinos SIEM. Só as
+    // dimensões sem endereço ficam; o host do Keycloak também deixa de aparecer nelas.
+    private static readonly string[] HttpClientTags =
+        ["http.request.method", "http.response.status_code", "network.protocol.version", "url.scheme", "error.type", "http.connection.state"];
+
+    public static MeterProviderBuilder AddDokpodApiMetrics(this MeterProviderBuilder meters) => meters
+        .AddAspNetCoreInstrumentation()
+        .AddHttpClientInstrumentation()
+        .AddRuntimeInstrumentation()
+        .AddMeter(ControlPlaneMetrics.MeterName, AuditEventMetrics.MeterName, "Npgsql")
+        .AddView(instrument => instrument.Meter.Name switch
+        {
+            "System.Net.Http" => new MetricStreamConfiguration { TagKeys = HttpClientTags },
+            "System.Net.NameResolution" => new MetricStreamConfiguration { TagKeys = ["error.type"] },
+            _ => null,
+        });
+
+    /// <summary>O envio ao SIEM não gera span (<see cref="AuditExport.UnobservedAuditExportTransport"/>).</summary>
+    public static TracerProviderBuilder AddDokpodApiTracing(this TracerProviderBuilder tracing) => tracing
+        .AddAspNetCoreInstrumentation(options =>
+            options.Filter = context => !context.Request.Path.StartsWithSegments("/health"))
+        .AddHttpClientInstrumentation()
+        .AddSource("Npgsql");
 }
 
 internal static class TelemetrySignals
