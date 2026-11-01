@@ -58,7 +58,15 @@ internal sealed class AuditExportFixture : IDisposable
         Assert.Equal(LicenseImportOutcome.Accepted, (await licensing.ImportAsync(license)).Outcome);
     }
 
-    public Services Create(IDestinationAddressResolver? resolver = null, params IAuditExportTransport[] transports)
+    public AuditExportBackoff Backoff { get; } = new();
+
+    public AuditExportMetrics Metrics { get; } = new();
+
+    public Services Create(IDestinationAddressResolver? resolver = null, params IAuditExportTransport[] transports) =>
+        Create(TimeProvider.System, resolver, transports);
+
+    /// <summary><paramref name="clock"/> vale para o remetente (janela de 72 h, lease, espera); a licença usa o relógio real.</summary>
+    public Services Create(TimeProvider clock, IDestinationAddressResolver? resolver = null, params IAuditExportTransport[] transports)
     {
         var licensingServices = licensing.Create();
         var context = licensingServices.Context;
@@ -71,7 +79,7 @@ internal sealed class AuditExportFixture : IDisposable
         var service = new AuditExportDestinationService(
             store, trail, new BusinessCapabilityGate(licensingServices.Status), new PostgresAuditEventWriter(context),
             resolver, secrets, available, installation, Limiter, TimeProvider.System);
-        var sender = new AuditExportSender(store, trail, available, installation, new AuditExportBackoff(), TimeProvider.System);
+        var sender = new AuditExportSender(store, trail, available, installation, new PostgresAuditEventWriter(context), Backoff, Metrics, clock);
         return new Services(licensingServices, service, sender, store);
     }
 
@@ -91,6 +99,7 @@ internal sealed class AuditExportFixture : IDisposable
     public void Dispose()
     {
         Limiter.Dispose();
+        Metrics.Dispose();
         licensing.Dispose();
         Directory.Delete(SecretsRoot, recursive: true);
     }
@@ -143,16 +152,36 @@ internal sealed class TestDecider(AuthorizationDecisionOutcome? outcome = Author
     }
 }
 
-/// <summary>Transporte que só registra os lotes, para rotas que não precisam de rede.</summary>
+/// <summary>Transporte que só registra os lotes e o resultado de cada um, para testes que não precisam de rede.</summary>
 internal sealed class StubTransport(AuditExportSendResult? result = null) : IAuditExportTransport
 {
-    public List<IReadOnlyList<AuditExportRecord>> Batches { get; } = [];
+    private readonly System.Collections.Concurrent.ConcurrentQueue<(AuditExportDestination Destination, IReadOnlyList<AuditExportRecord> Batch, bool Delivered)> sent = new();
+
+    /// <summary>Resposta por destino; sem ela, vale o resultado do construtor (ou entregue).</summary>
+    public Func<AuditExportDestination, AuditExportSendResult>? Respond { get; set; }
+
+    public IReadOnlyList<IReadOnlyList<AuditExportRecord>> Batches => [.. sent.Select(item => item.Batch)];
+
+    public IReadOnlyList<(AuditExportDestination Destination, IReadOnlyList<AuditExportRecord> Batch, bool Delivered)> Sent => [.. sent];
+
+    /// <summary>IDs entregues com sucesso, na ordem de envio.</summary>
+    public IReadOnlyList<Guid> Delivered(string? destinationName = null) =>
+        [.. sent.Where(item => item.Delivered && (destinationName is null || item.Destination.Name == destinationName)).SelectMany(item => item.Batch.Select(record => record.EventId))];
 
     public string Protocol => AuditExportProtocols.Syslog;
 
     public Task<AuditExportSendResult> SendAsync(AuditExportDestination destination, IReadOnlyList<AuditExportRecord> batch, CancellationToken cancellationToken)
     {
-        Batches.Add(batch);
-        return Task.FromResult(result ?? AuditExportSendResult.Ok);
+        var outcome = Respond?.Invoke(destination) ?? result ?? AuditExportSendResult.Ok;
+        sent.Enqueue((destination, batch, outcome.Delivered));
+        return Task.FromResult(outcome);
     }
+}
+
+/// <summary>Relógio de teste que só anda quando mandado.</summary>
+internal sealed class MutableClock(DateTimeOffset now) : TimeProvider
+{
+    public DateTimeOffset Now { get; set; } = now;
+
+    public override DateTimeOffset GetUtcNow() => Now;
 }

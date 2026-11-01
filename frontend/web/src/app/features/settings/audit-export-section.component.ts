@@ -14,6 +14,7 @@ import {
   DokField,
   DokStatusChip,
   formatDateTime,
+  formatRelative,
   ToastService,
 } from '../../design-system';
 import { AUDIT_CATEGORIES } from '../../data-access/audit-labels';
@@ -78,6 +79,7 @@ export class AuditExportSection implements OnInit {
   protected readonly stateLabel = AUDIT_EXPORT_STATE;
   protected readonly errorLabel = AUDIT_EXPORT_ERROR;
   protected readonly formatDateTime = formatDateTime;
+  protected readonly formatRelative = formatRelative;
   protected readonly mandatory = MANDATORY;
 
   /** Sem a capability na licença a seção não aparece; sem conseguir ler a licença, o servidor decide. */
