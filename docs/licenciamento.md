@@ -49,9 +49,10 @@ A CE não terá limites artificiais de nodes, usuários ou containers. Limites t
 
 ## Business
 
-**A Business é uma edição futura e nenhuma das funcionalidades exclusivas abaixo foi iniciada.** O mecanismo de
-licenciamento offline que as habilitará já existe ([spec 031](../specs/031-licenciamento-business-offline/spec.md)): a
-imagem Business verifica a licença, apura nodes e aplica tolerância e restrição; a CE não contém nada disso ativo.
+**A Business é uma edição futura; das funcionalidades exclusivas abaixo, só a exportação para SIEM foi implementada
+([capabilities](#capabilities-implementadas)).** O mecanismo de licenciamento offline que as habilita já existe
+([spec 031](../specs/031-licenciamento-business-offline/spec.md)): a imagem Business verifica a licença, apura nodes e
+aplica tolerância e restrição; a CE não contém nada disso ativo.
 Quando implementada, incluirá todo o baseline da CE e concentrará valor em governança, automação e suporte:
 
 - permissões por equipe e por recurso individual, geridas no console (a CE já autoriza por ambiente e por ação);
@@ -71,6 +72,15 @@ Quando implementada, incluirá todo o baseline da CE e concentrará valor em gov
 - suporte comercial por e-mail.
 
 Esta matriz descreve intenção de produto, não funcionalidades já implementadas. A reconciliação com o que já foi entregue na CE está na [spec 031](../specs/031-licenciamento-business-offline/spec.md#matriz-cebusiness-reconciliação-de-2026-10-29): nada já entregue na CE migra para a Business. Cada capability ainda depende de contrato, testes, segurança, documentação e gate de release próprios.
+
+### Capabilities implementadas
+
+A licença lista as capabilities em `capabilities`; a imagem Business só executa um recurso exclusivo se a capability
+estiver nela. Com a licença restrita, o que já está configurado continua funcionando e só operações novas são recusadas.
+
+| Capability | Recurso | Com a licença restrita ou sem a capability | Spec e operação |
+| --- | --- | --- | --- |
+| `audit-siem-export` | Exportação da trilha de auditoria para SIEM por syslog e OpenTelemetry | Destinos ativos continuam enviando; criar, editar, reativar e testar são recusados; desativar e excluir sempre funcionam | [spec 027](../specs/027-exportacao-auditoria-siem/spec.md), [runbook](runbooks/auditoria-exportacao-siem.md) |
 
 ## Métricas comerciais
 

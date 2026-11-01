@@ -10,13 +10,20 @@ namespace Dokpod.ControlPlane.Infrastructure.AuditExport;
 /// <summary>Acesso SQL da exportação pela conexão do <see cref="ControlPlaneDbContext"/>, respeitando a transação corrente.</summary>
 internal static class AuditExportSql
 {
+    /// <param name="prepare">
+    /// Prepara o comando na conexão física. As leituras de <c>audit_events</c> não podam partições (o cursor é por
+    /// transação, não por data) e o plano com todas as partições mensais custa 10 a 40 ms por consulta; preparado, o
+    /// PostgreSQL passa ao plano genérico depois de cinco execuções e o ciclo do remetente deixa de replanejar (SC-004).
+    /// </param>
     public static async Task<List<T>> QueryAsync<T>(
-        ControlPlaneDbContext dbContext, string sql, IReadOnlyList<NpgsqlParameter> parameters, Func<DbDataReader, T> read, CancellationToken cancellationToken)
+        ControlPlaneDbContext dbContext, string sql, IReadOnlyList<NpgsqlParameter> parameters, Func<DbDataReader, T> read, CancellationToken cancellationToken,
+        bool prepare = false)
     {
         var (connection, opened) = await OpenAsync(dbContext, cancellationToken).ConfigureAwait(false);
         try
         {
             await using var command = Command(dbContext, connection, sql, parameters);
+            if (prepare) await command.PrepareAsync(cancellationToken).ConfigureAwait(false);
             var results = new List<T>();
             await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
             while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false)) results.Add(read(reader));

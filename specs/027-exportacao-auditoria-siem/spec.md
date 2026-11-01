@@ -8,7 +8,7 @@
 
 **Entrada**: Pedido do solicitante em 2026-10-27: "Itens de referência que ainda não estão no dokpod, inclua todos no roadmap", item 3 de 5: exportação contínua da auditoria por syslog e OpenTelemetry.
 
-**Depende de**: [017](../017-auditoria/spec.md) (trilha de auditoria e exportação CSV), [022](../022-configuracoes/spec.md) (Configurações), [031](../031-licenciamento-business-offline/spec.md) (licença Business, capability `audit-siem-export` e `IBusinessCapabilityGate`), [ADR 2026-0004](../../docs/adr/2026-0004-auditoria-persistente.md) (auditoria persistente), [ADR 2026-0007](../../docs/adr/2026-0007-precificacao-por-node-e-faixa-de-vcpu.md) (planos e capabilities).
+**Depende de**: [017](../017-auditoria/spec.md) (trilha de auditoria e exportação CSV), [022](../022-configuracoes/spec.md) (Configurações), [031](../031-licenciamento-business-offline/spec.md) (licença Business, capability `audit-siem-export` e verificação de licença), [ADR 2026-0004](../../docs/adr/2026-0004-auditoria-persistente.md) (auditoria persistente), [ADR 2026-0007](../../docs/adr/2026-0007-precificacao-por-node-e-faixa-de-vcpu.md) (planos e capabilities).
 
 ## Esclarecimentos
 
@@ -92,18 +92,18 @@ A empresa já centraliza logs com OpenTelemetry e prefere receber a auditoria pe
 
 - **FR-001**: O sistema DEVE exportar continuamente os eventos da trilha de auditoria para destinos syslog (com TLS) e OpenTelemetry logs.
 - **FR-002**: Os eventos exportados DEVEM ter os mesmos campos e a mesma sanitização da trilha local; conteúdo de terminal, variáveis e segredos NÃO DEVEM ser enviados.
-- **FR-003**: O envio DEVE ser pelo menos uma vez, com identificador único por evento. A fila durável DEVE ser um cursor por destino sobre `audit_events` (particionada por mês), sem tabela de fila própria; eventos com mais de 72 horas à frente do cursor DEVEM ser pulados, registrando a lacuna.
+- **FR-003**: O envio DEVE ser pelo menos uma vez, com identificador único por evento. Cada destino DEVE retomar do ponto em que parou, lendo da própria trilha local, sem cópia dos eventos em outra fila; eventos pendentes há mais de 72 horas DEVEM ser pulados, registrando a lacuna.
 - **FR-004**: A trilha local NÃO DEVE depender do sucesso do envio.
 - **FR-005**: Usuários com `audit-export:manage` DEVEM configurar destinos, protocolo, filtros por categoria e enviar evento de teste em Configurações; `audit-export:read` DEVE bastar para ver destinos, situação e fila. As decisões vêm do Keycloak no recurso `urn:dokpod:installation` e a falha dele nega. Segredos de conexão vêm de secret montado.
 - **FR-006**: A tela DEVE mostrar a situação de cada destino, a hora do último envio, o tamanho da fila e o atraso do pendente mais antigo; lacunas DEVEM gerar evento de auditoria, aviso persistente na tela e métrica (não uma regra do motor de alertas da spec 016, que é por ambiente).
-- **FR-007**: O recurso DEVE existir só na composição Business e só com a capability `audit-siem-export` na licença; os casos de uso que criam, editam, reativam ou testam destino DEVEM ser marcados `[BusinessCapability("audit-siem-export")]` e depender de `IBusinessCapabilityGate` (spec 031, `BusinessGateTests`).
+- **FR-007**: O recurso DEVE existir só na edição Business e só com a capability `audit-siem-export` na licença; criar, editar, reativar e testar destino DEVEM passar pela verificação de licença da spec 031.
 - **FR-008**: Com a licença restrita, o envio aos destinos já ativos NÃO DEVE parar; só as operações do FR-007 DEVEM ser recusadas com o código de licença correspondente.
-- **FR-009**: Os protocolos DEVEM ser syslog RFC 5424 sobre TLS (RFC 5425, contagem de octetos) e OTLP/HTTP com protobuf sobre TLS; até 5 destinos por instalação; um único remetente por destino entre réplicas, por lease no PostgreSQL.
+- **FR-009**: Os protocolos DEVEM ser syslog RFC 5424 sobre TLS (RFC 5425, contagem de octetos) e OTLP/HTTP com protobuf sobre TLS; até 5 destinos por instalação; com várias réplicas da API, cada destino DEVE ser enviado por uma réplica de cada vez, e outra DEVE assumir se ela parar.
 
 ## Entidades Principais
 
 - **Destino de exportação**: nome, protocolo (`syslog` ou `otlp`), endereço, referência do secret de conexão, filtros por categoria, ativo ou não, situação, último envio; no máximo 5 por instalação.
-- **Cursor de entrega**: uma linha por destino com o último evento entregue de `audit_events`, a hora do último envio e a última falha; o tamanho da fila e a idade do mais antigo são calculados a partir dele (formerly referred to as "Fila de exportação").
+- **Cursor de entrega**: uma linha por destino com o último evento entregue da trilha, a hora do último envio e a última falha; o tamanho da fila e a idade do mais antigo são calculados a partir dele (formerly referred to as "Fila de exportação").
 
 ## Critérios de Sucesso (obrigatório)
 
