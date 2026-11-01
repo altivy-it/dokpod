@@ -8,7 +8,7 @@
 
 **Entrada**: Pedido do solicitante em 2026-10-27: "Itens de referência que ainda não estão no dokpod, inclua todos no roadmap", item 1 de 5: indicador de nova versão das imagens em uso.
 
-**Depende de**: [012](../012-imagens-pull/spec.md) (inventário de imagens e pull), [020](../020-registros/spec.md) (registros, credenciais e política de registros permitidos), [011](../011-detalhe-container-logs/spec.md) (detalhe do container), [016](../016-governanca-alertas/spec.md) (alertas).
+**Depende de**: [031](../031-licenciamento-business-offline/spec.md) (licença comercial e capability `image-update-notice`), [012](../012-imagens-pull/spec.md) (inventário de imagens e pull), [020](../020-registros/spec.md) (registros, credenciais e política de registros permitidos), [011](../011-detalhe-container-logs/spec.md) (detalhe do container), [016](../016-governanca-alertas/spec.md) (alertas).
 
 ## Esclarecimentos
 
@@ -18,6 +18,14 @@
 - P: O Dokpod atualiza o container sozinho? → R: Não. O aviso é informativo; baixar a nova versão usa o pull existente (spec 012) e recriar o container fica com o operador. Atualização automática fica fora do escopo.
 - P: Quem consulta o registro? → R: O host gerenciado, com as credenciais que já possui, para não levar credenciais ao plano de controle e respeitar a rede de cada host.
 - P: Com que frequência? → R: Uma vez a cada 6 horas por imagem em uso, e sob demanda pelo botão "Verificar agora", respeitando a política de registros permitidos.
+
+### Sessão 2026-11-01 (alinhamento com as specs 031 e 027; recomendações aceitas pelo solicitante: "execute o recomendado")
+
+- Q: Quem recebe o aviso de nova versão, e com qual capability na licença? → A: Quem tiver a capability `image-update-notice` na licença, seja Teams ou Business (variante A′ do ADR 2026-0007). O nome é o já definido em `Dokpod.Licensing` (`LicenseCapabilities.ImageUpdateNotice`), usado pela CLI de emissão; a recomendação original trazia `image-update-check` e foi corrigida no planejamento. Sem licença, ou sem a capability, a verificação não roda e nada da área aparece; a imagem CE não tem a área.
+- Q: Com a licença restrita (vencida além da tolerância, revogada ou em excesso), o que continua funcionando? → A: A verificação periódica continua e os resultados seguem visíveis, assim como as regras de alerta já criadas. Só o que é execução nova a pedido é recusado com o código de licença: "Verificar agora" e criar ou editar regra com a condição de imagem desatualizada. Desativar e excluir regra sempre funcionam.
+- Q: Que permissões o Keycloak decide para essa área? → A: Ver o estado da verificação usa o mesmo `environment:read` que já lista imagens e containers no host; "Verificar agora" exige `image:pull` no host, porque consulta o registro com as mesmas credenciais e rede do pull; "Baixar nova versão" continua exigindo `image:pull` (spec 012); regras de alerta seguem `alert:manage` (spec 016). Nenhum scope novo.
+- Q: O que o Dokpod guarda de cada verificação? → A: Só o resultado mais recente por host, referência e plataforma, com o instante em que a imagem passou a ficar desatualizada (para a regra de N dias); sem histórico. A tabela cresce com as imagens em uso, não com o tempo, e a linha sai quando a imagem deixa de ser usada no host.
+- Q: Qual meta mede o SC-004 ("não altera de forma perceptível")? → A: Com 200 imagens verificadas em um host, o p95 da primeira página de Imagens e de Containers fica no máximo 10% acima do p95 sem dados de verificação, e nenhuma consulta ao registro acontece durante uma requisição do console.
 
 ## Cenários do Usuário e Testes (obrigatório)
 
@@ -85,10 +93,13 @@ O administrador cria regra de alerta para containers em Produção com imagem de
 - **FR-005**: A ação "Baixar nova versão" DEVE reutilizar o pull da spec 012, com o scope `image:pull` e a auditoria existentes.
 - **FR-006**: O sistema DEVE oferecer condição de alerta "imagem desatualizada há mais de N dias" no fluxo da spec 016.
 - **FR-007**: Nenhuma credencial de registro DEVE ser transmitida ao plano de controle, registrada em log ou exibida.
+- **FR-008**: O recurso DEVE existir só na edição comercial e só com a capability `image-update-notice` na licença; "Verificar agora" e criar ou editar regra com a condição de imagem desatualizada DEVEM passar pela verificação de licença da spec 031.
+- **FR-009**: Com a licença restrita, a verificação periódica, a exibição dos resultados e a avaliação das regras já existentes NÃO DEVEM parar; só as operações do FR-008 DEVEM ser recusadas com o código de licença correspondente, e desativar ou excluir regra DEVE continuar possível.
+- **FR-010**: Ver o estado da verificação DEVE exigir `environment:read` no host; "Verificar agora" DEVE exigir `image:pull` no host. As decisões vêm do Keycloak e a falha dele nega.
 
 ## Entidades Principais
 
-- **Verificação de imagem**: referência, host, conteúdo local, conteúdo no registro, estado, motivo, data.
+- **Verificação de imagem**: host, referência, plataforma, conteúdo local, conteúdo no registro, estado, motivo, data da verificação, data da última verificação bem-sucedida e instante em que passou a ficar desatualizada. Só o resultado mais recente por host, referência e plataforma; sem histórico.
 
 ## Critérios de Sucesso (obrigatório)
 
@@ -97,10 +108,10 @@ O administrador cria regra de alerta para containers em Produção com imagem de
 - **SC-001**: Uma nova versão publicada no registro aparece no console em até 6 horas, ou em até 1 minuto com "Verificar agora".
 - **SC-002**: Nenhum falso "Atualizada" em 100% dos cenários de falha de registro testados.
 - **SC-003**: A varredura por canário não encontra credenciais de registro em respostas, banco ou logs.
-- **SC-004**: A verificação de 200 imagens em um host não altera de forma perceptível o tempo de resposta das telas do console.
+- **SC-004**: Com 200 imagens verificadas em um host, o p95 da primeira página de Imagens e de Containers fica no máximo 10% acima do p95 sem dados de verificação, e nenhuma consulta ao registro acontece durante uma requisição do console.
 
 ## Premissas
 
-- Edição prevista: comercial (Business), conforme [licenciamento](../../docs/licenciamento.md#business); a fronteira de edição é revista no plano.
+- Edição comercial (Teams e Business, capability `image-update-notice`), conforme [licenciamento](../../docs/licenciamento.md#business) e a matriz da [spec 031](../031-licenciamento-business-offline/spec.md).
 - Docker e Podman anunciam a capability de verificação separadamente (constituição, princípio IV).
 - Fora do escopo: sugerir tags mais novas, atualização automática, recriação do container e varredura de vulnerabilidades.
