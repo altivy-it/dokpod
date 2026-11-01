@@ -36,7 +36,7 @@ description: "Tarefas da implementação da exportação de auditoria para SIEM"
 
 **Objetivo**: fronteira de segurança aceita e permissões no Keycloak antes de qualquer código.
 
-- [ ] T001 Threat model em `specs/027-exportacao-auditoria-siem/threat-model.md`, no formato do de `specs/031-licenciamento-business-offline/threat-model.md`. Cobrir:
+- [x] T001 Threat model em `specs/027-exportacao-auditoria-siem/threat-model.md`, no formato do de `specs/031-licenciamento-business-offline/threat-model.md`. Cobrir:
   - conexões de saída configuráveis e SSRF (filtros de [D-007](research.md#d-007-tls-e-destinos-permitidos), inclusive DNS que muda entre validação e conexão);
   - secret montado e travessia de path ([D-006](research.md#d-006-credenciais-do-destino));
   - dados de auditoria fora da instalação;
@@ -45,7 +45,7 @@ description: "Tarefas da implementação da exportação de auditoria para SIEM"
   - recusa de TLS inválido;
   - comportamento sob licença restrita (FR-008).
 
-  Registrar lacunas, riscos residuais e a decisão do revisor humano. Bloqueia todas as tarefas de código.
+  Registrar lacunas, riscos residuais e a decisão do revisor humano. Bloqueia todas as tarefas de código. Nota (2026-11-01): aceito pelo solicitante, com as lacunas L1–L9 aplicadas nas tarefas abaixo e os riscos R1–R6 aceitos.
 - [ ] T002 [P] Scopes `audit-export:read` e `audit-export:manage` no recurso `urn:dokpod:installation` em `tools/scripts/configure-keycloak.ps1`, seguindo `licensing:read`/`licensing:manage` (linhas 234 e 498–517), com permissão para o grupo de administradores e teste do script com `-DryRun`.
 
 ---
@@ -80,7 +80,7 @@ description: "Tarefas da implementação da exportação de auditoria para SIEM"
   - linhas novas recebem `tx_id` e `export_seq`, e as antigas ficam `NULL`;
   - uma partição criada pela rotina recebe o índice;
   - o `Down` validado por psql dentro de transação desfeita, como na 031.
-- [ ] T005 [P] Categoria `audit_export` em `backend/libs/Dokpod.Domain/Auditing/AuditCategories.cs`, com as ações `audit_export.destination_created`, `audit_export.destination_updated`, `audit_export.destination_deleted`, `audit_export.test_sent` e `audit_export.gap`, e teste em `backend/tests/Dokpod.ControlPlane.Application.Tests/AuditExport/AuditExportCategoriesTests.cs`.
+- [ ] T005 [P] Categoria `audit_export` em `backend/libs/Dokpod.Domain/Auditing/AuditCategories.cs`, com as ações `audit_export.destination_created`, `audit_export.destination_updated`, `audit_export.destination_deleted`, `audit_export.test_sent` e `audit_export.gap`, e teste em `backend/tests/Dokpod.ControlPlane.Application.Tests/AuditExport/AuditExportCategoriesTests.cs`. A categoria `audit_export` é obrigatória em todo destino (threat model L7).
 - [ ] T006 Portas e tipos em `backend/libs/Dokpod.ControlPlane.Application/AuditExport/AuditExportPorts.cs`:
   - `AuditExportDestination`, com as mesmas restrições do T003 validadas na aplicação;
   - `AuditExportCursor`;
@@ -99,8 +99,8 @@ description: "Tarefas da implementação da exportação de auditoria para SIEM"
   - contagem da fila limitada a 10.000.
 
   Testes com PostgreSQL real em `backend/tests/Dokpod.ControlPlane.Api.Tests/AuditExport/AuditExportStoreTests.cs`.
-- [ ] T010 [P] Política de endereços `DestinationAddressPolicy` em `backend/libs/Dokpod.ControlPlane.Infrastructure/AuditExport/DestinationAddressPolicy.cs`. Recusa loopback, link-local (inclusive `169.254.169.254`), `0.0.0.0`/`::` e as sub-redes do plano de controle (configuráveis), conferindo de novo depois da resolução DNS a cada conexão; redes 10/8, 172.16/12 e 192.168/16 são aceitas. Testes em `backend/tests/Dokpod.ControlPlane.Application.Tests/AuditExport/DestinationAddressPolicyTests.cs`, inclusive um nome que resolve para loopback.
-- [ ] T011 [P] Leitor de secret `MountedSecretReader` em `backend/libs/Dokpod.ControlPlane.Infrastructure/AuditExport/MountedSecretReader.cs`. Lê de `/run/secrets/dokpod-audit-export/<secretRef>/` (`ca.pem`, `tls.crt`, `tls.key`, `token`), com `secretRef` validado por `^[a-z0-9-]{1,64}$` e caminho normalizado e conferido dentro da raiz antes de qualquer acesso. Expõe só a presença de cada arquivo para a API. Testes com filesystem real em `backend/tests/Dokpod.ControlPlane.Api.Tests/AuditExport/MountedSecretReaderTests.cs`, inclusive tentativas de travessia e symlink para fora da raiz.
+- [ ] T010 [P] Política de endereços `DestinationAddressPolicy` em `backend/libs/Dokpod.ControlPlane.Infrastructure/AuditExport/DestinationAddressPolicy.cs`. Recusa loopback, link-local (inclusive `169.254.169.254`), `0.0.0.0`/`::` e as sub-redes do plano de controle (configuráveis), conferindo de novo depois da resolução DNS a cada conexão; redes 10/8, 172.16/12 e 192.168/16 são aceitas. Testes em `backend/tests/Dokpod.ControlPlane.Application.Tests/AuditExport/DestinationAddressPolicyTests.cs`, inclusive um nome que resolve para loopback. A política devolve os IPs validados, e os transportes conectam exatamente a eles, mantendo o nome para SNI e validação do certificado (L3).
+- [ ] T011 [P] Leitor de secret `MountedSecretReader` em `backend/libs/Dokpod.ControlPlane.Infrastructure/AuditExport/MountedSecretReader.cs`. Lê de `/run/secrets/dokpod-audit-export/<secretRef>/` (`ca.pem`, `tls.crt`, `tls.key`, `token`), com `secretRef` validado por `^[a-z0-9-]{1,64}$` e caminho normalizado e conferido dentro da raiz antes de qualquer acesso. Expõe só a presença de cada arquivo para a API. Testes com filesystem real em `backend/tests/Dokpod.ControlPlane.Api.Tests/AuditExport/MountedSecretReaderTests.cs`, inclusive travessia, symlink para fora da raiz, arquivo grande, token com CR/LF e troca de arquivo entre duas conexões. Lê os arquivos a cada conexão, sem cache (L9); recusa arquivo acima de 64 KiB (L4) e token com caractere fora de ASCII visível ou espaço nas pontas (L5), respondendo `secret_missing` com o motivo.
 - [ ] T012 Módulo `AuditExportModule` em `backend/apps/Dokpod.ControlPlane.Api/AuditExport/AuditExportModule.cs`, registrado só em `backend/apps/Dokpod.ControlPlane.Api/ProductEdition.cs` sob `DOKPOD_BUSINESS`. Estender `backend/tests/Dokpod.Architecture.Tests/BusinessGateTests.cs` para que o código da CE também não referencie `Dokpod.ControlPlane.*.AuditExport`.
 - [ ] T013 Contrato OpenAPI em `contracts/openapi/dokpod-control-plane.v1.yaml`:
   - as rotas `/api/v1/settings/audit-export/destinations`, `/{id}` e `/{id}/test`, com `x-dokpod-edition: business`;
@@ -127,7 +127,7 @@ description: "Tarefas da implementação da exportação de auditoria para SIEM"
   - PRI com facility 10 e severidade 5 para sucesso e 4 para negado ou falha;
   - `TIMESTAMP` com microssegundos;
   - `APP-NAME` `dokpod`;
-  - `MSGID` truncado em 32 caracteres ASCII;
+  - `MSGID` só com ASCII 33–126, até 32 caracteres, e o resto trocado por `_` (L6);
   - `STRUCTURED-DATA` `-`;
   - `MSG` com BOM UTF-8 e o JSON;
   - enquadramento `LEN SP MSG`.
@@ -136,7 +136,9 @@ description: "Tarefas da implementação da exportação de auditoria para SIEM"
   - expirado, CA desconhecida e nome errado dão `tls_error`;
   - mTLS com `tls.crt`/`tls.key` funciona;
   - `secret_missing` quando o `ca.pem` exigido falta;
-  - nada é enviado sem TLS.
+  - nada é enviado sem TLS;
+  - conexão em até 10 s e envio em até 30 s (L2);
+  - um nome que resolve para IP bloqueado não conecta, e a conexão vai ao IP validado (L3).
 - [ ] T016 [P] [US1] Testes das rotas em `backend/tests/Dokpod.ControlPlane.Api.Tests/AuditExport/AuditExportEndpointsTests.cs`, com PostgreSQL real:
   - scopes `audit-export:read`/`audit-export:manage` e falha do Keycloak dando `503`;
   - `400` para propriedade desconhecida ou categoria inexistente;
@@ -146,7 +148,9 @@ description: "Tarefas da implementação da exportação de auditoria para SIEM"
   - `422 audit_export_address_blocked` e `422 audit_export_invalid_secret_ref`;
   - com licença restrita: criar, editar, reativar e testar dão `403 license_expired`, e desativar e excluir funcionam;
   - licença sem a capability dá `403 license_invalid`;
-  - auditoria das mudanças sem segredos.
+  - auditoria das mudanças sem segredos;
+  - `categories` sem `audit_export` volta com ela incluída (L7);
+  - o sexto envio de teste no mesmo minuto dá `429 rate_limited` (L8).
 - [ ] T017 [P] [US1] Teste ponta a ponta do envio em `backend/tests/Dokpod.ControlPlane.Api.Tests/AuditExport/AuditExportDeliveryTests.cs`, com PostgreSQL real e servidor syslog TLS em processo:
   - eventos da trilha chegam com os mesmos campos;
   - categoria desmarcada não é enviada e continua na trilha;
@@ -158,6 +162,7 @@ description: "Tarefas da implementação da exportação de auditoria para SIEM"
 
 - [ ] T018 [US1] `SyslogTlsTransport` e formatador em `backend/libs/Dokpod.ControlPlane.Infrastructure/AuditExport/SyslogTlsTransport.cs`, conforme [D-004](research.md#d-004-syslog):
   - TLS 1.2/1.3 com validação de cadeia e nome, sem opção de desligar;
+  - conexão ao IP validado pela `DestinationAddressPolicy` (L3), com tempos limite de 10 s e 30 s (L2);
   - mTLS opcional;
   - `DestinationAddressPolicy` aplicada à conexão;
   - um lote por conexão, confirmado quando a escrita termina sem erro.
@@ -165,7 +170,8 @@ description: "Tarefas da implementação da exportação de auditoria para SIEM"
   - criar, editar, reativar e testar marcados `[BusinessCapability("audit-siem-export")]` e dependentes de `IBusinessCapabilityGate`;
   - desativar (editar só `active: false`) e excluir sem gate;
   - eventos `audit_export.destination_*` e `audit_export.test_sent` sem segredos;
-  - o evento de teste (`audit_export.test`, `test: true`) não entra na trilha.
+  - o evento de teste (`audit_export.test`, `test: true`) não entra na trilha;
+  - `audit_export` sempre incluída nas categorias (L7) e limite de 5 testes por minuto (L8).
 - [ ] T020 [US1] Rotas em `backend/apps/Dokpod.ControlPlane.Api/AuditExport/AuditExportEndpoints.cs`, seguindo `backend/apps/Dokpod.ControlPlane.Api/Licensing/LicensingEndpoints.cs`:
   - autorização pelo Keycloak antes de revelar destinos;
   - `ETag`/`If-Match`, `Idempotency-Key` e `problem+json`;
@@ -180,7 +186,7 @@ description: "Tarefas da implementação da exportação de auditoria para SIEM"
   O remetente não consulta o gate (FR-008).
 - [ ] T022 [US1] Seção de exportação em Configurações:
   - `frontend/web/src/app/features/settings/audit-export-api.service.ts`;
-  - `audit-export-section.component.ts` e `.html`, com lista, criação e edição (nome, protocolo `syslog`, host, porta, `secretRef`, categorias de `AuditCategories`), ativo/inativo, excluir e "Enviar evento de teste" com sucesso ou erro;
+  - `audit-export-section.component.ts` e `.html`, com lista, criação e edição (nome, protocolo `syslog`, host, porta, `secretRef`, categorias de `AuditCategories`, com `audit_export` marcada e travada), ativo/inativo, excluir e "Enviar evento de teste" com sucesso ou erro;
   - rótulos em `settings-labels.ts`;
   - visível só com `edition = business` e a capability na licença;
   - com a licença restrita, ações de criação, edição e teste desabilitadas com a explicação.
@@ -241,12 +247,15 @@ description: "Tarefas da implementação da exportação de auditoria para SIEM"
   - atributos `dokpod.*`;
   - cabeçalho `Authorization: Bearer` só com `token`;
   - 2xx confirma, 400 vira `rejected`, 429 e 503 tentam de novo;
-  - TLS inválido dá `tls_error`.
+  - TLS inválido dá `tls_error`;
+  - 3xx não é seguido e vira `rejected` (L1);
+  - tempos limite e corpo de resposta limitado a 64 KiB (L2);
+  - o cabeçalho usa o token relido a cada conexão (L9).
 
 ### Implementação da História de Usuário 3
 
 - [ ] T030 [US3] `.proto` de logs do `opentelemetry-proto`, numa versão fixada com licença Apache-2.0 conferida e registrada, com o `LICENSE` em `contracts/vendor/opentelemetry-proto/`. Compilar com `Grpc.Tools` em `backend/libs/Dokpod.ControlPlane.Infrastructure/Dokpod.ControlPlane.Infrastructure.csproj`, sem pacote novo.
-- [ ] T031 [US3] `OtlpHttpTransport` em `backend/libs/Dokpod.ControlPlane.Infrastructure/AuditExport/OtlpHttpTransport.cs` (`HttpClient` com `SocketsHttpHandler`, validação TLS, `DestinationAddressPolicy` no `ConnectCallback` e `path` padrão `/v1/logs`) e seleção do transporte por `protocol` no `AuditExportSender`.
+- [ ] T031 [US3] `OtlpHttpTransport` em `backend/libs/Dokpod.ControlPlane.Infrastructure/AuditExport/OtlpHttpTransport.cs` (`HttpClient` com `SocketsHttpHandler`, validação TLS, `DestinationAddressPolicy` no `ConnectCallback` conectando ao IP validado, `AllowAutoRedirect = false`, tempos limite de 10 s e 30 s e `path` padrão `/v1/logs`) e seleção do transporte por `protocol` no `AuditExportSender`.
 - [ ] T032 [US3] Protocolo `otlp` na seção de Configurações (campo `path` e texto do token no secret) em `audit-export-section.component.*`, com teste no `.spec.ts` e caso OTLP no `test_027_audit_export.py`.
 
 **Checkpoint**: as três histórias funcionando de forma independente.

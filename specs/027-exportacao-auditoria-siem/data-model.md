@@ -26,7 +26,7 @@ Tudo no PostgreSQL existente, schema `dokpod`, por migrations SQL em `backend/li
 | `port` | `integer` | 1 a 65535, obrigatório |
 | `path` | `varchar(256)` | só `otlp`; padrão `/v1/logs`; começa com `/` |
 | `secret_ref` | `varchar(64)` | opcional; `[a-z0-9-]{1,64}` ([D-006](research.md#d-006-credenciais-do-destino)) |
-| `categories` | `text[]` | subconjunto não vazio das chaves de `AuditCategories` |
+| `categories` | `text[]` | subconjunto das chaves de `AuditCategories`, sempre contendo `audit_export` (threat model L7) |
 | `active` | `boolean` | `true` ao criar |
 | `version` | `bigint` | concorrência otimista (`If-Match`) |
 | `idempotency_key` | `varchar(128)` | `Idempotency-Key` da criação; única enquanto `idempotency_expires_at_utc` não passar |
