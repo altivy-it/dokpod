@@ -161,7 +161,7 @@ CLIENTE (instalação offline)                                                  
 | E | Recurso Business chamado sem passar pelo gate | Cada caso de uso exclusivo consulta `IBusinessCapabilityGate`; teste do gate. Sem teste de arquitetura que obrigue a consulta: **lacuna [L7](#lacunas-encontradas)** | FR-021; T043, T046 |
 | T | Build troca o trust store ou embute chave privada | Inspeção de camadas e histórico; assinatura e atestação das imagens | SC-008; T061, T062 |
 | T | A3 altera a imagem Business para remover o gate | Residual [R1](#registro-de-riscos-residuais) | premissa central |
-| I | Canal e nome da imagem Business indefinidos | U4 da análise; bloqueia T061 | T061 |
+| I | Canal e nome da imagem Business | U4 decidida em 2026-10-31: GHCR privado `dokpod-api-business` e arquivo | T061 |
 
 ### B8. Ausência de comunicação externa e privacidade
 
@@ -241,7 +241,7 @@ CLIENTE (instalação offline)                                                  
 ## Revisão de segurança e privacidade da implementação (T064)
 
 Origem: IA assistida, sobre o código das US1 a US4, US6 e da Fase 9 (branch `feat/031-acabamento`). Revisor humano:
-pendente.
+lzocateli, 2026-10-31: aceitou todos os pontos desta tabela e as decisões abaixo.
 
 | Ponto | Verificação | Resultado |
 | --- | --- | --- |
@@ -256,8 +256,18 @@ pendente.
 | Endpoints de host | Vincular e desvincular host (`licensing:manage`) sem rate limit | Escrevem só eventos pequenos e autorizados; sem ação |
 | Verificador do relatório | Implementação independente do JSON canônico (BCL), cruzada com o vetor de referência da Fundação e com relatório real | `tampered`, `discontinuous`, `mismatch`, `stale` cobertos (SC-010); recuo de relógio virou informativo (`clockRegressions`), pois a ordem é garantida pelos hashes |
 
-Lacunas novas: nenhuma bloqueante. A publicação da imagem Business (canal, assinatura e registry) continua pendente
-da decisão U4 e de pedido separado.
+Decisões de implementação aceitas pelo revisor em 2026-10-31 (sem mudança de comportamento):
+
+- US2: a DLL do verificador vai no binário da CE, sem registro na composição; o trust store ficou vazio até a chave
+  `dokpod-2026-1` (gerada em 2026-10-31); os nomes das capabilities entraram no contrato.
+- US4: `metering_unknown` não restringe; excesso regularizado limpa o prazo; a justificativa do reset do instante
+  confiável vai à cadeia; avisos atrasados são emitidos juntos.
+- Fase 9: o desafio pode aparecer em `url.query` de traces OTLP; o rate limit é por réplica; recuo de relógio no
+  relatório é informativo (`clockRegressions`).
+- U4: imagem Business no GHCR privado e por arquivo ([runbook](../../docs/runbooks/licenciamento-imagem-business.md)).
+
+Lacunas novas: nenhuma bloqueante. A imagem Business passa a ser publicada pela release seguinte ao merge da T061,
+privada no GHCR e assinada com a identidade da CE.
 
 ## Decisão do revisor
 
