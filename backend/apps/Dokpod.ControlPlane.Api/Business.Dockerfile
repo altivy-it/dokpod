@@ -8,6 +8,8 @@ WORKDIR /src
 COPY global.json ./
 COPY backend/Directory.Build.props backend/Directory.Packages.props ./backend/
 COPY contracts/agent/ contracts/agent/
+# Spec 027 D-005: mensagens OTLP de logs compiladas no build.
+COPY contracts/vendor/opentelemetry-proto/ contracts/vendor/opentelemetry-proto/
 COPY backend/libs/Dokpod.Agent.Contracts/Dokpod.Agent.Contracts.csproj backend/libs/Dokpod.Agent.Contracts/
 COPY backend/libs/Dokpod.ControlPlane.Application/Dokpod.ControlPlane.Application.csproj backend/libs/Dokpod.ControlPlane.Application/
 COPY backend/libs/Dokpod.ControlPlane.Infrastructure/Dokpod.ControlPlane.Infrastructure.csproj backend/libs/Dokpod.ControlPlane.Infrastructure/
@@ -45,6 +47,7 @@ COPY --from=publish /app/publish ./
 # Spec 005 FR-008: licença do Dokpod dentro da imagem e no rótulo OCI.
 LABEL org.opencontainers.image.licenses="AGPL-3.0-only"
 COPY LICENSE /usr/share/licenses/dokpod/LICENSE
+COPY contracts/vendor/opentelemetry-proto/LICENSE /usr/share/licenses/dokpod/opentelemetry-proto/LICENSE
 USER $APP_UID
 EXPOSE 7443 8080
 HEALTHCHECK --interval=10s --timeout=3s --start-period=10s --retries=6 CMD curl --fail --silent http://127.0.0.1:8080/health/live || exit 1

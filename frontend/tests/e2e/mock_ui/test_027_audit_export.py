@@ -3,6 +3,8 @@ cria um destino syslog, envia o evento de teste, desativa e respeita o limite de
 editar, reativar e testar ficam bloqueados e desativar continua. Na Community Edition a seção não existe e nenhuma
 rota da exportação é chamada. O envio real é coberto pelos testes da API (T015–T017)."""
 
+import re
+
 from playwright.sync_api import Page, Request, expect
 
 from conftest import BASE_URL, axe_violations, goto, screenshot
@@ -127,3 +129,29 @@ def test_unavailable_destination_with_gap_shows_the_persistent_warning(page: Pag
     expect(row.get_by_text("audit_export.gap", exact=False)).to_be_visible()
     assert axe_violations(page) == []
     screenshot(page, "027-lacuna-1440")
+
+
+def test_otlp_destination_with_path_and_token(page: Page, scenario) -> None:
+    """T032: protocolo OTLP com caminho, porta padrão 4318 e o token do secret mostrado só como presença."""
+    scenario("business-siem")
+    goto(page, "configuracoes?vista=instalacao")
+    region = section(page)
+    region.get_by_role("button", name="Novo destino").click()
+    form = region.get_by_role("form", name="Novo destino")
+    form.get_by_role("button", name=re.compile("Protocolo")).click()
+    page.get_by_role("option", name="OpenTelemetry (OTLP/HTTP)").click()
+    expect(form.get_by_label("Porta", exact=True)).to_have_value("4318")
+    expect(form.get_by_text("token (vai como Authorization: Bearer)", exact=False)).to_be_visible()
+    form.get_by_label("Nome").fill("otel-soc")
+    form.get_by_label("Host").fill("otel.exemplo.interno")
+    form.get_by_label("Caminho").fill("/coletor/v1/logs")
+    form.get_by_label("Secret montado (opcional)").fill("otel-soc")
+    assert axe_violations(page) == []
+    form.get_by_role("button", name="Salvar destino").click()
+
+    row = region.locator('[data-destination="otel-soc"]')
+    expect(row.get_by_text("OTLP · otel.exemplo.interno:4318/coletor/v1/logs", exact=False)).to_be_visible()
+    row.get_by_role("button", name="Enviar evento de teste").click()
+    expect(page.get_by_text("Evento de teste entregue a otel-soc.", exact=True)).to_be_visible()
+    page.wait_for_timeout(600)
+    screenshot(page, "027-otlp-1440")

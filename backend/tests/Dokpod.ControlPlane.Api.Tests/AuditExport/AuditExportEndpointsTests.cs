@@ -175,6 +175,20 @@ public sealed class AuditExportEndpointsTests
     }
 
     [Fact]
+    public async Task OtlpDestination_GetsTheDefaultPath_AndSyslogRefusesAPath()
+    {
+        using var fixture = await AuditExportFixture.CreateAsync();
+        await using var services = fixture.Create();
+
+        var otlp = await CreateAsync(services, Body("otel-soc", port: 4318).Replace("\"syslog\"", "\"otlp\""));
+        Assert.Equal((201, "otlp", "/v1/logs"), (otlp.Status, otlp.Body!["protocol"]!.ToString(), otlp.Body["path"]!.ToString()));
+        var custom = await CreateAsync(services, Body("otel-2", port: 4318).Replace("\"syslog\"", "\"otlp\"").Replace("\"path\":null", "\"path\":\"/coletor/v1/logs\""));
+        Assert.Equal("/coletor/v1/logs", custom.Body!["path"]!.ToString());
+
+        Assert.Equal((400, AuditExportProblems.InvalidDestination), Code(await CreateAsync(services, Body("syslog-path").Replace("\"path\":null", "\"path\":\"/v1/logs\""))));
+    }
+
+    [Fact]
     public async Task SixthTestInAMinute_IsRateLimited()
     {
         using var fixture = await AuditExportFixture.CreateAsync();

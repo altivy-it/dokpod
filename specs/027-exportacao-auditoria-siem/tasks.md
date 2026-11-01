@@ -250,7 +250,7 @@ description: "Tarefas da implementação da exportação de auditoria para SIEM"
 
 ### Testes da História de Usuário 3
 
-- [ ] T029 [P] [US3] Testes do `OtlpHttpTransport` contra um receptor HTTPS em processo (Kestrel com certificado gerado na execução) em `backend/tests/Dokpod.ControlPlane.Api.Tests/AuditExport/OtlpHttpTransportTests.cs`, conforme [export-record.md](contracts/export-record.md#otlphttp-protobuf-post-path-padrão-v1logs):
+- [x] T029 [P] [US3] Testes do `OtlpHttpTransport` contra um receptor HTTPS em processo (Kestrel com certificado gerado na execução) em `backend/tests/Dokpod.ControlPlane.Api.Tests/AuditExport/OtlpHttpTransportTests.cs`, conforme [export-record.md](contracts/export-record.md#otlphttp-protobuf-post-path-padrão-v1logs):
   - `Resource` e `ScopeLogs`;
   - `time_unix_nano`;
   - severidade `INFO`/`WARN`;
@@ -261,12 +261,14 @@ description: "Tarefas da implementação da exportação de auditoria para SIEM"
   - 3xx não é seguido e vira `rejected` (L1);
   - tempos limite e corpo de resposta limitado a 64 KiB (L2);
   - o cabeçalho usa o token relido a cada conexão (L9).
-
+  - Nota de execução: o receptor é um `WebApplication` com Kestrel em `127.0.0.1` (`OtlpTestReceiver.cs`). 408 e 504 gravam `timeout`; 429 e os demais 5xx, `connection_refused`; o mapeamento foi acrescentado a [export-record.md](contracts/export-record.md#otlphttp-protobuf-post-path-padrão-v1logs).
 ### Implementação da História de Usuário 3
 
-- [ ] T030 [US3] `.proto` de logs do `opentelemetry-proto`, numa versão fixada com licença Apache-2.0 conferida e registrada, com o `LICENSE` em `contracts/vendor/opentelemetry-proto/`. Compilar com `Grpc.Tools` em `backend/libs/Dokpod.ControlPlane.Infrastructure/Dokpod.ControlPlane.Infrastructure.csproj`, sem pacote novo.
-- [ ] T031 [US3] `OtlpHttpTransport` em `backend/libs/Dokpod.ControlPlane.Infrastructure/AuditExport/OtlpHttpTransport.cs` (`HttpClient` com `SocketsHttpHandler`, validação TLS, `DestinationAddressPolicy` no `ConnectCallback` conectando ao IP validado, `AllowAutoRedirect = false`, tempos limite de 10 s e 30 s e `path` padrão `/v1/logs`) e seleção do transporte por `protocol` no `AuditExportSender`.
-- [ ] T032 [US3] Protocolo `otlp` na seção de Configurações (campo `path` e texto do token no secret) em `audit-export-section.component.*`, com teste no `.spec.ts` e caso OTLP no `test_027_audit_export.py`.
+- [x] T030 [US3] `.proto` de logs do `opentelemetry-proto`, numa versão fixada com licença Apache-2.0 conferida e registrada, com o `LICENSE` em `contracts/vendor/opentelemetry-proto/`. Compilar com `Grpc.Tools` em `backend/libs/Dokpod.ControlPlane.Infrastructure/Dokpod.ControlPlane.Infrastructure.csproj`, sem pacote novo.
+  - Nota de execução: `opentelemetry-proto` `v1.11.1` (commit `58232798eae2f0d08ea6682c6885299db08177da`, Apache-2.0 conferida em 2026-11-01), com `common`, `resource`, `logs` e `collector/logs/v1/logs_service.proto` (que define `ExportLogsServiceRequest`), descritos em `contracts/vendor/opentelemetry-proto/README.md`. Os tipos são gerados como internos, sem serviço gRPC; o projeto passou a referenciar `Google.Protobuf` e `Grpc.Tools`, já centralizados.
+- [x] T031 [US3] `OtlpHttpTransport` em `backend/libs/Dokpod.ControlPlane.Infrastructure/AuditExport/OtlpHttpTransport.cs` (`HttpClient` com `SocketsHttpHandler`, validação TLS, `DestinationAddressPolicy` no `ConnectCallback` conectando ao IP validado, `AllowAutoRedirect = false`, tempos limite de 10 s e 30 s e `path` padrão `/v1/logs`) e seleção do transporte por `protocol` no `AuditExportSender`.
+  - Nota de execução: o remetente já escolhia o transporte por `protocol` desde a T021; o `OtlpHttpTransport` só foi registrado no módulo. Um `HttpClient` por envio, sem pool, para o secret (CA, certificado e token) valer na conexão seguinte.
+- [x] T032 [US3] Protocolo `otlp` na seção de Configurações (campo `path` e texto do token no secret) em `audit-export-section.component.*`, com teste no `.spec.ts` e caso OTLP no `test_027_audit_export.py`.
 
 **Checkpoint**: as três histórias funcionando de forma independente.
 

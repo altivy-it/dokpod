@@ -721,7 +721,7 @@ AUDIT_EXPORT_FIELDS = {"name", "protocol", "host", "port", "path", "secretRef", 
 def audit_export_destination(item: dict) -> dict:
     """Situação simulada; "health" (só no mock) sobrepõe estado, fila, erro e lacuna de um destino indisponível."""
     view = {key: value for key, value in item.items() if key != "health"}
-    return {**view, "secretFiles": {"ca": bool(item.get("secretRef")), "clientCertificate": False, "token": False},
+    return {**view, "secretFiles": {"ca": bool(item.get("secretRef")), "clientCertificate": False, "token": item.get("protocol") == "otlp"},
             "state": "ok" if item["active"] else "disabled", "lastSentAt": None, "lastError": None,
             "pending": {"count": 0, "capped": False, "oldestAt": None}, "lastGapAt": None,
             **(item.get("health") or {})}
@@ -811,6 +811,10 @@ class Handler(BaseHTTPRequestHandler):
             if set(body) - AUDIT_EXPORT_FIELDS or not set(body.get("categories", [])) <= AUDIT_EXPORT_CATEGORIES:
                 return denied("audit_export_invalid_destination", 400)
             body["categories"] = sorted(set(body["categories"]) | {"audit_export"})
+            if body.get("protocol") == "otlp":
+                body["path"] = body.get("path") or "/v1/logs"
+            elif body.get("path") is not None:
+                return denied("audit_export_invalid_destination", 400)
         if path == base and method == "POST":
             if restricted:
                 return denied("license_expired")
