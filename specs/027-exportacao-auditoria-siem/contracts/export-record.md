@@ -37,7 +37,7 @@ Mesmos campos e mesma sanitização da trilha que o console e o CSV da spec 017 
 | --- | --- |
 | `PRI` | facility `security/authorization` (10, *authpriv*); severidade `notice` (5) para `succeeded` e `warning` (4) para `denied`, `failed` ou `indeterminate` |
 | `TIMESTAMP` | `occurredAt` com microssegundos |
-| `HOSTNAME` | nome configurado da instalação ou `-` |
+| `HOSTNAME` | `DOKPOD_AUDIT_EXPORT_HOSTNAME` da API (ASCII 33–126, até 255) ou `-` |
 | `APP-NAME` | `dokpod` |
 | `PROCID` | `-` |
 | `MSGID` | `action`, truncada em 32 caracteres ASCII |

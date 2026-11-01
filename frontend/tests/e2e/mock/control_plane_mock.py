@@ -695,13 +695,33 @@ def licensing_status(state: dict) -> dict:
                 "license": None, "installation": {"slotId": state["slot"], "kind": None, "quota": None},
                 "consumption": {"vcpuBand": None, "current": None, "windowPeak": None, "windowPeakAt": None, "unknownHosts": 0},
                 "grace": None}
-    return {"entitlement": "granted", "authenticity": "valid", "validity": "active", "metering": "regular", "reasons": [],
+    restricted = state.get("entitlement") == "restricted"
+    return {"entitlement": state.get("entitlement", "granted"), "authenticity": "valid", "validity": "expired" if restricted else "active",
+            "metering": "regular", "reasons": ["expired"] if restricted else [],
             "license": {"licenseId": "lic_e2e", "organizationId": "org_e2e", "revision": 1, "plan": "business",
-                        "notBefore": "2026-11-01T00:00:00Z", "expiresAt": "2027-11-01T00:00:00Z", "capabilities": ["change-windows"],
+                        "notBefore": "2026-11-01T00:00:00Z", "expiresAt": "2027-11-01T00:00:00Z",
+                        "capabilities": state.get("capabilities", ["change-windows"]),
                         "capacity": {"mode": "limited", "nodeEquivalents": 10}},
             "installation": {"slotId": state["slot"], "kind": "production", "quota": 8},
             "consumption": {"vcpuBand": 32, "current": 3, "windowPeak": 4, "windowPeakAt": "2026-11-20T15:00:00Z", "unknownHosts": 1},
             "grace": None}
+
+
+def is_business() -> bool:
+    """Spec 031: cenários "business*" simulam a imagem Business; os "business-siem*" já têm licença com a capability
+    da exportação ao SIEM (spec 027), em vigor ou restrita."""
+    return STATE["scenario"].startswith("business")
+
+
+AUDIT_EXPORT_CATEGORIES = {"environments", "containers", "commands", "images", "volumes", "networks", "pods", "inspection",
+                           "terminal", "governance", "audit", "audit_export"}
+AUDIT_EXPORT_FIELDS = {"name", "protocol", "host", "port", "path", "secretRef", "categories", "active"}
+
+
+def audit_export_destination(item: dict) -> dict:
+    return {**item, "secretFiles": {"ca": bool(item.get("secretRef")), "clientCertificate": False, "token": False},
+            "state": "ok" if item["active"] else "disabled", "lastSentAt": None, "lastError": None,
+            "pending": {"count": 0, "capped": False, "oldestAt": None}, "lastGapAt": None}
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -746,7 +766,7 @@ class Handler(BaseHTTPRequestHandler):
     def licensing(self, method: str, path: str, q) -> None:
         """Spec 031 (T029): licenciamento da edição Business. A assinatura é verificada pela API real (T021); aqui só
         o arquivo de referência é aceito, e qualquer outro conteúdo é recusado como license_invalid."""
-        if STATE["scenario"] != "business":
+        if not is_business():
             return self.send_json(404, problem(404, "Não encontrado"), "application/problem+json")
         state = STATE.setdefault("licensing", {"version": 0, "license": None, "slot": None})
         if path == "/api/v1/licensing/status" and method == "GET":
@@ -766,6 +786,61 @@ class Handler(BaseHTTPRequestHandler):
             state.update(version=state["version"] + 1, license=True, slot=q("slotId"))
             STATE.setdefault("submitted", []).append(("license_import", q("slotId"), "accepted"))
             return self.send_json(200, licensing_status(state), headers={"ETag": f'"{state["version"]}"'})
+        return self.send_json(404, problem(404, "Não encontrado"), "application/problem+json")
+
+    def audit_export(self, method: str, path: str) -> None:
+        """Spec 027 (T023): destinos de exportação conforme contracts/api.md. O envio real (TLS, cursor, licença) é
+        coberto pelos testes da API com PostgreSQL e servidor syslog (T015–T017); aqui fica a jornada pela borda."""
+        if not is_business():
+            return self.send_json(404, problem(404, "Não encontrado"), "application/problem+json")
+        items: list = STATE.setdefault("audit_export", [])
+        restricted = STATE.get("licensing", {}).get("entitlement") == "restricted"
+        denied = lambda code, status=403: self.send_json(status, problem(status, "Recusado", code), "application/problem+json")  # noqa: E731
+        base = "/api/v1/settings/audit-export/destinations"
+        if path == base and method == "GET":
+            return self.send_json(200, [audit_export_destination(item) for item in items])
+        if method != "GET" and self.headers.get("X-Dokpod-Antiforgery") != "mock-antiforgery":
+            return self.send_json(400, problem(400, "Token antiforgery ausente ou inválido"), "application/problem+json")
+        parts = path[len(base):].strip("/").split("/") if path.startswith(base) else []
+        current = next((item for item in items if parts and item["destinationId"] == parts[0]), None)
+        if method in ("POST", "PUT") and parts[-1:] != ["test"]:
+            body = self.read_body()
+            if set(body) - AUDIT_EXPORT_FIELDS or not set(body.get("categories", [])) <= AUDIT_EXPORT_CATEGORIES:
+                return denied("audit_export_invalid_destination", 400)
+            body["categories"] = sorted(set(body["categories"]) | {"audit_export"})
+        if path == base and method == "POST":
+            if restricted:
+                return denied("license_expired")
+            if len(items) >= 5:
+                return denied("audit_export_limit_reached", 409)
+            if any(item["name"].lower() == body["name"].lower() for item in items):
+                return denied("audit_export_name_taken", 409)
+            item = {"destinationId": f"d0000000-0000-4000-8000-{len(STATE.setdefault('submitted', [])) + 1:012d}",
+                    **{key: body.get(key) for key in AUDIT_EXPORT_FIELDS}, "version": 1}
+            items.append(item)
+            STATE["submitted"].append(("audit_export_create", item["name"], self.headers.get("Idempotency-Key") is not None))
+            return self.send_json(201, audit_export_destination(item), headers={"ETag": '"1"'})
+        if current is None:
+            return denied("audit_export_not_found", 404)
+        if method == "POST" and parts[-1:] == ["test"]:
+            if restricted:
+                return denied("license_expired")
+            delivered = current["host"] != "siem-fora.interno"
+            STATE.setdefault("submitted", []).append(("audit_export_test", current["name"], delivered))
+            return self.send_json(200, {"delivered": delivered, "errorCode": None if delivered else "connection_refused"})
+        if self.headers.get("If-Match") != f'"{current["version"]}"':
+            return denied("audit_export_version_conflict", 412)
+        if method == "DELETE":
+            items.remove(current)
+            STATE.setdefault("submitted", []).append(("audit_export_delete", current["name"]))
+            return self.send_json(204, None)
+        if method == "PUT":
+            only_deactivate = not body["active"] and all(body.get(key) == current.get(key) for key in AUDIT_EXPORT_FIELDS - {"active"})
+            if restricted and not only_deactivate:
+                return denied("license_expired")
+            current.update({key: body.get(key) for key in AUDIT_EXPORT_FIELDS}, version=current["version"] + 1)
+            STATE.setdefault("submitted", []).append(("audit_export_update", current["name"], current["active"]))
+            return self.send_json(200, audit_export_destination(current), headers={"ETag": f'"{current["version"]}"'})
         return self.send_json(404, problem(404, "Não encontrado"), "application/problem+json")
 
     def route(self, method: str) -> None:
@@ -788,6 +863,15 @@ class Handler(BaseHTTPRequestHandler):
             STATE["registry_policies"] = {}
             STATE["pod_status"] = {}
             STATE["licensing"] = {"version": 0, "license": None, "slot": None}
+            if STATE["scenario"].startswith("business-siem"):
+                STATE["licensing"].update(license=True, slot="prd", capabilities=["change-windows", "audit-siem-export"],
+                                          entitlement="restricted" if STATE["scenario"].endswith("restricted") else "granted")
+            STATE["audit_export"] = []
+            if STATE["scenario"] == "business-siem-restricted":
+                STATE["audit_export"].append({
+                    "destinationId": "d0000000-0000-4000-8000-000000000099", "name": "siem-soc", "protocol": "syslog",
+                    "host": "siem.exemplo.interno", "port": 6514, "path": None, "secretRef": "siem-soc",
+                    "categories": ["audit_export", "containers"], "active": True, "version": 1})
             ALERTS.clear()
             ALERTS.update(seed_alerts())
             AUDIT[:] = seed_audit()
@@ -807,6 +891,8 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_json(200, {"requestToken": "mock-antiforgery"})
         if path.startswith("/api/v1/licensing/"):
             return self.licensing(method, path, q)
+        if path.startswith("/api/v1/settings/audit-export/"):
+            return self.audit_export(method, path)
         if path == "/bff/logout" and method == "POST":
             # Como o BFF real: POST de formulário com o token antiforgery no campo padrão do ASP.NET Core e
             # redirecionamento de página (o encerramento no Keycloak volta ao console). Sem o token, 400.
@@ -1560,7 +1646,7 @@ def _settings_routes(self, path: str) -> object:
         keycloak_down = STATE["scenario"] == "keycloak-down"
         return self.send_json(200, {
             # Spec 031: edição fixada no build da API; o cenário "business" simula a imagem Business.
-            "controlPlane": {"version": "0.1.0", "edition": "business" if STATE["scenario"] == "business" else "community"},
+            "controlPlane": {"version": "0.1.0", "edition": "business" if is_business() else "community"},
             "protocolVersion": "1",
             "database": {"configured": True, "lastMigration": "202610160001_PodInventory", "pendingMigrations": 0},
             "dependencies": [

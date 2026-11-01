@@ -4,6 +4,15 @@ using Dokpod.Domain.Auditing;
 
 namespace Dokpod.ControlPlane.Application.AuditExport;
 
+/// <summary>Capability da licença e scopes do Keycloak da exportação (spec 027 FR-005, FR-007).</summary>
+public static class AuditExportAuthorization
+{
+    public const string Capability = "audit-siem-export";
+    public const string Resource = "urn:dokpod:installation";
+    public const string ReadScope = "audit-export:read";
+    public const string ManageScope = "audit-export:manage";
+}
+
 public static class AuditExportProtocols
 {
     public const string Syslog = "syslog";
@@ -168,15 +177,24 @@ public interface IAuditExportStore
 
     Task<AuditExportDestinationState?> GetAsync(Guid destinationId, CancellationToken cancellationToken);
 
-    Task<AuditExportWriteResult> CreateAsync(AuditExportDestinationInput input, string idempotencyKey, DateTimeOffset nowUtc, CancellationToken cancellationToken);
+    /// <remarks><paramref name="withinTransaction"/> roda antes do commit, com o destino gravado (auditoria atômica); não roda na repetição.</remarks>
+    Task<AuditExportWriteResult> CreateAsync(
+        AuditExportDestinationInput input, string idempotencyKey, DateTimeOffset nowUtc, CancellationToken cancellationToken,
+        Func<AuditExportDestination, CancellationToken, Task>? withinTransaction = null);
 
-    Task<AuditExportWriteResult> UpdateAsync(Guid destinationId, AuditExportDestinationInput input, long expectedVersion, DateTimeOffset nowUtc, CancellationToken cancellationToken);
+    Task<AuditExportWriteResult> UpdateAsync(
+        Guid destinationId, AuditExportDestinationInput input, long expectedVersion, DateTimeOffset nowUtc, CancellationToken cancellationToken,
+        Func<AuditExportDestination, CancellationToken, Task>? withinTransaction = null);
 
-    Task<AuditExportWriteOutcome> DeleteAsync(Guid destinationId, long expectedVersion, CancellationToken cancellationToken);
+    /// <remarks><paramref name="withinTransaction"/> recebe o destino como estava antes da exclusão.</remarks>
+    Task<AuditExportWriteOutcome> DeleteAsync(
+        Guid destinationId, long expectedVersion, CancellationToken cancellationToken,
+        Func<AuditExportDestination, CancellationToken, Task>? withinTransaction = null);
 
     Task<bool> TryAcquireLeaseAsync(Guid destinationId, string owner, DateTimeOffset nowUtc, TimeSpan duration, CancellationToken cancellationToken);
 
-    Task<bool> AdvanceAsync(Guid destinationId, string owner, AuditExportPosition position, DateTimeOffset sentAtUtc, CancellationToken cancellationToken);
+    /// <summary>Só para frente e só pelo dono do lease; sem <paramref name="sentAtUtc"/>, só pula eventos fora do filtro.</summary>
+    Task<bool> AdvanceAsync(Guid destinationId, string owner, AuditExportPosition position, DateTimeOffset? sentAtUtc, CancellationToken cancellationToken);
 
     Task<bool> RecordFailureAsync(Guid destinationId, string owner, string errorCode, DateTimeOffset atUtc, CancellationToken cancellationToken);
 
@@ -218,4 +236,16 @@ public interface IAuditExportSecretReader
     AuditExportSecretFiles Describe(string? secretRef);
 
     AuditExportSecret Read(string? secretRef);
+}
+
+/// <summary>Identificador estável da instalação (o mesmo do licenciamento), criado na primeira leitura se faltar.</summary>
+public interface IAuditExportInstallation
+{
+    Task<Guid> GetIdAsync(CancellationToken cancellationToken);
+}
+
+/// <summary>Até 5 envios de teste por minuto por instalação (threat model L8), em memória da réplica.</summary>
+public interface IAuditExportTestLimiter
+{
+    bool TryAcquire();
 }
