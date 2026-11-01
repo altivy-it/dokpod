@@ -270,6 +270,25 @@ Canários desta qualificação: variável de ambiente, label com senha em URL, c
 
 **Risco residual**: as versões mostradas vêm dos próprios componentes; um componente adulterado pode informar versão falsa (a verificação de integridade continua sendo a assinatura das imagens).
 
+## Threat model: exportação da auditoria para SIEM (spec 027)
+
+**Fronteira nova**: a API Business abre **conexões de saída** para até 5 destinos configurados pelo administrador (syslog sobre TLS ou OTLP/HTTP sobre TLS), com credenciais em secrets montados. Nenhuma porta nova de entrada. Detalhes no [threat model da spec](../specs/027-exportacao-auditoria-siem/threat-model.md) e no [runbook](runbooks/auditoria-exportacao-siem.md).
+
+| Ameaça | Mitigação | Teste negativo |
+| --- | --- | --- |
+| SSRF: destino apontado para serviços internos ou metadados de nuvem | Filtro de endereços: loopback, link-local (inclusive `169.254.169.254`), `0.0.0.0`/`::` e as sub-redes de `DOKPOD_AUDIT_EXPORT_BLOCKED_NETWORKS` são recusados na criação e a cada conexão | `DnsDestinationAddressResolverTests`, `AuditExportEndpointsTests` (`422 audit_export_address_blocked`) |
+| DNS que muda entre a validação e a conexão (rebinding) | Resolve uma vez, valida os IPs e conecta ao IP validado; o nome fica para SNI e validação do certificado | `SyslogTlsTransportTests`, `OtlpHttpTransportTests` (nome que não existe no DNS só funciona pelo IP validado) |
+| Redirecionamento do OTLP para endereço proibido | Redirecionamentos desligados; 3xx vira `rejected`; sem proxy | `OtlpHttpTransportTests` (302 não seguido) |
+| Interceptação ou coletor falso | TLS 1.2/1.3 com cadeia e nome conferidos, sem opção de desligar; mTLS opcional | Transportes: CA não confiável e nome errado (syslog e OTLP) e certificado expirado (syslog) dão `tls_error` sem envio |
+| Vazamento ou travessia no secret montado | `secretRef` restrito, caminho normalizado dentro da raiz, symlink para fora recusado, 64 KiB por arquivo, token sem CR/LF; API e logs mostram só a presença dos arquivos | `MountedSecretReaderTests` |
+| Segredos ou terminal no SIEM | O registro é a mesma projeção sanitizada da trilha (spec 017) | `AuditExportCanaryTests` (segredo na justificativa e conteúdo do terminal ausentes nos dois transportes) |
+| Administrador esconde do SOC um destino novo | Categoria `audit_export` obrigatória; criação, mudança, teste e lacuna auditados e enviados | `AuditExportEndpointsTests` |
+| Teste de destino usado como varredor de portas | 5 testes por minuto por instalação, todos auditados | `AuditExportEndpointsTests` (`429 rate_limited`) |
+
+Logs, métricas e traces da exportação não levam host, resposta do coletor nem conteúdo de secret: as métricas usam só `destination.id` e o código de erro, o log de um ciclo que falhou registra só o tipo da exceção, as métricas `http.client.*` e `dns.lookup.duration` da API ficam sem endereço e o envio ao destino não gera span (`AuditExportTelemetryTests`).
+
+**Risco residual**: as redes privadas do cliente são permitidas como destino, então quem tem `audit-export:manage` alcança serviços internos nelas (só por TLS, com teste limitado e auditado); aceito no threat model da spec (R6).
+
 ## Cadeia de fornecimento (spec 005)
 
 - **Vulnerabilidades**: o job Images do CI gera SBOM CycloneDX e relatório Trivy HIGH/CRITICAL por imagem e reprova HIGH/CRITICAL com correção disponível ou sem aceite vigente; aceites em [seguranca-excecoes.md](seguranca-excecoes.md).

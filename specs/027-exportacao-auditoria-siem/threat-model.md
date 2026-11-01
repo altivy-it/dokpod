@@ -136,3 +136,27 @@ CLIENTE (instalação)
 | Lacunas L1–L9 | Recomendações aceitas; aplicadas nas tarefas indicadas, no contrato e no modelo de dados |
 | Riscos R1–R6 | Aceito (2026-11-01) |
 | Declaração | "aceito todas, marque a T001 e abra o PR" |
+
+## Revisão de segurança e privacidade (T038)
+
+**Data**: 2026-11-01 · **Origem**: IA assistida · **Estado**: aguarda revisão humana (achado A1 corrigido nesta tarefa; R7 proposto, sem aceite)
+
+Revisão do código entregue nas US1–US3 contra as fronteiras B1–B6, as lacunas L1–L9 e os controles transversais acima.
+
+| Controle | Verificação | Resultado |
+| --- | --- | --- |
+| Logs sem host, resposta do coletor ou secret | Única chamada de log da exportação: `AuditExportWorker` registra só o tipo da exceção; os transportes convertem toda falha em código e não propagam mensagem. `HttpClient` criado sem `IHttpClientFactory` (sem log de URL). Na T033, o token dos coletores não aparece no log da API | Conforme |
+| Métricas sem host ou secret | `AuditExportMetrics` usa só `destination.id` e `error.code`. **A1**: as métricas `http.client.*` (com `server.address`) e `dns.lookup.duration` (com `dns.question.name`), ligadas pela instrumentação HTTP da API, levavam o host do SIEM quando a telemetria OTLP da própria API estava ativa | **Corrigido**: View em `ApiTelemetryInstrumentation` mantém nessas métricas só dimensões sem endereço (vale também para o Keycloak); `AuditExportTelemetryTests` |
+| Traces sem host ou secret | **A1**: cada envio OTLP abria um span de cliente com `url.full` e `server.address` do destino | **Corrigido**: os transportes registrados passam por `UnobservedAuditExportTransport` (`SuppressInstrumentationScope`); `AuditExportTelemetryTests` cobre OTLP, syslog e a resolução do nome, e um pedido comum continua gerando span |
+| Trilha de auditoria | `audit_export.destination_*` leva host, porta, categorias e só a presença do `secretRef`; é o registro pretendido para o SOC (L7), não telemetria | Conforme |
+| Filtro de endereços (B2, L3) | Política aplicada na criação e a cada conexão sobre o IP resolvido; os dois transportes conectam ao IP validado; OTLP sem proxy e sem redirecionamento (L1) | Conforme (`DnsDestinationAddressResolverTests`, transportes) |
+| TLS (B2) | TLS 1.2/1.3, sem callback de validação, CA própria por `CertificateChainPolicy`, nome conferido, mTLS opcional; nenhuma opção de desligar | Conforme; revogação não é consultada (R7) |
+| Secrets montados (B3, L4, L5, L9) | Raiz e `secretRef` validados, symlink para fora recusado, 64 KiB por arquivo, token sem CR/LF, leitura a cada conexão; a API devolve só a presença | Conforme (`MountedSecretReaderTests`) |
+| Conteúdo exportado (B4) | Mesma projeção sanitizada da trilha | Conforme (`AuditExportCanaryTests`: segredo na justificativa e conteúdo do terminal ausentes nos dois transportes) |
+| Recursos (L2, L8) | Conexão 10 s, envio 30 s, resposta lida até 64 KiB, 5 destinos, 5 testes por minuto | Conforme |
+
+### Risco residual proposto
+
+| # | Risco | Fronteira | Mitigação atual | Aceite |
+| --- | --- | --- | --- | --- |
+| R7 | A revogação do certificado do coletor (CRL/OCSP) não é consultada; um certificado revogado e ainda válido continua aceito | B2 | Coletor na rede do cliente, muitas vezes sem acesso a CRL/OCSP (o Dokpod não faz chamadas externas, spec 031); a troca de CA ou de certificado no secret vale na conexão seguinte | Pendente de decisão humana |
