@@ -13,7 +13,7 @@ namespace Dokpod.ControlPlane.Infrastructure;
 /// <summary>Leitura da trilha de auditoria (spec 017 D-002): sempre por período, com cursor por chave.</summary>
 public sealed class PostgresAuditEventReader(ControlPlaneDbContext dbContext) : IAuditEventReader
 {
-    private const string Columns =
+    internal const string Columns =
         "event_id, occurred_at_utc, correlation_id, actor_kind, actor_id, actor_name, action, environment_id, outcome, failure_code, subject_id, command_id, details";
 
     public async Task<AuditPage> ListAsync(AuditQuery query, CancellationToken cancellationToken)
@@ -187,7 +187,7 @@ public sealed class PostgresAuditEventReader(ControlPlaneDbContext dbContext) : 
         }
     }
 
-    private static AuditEventRecord Read(DbDataReader reader)
+    internal static AuditEventRecord Read(DbDataReader reader)
     {
         string? Text(int i) => reader.IsDBNull(i) ? null : reader.GetString(i);
         var details = reader.IsDBNull(12) ? null : JsonSerializer.Deserialize<Dictionary<string, string>>(reader.GetString(12));

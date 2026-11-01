@@ -57,6 +57,7 @@ export const AUDIT_CATEGORIES: { id: AuditCategory; label: string }[] = [
   { id: 'terminal', label: 'Terminal' },
   { id: 'governance', label: 'Alertas e política' },
   { id: 'audit', label: 'Auditoria' },
+  { id: 'audit_export', label: 'Exportação para SIEM' },
 ];
 
 export const AUDIT_OUTCOME: Record<AuditOutcome, LabelTone> = {

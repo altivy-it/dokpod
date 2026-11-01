@@ -1,4 +1,5 @@
 #if DOKPOD_BUSINESS
+using Dokpod.ControlPlane.Api.AuditExport;
 using Dokpod.ControlPlane.Api.Licensing;
 #endif
 
@@ -39,6 +40,7 @@ public static class ProductEdition
         ArgumentNullException.ThrowIfNull(services);
 #if DOKPOD_BUSINESS
         services.AddDokpodBusinessLicensing();
+        services.AddDokpodAuditExport();
 #endif
     }
 

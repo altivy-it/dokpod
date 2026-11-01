@@ -46,7 +46,7 @@ description: "Tarefas da implementação da exportação de auditoria para SIEM"
   - comportamento sob licença restrita (FR-008).
 
   Registrar lacunas, riscos residuais e a decisão do revisor humano. Bloqueia todas as tarefas de código. Nota (2026-11-01): aceito pelo solicitante, com as lacunas L1–L9 aplicadas nas tarefas abaixo e os riscos R1–R6 aceitos.
-- [ ] T002 [P] Scopes `audit-export:read` e `audit-export:manage` no recurso `urn:dokpod:installation` em `tools/scripts/configure-keycloak.ps1`, seguindo `licensing:read`/`licensing:manage` (linhas 234 e 498–517), com permissão para o grupo de administradores e teste do script com `-DryRun`.
+- [x] T002 [P] Scopes `audit-export:read` e `audit-export:manage` no recurso `urn:dokpod:installation` em `tools/scripts/configure-keycloak.ps1`, seguindo `licensing:read`/`licensing:manage` (linhas 234 e 498–517), com permissão para o grupo de administradores e teste do script com `-DryRun`. Nota (2026-11-01): como na spec 031, o script cria só os scopes e o recurso; a concessão a usuários e grupos é feita por permission no Keycloak, sem roles locais.
 
 ---
 
@@ -56,7 +56,7 @@ description: "Tarefas da implementação da exportação de auditoria para SIEM"
 
 **CRÍTICO**: nenhuma história começa antes desta fase.
 
-- [ ] T003 Migration `backend/libs/Dokpod.ControlPlane.Infrastructure/Migrations/Script/<AAAAMMDDNNNN>_AuditExport/Up/01-AuditExport.sql` e `Down/01-AuditExport.sql` conforme [data-model.md](data-model.md):
+- [x] T003 Migration `backend/libs/Dokpod.ControlPlane.Infrastructure/Migrations/Script/<AAAAMMDDNNNN>_AuditExport/Up/01-AuditExport.sql` e `Down/01-AuditExport.sql` conforme [data-model.md](data-model.md):
   - **Colunas em `audit_events`:** `tx_id xid8` e `export_seq bigint`, adicionadas sem padrão e depois com `SET DEFAULT pg_current_xact_id()` e `SET DEFAULT nextval('dokpod.audit_export_seq')`, sem reescrever partições.
   - **Índice:** `ix_audit_events_export_order (tx_id, export_seq) WHERE tx_id IS NOT NULL` em cada partição existente, e a rotina de partições da migration `202609220002_ScheduleTemporalPartitions` ajustada para criá-lo nas futuras.
   - **`audit_export_destinations`:**
@@ -75,22 +75,24 @@ description: "Tarefas da implementação da exportação de auditoria para SIEM"
     - `last_sent_at_utc`, `last_error_code varchar(64)`, `last_error_at_utc`, `last_gap_at_utc`;
     - `lease_owner varchar(128)`, `lease_until_utc`.
   - **`Down`:** remove índices, padrões, colunas, sequência e tabelas.
-- [ ] T004 [P] Teste de integração da migration em `backend/tests/Dokpod.ControlPlane.Api.Tests/AuditExport/AuditExportMigrationTests.cs`, com PostgreSQL real:
+
+  Nota (2026-11-01): a rotina de partições não precisou mudar, porque o índice criado na tabela-mãe particionada é herdado pelas partições existentes e pelas futuras (comprovado na T004). Migration `202611010001_AuditExport`.
+- [x] T004 [P] Teste de integração da migration em `backend/tests/Dokpod.ControlPlane.Api.Tests/AuditExport/AuditExportMigrationTests.cs`, com PostgreSQL real:
   - o `relfilenode` das partições existentes não muda;
   - linhas novas recebem `tx_id` e `export_seq`, e as antigas ficam `NULL`;
   - uma partição criada pela rotina recebe o índice;
   - o `Down` validado por psql dentro de transação desfeita, como na 031.
-- [ ] T005 [P] Categoria `audit_export` em `backend/libs/Dokpod.Domain/Auditing/AuditCategories.cs`, com as ações `audit_export.destination_created`, `audit_export.destination_updated`, `audit_export.destination_deleted`, `audit_export.test_sent` e `audit_export.gap`, e teste em `backend/tests/Dokpod.ControlPlane.Application.Tests/AuditExport/AuditExportCategoriesTests.cs`. A categoria `audit_export` é obrigatória em todo destino (threat model L7).
-- [ ] T006 Portas e tipos em `backend/libs/Dokpod.ControlPlane.Application/AuditExport/AuditExportPorts.cs`:
+- [x] T005 [P] Categoria `audit_export` em `backend/libs/Dokpod.Domain/Auditing/AuditCategories.cs`, com as ações `audit_export.destination_created`, `audit_export.destination_updated`, `audit_export.destination_deleted`, `audit_export.test_sent` e `audit_export.gap`, e teste em `backend/tests/Dokpod.ControlPlane.Application.Tests/AuditExport/AuditExportCategoriesTests.cs`. A categoria `audit_export` é obrigatória em todo destino (threat model L7). Nota (2026-11-01): a categoria também entrou no enum `AuditCategory` do OpenAPI e nos rótulos do console (`frontend/web/src/app/data-access/audit-labels.ts`).
+- [x] T006 Portas e tipos em `backend/libs/Dokpod.ControlPlane.Application/AuditExport/AuditExportPorts.cs`:
   - `AuditExportDestination`, com as mesmas restrições do T003 validadas na aplicação;
   - `AuditExportCursor`;
   - `IAuditTrailExportReader`, que lê o lote após `(tx_id, seq)` abaixo do `xmin`, filtrado por categorias, com no máximo 500 itens;
   - `IAuditExportStore`, com CRUD, `If-Match`, limite de 5, lease e cursor;
   - `IAuditExportTransport`, que envia o lote e devolve confirmação ou código de erro (`tls_error`, `connection_refused`, `timeout`, `secret_missing`, `rejected`, `address_blocked`);
   - estados `disabled`, `ok`, `catching_up`, `failing` e `gap`.
-- [ ] T007 Projeção `AuditExportRecord` (`formatVersion` 1) em `backend/libs/Dokpod.ControlPlane.Application/AuditExport/AuditExportRecord.cs`. Usa a mesma visão sanitizada que o CSV de `backend/apps/Dokpod.ControlPlane.Api/Auditing/AuditEndpoints.cs` (linhas 78–93), com os campos de [export-record.md](contracts/export-record.md); se a sanitização estiver no endpoint, extrair para a aplicação e usar nos dois. Teste em `backend/tests/Dokpod.ControlPlane.Application.Tests/AuditExport/AuditExportRecordTests.cs`: campos iguais aos do CSV e nenhum segredo ou conteúdo de terminal.
-- [ ] T008 Leitor `AuditTrailExportReader` em `backend/libs/Dokpod.ControlPlane.Infrastructure/AuditExport/AuditTrailExportReader.cs`, com a consulta de [D-001](research.md#d-001-cursor-na-ordem-de-confirmação-da-trilha): `(tx_id, export_seq) > cursor AND tx_id < pg_snapshot_xmin(pg_current_snapshot())`, ordenado por `(tx_id, export_seq)`. Teste com PostgreSQL real em `backend/tests/Dokpod.ControlPlane.Api.Tests/AuditExport/AuditTrailExportReaderTests.cs`: duas transações confirmando fora da ordem de `occurred_at_utc` não perdem nenhum evento, e uma transação aberta segura o cursor sem pular.
-- [ ] T009 Store `AuditExportStore` em `backend/libs/Dokpod.ControlPlane.Infrastructure/AuditExport/AuditExportStore.cs`:
+- [x] T007 Projeção `AuditExportRecord` (`formatVersion` 1) em `backend/libs/Dokpod.ControlPlane.Application/AuditExport/AuditExportRecord.cs`. Usa a mesma visão sanitizada que o CSV de `backend/apps/Dokpod.ControlPlane.Api/Auditing/AuditEndpoints.cs` (linhas 78–93), com os campos de [export-record.md](contracts/export-record.md); se a sanitização estiver no endpoint, extrair para a aplicação e usar nos dois. Teste em `backend/tests/Dokpod.ControlPlane.Application.Tests/AuditExport/AuditExportRecordTests.cs`: campos iguais aos do CSV e nenhum segredo ou conteúdo de terminal.
+- [x] T008 Leitor `AuditTrailExportReader` em `backend/libs/Dokpod.ControlPlane.Infrastructure/AuditExport/AuditTrailExportReader.cs`, com a consulta de [D-001](research.md#d-001-cursor-na-ordem-de-confirmação-da-trilha): `(tx_id, export_seq) > cursor AND tx_id < pg_snapshot_xmin(pg_current_snapshot())`, ordenado por `(tx_id, export_seq)`. Teste com PostgreSQL real em `backend/tests/Dokpod.ControlPlane.Api.Tests/AuditExport/AuditTrailExportReaderTests.cs`: duas transações confirmando fora da ordem de `occurred_at_utc` não perdem nenhum evento, e uma transação aberta segura o cursor sem pular.
+- [x] T009 Store `AuditExportStore` em `backend/libs/Dokpod.ControlPlane.Infrastructure/AuditExport/AuditExportStore.cs`:
   - criação idempotente por `Idempotency-Key` e limite de 5 sob lock da tabela;
   - edição e exclusão com `version`;
   - o cursor nasce no `xmin` atual, para que o destino comece no fim da trilha;
@@ -99,10 +101,10 @@ description: "Tarefas da implementação da exportação de auditoria para SIEM"
   - contagem da fila limitada a 10.000.
 
   Testes com PostgreSQL real em `backend/tests/Dokpod.ControlPlane.Api.Tests/AuditExport/AuditExportStoreTests.cs`.
-- [ ] T010 [P] Política de endereços `DestinationAddressPolicy` em `backend/libs/Dokpod.ControlPlane.Infrastructure/AuditExport/DestinationAddressPolicy.cs`. Recusa loopback, link-local (inclusive `169.254.169.254`), `0.0.0.0`/`::` e as sub-redes do plano de controle (configuráveis), conferindo de novo depois da resolução DNS a cada conexão; redes 10/8, 172.16/12 e 192.168/16 são aceitas. Testes em `backend/tests/Dokpod.ControlPlane.Application.Tests/AuditExport/DestinationAddressPolicyTests.cs`, inclusive um nome que resolve para loopback. A política devolve os IPs validados, e os transportes conectam exatamente a eles, mantendo o nome para SNI e validação do certificado (L3).
-- [ ] T011 [P] Leitor de secret `MountedSecretReader` em `backend/libs/Dokpod.ControlPlane.Infrastructure/AuditExport/MountedSecretReader.cs`. Lê de `/run/secrets/dokpod-audit-export/<secretRef>/` (`ca.pem`, `tls.crt`, `tls.key`, `token`), com `secretRef` validado por `^[a-z0-9-]{1,64}$` e caminho normalizado e conferido dentro da raiz antes de qualquer acesso. Expõe só a presença de cada arquivo para a API. Testes com filesystem real em `backend/tests/Dokpod.ControlPlane.Api.Tests/AuditExport/MountedSecretReaderTests.cs`, inclusive travessia, symlink para fora da raiz, arquivo grande, token com CR/LF e troca de arquivo entre duas conexões. Lê os arquivos a cada conexão, sem cache (L9); recusa arquivo acima de 64 KiB (L4) e token com caractere fora de ASCII visível ou espaço nas pontas (L5), respondendo `secret_missing` com o motivo.
-- [ ] T012 Módulo `AuditExportModule` em `backend/apps/Dokpod.ControlPlane.Api/AuditExport/AuditExportModule.cs`, registrado só em `backend/apps/Dokpod.ControlPlane.Api/ProductEdition.cs` sob `DOKPOD_BUSINESS`. Estender `backend/tests/Dokpod.Architecture.Tests/BusinessGateTests.cs` para que o código da CE também não referencie `Dokpod.ControlPlane.*.AuditExport`.
-- [ ] T013 Contrato OpenAPI em `contracts/openapi/dokpod-control-plane.v1.yaml`:
+- [x] T010 [P] Política de endereços `DestinationAddressPolicy` em `backend/libs/Dokpod.ControlPlane.Infrastructure/AuditExport/DestinationAddressPolicy.cs`. Nota (2026-11-01): a classificação, sem I/O, ficou em `backend/libs/Dokpod.ControlPlane.Application/AuditExport/DestinationAddressPolicy.cs` (testada em `Application.Tests`); a resolução DNS e a escolha dos IPs validados ficaram em `backend/libs/Dokpod.ControlPlane.Infrastructure/AuditExport/DnsDestinationAddressResolver.cs` (testada com DNS real em `Api.Tests/AuditExport/DnsDestinationAddressResolverTests.cs`), porque `Application.Tests` não referencia a infraestrutura. Recusa loopback, link-local (inclusive `169.254.169.254`), `0.0.0.0`/`::` e as sub-redes do plano de controle (configuráveis), conferindo de novo depois da resolução DNS a cada conexão; redes 10/8, 172.16/12 e 192.168/16 são aceitas. Testes em `backend/tests/Dokpod.ControlPlane.Application.Tests/AuditExport/DestinationAddressPolicyTests.cs`, inclusive um nome que resolve para loopback. A política devolve os IPs validados, e os transportes conectam exatamente a eles, mantendo o nome para SNI e validação do certificado (L3).
+- [x] T011 [P] Leitor de secret `MountedSecretReader` em `backend/libs/Dokpod.ControlPlane.Infrastructure/AuditExport/MountedSecretReader.cs`. Lê de `/run/secrets/dokpod-audit-export/<secretRef>/` (`ca.pem`, `tls.crt`, `tls.key`, `token`), com `secretRef` validado por `^[a-z0-9-]{1,64}$` e caminho normalizado e conferido dentro da raiz antes de qualquer acesso. Expõe só a presença de cada arquivo para a API. Testes com filesystem real em `backend/tests/Dokpod.ControlPlane.Api.Tests/AuditExport/MountedSecretReaderTests.cs`, inclusive travessia, symlink para fora da raiz, arquivo grande, token com CR/LF e troca de arquivo entre duas conexões. Lê os arquivos a cada conexão, sem cache (L9); recusa arquivo acima de 64 KiB (L4) e token com caractere fora de ASCII visível ou espaço nas pontas (L5), respondendo `secret_missing` com o motivo.
+- [x] T012 Módulo `AuditExportModule` em `backend/apps/Dokpod.ControlPlane.Api/AuditExport/AuditExportModule.cs`, registrado só em `backend/apps/Dokpod.ControlPlane.Api/ProductEdition.cs` sob `DOKPOD_BUSINESS`. Estender `backend/tests/Dokpod.Architecture.Tests/BusinessGateTests.cs` para que o código da CE também não referencie `Dokpod.ControlPlane.*.AuditExport`.
+- [x] T013 Contrato OpenAPI em `contracts/openapi/dokpod-control-plane.v1.yaml`:
   - as rotas `/api/v1/settings/audit-export/destinations`, `/{id}` e `/{id}/test`, com `x-dokpod-edition: business`;
   - os schemas `AuditExportDestinationInput`, `AuditExportDestination`, `AuditExportPending` e `AuditExportTestResult`;
   - os códigos de [contracts/api.md](contracts/api.md#códigos-de-problema).
@@ -169,7 +171,7 @@ description: "Tarefas da implementação da exportação de auditoria para SIEM"
 - [ ] T019 [US1] `AuditExportDestinationService` em `backend/libs/Dokpod.ControlPlane.Application/AuditExport/AuditExportDestinationService.cs`:
   - criar, editar, reativar e testar marcados `[BusinessCapability("audit-siem-export")]` e dependentes de `IBusinessCapabilityGate`;
   - desativar (editar só `active: false`) e excluir sem gate;
-  - eventos `audit_export.destination_*` e `audit_export.test_sent` sem segredos;
+  - eventos `audit_export.destination_*` e `audit_export.test_sent` sem segredos, gravados com o ambiente reservado `AuditEvent.InstallationScopeId`, que o domínio aceita só para ações `audit_export.*` ([D-012](research.md#d-012-eventos-da-instalação-na-trilha)); `AuditExportRecord.FromEvent` exporta `environmentId: null` para esse identificador;
   - o evento de teste (`audit_export.test`, `test: true`) não entra na trilha;
   - `audit_export` sempre incluída nas categorias (L7) e limite de 5 testes por minuto (L8).
 - [ ] T020 [US1] Rotas em `backend/apps/Dokpod.ControlPlane.Api/AuditExport/AuditExportEndpoints.cs`, seguindo `backend/apps/Dokpod.ControlPlane.Api/Licensing/LicensingEndpoints.cs`:
