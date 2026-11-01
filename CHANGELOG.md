@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.3.0](https://github.com/altivy-it/dokpod/compare/v0.2.0...v0.3.0) (2026-11-01)
+
+
+### Adicionado
+
+* **api:** conclua a exportação da auditoria ao SIEM (spec 027 T033–T039) ([#102](https://github.com/altivy-it/dokpod/issues/102)) ([19b2950](https://github.com/altivy-it/dokpod/commit/19b29502ed30921a9c11d052d56da6c99de1593a))
+* **api:** envie a trilha de auditoria ao SIEM por OTLP/HTTP (spec 027 US3) ([#101](https://github.com/altivy-it/dokpod/issues/101)) ([075ea74](https://github.com/altivy-it/dokpod/commit/075ea74685b32fe760cf6157d7f5c67856db229e))
+* **api:** envie a trilha de auditoria ao SIEM por syslog com TLS (spec 027 US1) ([#99](https://github.com/altivy-it/dokpod/issues/99)) ([343cf6a](https://github.com/altivy-it/dokpod/commit/343cf6a447b306d7de8ac7fa7b4d33972c2a1c73))
+* **api:** prepare a fundação da exportação da auditoria ao SIEM (spec 027 T002–T013) ([#98](https://github.com/altivy-it/dokpod/issues/98)) ([fa73d5b](https://github.com/altivy-it/dokpod/commit/fa73d5b0075fa84c62dfd29a069b208ee36e34a5))
+* **api:** prepare a fundação do aviso de nova versão de imagem (spec 025 T002–T008) ([#104](https://github.com/altivy-it/dokpod/issues/104)) ([8bc426c](https://github.com/altivy-it/dokpod/commit/8bc426c1ff612ff64c7c5c15ba06cce11250b6a6))
+* **api:** preserve a exportação ao SIEM com o destino fora (spec 027 US2) ([#100](https://github.com/altivy-it/dokpod/issues/100)) ([5b3cd2a](https://github.com/altivy-it/dokpod/commit/5b3cd2a00a3cc8d6669f828a668a2ddcaef19651))
+* **api:** publique a imagem Business com a chave de produção (spec 031 T061) ([#94](https://github.com/altivy-it/dokpod/issues/94)) ([a52e5ff](https://github.com/altivy-it/dokpod/commit/a52e5ff5f6a30aa4c25a844218ea91637b0977b4))
+
+
+### Corrigido
+
+* **ci:** aceite no Gitleaks a lista de chaves da mensagem do commit 8bc426c ([#105](https://github.com/altivy-it/dokpod/issues/105)) ([b254d1b](https://github.com/altivy-it/dokpod/commit/b254d1be9c1434f866c5fd6dced705dd51594090))
+
 ## [0.2.0](https://github.com/altivy-it/dokpod/compare/v0.1.1...v0.2.0) (2026-10-31)
 
 
