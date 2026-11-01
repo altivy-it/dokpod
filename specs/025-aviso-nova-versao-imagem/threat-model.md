@@ -129,5 +129,5 @@ HOST GERENCIADO
 | Lacunas L1–L5 | Recomendações aceitas: L1–L4 aplicadas na T009 e na T011; L5 aceita como está |
 | Riscos R1–R5 | Aceitos |
 | Agente Windows sem a capability até passar no teste contra o registro | Aceito |
-| Saída direta do agente para registros exige ADR? (plan.md, itens para a revisão humana) | Sim, porque cria precedente de saída do agente além do engine: [ADR 2026-0009](../../docs/adr/2026-0009-agente-consulta-registros-oci.md), criado pelo `/dokpod-create-adr` que o solicitante invocou em 2026-11-01, com status `proposed`. Não bloqueia a implementação, que segue esta decisão |
+| Saída direta do agente para registros exige ADR? (plan.md, itens para a revisão humana) | Sim, porque cria precedente de saída do agente além do engine: [ADR 2026-0009](../../docs/adr/2026-0009-agente-consulta-registros-oci.md), criado pelo `/dokpod-create-adr` que o solicitante invocou em 2026-11-01, aceito pelo solicitante em 2026-11-01 ("ADR provado"). Não bloqueia a implementação, que segue esta decisão |
 | Declaração | "Minha decisão é executar suas recomendações, escreva a ADR se fizer sentido e não causar prejuizo ou regreção a funcionalidades e robustes do projeto como um todo" |

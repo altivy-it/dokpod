@@ -1,11 +1,11 @@
 # ADR 2026-0009: Agente consulta registros OCI diretamente
 
-**Status:** proposed
+**Status:** accepted (2026-11-01)
 
 **Data:** 2026-11-01  
 **Responsáveis:** zocatel (responsável pelo produto)  
 **Origem:** IA assistida, a pedido do solicitante (`/dokpod-create-adr` em 2026-11-01, depois da decisão "executar suas recomendações" registrada no [threat model da spec 025](../../specs/025-aviso-nova-versao-imagem/threat-model.md#decisão-do-revisor))  
-**Revisor humano:** pendente (zocatel)  
+**Revisor humano:** zocatel; aceite em 2026-11-01. Aceite registrado a pedido do solicitante, que declarou na sessão de 2026-11-01: "ADR provado, push autorizado".  
 **Relacionado:** [spec 025](../../specs/025-aviso-nova-versao-imagem/spec.md), [plan 025](../../specs/025-aviso-nova-versao-imagem/plan.md) (decisões D-001, D-003, D-005 e D-012 de [research.md](../../specs/025-aviso-nova-versao-imagem/research.md)), [threat model 025](../../specs/025-aviso-nova-versao-imagem/threat-model.md), specs [012](../../specs/012-imagens-pull/spec.md) e [020](../../specs/020-registros/spec.md), [ADR 2026-0008](2026-0008-licenca-assinada-e-verificacao-offline.md)
 
 ## Contexto
