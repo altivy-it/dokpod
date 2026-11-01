@@ -8,7 +8,8 @@ Para cada imagem, exporta o sistema de arquivos e lê o histórico de build, e e
 - falha se algum arquivo da aplicação (/app) contiver uma chave privada PEM;
 - falha se houver emissor de licença (CLI dokpod-license-admin) em qualquer camada ou no histórico;
 - consulta o próprio binário (`--describe-edition`, sem iniciar o host): a CE precisa ser `community`, sem trust store
-  embarcado; a Business precisa ser `business`, sem nenhum `kid` das chaves sintéticas dos testes (`dokpod-test-*`).
+  embarcado; a Business precisa ser `business`, com ao menos uma chave de produção e nenhum `kid` das chaves
+  sintéticas dos testes (`dokpod-test-*`).
 
 Nada é publicado. O relatório fica em artifacts/licensing-image-contents/report.json.
 
@@ -19,8 +20,8 @@ Imagem CE a inspecionar. Padrão: dokpod-api:ce-inspect.
 Imagem Business a inspecionar. Padrão: dokpod-api:business-inspect.
 
 .PARAMETER Build
-Constrói antes as duas imagens a partir de backend/apps/Dokpod.ControlPlane.Api/Dockerfile (alvo runtime); a Business
-com `--build-arg DOKPOD_EDITION=Business`.
+Constrói antes as duas imagens (alvo runtime): a CE de backend/apps/Dokpod.ControlPlane.Api/Dockerfile e a Business
+de Business.Dockerfile, na mesma pasta, como no publish.yml.
 
 .PARAMETER Engine
 docker ou podman. Padrão: docker quando disponível, senão podman.
@@ -73,10 +74,9 @@ if ($RemainingArguments.Count -gt 0) {
 $repositoryRoot = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
 if (-not $ArtifactsPath) { $ArtifactsPath = Join-Path $repositoryRoot 'artifacts/licensing-image-contents' }
 if (-not $Engine) { $Engine = if (Get-Command docker -ErrorAction SilentlyContinue) { 'docker' } else { 'podman' } }
-$dockerfile = Join-Path $repositoryRoot 'backend/apps/Dokpod.ControlPlane.Api/Dockerfile'
 $targets = @(
-    @{ name = 'ce'; image = $CeImage; edition = 'community'; buildArgs = @() }
-    @{ name = 'business'; image = $BusinessImage; edition = 'business'; buildArgs = @('--build-arg', 'DOKPOD_EDITION=Business') }
+    @{ name = 'ce'; image = $CeImage; edition = 'community'; dockerfile = 'backend/apps/Dokpod.ControlPlane.Api/Dockerfile' }
+    @{ name = 'business'; image = $BusinessImage; edition = 'business'; dockerfile = 'backend/apps/Dokpod.ControlPlane.Api/Business.Dockerfile' }
 )
 
 if ($DryRun) {
@@ -108,7 +108,7 @@ try {
     foreach ($target in $targets) {
         if ($Build) {
             Write-Output "Construindo $($target.image)..."
-            Invoke-Engine (@('build', '--file', $dockerfile, '--target', 'runtime', '--tag', $target.image) + $target.buildArgs + @($repositoryRoot)) | Out-Null
+            Invoke-Engine @('build', '--file', (Join-Path $repositoryRoot $target.dockerfile), '--target', 'runtime', '--tag', $target.image, $repositoryRoot) | Out-Null
         }
 
         $root = Join-Path $work $target.name
@@ -140,6 +140,7 @@ try {
             if ($described.edition -ne $target.edition) { "edição $($described.edition), esperada $($target.edition)" }
             if ($target.name -eq 'ce' -and $keyIds.Count -gt 0) { 'a CE embarca trust store' }
             if ($keyIds | Where-Object { $_ -like 'dokpod-test*' }) { "kid de teste no trust store: $($keyIds -join ', ')" }
+            if ($target.name -eq 'business' -and $keyIds.Count -eq 0) { 'a Business não embarca nenhuma chave de produção' }
         )
 
         $failed = $privateKeys.Count + $emitterFiles.Count + $historyFindings.Count + $editionFindings.Count -gt 0
