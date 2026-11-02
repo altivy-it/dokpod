@@ -9,9 +9,16 @@
   },
   "versionFiles": ["backend/Directory.Build.props", "frontend/web/package.json"],
   "publishSnapshots": false,
+  "preview": {
+    "enabled": true,
+    "suffix": "rc",
+    "requiredForRelease": true,
+    "acceptance": "deploy"
+  },
   "deploy": {
     "environments": ["quality", "production"],
-    "autoDeployEnvironment": ""
+    "previewEnvironment": "quality",
+    "autoDeployEnvironment": "quality"
   },
   "attestations": true,
   "rollbackMinimumVersion": "0.0.0"
