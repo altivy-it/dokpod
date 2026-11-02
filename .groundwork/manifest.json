@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "toolVersion": "0.6.2",
-  "catalogVersion": "0.6.2",
+  "toolVersion": "0.6.3",
+  "catalogVersion": "0.6.3",
   "parameters": {
     "auto_deploy_environment": "quality",
     "commit_scopes": "docs,tooling,deps,actions,repo",
@@ -147,7 +147,7 @@
     },
     "tools/scripts/ci/GroundworkRelease.psm1": {
       "component": "release",
-      "sha256": "355b07df8c8ee98b82b78b0269ffa1f1c05369cc25ab73a8096510fc5541ed1e"
+      "sha256": "e932e7a3a9853d82ddc26c6a0c47267eef02e453ee2d464e1940858f33d6a043"
     },
     "tools/scripts/ci/New-ReleaseManifest.ps1": {
       "component": "release",
