@@ -17,12 +17,12 @@
     "npm": "12.2.1"
   },
   "dependencies": {
-    "@angular/common": "^22.2.3",
-    "@angular/compiler": "^22.2.3",
-    "@angular/core": "^22.2.3",
-    "@angular/forms": "^22.2.3",
-    "@angular/platform-browser": "^22.2.3",
-    "@angular/router": "^22.2.3",
+    "@angular/common": "^22.2.4",
+    "@angular/compiler": "^22.2.4",
+    "@angular/core": "^22.2.4",
+    "@angular/forms": "^22.2.4",
+    "@angular/platform-browser": "^22.2.4",
+    "@angular/router": "^22.2.4",
     "@microsoft/signalr": "^10.0.11",
     "@xterm/addon-fit": "0.11.0",
     "@xterm/xterm": "6.0.0",
