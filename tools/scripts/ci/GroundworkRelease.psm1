@@ -427,7 +427,8 @@ function Find-PreviewWaiver {
     $range = $Since ? "$Since..$Until" : $Until
     $messages = (git log --format='%B%x00' $range 2>$null | Out-String)
     if ($LASTEXITCODE -ne 0) { throw "Histórico $range indisponível; o checkout precisa de fetch-depth 0." }
-    foreach ($line in $messages -split "`n") {
+    # %x00 separa as mensagens e cola o NUL na última linha de cada uma, justamente onde fica o rodapé.
+    foreach ($line in $messages -split "[`n`0]") {
         if ($line -cmatch '^Preview-Waiver:\s*(?<reason>\S.{0,299})\s*$') { return $Matches['reason'].Trim() }
     }
 
