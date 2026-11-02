@@ -6,7 +6,7 @@ para o catálogo. Destinos, runner, migrações e contatos ficam em
 
 Repositório: `altivy-it/dokpod` · Environments de deploy:
 `quality`, `production` ·
-auto-deploy: desativado ·
+auto-deploy: `quality` ·
 revisores: `@lzocateli`.
 
 ## 1. Princípios
@@ -14,6 +14,11 @@ revisores: `@lzocateli`.
 - Deploy somente de GitHub Release **publicada**: `gw-deploy.yml` roda na tag `vX.Y.Z` e o guard
   `Assert-DeployableRelease.ps1` recusa branch, rascunho, tag fora de `main`,
   manifesto ausente ou sem atestação e prerelease em `production`.
+- Prerelease só é implantável se for candidata `vX.Y.Z-rc.N` e apenas no Environment de preview
+  (`deploy.previewEnvironment`, padrão `quality`); o sucesso lá registra o aceite da candidata.
+- Com `preview.requiredForRelease`, `production` exige a candidata validada da mesma versão, sem
+  código diferente dela, ou um commit com `Preview-Waiver:` desde a estável anterior
+  (ver [../estrategia-de-release.md](../estrategia-de-release.md), quando instalada).
 - Os Environments de deploy aceitam somente refs `tag:v*`; um job de deploy em branch é
   recusado pelo próprio GitHub.
 - Artefatos são imutáveis e identificados por digest no `release-manifest.json`; o deploy nunca
@@ -25,7 +30,8 @@ revisores: `@lzocateli`.
 ## 2. Deploy de nova release
 
 1. Após o merge do Release PR, a release é publicada por `gw-release.yml`.
-2. Não há auto-deploy configurado: dispare manualmente na tag (item 3).
+2. O job `Auto deploy` dispara automaticamente o deploy em `quality` na tag.
+   Aprove no Environment e acompanhe o smoke test.
 3. Promoção para `production` é sempre manual, na **mesma tag** validada, com aprovação:
 
    ```bash

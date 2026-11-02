@@ -102,9 +102,11 @@
       "deploymentPolicies": [{ "name": "v*", "type": "tag" }]
     }
   ],
+  "variables": [],
   "prerequisites": {
     "variables": ["RELEASE_APP_ID"],
-    "secrets": ["RELEASE_APP_PRIVATE_KEY"]
+    "secrets": ["RELEASE_APP_PRIVATE_KEY"],
+    "environmentSecrets": []
   },
   "legacyRulesets": ["Protecao exclusiva da main", "Protect release tags"]
 }
