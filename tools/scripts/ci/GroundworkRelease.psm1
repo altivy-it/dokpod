@@ -112,6 +112,28 @@ function Get-VersionFromFile {
     return $version
 }
 
+# Arquivos que o próprio Release PR altera: changelog-path e extra-files de cada pacote do
+# release-please-config.json, além do manifesto. São os únicos que a estável pode mudar em relação à candidata.
+function Get-ReleasePleaseFiles {
+    [OutputType([string[]])]
+    param([string] $Path = 'release-please-config.json')
+    $files = [System.Collections.Generic.List[string]]::new()
+    $files.Add('.release-please-manifest.json')
+    $files.Add('CHANGELOG.md')
+    if (Test-Path -LiteralPath $Path) {
+        $config = Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json -AsHashtable
+        foreach ($package in @(($config['packages'] ?? @{}).Values)) {
+            if ($package['changelog-path']) { $files.Add([string]$package['changelog-path']) }
+            foreach ($extra in @($package['extra-files'] ?? @())) {
+                $file = $extra -is [string] ? $extra : [string]$extra['path']
+                if ($file) { $files.Add($file.TrimStart('/')) }
+            }
+        }
+    }
+
+    return @($files | Select-Object -Unique)
+}
+
 function Get-ProjectVersionFiles {
     [OutputType([string[]])]
     param([Parameter(Mandatory)][hashtable] $Config)
@@ -429,4 +451,4 @@ function Write-GitHubOutput {
 Export-ModuleMember -Function Test-SemVer, Test-ReleaseTagName, Compare-SemVer, Read-CiCdConfig, Get-AttestationPolicy, Get-VersionFromFile,
 Get-ProjectVersionFiles, Invoke-GhJson, Assert-ReleaseManifest, Assert-ReleaseEntries, Test-RollbackAllowed,
 Find-GitHubRelease, Save-ReleaseAsset, Get-ReleaseAssetText, Write-GitHubOutput, Get-PreviewPolicy, Test-CandidateTag,
-Get-CandidateBaseVersion, Get-TagCommit, Find-ValidatedCandidate, Find-PreviewWaiver
+Get-CandidateBaseVersion, Get-TagCommit, Find-ValidatedCandidate, Find-PreviewWaiver, Get-ReleasePleaseFiles

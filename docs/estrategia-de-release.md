@@ -25,7 +25,24 @@ PR (squash, Conventional Commit)
                                           └─▶ production (manual, com aprovação)
 ```
 
-## 2. Versões e canais
+## 2. Branches
+
+A única branch de longa duração é a `main`. Candidatas e estáveis são **tags**, não
+branches: não existem branches de homologação (`qas`, `develop`, `release/*`) nem de feed
+(`nugettest/*`), e o Environment `quality` recebe a candidata pela tag `vX.Y.Z-rc.N`.
+
+| Branch | Dono | Vida | Regra |
+| --- | --- | --- | --- |
+| `main` | humano | permanente | rulesets `gw-*`; só recebe merge squash de PR com `Result` verde |
+| `release-please--branches--main` | release-please (GitHub App) | até o merge do Release PR | gerada; nunca edite à mão |
+| `dependabot/*` | Dependabot | até o merge ou fechamento do PR | gerada |
+| `feat/*`, `fix/*`, `docs/*`, `ci/*` e afins | autor do PR | até o merge | apague no merge (`--delete-branch`) |
+
+Branch sem PR aberto e com conteúdo já integrado na `main` é resto e deve ser apagada. Antes,
+confira com `git merge-base --is-ancestor origin/<branch> origin/main` ou, para squash,
+`git diff origin/main origin/<branch>` sem diferença nos arquivos dela.
+
+## 3. Versões e canais
 
 | Canal | Versão | Origem | Tag e GitHub Release | Implantável |
 | --- | --- | --- | --- | --- |
@@ -41,7 +58,7 @@ PR (squash, Conventional Commit)
 - Prereleases que não seguem `vX.Y.Z-rc.N` (por exemplo `preview.N`) nunca são implantáveis nem
   promovíveis.
 
-## 3. CHANGELOG e Conventional Commits
+## 4. CHANGELOG e Conventional Commits
 
 O `CHANGELOG.md` é escrito pelo release-please a partir dos títulos dos PRs (merge squash). Nenhum
 humano edita o CHANGELOG fora do Release PR.
@@ -57,7 +74,7 @@ O job `Conventional title` reprova títulos fora do padrão e mostra no resumo d
 release. As notas da candidata reproduzem a seção do Release PR com o aviso de que não é a versão
 estável; as notas da estável ganham a linha "Validada na `vX.Y.Z-rc.N`".
 
-## 4. Environments
+## 5. Environments
 
 | Environment | Refs aceitas | Revisores | Uso |
 | --- | --- | --- | --- |
@@ -69,7 +86,7 @@ estável; as notas da estável ganham a linha "Validada na `vX.Y.Z-rc.N`".
 Os Environments, as políticas de refs e os revisores vêm de `.github/repository-policy.json` e são
 aplicados por `groundwork github --sync`.
 
-## 5. Aceite da candidata
+## 6. Aceite da candidata
 
 Modo `deploy` (serviço): o deploy em `quality`, com o smoke test do `deploy.yml`, é a validação. O
 aceite é automático quando o deploy termina com sucesso.
@@ -80,7 +97,7 @@ Com o deploy bem-sucedido, o job `Record candidate acceptance` do `gw-deploy.yml
    `result`, `acceptedAt`, `actor`, `run`);
 2. reexecuta o CI do Release PR aberto, para o `Preview gate` reavaliar.
 
-## 6. Gates
+## 7. Gates
 
 | Gate | Onde | Regra |
 | --- | --- | --- |
@@ -103,7 +120,7 @@ Preview-Waiver: correção de segurança publicada sem candidata por indisponibi
 O waiver libera o `Preview gate` e o guard de `production`, aparece no resumo do deploy e nas notas
 da release. É exceção auditável, não atalho: registre o motivo real.
 
-## 7. Automático e humano
+## 8. Automático e humano
 
 | Etapa | Automático | Humano |
 | --- | --- | --- |
@@ -116,7 +133,7 @@ da release. É exceção auditável, não atalho: registre o motivo real.
 | `production` | guard | disparar e aprovar `production` |
 | Repositório | Environments, variáveis e rulesets (`groundwork github --sync`) | secrets ausentes (`--secrets`) |
 
-## 8. Falhas e rollback
+## 9. Falhas e rollback
 
 - **Candidata reprovada em `quality`:** corrija por PR comum; o release-please atualiza o Release PR
   e o próximo disparo gera `rc.N+1`. A candidata reprovada fica como prerelease, sem aceite.
