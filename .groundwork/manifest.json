@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "toolVersion": "0.6.0",
-  "catalogVersion": "0.6.0",
+  "toolVersion": "0.6.1",
+  "catalogVersion": "0.6.1",
   "parameters": {
     "auto_deploy_environment": "quality",
     "commit_scopes": "docs,tooling,deps,actions,repo",
@@ -75,7 +75,7 @@
     },
     ".github/workflows/gw-gitleaks.yml": {
       "component": "ci",
-      "sha256": "4a1cf6b0ca1225468c58ec1f555eb2d3a60ab1d62a081b305a33331d44418047"
+      "sha256": "d0645fd4fe0b3733a976276f55e9e4418fd54c0d240b2091b828baefa6edb2bb"
     },
     ".github/workflows/gw-node.yml": {
       "component": "ci",
