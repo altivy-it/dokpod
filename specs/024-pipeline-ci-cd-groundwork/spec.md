@@ -136,6 +136,34 @@ pertençam a uma release.
 
 ---
 
+### História de Usuário 5 - Validar uma candidata em `quality` antes de cada release (Prioridade: P2)
+
+Como mantenedor, quero que cada versão estável seja precedida por uma candidata `vX.Y.Z-rc.N`,
+publicada pelos mesmos workflows e validada em `quality`, e que o Release PR e o deploy em
+`production` só aceitem a estável quando essa candidata tiver sido aceita, seguindo a
+[estratégia de release](../../docs/estrategia-de-release.md) do Groundwork 0.6.0.
+
+**Motivo da prioridade**: hoje a estável vai a `production` sem validação prévia da mesma
+compilação em `quality`; a candidata fecha esse buraco sem mudar o fluxo de Release PR.
+
+**Teste independente**: com um Release PR aberto, gerar a candidata, implantá-la em `quality`,
+ver o `Preview gate` passar e a estável ser aceita em `production`; sem candidata aceita, o
+`Preview gate` e o guard de `production` recusam.
+
+**Cenários de aceitação**:
+
+1. **Dado** um Release PR `X.Y.Z` aberto, **Quando** o `gw-preview.yml` é disparado na `main`,
+   **Então** a tag `vX.Y.Z-rc.N` é criada pelo App de release e as imagens, inclusive a
+   Business, o pacote do agente Windows e o manifesto atestado são publicados como prerelease.
+2. **Dado** a candidata publicada, **Quando** o deploy em `quality` termina com smoke verde,
+   **Então** o aceite é registrado e o `Preview gate` do Release PR passa.
+3. **Dado** um Release PR sem candidata aceita no seu commit-base, **Quando** o CI roda, **Então**
+   o `Preview gate` e o `Result` ficam vermelhos.
+4. **Dado** a estável publicada, **Quando** o deploy em `production` é pedido, **Então** o guard
+   exige a candidata validada da mesma versão, sem código diferente dela, ou um `Preview-Waiver:`.
+
+---
+
 ### Casos de Borda
 
 - O CI de um PR do Dependabot ou de fork roda sem secrets e mesmo assim produz um check agregado
@@ -185,6 +213,15 @@ pertençam a uma release.
   (como `VersionPrefix`) e `frontend/web/package.json`, publicar imagens por digest e o pacote do
   agente Windows, e configurar `quality` e `production` como Environments de deploy que aceitam
   somente tags `v*`, sem deploy automático em `production`.
+- **FR-014**: O repositório DEVE usar o componente `release-preview` do Groundwork 0.6.0, com
+  aceite `deploy` em `quality` (deploy e smoke do `deploy.yml` como validação) e
+  `preview.requiredForRelease` ligado.
+- **FR-015**: A candidata DEVE publicar o mesmo conjunto de artefatos da estável, inclusive a
+  imagem Business, e nunca ser implantável fora de `quality` nem marcada como *Latest*.
+- **FR-016**: A estável DEVE diferir da candidata validada somente em arquivos de versão,
+  `CHANGELOG.md` e `.release-please-manifest.json`; caso contrário, `production` é recusado.
+- **FR-017**: O waiver (`Preview-Waiver:` em commit desde a última estável) é exceção de
+  emergência e DEVE aparecer no resumo do deploy e nas notas da release.
 - **FR-013**: Nenhuma mudança DEVE expor secrets, sockets de engine ou credenciais em logs,
   artefatos ou no repositório; actions DEVEM ser fixadas por SHA, com permissões mínimas por job.
 
@@ -215,6 +252,10 @@ pertençam a uma release.
   na documentação ou nos workflows.
 - **SC-006** (história 4, após GO): deploy, redeploy e rollback da mesma release são
   demonstrados em `quality` com 100% dos artefatos implantados pertencentes ao manifesto.
+
+- **SC-007** (história 5): 100% das estáveis a partir da adoção chegam a `production` com uma
+  candidata aceita em `quality` ou um waiver registrado; a primeira demonstração é a próxima
+  versão depois da adoção.
 
 ## Premissas
 

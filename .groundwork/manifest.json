@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "toolVersion": "0.5.1",
-  "catalogVersion": "0.5.1",
+  "toolVersion": "0.6.0",
+  "catalogVersion": "0.6.0",
   "parameters": {
-    "auto_deploy_environment": "",
+    "auto_deploy_environment": "quality",
     "commit_scopes": "docs,tooling,deps,actions,repo",
     "default_branch": "main",
     "dependabot_ecosystems": "github-actions,nuget:/backend,npm:/frontend/web,docker:/frontend/web;/backend/apps/Dokpod.Bff;/backend/apps/Dokpod.ControlPlane.Api;/deploy/agent",
@@ -17,6 +17,11 @@
     "issue_areas": "Arquitetura,Backend,Frontend,Banco de dados,Seguran\u00E7a,DevOps,Documenta\u00E7\u00E3o,Testes",
     "legacy_rulesets": "Protecao exclusiva da main,Protect release tags",
     "license": "AGPL-3.0-only",
+    "nuget_auth": "trusted",
+    "nuget_feed": "github",
+    "nuget_rc_feed": "",
+    "nuget_user": "",
+    "preview_acceptance": "deploy",
     "project_description": "",
     "project_name": "Dokpod",
     "project_slug": "dokpod",
@@ -32,6 +37,7 @@
   "components": [
     "ci",
     "release",
+    "release-preview",
     "publish-containers",
     "publish-github-assets",
     "deploy",
@@ -41,7 +47,7 @@
   "files": {
     ".github/CI-CD.md": {
       "component": "ci",
-      "sha256": "23050349f6ae358398c53de085d79ac91a43b36b56fa2019624a0629e287d0ba"
+      "sha256": "ae7c1d2544f662fc6bc762df137b1f1fc36291394a864a2f9ca1c21f9db9c57d"
     },
     ".github/REPOSITORY-POLICY.md": {
       "component": "repository-policy",
@@ -49,7 +55,7 @@
     },
     ".github/repository-policy.json": {
       "component": "repository-policy",
-      "sha256": "373340781e30e6465d55ec065c8f5c2478dc67e797e5cfd1fb62a6cf510ed35d"
+      "sha256": "a66e7f0c659a3a87f6bf0f31de99f80ad09d925b906233762d19094cbedabc6e"
     },
     ".github/workflows/gw-container-images.yml": {
       "component": "publish-containers",
@@ -57,7 +63,7 @@
     },
     ".github/workflows/gw-deploy.yml": {
       "component": "deploy",
-      "sha256": "7d705afa988bf4f8d50a08f43022cf2e78da43544bb62b7313787e6f6829450e"
+      "sha256": "5de195cd8701d2290a5c392e8cee0bee3f6f65a0138118c3494c556ec4b4349d"
     },
     ".github/workflows/gw-dotnet.yml": {
       "component": "ci",
@@ -77,19 +83,35 @@
     },
     ".github/workflows/gw-pr-hygiene.yml": {
       "component": "ci",
-      "sha256": "b884f9ddac4a9ea19006c06269c76e3032572c30a4b17e630543fe13cbb88ca9"
+      "sha256": "cf3346f5dd1123ec5abc1228cccb385ba9e0c4fc47beae16d30002bca74cf472"
+    },
+    ".github/workflows/gw-preview.yml": {
+      "component": "release-preview",
+      "sha256": "ea4209285e0393eeb1bebee4437c6f5abc105bb16461ac5ed13e1645b51baa21"
     },
     ".github/workflows/gw-release.yml": {
       "component": "release",
-      "sha256": "cd884359cc0eafea8bd7c75ab96606c7fd88c3a2095d77ed8dafea66826a097c"
+      "sha256": "ed8d0f503cf9a061fe7fd648abe5b8a0501985722f63d3781209a1fccc7a77dc"
+    },
+    "docs/estrategia-de-release.md": {
+      "component": "release-preview",
+      "sha256": "0f42660bdc47d8d4344fc82631e489ec8820dcc0534b74228d5129132c517877"
     },
     "docs/runbooks/deploy-e-rollback.md": {
       "component": "deploy",
-      "sha256": "c0948ae2365d6938f4d532bf9f31a77a8c8871ae351e32158627e0f3329b2aaf"
+      "sha256": "d080802ecd67e89afbe2acd8364e6246707a9ac47f7db4c58d12c433a5490b23"
+    },
+    "docs/runbooks/release-preview.md": {
+      "component": "release-preview",
+      "sha256": "4a9f0fcf5eb89cae7dbc5e0e0f44d55f71af9da80f6ddcf6345c7e2a8dfed6a4"
     },
     "docs/runbooks/release.md": {
       "component": "release",
-      "sha256": "4cf61f5b6de8417b541028fdead19d0b0d6da39aa67da0768bbebd3da66d7b94"
+      "sha256": "14c3450dc7ede719b850885b558565084d3b6d3e4d8364254a8ef2924894902f"
+    },
+    "tools/scripts/ci/Add-PreviewAcceptance.ps1": {
+      "component": "release-preview",
+      "sha256": "d2ed1665d1d67f902fb33a3b685f49ae4aa998f19f51edc38dd0a69dee46fac6"
     },
     "tools/scripts/ci/Assert-ArtifactVersion.ps1": {
       "component": "release",
@@ -97,19 +119,27 @@
     },
     "tools/scripts/ci/Assert-DeployableRelease.ps1": {
       "component": "deploy",
-      "sha256": "b7e153a7f5d4d6a9b8168be45577281c98d30ea1895529d8d606940e19c9fd53"
+      "sha256": "c9978e52e5144320c6b9b96522a27ecd04d0f3371f6ae9582bbfc5be1460c7bf"
+    },
+    "tools/scripts/ci/Assert-PreviewGate.ps1": {
+      "component": "release-preview",
+      "sha256": "ea2697ce8d98e69d45da8c115111347ea991356231ac24d0d71108557d213e18"
     },
     "tools/scripts/ci/Assert-ReleaseTag.ps1": {
       "component": "release",
-      "sha256": "5a28cce85718d55573e2c935503bfc672a216a478e5058e8b4b17641003bb458"
+      "sha256": "eec7d21f227207c0cd88e39148e96961d7d39dd7032858075e4bdb399cd3ccba"
     },
     "tools/scripts/ci/Get-BuildVersion.ps1": {
       "component": "release",
-      "sha256": "9f00894b538b2f833db672ee23f310e1ded32c2127db0e7eaed798742614f9ca"
+      "sha256": "4e258f724f5a909ee8db45a6c0763856316c3b5f5f3b12c15f8b40350bd2ba4f"
     },
     "tools/scripts/ci/Get-DeployedRelease.ps1": {
       "component": "deploy",
       "sha256": "39fe14057ba3c8cde9c85025a31e21a4084311997da119e856c2b702e5c089c2"
+    },
+    "tools/scripts/ci/Get-PreviewVersion.ps1": {
+      "component": "release-preview",
+      "sha256": "2e0b26fd8d5db2aee8f5fe6cd0ece01f17f02225fd046de4bf97bb46468f96c7"
     },
     "tools/scripts/ci/Get-ReleaseManifest.ps1": {
       "component": "deploy",
@@ -117,7 +147,7 @@
     },
     "tools/scripts/ci/GroundworkRelease.psm1": {
       "component": "release",
-      "sha256": "64108e3406d38dd2de8c5c51faec0cd09b17b077f2b8bbf5ceb96fda830d1e18"
+      "sha256": "1a8507c6f76a7e8ff334b039d5cb577eb9674263f8d95ab03fd2c74274aea2f8"
     },
     "tools/scripts/ci/New-ReleaseManifest.ps1": {
       "component": "release",
@@ -137,7 +167,7 @@
     },
     "tools/scripts/ci/Test-PublishedRelease.ps1": {
       "component": "release",
-      "sha256": "6794e5f375e7f17ad5c8f1b871e71f9f5bc833cdf6be9472ea2ee930eedd288a"
+      "sha256": "6567afd0046e020bd87aa1d7224323ed9f927f358ff5074d851a3bdde38678e2"
     },
     "tools/scripts/ci/Test-PullRequestTitle.ps1": {
       "component": "ci",
