@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.2](https://github.com/altivy-it/dokpod/compare/v0.3.1...v0.3.2) (2026-11-02)
+
+
+### Corrigido
+
+* **repo:** aplique o groundwork 0.6.2 no pipeline de release (spec 024) ([#111](https://github.com/altivy-it/dokpod/issues/111)) ([93a19ac](https://github.com/altivy-it/dokpod/commit/93a19acd6953af2b49869f3e4ca81c950553e364))
+
 ## [0.3.1](https://github.com/altivy-it/dokpod/compare/v0.3.0...v0.3.1) (2026-11-02)
 
 
