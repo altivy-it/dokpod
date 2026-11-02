@@ -26,6 +26,10 @@ Adotar o Altivy.Groundwork 0.5.0 com os componentes `ci`, `dependency-updates` e
 | D5 | `.github/dependabot.yml` substituído pela semente do catálogo | Prefixos compatíveis com o título de PR e o release-please (`fix`/`build`, `ci(actions)`, `build(deps)`), `exclude-paths` dos `gw-*.yml` e as mesmas pastas de antes |
 | D6 | Proteções legadas removidas só depois do `Result` verde no PR desta mudança (FR-008) | A proteção clássica exige o contexto `Full History`, que deixa de existir com o `gw-gitleaks.yml` (o check passa a `Gitleaks / Full History`, agregado no `Result`). A ordem é: PR verde, `groundwork github --sync`, `--sync --replace-legacy`, merge |
 | D7 | Environments `ci`, `copilot`, `production` e `quality` mantidos | `ci` guarda os secrets do PostgreSQL do CI em push; `quality`/`production` serão reconciliados pelo componente `deploy` na história 4; `copilot` é do agente de código do GitHub |
+| D8 | História 5: componente `release-preview` com `preview_acceptance=deploy` e `autoDeployEnvironment=quality` | Serviço: o deploy com smoke é o aceite; o auto-deploy em `quality` vale para a candidata e para a estável, com aprovação no Environment |
+| D9 | A imagem Business entra na candidata | Exceção aprovada pelo mantenedor no plano do Groundwork (2026-11-01): a candidata publica o mesmo conjunto da estável |
+| D10 | Sem NuGet e sem `nuget_*` | O Dokpod não publica pacotes NuGet |
+| D11 | Limitação aceita: os binários da candidata reportam o `VersionPrefix` do commit-base (a versão anterior); o label `org.opencontainers.image.version`, o manifesto e o smoke usam `X.Y.Z-rc.N` | A candidata é marcada no commit-base do Release PR, antes do bump dos arquivos de versão, e o `Publish-ContainerImage.ps1` não injeta versão no build. A correção é do catálogo do Groundwork (build-arg de versão), registrada como pendência |
 
 ## Verificação
 

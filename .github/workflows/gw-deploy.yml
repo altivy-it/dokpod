@@ -2,6 +2,8 @@
 # Deploy somente de GitHub Release publicada: execute NA TAG (Use workflow from: Tags / vX.Y.Z).
 #   gh workflow run gw-deploy.yml --ref vX.Y.Z -f environment=<environment>
 # Redeploy e rollback usam o mesmo caminho com a tag desejada. Ver docs/runbooks/deploy-e-rollback.md.
+# Candidata vX.Y.Z-rc.N no Environment de preview: o sucesso vira o aceite (preview-acceptance.json)
+# lido pelo preview gate do Release PR (docs/estrategia-de-release.md).
 name: Deploy
 
 on:
@@ -98,6 +100,36 @@ jobs:
       environment: ${{ inputs.environment }}
       manifest-artifact: release-manifest
     secrets: inherit
+
+  accept:
+    name: Record candidate acceptance
+    needs: [guard, deploy]
+    if: ${{ needs.deploy.result == 'success' && contains(needs.guard.outputs.tag, '-rc.') }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      actions: write
+      pull-requests: read
+    steps:
+      - name: Checkout tag
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Record acceptance and refresh the Release PR
+        if: ${{ hashFiles('tools/scripts/ci/Add-PreviewAcceptance.ps1') != '' }}
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.guard.outputs.tag }}
+          DEPLOY_ENVIRONMENT: ${{ inputs.environment }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: >
+          ./tools/scripts/ci/Add-PreviewAcceptance.ps1 -Tag $env:TAG -Environment $env:DEPLOY_ENVIRONMENT
+          -Repository $env:GITHUB_REPOSITORY -DefaultBranch $env:DEFAULT_BRANCH -RunUrl $env:RUN_URL -Actor $env:GITHUB_ACTOR
 
   summary:
     name: Summary
