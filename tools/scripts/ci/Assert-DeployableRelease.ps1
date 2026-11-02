@@ -13,8 +13,9 @@ Primeiro job de gw-deploy.yml, executado no checkout da tag. Falha fechado se:
   preview (deploy.previewEnvironment);
 - em production, com preview.requiredForRelease, não houver candidata da mesma versão
   validada no Environment de preview cujo diff até a tag toque só versionFiles,
-  CHANGELOG.md e .release-please-manifest.json, nem rodapé Preview-Waiver desde a última
-  release estável (docs/estrategia-de-release.md);
+  CHANGELOG.md, .release-please-manifest.json e os changelog-path/extra-files do
+  release-please-config.json, nem rodapé Preview-Waiver desde a última release estável
+  (docs/estrategia-de-release.md);
 - a GitHub Release não existir ou for rascunho;
 - o commit da tag não pertencer a origin/<branch padrão>;
 - o release-manifest.json estiver ausente, inválido, marcado com attestation none
@@ -168,7 +169,7 @@ try {
         $candidate = Find-ValidatedCandidate -Repository $Repository -Version $version -Environment $preview.Environment
         if ($null -ne $candidate) {
             $candidateCommit = Get-TagCommit $candidate.Tag
-            $allowed = @(Get-ProjectVersionFiles -Config $config) + @('CHANGELOG.md', '.release-please-manifest.json')
+            $allowed = @(Get-ProjectVersionFiles -Config $config) + @(Get-ReleasePleaseFiles)
             $changed = @(git diff --name-only $candidateCommit $commit 2>$null | Where-Object { $_ })
             if ($LASTEXITCODE -ne 0) { throw "Não foi possível comparar $($candidate.Tag) com $Tag; o checkout precisa de fetch-depth 0." }
             $other = @($changed | Where-Object { $_ -cnotin $allowed })

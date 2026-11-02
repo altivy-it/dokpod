@@ -79,7 +79,8 @@ try {
     if ($Publish) {
         if ($state -eq 'Missing') { throw "Release $Tag inexistente; nada a publicar." }
         if ($state -eq 'Draft') {
-            $body = $Prerelease ? @{ draft = $false; prerelease = $true; make_latest = 'false' } : @{ draft = $false }
+            # tag_name sempre presente: editar um rascunho sem ele desassocia a tag.
+            $body = $Prerelease ? @{ tag_name = $Tag; draft = $false; prerelease = $true; make_latest = 'false' } : @{ tag_name = $Tag; draft = $false }
             Invoke-GhJson -Path "repos/$Repository/releases/$($release['id'])" -Method PATCH -Body $body | Out-Null
             $release = Find-GitHubRelease -Repository $Repository -Tag $Tag
             $state = $null -eq $release ? 'Missing' : ($release['draft'] ? 'Draft' : 'Published')
