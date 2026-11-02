@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.1](https://github.com/altivy-it/dokpod/compare/v0.3.0...v0.3.1) (2026-11-02)
+
+
+### Corrigido
+
+* **deps:** atualize o Angular para 22.2.4 e as ferramentas para 22.2.5 ([#109](https://github.com/altivy-it/dokpod/issues/109)) ([8e01420](https://github.com/altivy-it/dokpod/commit/8e0142052a4c9d33de811b87cbc1ddf89339379f))
+
 ## [0.3.0](https://github.com/altivy-it/dokpod/compare/v0.2.0...v0.3.0) (2026-11-01)
 
 
