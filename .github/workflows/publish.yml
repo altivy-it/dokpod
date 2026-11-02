@@ -83,7 +83,16 @@ jobs:
           }
           for ref in $(jq -r '.[] | "\(.reference)@\(.digest)"' artifacts/entries/*.json); do
             if verify "$ref"; then echo "Já assinada: $ref"; continue; fi
-            cosign sign --yes "$ref"
+            # O cliente do Rekor reenvia a entrada quando a resposta demora; se a primeira foi gravada, o
+            # reenvio volta 409 (createLogEntryConflict) e nada é anexado à imagem. Nova tentativa usa nova
+            # chave efêmera, logo nova entrada; a verificação antes de repetir evita assinatura duplicada.
+            for attempt in 1 2 3; do
+              if cosign sign --yes "$ref"; then break; fi
+              if verify "$ref"; then break; fi
+              if [[ $attempt -eq 3 ]]; then echo "::error::Falha ao assinar $ref após 3 tentativas."; exit 1; fi
+              echo "::warning::Assinatura de $ref falhou (tentativa $attempt); nova tentativa em $((attempt * 20)) s."
+              sleep $((attempt * 20))
+            done
             verify "$ref" || { echo "::error::Assinatura de $ref não confere com a identidade esperada."; exit 1; }
             echo "Assinada e verificada: $ref"
           done
