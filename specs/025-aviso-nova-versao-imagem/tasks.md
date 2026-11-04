@@ -124,7 +124,7 @@ description: "Tarefas da implementação do aviso de nova versão de imagem"
 
 **Teste Independente**: publicar uma nova versão de uma tag no registro de teste, acionar "Verificar agora" e ver "Nova versão disponível" nas três telas, com a data; imagem por digest, construída no host e de registro fora da política aparecem como "Não verificável" com o motivo.
 
-- [ ] T009 [P] [US1] `OciDistributionClient` em `backend/libs/Dokpod.Agent.Infrastructure/Registries/OciDistributionClient.cs` ([D-001](research.md#d-001-onde-e-como-consultar-o-registro), [D-005](research.md#d-005-limites-no-agente)):
+- [X] T009 [P] [US1] `OciDistributionClient` em `backend/libs/Dokpod.Agent.Infrastructure/Registries/OciDistributionClient.cs` ([D-001](research.md#d-001-onde-e-como-consultar-o-registro), [D-005](research.md#d-005-limites-no-agente)):
   - `HEAD` do manifesto com os quatro tipos de `Accept` e `GET` do índice só quando preciso;
   - desafio `Bearer` (token anônimo ou com a credencial de `RegistryCredentialFile`) e `Basic`;
   - TLS verificado; `HTTPS_PROXY` do container respeitado;
@@ -139,25 +139,27 @@ description: "Tarefas da implementação do aviso de nova versão de imagem"
   - L4: resposta do token endpoint lida até 64 KiB, acima disso `invalid_response`.
 
   Nenhum cabeçalho, token ou corpo em log. Testes contra o `OciTestRegistry` (T002) em `backend/tests/Dokpod.Agent.Infrastructure.Tests/Registries/OciDistributionClientTests.cs`, inclusive `realm` em outro host (sem credencial), `realm` `http` (recusado) e token endpoint grande.
-- [ ] T010 [P] [US1] `ImageUpdateChecker` em `backend/libs/Dokpod.Agent.Application/Images/ImageUpdateChecker.cs`, com a comparação de [D-002](research.md#d-002-comparação-de-digests-e-plataforma) e os casos não verificáveis de [D-003](research.md#d-003-referências-não-verificáveis):
+- [X] T010 [P] [US1] `ImageUpdateChecker` em `backend/libs/Dokpod.Agent.Application/Images/ImageUpdateChecker.cs`, com a comparação de [D-002](research.md#d-002-comparação-de-digests-e-plataforma) e os casos não verificáveis de [D-003](research.md#d-003-referências-não-verificáveis):
   - digest remoto entre os `repo_digests` locais do mesmo repositório → `up_to_date`;
   - índice mudou mas o manifesto da plataforma do host não → `up_to_date`;
   - senão → `update_available`;
   - referência só por digest → `digest_reference`; sem `repo_digests` → `local_image`; registro inseguro no `RegistryInventory` → `insecure_registry`, sem chamada HTTP.
 
   Testes em `backend/tests/Dokpod.Agent.Application.Tests/Images/ImageUpdateCheckerTests.cs`.
-- [ ] T011 [US1] Atendimento da mensagem 17 no agente (`backend/apps/Dokpod.Agent/AgentControlWorker.cs` e um handler em `backend/libs/Dokpod.Agent.Application/Images/ImageUpdateCheckHandler.cs`):
+- [X] T011 [US1] Atendimento da mensagem 17 no agente (`backend/apps/Dokpod.Agent/AgentControlWorker.cs` e um handler em `backend/libs/Dokpod.Agent.Application/Images/ImageUpdateCheckHandler.cs`):
   - até 500 itens, 4 consultas simultâneas e 5 min por pedido;
   - resultados em páginas de até 256 KiB, sempre um resultado por item;
   - `CAPABILITY_IMAGE_UPDATE_CHECK` anunciada pelos agentes Linux com Docker e com Podman. O agente Windows não anuncia até passar no mesmo teste (decisão do plano);
   - logs do handler só com tipo de exceção e motivo (L2).
 
   Testes em `backend/tests/Dokpod.Agent.Application.Tests/Images/ImageUpdateCheckHandlerTests.cs`.
-- [ ] T012 [US1] Teste contra registro real em `backend/tests/Dokpod.Agent.Infrastructure.Tests/Registries/OciRegistryIntegrationTests.cs` (fixture de T002):
+- [X] T012 [US1] Teste contra registro real em `backend/tests/Dokpod.Agent.Infrastructure.Tests/Registries/OciRegistryIntegrationTests.cs` (fixture de T002):
   - publicar, verificar `up_to_date`, republicar a tag e verificar `update_available`;
   - índice em que só outra arquitetura muda continua `up_to_date`;
   - credencial errada dá `unauthorized`;
   - tag removida dá `reference_not_found`.
+
+  *(2026-11-04: `registry:3.1.2` em container com TLS de CA de teste e `htpasswd` gerados na execução, rede podman isolada; 57 testes de `Dokpod.Agent.Infrastructure.Tests` aprovados, nenhum ignorado.)*
 - [ ] T013 [US1] `ImageUpdateScheduler` em `backend/libs/Dokpod.ControlPlane.Application/ImageUpdates/ImageUpdateScheduler.cs` e `ImageUpdateWorker` em `backend/apps/Dokpod.ControlPlane.Api/ImageUpdates/ImageUpdateWorker.cs` ([D-006](research.md#d-006-agendamento-réplicas-e-verificar-agora)):
   - pegar o host vencido com lease e montar os itens a partir dos containers do inventário (referência e `image_id`);
   - gravar direto `registry_not_allowed` para registros fora de `RegistryPolicyService` no estágio do host, e `agent_unsupported` para agentes sem a capability;
