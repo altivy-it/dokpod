@@ -120,9 +120,10 @@ public sealed class ImageUpdateSchedulerTests : IAsyncLifetime
         if (context is not null) await context.DisposeAsync();
     }
 
+    // Começa em microssegundo inteiro, a precisão do timestamptz: o valor relido do PostgreSQL volta igual ao gravado.
     internal sealed class ManualTime(DateTimeOffset now) : TimeProvider
     {
-        public DateTimeOffset Now { get; set; } = now;
+        public DateTimeOffset Now { get; set; } = now.AddTicks(-(now.Ticks % TimeSpan.TicksPerMicrosecond));
 
         public override DateTimeOffset GetUtcNow() => Now;
     }
