@@ -30,7 +30,10 @@ FROM build AS publish
 
 # Spec 031 T061 (D-009): edição fixada no build. Vazio = CE; `--build-arg DOKPOD_EDITION=Business` compõe o licenciamento.
 ARG DOKPOD_EDITION=Business
-RUN dotnet publish backend/apps/Dokpod.ControlPlane.Api/Dokpod.ControlPlane.Api.csproj --configuration Release --no-restore --output /app/publish /p:UseAppHost=false ${DOKPOD_EDITION:+/p:DokpodEdition=$DOKPOD_EDITION}
+# D11 (.specify/bugs/versao-candidata-binarios): a versão da tag, passada pelo publish, prevalece sobre o VersionPrefix do commit.
+ARG RELEASE_VERSION=
+RUN case "$RELEASE_VERSION" in *[!0-9A-Za-z.-]*) echo "RELEASE_VERSION inválida" >&2; exit 1 ;; esac \
+    && dotnet publish backend/apps/Dokpod.ControlPlane.Api/Dokpod.ControlPlane.Api.csproj --configuration Release --no-restore --output /app/publish /p:UseAppHost=false ${DOKPOD_EDITION:+/p:DokpodEdition=$DOKPOD_EDITION} ${RELEASE_VERSION:+/p:Version=$RELEASE_VERSION}
 
 FROM lzocateli/dotnet-aspnet:10.0.13-noble-v1 AS runtime
 LABEL org.opencontainers.image.title="dokpod-api-business" \

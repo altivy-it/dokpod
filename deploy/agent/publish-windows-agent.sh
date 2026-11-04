@@ -3,8 +3,10 @@
 # container (constituição: build em container) a partir de um `git archive` do commit atual, sem arquivos
 # locais fora do Git. Gera o zip, o SHA-256 e um
 # manifesto com commit e versão. O pacote não leva certificado, chave, endpoint nem identidade.
+# A versão é a da tag quando informada (publish.yml, inclusive candidatas X.Y.Z-rc.N); sem ela, a do
+# VersionPrefix (D11, .specify/bugs/versao-candidata-binarios).
 #
-# Uso: publish-windows-agent.sh [pasta-de-saída] [rid]
+# Uso: publish-windows-agent.sh [pasta-de-saída] [rid] [versão]
 # Saída: <pasta>/dokpod-agent-<versão>-<rid>.zip, .zip.sha256 e .json.
 set -euo pipefail
 root=$(git -C "$(dirname "$0")" rev-parse --show-toplevel)
@@ -13,8 +15,13 @@ rid=${2:-win-x64}
 sdk_image=docker.io/lzocateli/dotnet-sdk:10.0.402-noble-v1
 engine=$(command -v podman || command -v docker)
 commit=$(git -C "$root" rev-parse --short=12 HEAD)
-version=$(sed -n 's:.*<VersionPrefix>\(.*\)</VersionPrefix>.*:\1:p' "$root/backend/Directory.Build.props" | head -1)
-version=${version:-0.0.0}
+version=${3:-}
+if [[ -n "$version" ]]; then
+  [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]] || { echo "Versão inválida: $version" >&2; exit 2; }
+else
+  version=$(sed -n 's:.*<VersionPrefix>\(.*\)</VersionPrefix>.*:\1:p' "$root/backend/Directory.Build.props" | head -1)
+  version=${version:-0.0.0}
+fi
 name="dokpod-agent-$version-$rid"
 mkdir -p "$out"
 stage=$(mktemp -d)
@@ -26,7 +33,7 @@ git -C "$root" archive HEAD | tar -x -C "$stage/src"
   -v "$stage/src":/src:z -v "$stage/publish":/out/publish:z -w /src "$sdk_image" \
   dotnet publish backend/apps/Dokpod.Agent/Dokpod.Agent.csproj --configuration Release --runtime "$rid" \
     --self-contained true -p:PublishSingleFile=false -p:IncludeSourceRevisionInInformationalVersion=false \
-    -p:InformationalVersion="$version+$commit" --output /out/publish --verbosity quiet
+    -p:Version="$version" -p:InformationalVersion="$version+$commit" --output /out/publish --verbosity quiet
 
 [[ -f "$stage/publish/Dokpod.Agent.exe" ]] || { echo "Dokpod.Agent.exe não foi gerado" >&2; exit 1; }
 cp "$stage/src/LICENSE" "$stage/publish/LICENSE.txt"
