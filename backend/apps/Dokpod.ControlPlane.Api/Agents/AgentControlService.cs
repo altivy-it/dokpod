@@ -35,7 +35,9 @@ public sealed class AgentControlService(
     Dokpod.ControlPlane.Application.Terminal.TerminalSessionRegistry? terminals = null,
     IAgentIdentityRegistry? identities = null,
     Microsoft.Extensions.Hosting.IHostApplicationLifetime? lifetime = null,
-    Dokpod.ControlPlane.Application.Hosts.ControlPlaneMetrics? metrics = null) : AgentControl.AgentControlBase
+    Dokpod.ControlPlane.Application.Hosts.ControlPlaneMetrics? metrics = null,
+    Dokpod.ControlPlane.Application.ImageUpdates.IImageUpdateStore? imageUpdateStore = null,
+    Dokpod.ControlPlane.Application.ImageUpdates.ImageUpdateResultIngestion? imageUpdateResults = null) : AgentControl.AgentControlBase
 {
     private const int MaximumMessageBytes = 1_048_576;
     private static readonly TimeSpan HeartbeatTimeout = TimeSpan.FromSeconds(90);
@@ -112,7 +114,8 @@ public sealed class AgentControlService(
                             (volumeStore is not null || capability is not (Capability.VolumeInventory or Capability.VolumeRemove)) &&
                             (networkStore is not null || capability is not (Capability.NetworkInventory or Capability.NetworkRemove)) &&
                             (registryStore is not null || capability is not Capability.RegistryInventory) &&
-                            (podStore is not null || capability is not (Capability.PodInventory or Capability.PodActions))),
+                            (podStore is not null || capability is not (Capability.PodInventory or Capability.PodActions)) &&
+                            (imageUpdateStore is not null || capability is not Capability.ImageUpdateCheck)),
                     },
                 },
             });
@@ -433,6 +436,17 @@ public sealed class AgentControlService(
                         when hello.Capabilities.Contains(Capability.ContainerInspect) || hello.Capabilities.Contains(Capability.ContainerLogs) ||
                             hello.Capabilities.Contains(Capability.VolumeInventory):
                         queryDispatcher.OnResponse(session.EnvironmentId, requestStream.Current.ContainerQueryResponse);
+                        break;
+
+                    case AgentMessage.PayloadOneofCase.ImageUpdateCheckResult when imageUpdateResults is not null:
+                        // Spec 025 T014: página fora do contrato é recusada inteira; pedido antigo ou vencido é descartado.
+                        var imageUpdateOutcome = await imageUpdateResults.ApplyAsync(
+                            session.EnvironmentId, requestStream.Current.ImageUpdateCheckResult, context.CancellationToken);
+                        if (imageUpdateOutcome != Dokpod.ControlPlane.Application.ImageUpdates.ImageUpdatePageOutcome.Applied)
+                        {
+                            logger.LogWarning("Image update result page {Outcome}", imageUpdateOutcome);
+                        }
+
                         break;
 
                     case AgentMessage.PayloadOneofCase.LogChunk

@@ -160,7 +160,7 @@ description: "Tarefas da implementação do aviso de nova versão de imagem"
   - tag removida dá `reference_not_found`.
 
   *(2026-11-04: `registry:3.1.2` em container com TLS de CA de teste e `htpasswd` gerados na execução, rede podman isolada; 57 testes de `Dokpod.Agent.Infrastructure.Tests` aprovados, nenhum ignorado.)*
-- [ ] T013 [US1] `ImageUpdateScheduler` em `backend/libs/Dokpod.ControlPlane.Application/ImageUpdates/ImageUpdateScheduler.cs` e `ImageUpdateWorker` em `backend/apps/Dokpod.ControlPlane.Api/ImageUpdates/ImageUpdateWorker.cs` ([D-006](research.md#d-006-agendamento-réplicas-e-verificar-agora)):
+- [X] T013 [US1] `ImageUpdateScheduler` em `backend/libs/Dokpod.ControlPlane.Application/ImageUpdates/ImageUpdateScheduler.cs` e `ImageUpdateWorker` em `backend/apps/Dokpod.ControlPlane.Api/ImageUpdates/ImageUpdateWorker.cs` ([D-006](research.md#d-006-agendamento-réplicas-e-verificar-agora)):
   - pegar o host vencido com lease e montar os itens a partir dos containers do inventário (referência e `image_id`);
   - gravar direto `registry_not_allowed` para registros fora de `RegistryPolicyService` no estágio do host, e `agent_unsupported` para agentes sem a capability;
   - enviar a mensagem 17 pelo `AgentControlService`, guardar `pending_request_id` e marcar o próximo vencimento;
@@ -168,7 +168,9 @@ description: "Tarefas da implementação do aviso de nova versão de imagem"
   - não agendar quando a licença importada não lista `image-update-notice`; com a licença restrita, continuar (FR-009). O worker não consulta o gate.
 
   Testes em `backend/tests/Dokpod.ControlPlane.Application.Tests/ImageUpdates/ImageUpdateSchedulerTests.cs` com relógio injetável.
-- [ ] T014 [US1] Recebimento da mensagem 27 em `backend/apps/Dokpod.ControlPlane.Api/Agents/AgentControlService.cs`:
+
+  *(2026-11-04: os testes ficaram em `backend/tests/Dokpod.ControlPlane.Api.Tests/ImageUpdates/ImageUpdateSchedulerTests.cs`, com a agenda no PostgreSQL real e relógio injetável, em vez de fakes da store; a plataforma dos resultados decididos no servidor vem do inventário de imagens ou do descritor do agente.)*
+- [X] T014 [US1] Recebimento da mensagem 27 em `backend/apps/Dokpod.ControlPlane.Api/Agents/AgentControlService.cs`:
   - aplicar as páginas pelo `ImageUpdateStore`;
   - descartar `request_id` que não é o pendente do host ou que chega mais de 6 min depois do envio;
   - validar estado, motivo, digests (`sha256:` + 64 hex) e o tamanho dos campos, recusando a página inteira se algo vier fora do contrato.

@@ -13,6 +13,12 @@ public static class ImageUpdateModule
     {
         ArgumentNullException.ThrowIfNull(services);
         services.AddScoped<IImageUpdateStore, ImageUpdateStore>();
+        services.AddScoped<IImageUpdateTargetReader, ImageUpdateTargetReader>();
+        services.AddScoped<IImageUpdateEntitlement, LicenseImageUpdateEntitlement>();
+        services.AddSingleton<IImageUpdateAgentChannel, DispatcherImageUpdateAgentChannel>();
+        services.AddScoped<ImageUpdateScheduler>();
+        services.AddScoped<ImageUpdateResultIngestion>();
+        services.AddHostedService<ImageUpdateWorker>();
         return services;
     }
 
