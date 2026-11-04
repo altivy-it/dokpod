@@ -176,19 +176,21 @@ description: "Tarefas da implementação do aviso de nova versão de imagem"
   - validar estado, motivo, digests (`sha256:` + 64 hex) e o tamanho dos campos, recusando a página inteira se algo vier fora do contrato.
 
   Testes de integração com PostgreSQL real em `backend/tests/Dokpod.ControlPlane.Api.Tests/ImageUpdates/ImageUpdateResultTests.cs`.
-- [ ] T015 [US1] Leitura nas listas (`backend/libs/Dokpod.ControlPlane.Infrastructure/` nos stores de imagens e de containers e no resumo do container):
+- [X] T015 [US1] Leitura nas listas (`backend/libs/Dokpod.ControlPlane.Infrastructure/` nos stores de imagens e de containers e no resumo do container):
   - junção indexada com `image_update_checks`;
   - `updateCheck` conforme [contracts/api.md](contracts/api.md), com `container_behind` derivado e `stale` quando o host está desconectado;
   - campo ausente na CE ou sem a capability;
   - nenhuma chamada ao agente durante a requisição.
 
   Testes em `backend/tests/Dokpod.ControlPlane.Api.Tests/ImageUpdates/ImageUpdateReadTests.cs`.
-- [ ] T016 [US1] `POST /api/v1/environments/{environmentId}/images/update-check` em `backend/apps/Dokpod.ControlPlane.Api/ImageUpdates/ImageUpdateEndpoints.cs` e `ImageUpdateCheckService` com `[BusinessCapability("image-update-notice")]`:
+- [X] T016 [US1] `POST /api/v1/environments/{environmentId}/images/update-check` em `backend/apps/Dokpod.ControlPlane.Api/ImageUpdates/ImageUpdateEndpoints.cs` e `ImageUpdateCheckService` com `[BusinessCapability("image-update-notice")]`:
   - scope `image:pull` no host, com falha do Keycloak negando;
   - `202`, ou `429 rate_limited` com `Retry-After`, `409 agent_unsupported`, `409 environment_disconnected`, `403 license_expired` ou `403 license_invalid`;
   - auditoria `image.update_check_requested` na categoria `images` de `backend/libs/Dokpod.Domain/Auditing/AuditCategories.cs`.
 
   Testes em `backend/tests/Dokpod.ControlPlane.Api.Tests/ImageUpdates/ImageUpdateEndpointsTests.cs`.
+
+  *(2026-11-04: a CE recebe o campo e a mensagem 27 por portas neutras em `Application.Images` (`IImageUpdateAnnotations`, `IImageUpdateResultSink`), que só a composição Business registra; assim nenhum código da CE referencia o módulo `ImageUpdates` (BusinessGateTests). `image.update_check_requested` entrou nas ações aceitas da trilha.)*
 - [ ] T017 [US1] Telas:
   - em `frontend/web/src/app/features/images/images.page.*`, `frontend/web/src/app/features/container-list/` e `frontend/web/src/app/features/container-detail/`, estado em texto ("Nova versão disponível", "Atualizada", "Não verificável", "Falha na verificação", "Versão nova no host; o container usa a anterior"), com a data e a marca de desatualizado quando o host está desconectado;
   - motivos em pt-BR:

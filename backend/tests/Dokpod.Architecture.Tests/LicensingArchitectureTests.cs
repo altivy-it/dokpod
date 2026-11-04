@@ -34,9 +34,12 @@ public sealed partial class LicensingArchitectureTests
         var licensingRoot = Path.Combine(applicationRoot, "Licensing") + Path.DirectorySeparatorChar;
         // Spec 027: a exportação ao SIEM é exclusiva Business e só entra na composição Business (BusinessGateTests).
         var auditExportRoot = Path.Combine(applicationRoot, "AuditExport") + Path.DirectorySeparatorChar;
+        // Spec 025: o aviso de nova versão também é exclusivo Business (T007), registrado só pelo ProductEdition.
+        var imageUpdatesRoot = Path.Combine(applicationRoot, "ImageUpdates") + Path.DirectorySeparatorChar;
 
         var offenders = SourceFiles(applicationRoot)
-            .Where(file => !file.StartsWith(licensingRoot, StringComparison.Ordinal) && !file.StartsWith(auditExportRoot, StringComparison.Ordinal))
+            .Where(file => !file.StartsWith(licensingRoot, StringComparison.Ordinal) && !file.StartsWith(auditExportRoot, StringComparison.Ordinal) &&
+                !file.StartsWith(imageUpdatesRoot, StringComparison.Ordinal))
             .Where(file => File.ReadAllText(file).Contains("IBusinessCapabilityGate", StringComparison.Ordinal))
             .ToArray();
 

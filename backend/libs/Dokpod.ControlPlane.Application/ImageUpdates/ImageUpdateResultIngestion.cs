@@ -19,6 +19,7 @@ public enum ImageUpdatePageOutcome
 /// tamanhos) e só então grava pelo <see cref="IImageUpdateStore"/>, que descarta pedidos fora do pendente ou do prazo.
 /// </summary>
 public sealed class ImageUpdateResultIngestion(IImageUpdateStore store, IImageUpdateTargetReader targets, TimeProvider timeProvider)
+    : Dokpod.ControlPlane.Application.Images.IImageUpdateResultSink
 {
     public const int MaxReferenceLength = 512;
 
@@ -59,6 +60,10 @@ public sealed class ImageUpdateResultIngestion(IImageUpdateStore store, IImageUp
         var outcome = await store.ApplyPageAsync(environmentId, requestId, mapped, page.IsLastPage, timeProvider.GetUtcNow(), cancellationToken).ConfigureAwait(false);
         return outcome == ImageUpdateApplyOutcome.Applied ? ImageUpdatePageOutcome.Applied : ImageUpdatePageOutcome.Discarded;
     }
+
+    async Task<bool> Dokpod.ControlPlane.Application.Images.IImageUpdateResultSink.ApplyAsync(
+        Guid environmentId, ImageUpdateCheckResultPage page, CancellationToken cancellationToken) =>
+        await ApplyAsync(environmentId, page, cancellationToken).ConfigureAwait(false) == ImageUpdatePageOutcome.Applied;
 
     private static bool OptionalDigest(string value) => value.Length == 0 || ContentDigest.IsValid(value);
 }
