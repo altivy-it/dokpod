@@ -191,7 +191,7 @@ description: "Tarefas da implementação do aviso de nova versão de imagem"
   Testes em `backend/tests/Dokpod.ControlPlane.Api.Tests/ImageUpdates/ImageUpdateEndpointsTests.cs`.
 
   *(2026-11-04: a CE recebe o campo e a mensagem 27 por portas neutras em `Application.Images` (`IImageUpdateAnnotations`, `IImageUpdateResultSink`), que só a composição Business registra; assim nenhum código da CE referencia o módulo `ImageUpdates` (BusinessGateTests). `image.update_check_requested` entrou nas ações aceitas da trilha.)*
-- [ ] T017 [US1] Telas:
+- [X] T017 [US1] Telas:
   - em `frontend/web/src/app/features/images/images.page.*`, `frontend/web/src/app/features/container-list/` e `frontend/web/src/app/features/container-detail/`, estado em texto ("Nova versão disponível", "Atualizada", "Não verificável", "Falha na verificação", "Versão nova no host; o container usa a anterior"), com a data e a marca de desatualizado quando o host está desconectado;
   - motivos em pt-BR:
 
@@ -213,10 +213,12 @@ description: "Tarefas da implementação do aviso de nova versão de imagem"
   - nada aparece quando a API não envia `updateCheck`.
 
   Testes nos `.spec.ts`, com rótulos em `frontend/web/src/app/features/images/image-update-labels.ts`.
-- [ ] T018 [US1] E2E simulado `frontend/tests/e2e/mock_ui/test_025_image_update.py`, com cenários no `frontend/tests/e2e/mock/control_plane_mock.py`:
+- [X] T018 [US1] E2E simulado `frontend/tests/e2e/mock_ui/test_025_image_update.py`, com cenários no `frontend/tests/e2e/mock/control_plane_mock.py`:
   - os quatro estados nas três telas;
   - "Verificar agora" com `202` e `429`;
   - CE sem nada.
+
+  *(2026-11-04: `run-mock-e2e.sh` pela borda nginx em container: 3 testes da 025 e as suítes 010, 011, 012 e 027 aprovados (28); frontend com 199 testes e build de produção; capturas em `artifacts/e2e/mock/025-*.png`.)*
 
 **Checkpoint**: História 1 funcional e testável de forma independente (MVP).
 
