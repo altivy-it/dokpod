@@ -52,7 +52,9 @@ LABEL org.opencontainers.image.title="Dokpod Agent" \
     org.opencontainers.image.version="${IMAGE_VERSION}"
 
 USER root
-RUN install --directory --owner="${APP_UID}" --group="${APP_UID}" --mode=0700 /var/lib/dokpod-agent
+# CVE-2026-109518 (HIGH, sem correção): o apt só serve ao build; não fica na imagem final, que não instala pacotes em execução.
+RUN install --directory --owner="${APP_UID}" --group="${APP_UID}" --mode=0700 /var/lib/dokpod-agent \
+    && apt-get purge --yes --allow-remove-essential apt libapt-pkg6.0t64
 
 COPY --from=publish --chown=${APP_UID}:${APP_UID} /src/out/ /app/
 
