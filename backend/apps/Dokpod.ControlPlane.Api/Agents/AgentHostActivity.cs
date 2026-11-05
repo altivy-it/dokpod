@@ -58,6 +58,8 @@ public sealed class AgentHostActivity(
         Capability.RegistryInventory,
         Capability.PodInventory,
         Capability.PodActions,
+        // Spec 025: aceita só na composição Business (AgentControlService filtra pela presença do IImageUpdateStore).
+        Capability.ImageUpdateCheck,
     ];
 
     public static IEnumerable<Capability> Accept(AgentHello hello) =>

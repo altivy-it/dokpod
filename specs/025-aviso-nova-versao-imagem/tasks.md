@@ -124,7 +124,7 @@ description: "Tarefas da implementação do aviso de nova versão de imagem"
 
 **Teste Independente**: publicar uma nova versão de uma tag no registro de teste, acionar "Verificar agora" e ver "Nova versão disponível" nas três telas, com a data; imagem por digest, construída no host e de registro fora da política aparecem como "Não verificável" com o motivo.
 
-- [ ] T009 [P] [US1] `OciDistributionClient` em `backend/libs/Dokpod.Agent.Infrastructure/Registries/OciDistributionClient.cs` ([D-001](research.md#d-001-onde-e-como-consultar-o-registro), [D-005](research.md#d-005-limites-no-agente)):
+- [X] T009 [P] [US1] `OciDistributionClient` em `backend/libs/Dokpod.Agent.Infrastructure/Registries/OciDistributionClient.cs` ([D-001](research.md#d-001-onde-e-como-consultar-o-registro), [D-005](research.md#d-005-limites-no-agente)):
   - `HEAD` do manifesto com os quatro tipos de `Accept` e `GET` do índice só quando preciso;
   - desafio `Bearer` (token anônimo ou com a credencial de `RegistryCredentialFile`) e `Basic`;
   - TLS verificado; `HTTPS_PROXY` do container respeitado;
@@ -139,26 +139,28 @@ description: "Tarefas da implementação do aviso de nova versão de imagem"
   - L4: resposta do token endpoint lida até 64 KiB, acima disso `invalid_response`.
 
   Nenhum cabeçalho, token ou corpo em log. Testes contra o `OciTestRegistry` (T002) em `backend/tests/Dokpod.Agent.Infrastructure.Tests/Registries/OciDistributionClientTests.cs`, inclusive `realm` em outro host (sem credencial), `realm` `http` (recusado) e token endpoint grande.
-- [ ] T010 [P] [US1] `ImageUpdateChecker` em `backend/libs/Dokpod.Agent.Application/Images/ImageUpdateChecker.cs`, com a comparação de [D-002](research.md#d-002-comparação-de-digests-e-plataforma) e os casos não verificáveis de [D-003](research.md#d-003-referências-não-verificáveis):
+- [X] T010 [P] [US1] `ImageUpdateChecker` em `backend/libs/Dokpod.Agent.Application/Images/ImageUpdateChecker.cs`, com a comparação de [D-002](research.md#d-002-comparação-de-digests-e-plataforma) e os casos não verificáveis de [D-003](research.md#d-003-referências-não-verificáveis):
   - digest remoto entre os `repo_digests` locais do mesmo repositório → `up_to_date`;
   - índice mudou mas o manifesto da plataforma do host não → `up_to_date`;
   - senão → `update_available`;
   - referência só por digest → `digest_reference`; sem `repo_digests` → `local_image`; registro inseguro no `RegistryInventory` → `insecure_registry`, sem chamada HTTP.
 
   Testes em `backend/tests/Dokpod.Agent.Application.Tests/Images/ImageUpdateCheckerTests.cs`.
-- [ ] T011 [US1] Atendimento da mensagem 17 no agente (`backend/apps/Dokpod.Agent/AgentControlWorker.cs` e um handler em `backend/libs/Dokpod.Agent.Application/Images/ImageUpdateCheckHandler.cs`):
+- [X] T011 [US1] Atendimento da mensagem 17 no agente (`backend/apps/Dokpod.Agent/AgentControlWorker.cs` e um handler em `backend/libs/Dokpod.Agent.Application/Images/ImageUpdateCheckHandler.cs`):
   - até 500 itens, 4 consultas simultâneas e 5 min por pedido;
   - resultados em páginas de até 256 KiB, sempre um resultado por item;
   - `CAPABILITY_IMAGE_UPDATE_CHECK` anunciada pelos agentes Linux com Docker e com Podman. O agente Windows não anuncia até passar no mesmo teste (decisão do plano);
   - logs do handler só com tipo de exceção e motivo (L2).
 
   Testes em `backend/tests/Dokpod.Agent.Application.Tests/Images/ImageUpdateCheckHandlerTests.cs`.
-- [ ] T012 [US1] Teste contra registro real em `backend/tests/Dokpod.Agent.Infrastructure.Tests/Registries/OciRegistryIntegrationTests.cs` (fixture de T002):
+- [X] T012 [US1] Teste contra registro real em `backend/tests/Dokpod.Agent.Infrastructure.Tests/Registries/OciRegistryIntegrationTests.cs` (fixture de T002):
   - publicar, verificar `up_to_date`, republicar a tag e verificar `update_available`;
   - índice em que só outra arquitetura muda continua `up_to_date`;
   - credencial errada dá `unauthorized`;
   - tag removida dá `reference_not_found`.
-- [ ] T013 [US1] `ImageUpdateScheduler` em `backend/libs/Dokpod.ControlPlane.Application/ImageUpdates/ImageUpdateScheduler.cs` e `ImageUpdateWorker` em `backend/apps/Dokpod.ControlPlane.Api/ImageUpdates/ImageUpdateWorker.cs` ([D-006](research.md#d-006-agendamento-réplicas-e-verificar-agora)):
+
+  *(2026-11-04: `registry:3.1.2` em container com TLS de CA de teste e `htpasswd` gerados na execução, rede podman isolada; 57 testes de `Dokpod.Agent.Infrastructure.Tests` aprovados, nenhum ignorado.)*
+- [X] T013 [US1] `ImageUpdateScheduler` em `backend/libs/Dokpod.ControlPlane.Application/ImageUpdates/ImageUpdateScheduler.cs` e `ImageUpdateWorker` em `backend/apps/Dokpod.ControlPlane.Api/ImageUpdates/ImageUpdateWorker.cs` ([D-006](research.md#d-006-agendamento-réplicas-e-verificar-agora)):
   - pegar o host vencido com lease e montar os itens a partir dos containers do inventário (referência e `image_id`);
   - gravar direto `registry_not_allowed` para registros fora de `RegistryPolicyService` no estágio do host, e `agent_unsupported` para agentes sem a capability;
   - enviar a mensagem 17 pelo `AgentControlService`, guardar `pending_request_id` e marcar o próximo vencimento;
@@ -166,26 +168,30 @@ description: "Tarefas da implementação do aviso de nova versão de imagem"
   - não agendar quando a licença importada não lista `image-update-notice`; com a licença restrita, continuar (FR-009). O worker não consulta o gate.
 
   Testes em `backend/tests/Dokpod.ControlPlane.Application.Tests/ImageUpdates/ImageUpdateSchedulerTests.cs` com relógio injetável.
-- [ ] T014 [US1] Recebimento da mensagem 27 em `backend/apps/Dokpod.ControlPlane.Api/Agents/AgentControlService.cs`:
+
+  *(2026-11-04: os testes ficaram em `backend/tests/Dokpod.ControlPlane.Api.Tests/ImageUpdates/ImageUpdateSchedulerTests.cs`, com a agenda no PostgreSQL real e relógio injetável, em vez de fakes da store; a plataforma dos resultados decididos no servidor vem do inventário de imagens ou do descritor do agente.)*
+- [X] T014 [US1] Recebimento da mensagem 27 em `backend/apps/Dokpod.ControlPlane.Api/Agents/AgentControlService.cs`:
   - aplicar as páginas pelo `ImageUpdateStore`;
   - descartar `request_id` que não é o pendente do host ou que chega mais de 6 min depois do envio;
   - validar estado, motivo, digests (`sha256:` + 64 hex) e o tamanho dos campos, recusando a página inteira se algo vier fora do contrato.
 
   Testes de integração com PostgreSQL real em `backend/tests/Dokpod.ControlPlane.Api.Tests/ImageUpdates/ImageUpdateResultTests.cs`.
-- [ ] T015 [US1] Leitura nas listas (`backend/libs/Dokpod.ControlPlane.Infrastructure/` nos stores de imagens e de containers e no resumo do container):
+- [X] T015 [US1] Leitura nas listas (`backend/libs/Dokpod.ControlPlane.Infrastructure/` nos stores de imagens e de containers e no resumo do container):
   - junção indexada com `image_update_checks`;
   - `updateCheck` conforme [contracts/api.md](contracts/api.md), com `container_behind` derivado e `stale` quando o host está desconectado;
   - campo ausente na CE ou sem a capability;
   - nenhuma chamada ao agente durante a requisição.
 
   Testes em `backend/tests/Dokpod.ControlPlane.Api.Tests/ImageUpdates/ImageUpdateReadTests.cs`.
-- [ ] T016 [US1] `POST /api/v1/environments/{environmentId}/images/update-check` em `backend/apps/Dokpod.ControlPlane.Api/ImageUpdates/ImageUpdateEndpoints.cs` e `ImageUpdateCheckService` com `[BusinessCapability("image-update-notice")]`:
+- [X] T016 [US1] `POST /api/v1/environments/{environmentId}/images/update-check` em `backend/apps/Dokpod.ControlPlane.Api/ImageUpdates/ImageUpdateEndpoints.cs` e `ImageUpdateCheckService` com `[BusinessCapability("image-update-notice")]`:
   - scope `image:pull` no host, com falha do Keycloak negando;
   - `202`, ou `429 rate_limited` com `Retry-After`, `409 agent_unsupported`, `409 environment_disconnected`, `403 license_expired` ou `403 license_invalid`;
   - auditoria `image.update_check_requested` na categoria `images` de `backend/libs/Dokpod.Domain/Auditing/AuditCategories.cs`.
 
   Testes em `backend/tests/Dokpod.ControlPlane.Api.Tests/ImageUpdates/ImageUpdateEndpointsTests.cs`.
-- [ ] T017 [US1] Telas:
+
+  *(2026-11-04: a CE recebe o campo e a mensagem 27 por portas neutras em `Application.Images` (`IImageUpdateAnnotations`, `IImageUpdateResultSink`), que só a composição Business registra; assim nenhum código da CE referencia o módulo `ImageUpdates` (BusinessGateTests). `image.update_check_requested` entrou nas ações aceitas da trilha.)*
+- [X] T017 [US1] Telas:
   - em `frontend/web/src/app/features/images/images.page.*`, `frontend/web/src/app/features/container-list/` e `frontend/web/src/app/features/container-detail/`, estado em texto ("Nova versão disponível", "Atualizada", "Não verificável", "Falha na verificação", "Versão nova no host; o container usa a anterior"), com a data e a marca de desatualizado quando o host está desconectado;
   - motivos em pt-BR:
 
@@ -207,10 +213,12 @@ description: "Tarefas da implementação do aviso de nova versão de imagem"
   - nada aparece quando a API não envia `updateCheck`.
 
   Testes nos `.spec.ts`, com rótulos em `frontend/web/src/app/features/images/image-update-labels.ts`.
-- [ ] T018 [US1] E2E simulado `frontend/tests/e2e/mock_ui/test_025_image_update.py`, com cenários no `frontend/tests/e2e/mock/control_plane_mock.py`:
+- [X] T018 [US1] E2E simulado `frontend/tests/e2e/mock_ui/test_025_image_update.py`, com cenários no `frontend/tests/e2e/mock/control_plane_mock.py`:
   - os quatro estados nas três telas;
   - "Verificar agora" com `202` e `429`;
   - CE sem nada.
+
+  *(2026-11-04: `run-mock-e2e.sh` pela borda nginx em container: 3 testes da 025 e as suítes 010, 011, 012 e 027 aprovados (28); frontend com 199 testes e build de produção; capturas em `artifacts/e2e/mock/025-*.png`.)*
 
 **Checkpoint**: História 1 funcional e testável de forma independente (MVP).
 

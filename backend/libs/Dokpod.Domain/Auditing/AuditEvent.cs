@@ -47,6 +47,8 @@ public sealed record AuditEvent
         "container.unpause",
         "container.command.result",
         "image.pull",
+        // Spec 025: "Verificar agora" adianta a agenda do host; não é comando do engine.
+        "image.update_check_requested",
         "container.create.requested",
         "container.exec.requested",
         "container.exec.started",

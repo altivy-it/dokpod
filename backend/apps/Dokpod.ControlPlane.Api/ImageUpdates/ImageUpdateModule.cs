@@ -13,12 +13,23 @@ public static class ImageUpdateModule
     {
         ArgumentNullException.ThrowIfNull(services);
         services.AddScoped<IImageUpdateStore, ImageUpdateStore>();
+        services.AddScoped<IImageUpdateTargetReader, ImageUpdateTargetReader>();
+        services.AddScoped<IImageUpdateEntitlement, LicenseImageUpdateEntitlement>();
+        services.AddSingleton<IImageUpdateAgentChannel, DispatcherImageUpdateAgentChannel>();
+        services.AddScoped<ImageUpdateScheduler>();
+        services.AddScoped<ImageUpdateResultIngestion>();
+        services.AddScoped<Dokpod.ControlPlane.Application.Images.IImageUpdateResultSink>(provider => provider.GetRequiredService<ImageUpdateResultIngestion>());
+        services.AddScoped<ImageUpdateReadService>();
+        services.AddScoped<Dokpod.ControlPlane.Application.Images.IImageUpdateAnnotations>(provider => provider.GetRequiredService<ImageUpdateReadService>());
+        services.AddScoped<ImageUpdateCheckService>();
+        services.AddHostedService<ImageUpdateWorker>();
         return services;
     }
 
     public static IEndpointRouteBuilder MapImageUpdateEndpoints(this IEndpointRouteBuilder endpoints)
     {
         ArgumentNullException.ThrowIfNull(endpoints);
+        ImageUpdateEndpoints.Map(endpoints);
         return endpoints;
     }
 }

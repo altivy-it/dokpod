@@ -310,6 +310,7 @@ def container_item(c) -> dict:
         "engine": h[3],
         "engineVersion": h[4],
         "hostConnected": connected,
+        **({"updateCheck": image_update_check(image, not connected, True)} if image_updates_enabled() else {}),
         **({"intentional": ALERTS["intentional"][(env_id(n), cid)]} if (env_id(n), cid) in ALERTS["intentional"] and status in ("stopped", "paused") else {}),
         "allowedActions": ([a for a in ACTIONS_FOR[status] if f"container:{a if a != 'unpause' else 'pause'}" in scopes()]
                            + (["exec"] if status == "running" and "container:exec" in scopes() and h[5] != "update_required" else [])) if connected else [],
@@ -468,6 +469,7 @@ def images() -> list[dict]:
             "imageId": image_id, "repository": repository, "tag": tag, "repoTags": tags, "repoDigests": [],
             "sizeBytes": r["size"] * 1024**2, "createdAt": iso(60 * 24 * (3 + stable(ref, 40))), "architecture": "amd64", "os": "linux",
             "truncated": False, "containers": r["containers"], "inUse": r["containers"] > 0, "observedAt": iso(0.5),
+            **({"updateCheck": image_update_check(canonical, h[5] in ("disconnected", "disabled"), False)} if image_updates_enabled() and tags else {}),
             "canPull": "image:pull" in scopes() and h[5] not in ("disconnected", "update_required"),
         })
     return result
@@ -707,6 +709,33 @@ def licensing_status(state: dict) -> dict:
             "grace": None}
 
 
+# Spec 025: estados simulados do aviso de nova versão, por referência canônica (cenário "business-images").
+IMAGE_UPDATE_STATES = {
+    "registry.empresa.com/loja/checkout:5.2.0": ("update_available", None),
+    "docker.io/library/postgres:16.4": ("up_to_date", None),
+    "docker.io/library/redis:7.4-alpine": ("container_behind", None),
+    "registry.empresa.com/edge/gateway:2.8.1": ("failed", "rate_limited"),
+    "registry.empresa.com/pedidos/api:3.14.2": ("not_checkable", "registry_not_allowed"),
+}
+
+
+def image_update_check(reference: str, stale: bool, for_container: bool) -> dict | None:
+    """`updateCheck` só no cenário "business-images"; `container_behind` vira `up_to_date` na imagem (D-008)."""
+    entry = IMAGE_UPDATE_STATES.get(canonical_reference(reference))
+    if entry is None:
+        return None
+    state, reason = entry
+    if state == "container_behind" and not for_container:
+        state = "up_to_date"
+    return {"state": state, "reason": reason, "checkedAt": "2026-11-01T12:00:00Z",
+            "lastSuccessAt": None if state == "failed" else "2026-11-01T12:00:00Z",
+            "outdatedSince": "2026-10-30T06:00:00Z" if state == "update_available" else None, "stale": stale}
+
+
+def image_updates_enabled() -> bool:
+    return STATE["scenario"] == "business-images"
+
+
 def is_business() -> bool:
     """Spec 031: cenários "business*" simulam a imagem Business; os "business-siem*" já têm licença com a capability
     da exportação ao SIEM (spec 027), em vigor ou restrita."""
@@ -858,6 +887,7 @@ class Handler(BaseHTTPRequestHandler):
 
         if path == "/__mock/scenario" and method == "POST":
             STATE["scenario"] = self.read_body().get("name", "default")
+            STATE.pop("update_checks", None)
             STATE["commands"].clear()
             STATE["stages"].clear()
             STATE["registered"].clear()
@@ -1189,6 +1219,18 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_json(200, {"reference": canonical, "mutableTag": "@" not in ref, "present": found is not None,
                                         "imageId": found and found["imageId"], "sizeBytes": found and found["sizeBytes"],
                                         "createdAt": found and found["createdAt"], "digest": None})
+        if rest == "/images/update-check" and method == "POST":
+            # Spec 025: rota só na composição Business; 1 pedido por minuto por host (429 com Retry-After).
+            if not image_updates_enabled():
+                return self.send_json(404, problem(404, "Não encontrado", "not_found"), "application/problem+json")
+            if "image:pull" not in scopes():
+                return self.send_json(403, problem(403, "Acesso negado", "authorization_denied"), "application/problem+json")
+            requested = STATE.setdefault("update_checks", [])
+            if environment_id in requested:
+                return self.send_json(429, problem(429, "Muitos pedidos", "rate_limited"), "application/problem+json", headers={"Retry-After": "42"})
+            requested.append(environment_id)
+            STATE.setdefault("submitted", []).append(("image_update_check", host["name"]))
+            return self.send_json(202, {"requestedAt": iso(0), "nextDueAt": iso(0)})
         if rest == "/images/pull" and method == "POST":
             body = self.read_body()
             ref = body.get("reference") or ""
@@ -1442,6 +1484,7 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_json(409, problem(409, "Agente desconectado", "agent_disconnected"), "application/problem+json")
         if sub == "/summary":
             return self.send_json(200, {
+                **({"updateCheck": image_update_check(container["imageReference"], False, True)} if image_updates_enabled() else {}),
                 "command": "node dist/server.js", "user": "app", "workingDir": "/srv/app",
                 "healthcheck": {"test": "curl -fsS http://localhost/healthz", "intervalSeconds": 15, "timeoutSeconds": 5, "retries": 3},
                 "labels": {"com.empresa.app": container["name"], "dokpod.created-by": "u-mariana"},

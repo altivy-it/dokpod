@@ -8,7 +8,7 @@ public static class AuditCategories
         ["environments"] = ["environment.register", "environment.approve", "environment.suspend", "environment.revoke", "environment.stage_changed"],
         ["containers"] = ["container.start", "container.stop", "container.restart", "container.delete", "container.pause", "container.unpause", "container.create.requested"],
         ["commands"] = ["container.command.result"],
-        ["images"] = ["image.pull"],
+        ["images"] = ["image.pull", "image.update_check_requested"],
         ["volumes"] = ["volume.remove"],
         ["networks"] = ["network.remove"],
         ["pods"] = ["pod.start", "pod.stop", "pod.restart", "pod.pause", "pod.unpause"],
