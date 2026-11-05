@@ -8,7 +8,10 @@ Constrói e publica uma imagem OCI uma única vez por versão e registra seu dig
 .DESCRIPTION
 Se <registro>/<nome>:<versão> já existe, não reconstrói nem sobrescreve: registra o
 digest publicado. Caso contrário, executa docker buildx build --push com labels OCI
-de versão e revisão e registra o digest gerado. Emite repository, digest e pushed
+de versão e revisão e com --build-arg RELEASE_VERSION=<versão da tag>, e registra o digest
+gerado. O Dockerfile que declarar ARG RELEASE_VERSION recebe a versão da tag, inclusive em
+candidatas X.Y.Z-rc.N, cujo commit ainda traz nos arquivos a versão anterior; quem não o
+declarar ignora o argumento. Emite repository, digest e pushed
 na saída do GitHub Actions e grava a entrada do manifesto da release.
 Requer login prévio no registro; não lê nem exibe credenciais.
 
@@ -115,7 +118,7 @@ try {
         Write-Output "$reference já publicada ($digest); não reconstruída."
     }
     elseif ($DryRun) {
-        Write-Output "[dry-run] docker buildx build --push --tag $reference --file $Dockerfile $Context"
+        Write-Output "[dry-run] docker buildx build --push --tag $reference --build-arg RELEASE_VERSION=$version --file $Dockerfile $Context"
         exit 0
     }
     else {
@@ -125,6 +128,7 @@ try {
             & docker buildx build --push --provenance=false `
                 --tag $reference `
                 --file $dockerfilePath `
+                --build-arg "RELEASE_VERSION=$version" `
                 --label "org.opencontainers.image.version=$version" `
                 --label "org.opencontainers.image.revision=$commit" `
                 --label "org.opencontainers.image.source=$($env:GITHUB_SERVER_URL)/$($env:GITHUB_REPOSITORY)" `

@@ -18,6 +18,10 @@ on:
         description: Prefixo do registro; vazio usa ghcr.io/<owner>
         type: string
         default: ''
+      republish:
+        description: Somente artefatos ausentes de uma release estável já pública
+        type: boolean
+        default: false
 
 permissions: {}
 
@@ -32,6 +36,9 @@ jobs:
       packages: write
       id-token: write
       attestations: write
+      actions: read
+      checks: read
+      pull-requests: read
     strategy:
       fail-fast: false
       matrix:
@@ -41,7 +48,21 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: refs/tags/${{ inputs.tag }}
+          fetch-depth: 0
           persist-credentials: false
+
+      - name: Guard approved source before publishing images
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
+          REPUBLISH: ${{ inputs.republish }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          Import-Module ./tools/scripts/ci/GroundworkRelease.psm1
+          $commit = Get-TagCommit $env:RELEASE_TAG
+          ./tools/scripts/ci/Assert-ReleaseSource.ps1 -Repository $env:GITHUB_REPOSITORY -Commit $commit -DefaultBranch $env:DEFAULT_BRANCH -Stable:(-not (Test-CandidateTag $env:RELEASE_TAG)) -Republish:($env:REPUBLISH -eq 'true') -Tag $env:RELEASE_TAG
+          exit $LASTEXITCODE
 
       - name: Read attestation policy
         id: policy

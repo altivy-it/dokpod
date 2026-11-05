@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "toolVersion": "0.6.3",
-  "catalogVersion": "0.6.3",
+  "toolVersion": "0.10.1",
+  "catalogVersion": "0.10.1",
   "parameters": {
     "auto_deploy_environment": "quality",
     "commit_scopes": "docs,tooling,deps,actions,repo",
@@ -9,6 +9,7 @@
     "dependabot_ecosystems": "github-actions,nuget:/backend,npm:/frontend/web,docker:/frontend/web;/backend/apps/Dokpod.Bff;/backend/apps/Dokpod.ControlPlane.Api;/deploy/agent",
     "deploy_environments": "quality,production",
     "deploy_reviewers": "lzocateli",
+    "distribution_approval_mode": "environment",
     "dotnet_sdk_image": "lzocateli/dotnet-sdk:10.0.403-noble-v1",
     "dotnet_solution": "Dokpod.slnx",
     "github_owner": "altivy-it",
@@ -53,13 +54,17 @@
       "component": "repository-policy",
       "sha256": "cca7e3dfb58417b523e775a41cb77656c2a8e7d875842dd9ef2f853c820150ba"
     },
+    ".github/instructions/release-integrity.instructions.md": {
+      "component": "release",
+      "sha256": "a56d23176308d3d49eb43b393fba5664bb892f818e37b327f105380feed7998e"
+    },
     ".github/repository-policy.json": {
       "component": "repository-policy",
-      "sha256": "a66e7f0c659a3a87f6bf0f31de99f80ad09d925b906233762d19094cbedabc6e"
+      "sha256": "f4151092c6dbae6a77a7247fdd45a2cf3b246bff35b36a3dfa1e87930cd7c5e4"
     },
     ".github/workflows/gw-container-images.yml": {
       "component": "publish-containers",
-      "sha256": "4b2f8b3652565db9c0af8d7b55d051c8f1885f8a31af706eb474d1f6c6cde0e5"
+      "sha256": "ad21eae37273093f22e950a8b5bb5da670fc7368d8abf8e99267021215296966"
     },
     ".github/workflows/gw-deploy.yml": {
       "component": "deploy",
@@ -67,11 +72,11 @@
     },
     ".github/workflows/gw-dotnet.yml": {
       "component": "ci",
-      "sha256": "78bd46ca2ef0bccbac37549e1167b34512e4117f3e4cfcd89a47714d9c5c8aa0"
+      "sha256": "cf46f315a266d16ca2aa4d55ae14c3be1cc51cd48e664b99feb0323c928c53d6"
     },
     ".github/workflows/gw-github-assets.yml": {
       "component": "publish-github-assets",
-      "sha256": "c70f20dfbacc327c343fd555992cbb8ce607bbee02937168d7d937f3bb983c4b"
+      "sha256": "50bef06ee7ba40b275eb4161686f58f411bad0b6ca658c54726220ba51d4a010"
     },
     ".github/workflows/gw-gitleaks.yml": {
       "component": "ci",
@@ -83,19 +88,31 @@
     },
     ".github/workflows/gw-pr-hygiene.yml": {
       "component": "ci",
-      "sha256": "cf3346f5dd1123ec5abc1228cccb385ba9e0c4fc47beae16d30002bca74cf472"
+      "sha256": "686d72ad3b2d5ef3656b8a829393480303af93a7bc58237d2e54627c42687e68"
     },
     ".github/workflows/gw-preview.yml": {
       "component": "release-preview",
-      "sha256": "ea4209285e0393eeb1bebee4437c6f5abc105bb16461ac5ed13e1645b51baa21"
+      "sha256": "413558048ece47eba70f56b8d29250aad3b11a208cff5e8956ca2207b4dc9d0f"
     },
     ".github/workflows/gw-release.yml": {
       "component": "release",
-      "sha256": "7a7a67779ceeaf68d0306ad326e66dc61c857d4cecc0ed26ae26bd1ba15b3d04"
+      "sha256": "d0f2a09e8e1a720b4b9ddedf5a2cc54ad66c6cffb56488fe9ca7f86df7cb06d2"
+    },
+    "docs/en/release-integrity.md": {
+      "component": "release",
+      "sha256": "5b6ca2b9370df633606061ae24ca3f8e27438a270d32e7361aee67c06cae6f4a"
+    },
+    "docs/es/release-integrity.md": {
+      "component": "release",
+      "sha256": "58607e82fb4f401aad80f8360ce66d494094ea2d7ddd72d4cd342f525c8ae149"
     },
     "docs/estrategia-de-release.md": {
       "component": "release-preview",
       "sha256": "3f7241695fade303c25d59a6bd3f8aa13482b70c5c814d95a92c83cee18a6708"
+    },
+    "docs/release-integrity.md": {
+      "component": "release",
+      "sha256": "b0cbdc4c6a3410ce112b948ee7eba4637231b2640dc55e2a35da67706992d22f"
     },
     "docs/runbooks/deploy-e-rollback.md": {
       "component": "deploy",
@@ -123,7 +140,11 @@
     },
     "tools/scripts/ci/Assert-PreviewGate.ps1": {
       "component": "release-preview",
-      "sha256": "ea2697ce8d98e69d45da8c115111347ea991356231ac24d0d71108557d213e18"
+      "sha256": "ab70d8fa51fc76c2b0d786028a3fe3d394abbbfac350b52452af931c353386f9"
+    },
+    "tools/scripts/ci/Assert-ReleaseSource.ps1": {
+      "component": "release",
+      "sha256": "b677aa65cfffd8ff7b33bf3b9b6ca731b8eea846f040c08d4a0396151994236c"
     },
     "tools/scripts/ci/Assert-ReleaseTag.ps1": {
       "component": "release",
@@ -139,7 +160,7 @@
     },
     "tools/scripts/ci/Get-PreviewVersion.ps1": {
       "component": "release-preview",
-      "sha256": "2e0b26fd8d5db2aee8f5fe6cd0ece01f17f02225fd046de4bf97bb46468f96c7"
+      "sha256": "a66e4283405a62f5ec0d0e22fc333dc05622c0cb7c38b4e1af4056d2b98e5457"
     },
     "tools/scripts/ci/Get-ReleaseManifest.ps1": {
       "component": "deploy",
@@ -147,7 +168,7 @@
     },
     "tools/scripts/ci/GroundworkRelease.psm1": {
       "component": "release",
-      "sha256": "e932e7a3a9853d82ddc26c6a0c47267eef02e453ee2d464e1940858f33d6a043"
+      "sha256": "d1c19d8990a99a334810c8e28d79977b90f89508d26e67ee1af6941d2f35a4b0"
     },
     "tools/scripts/ci/New-ReleaseManifest.ps1": {
       "component": "release",
@@ -155,7 +176,7 @@
     },
     "tools/scripts/ci/Publish-ContainerImage.ps1": {
       "component": "publish-containers",
-      "sha256": "555a699d7e5c1b9ef91ba52738e69e4a1e024bddd80a61cbf13b7aad0eb9e040"
+      "sha256": "569398aa178e35bd7281d6ecbeb95f5f941709efdba8424e245525abd7a00cee"
     },
     "tools/scripts/ci/Publish-ReleaseAssets.ps1": {
       "component": "publish-github-assets",
