@@ -50,7 +50,7 @@ Imagens fixadas, só para teste e nunca distribuídas:
 - postgres:17.6-bookworm (PostgreSQL License);
 - rsyslog/rsyslog-collector:2026-10 (rótulo Apache-2.0; rsyslog 8.2610.0, GPL-3.0/Apache-2.0);
 - otel/opentelemetry-collector-contrib:0.139.0 (Apache-2.0);
-- lzocateli/dotnet-sdk:10.0.402-noble-v1 (geração do SQL das migrations).
+- lzocateli/dotnet-sdk:10.0.403-noble-v1 (geração do SQL das migrations).
 .LINK
 specs/027-exportacao-auditoria-siem/quickstart.md
 #>
@@ -88,7 +88,7 @@ $images = [ordered]@{
     postgres = 'docker.io/library/postgres:17.6-bookworm@sha256:45cd22f8d32e189d245403954882f88e7a8714301fda80dab6da90f1265b25a3'
     rsyslog  = 'docker.io/rsyslog/rsyslog-collector:2026-10@sha256:d94de0a13a02bd243423808bdc85ba256814ee0edaace4b0fb1498ca70966341'
     otel     = 'docker.io/otel/opentelemetry-collector-contrib:0.139.0@sha256:87b591b18a0a330b6246f6d4f53d4867d1b238d1b85a69145e0f4eb38f92154c'
-    sdk      = 'docker.io/lzocateli/dotnet-sdk:10.0.402-noble-v1'
+    sdk      = 'docker.io/lzocateli/dotnet-sdk:10.0.403-noble-v1'
 }
 $suffix = [Guid]::NewGuid().ToString('N').Substring(0, 8)
 $subnet = "172.31.$(Get-Random -Minimum 20 -Maximum 240).0/24"

@@ -4,7 +4,7 @@
   "defaultBranch": "main",
   "commitScopes": ["docs", "tooling", "deps", "actions", "repo"],
   "dotnet": {
-    "sdkImage": "lzocateli/dotnet-sdk:10.0.402-noble-v1",
+    "sdkImage": "lzocateli/dotnet-sdk:10.0.403-noble-v1",
     "solution": "Dokpod.slnx"
   },
   "versionFiles": ["backend/Directory.Build.props", "frontend/web/package.json"],

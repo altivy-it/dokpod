@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-FROM lzocateli/dotnet-sdk:10.0.402-noble-v1 AS build
+FROM lzocateli/dotnet-sdk:10.0.403-noble-v1 AS build
 USER root
 WORKDIR /src
 
@@ -33,7 +33,7 @@ ARG RELEASE_VERSION=
 RUN case "$RELEASE_VERSION" in *[!0-9A-Za-z.-]*) echo "RELEASE_VERSION inválida" >&2; exit 1 ;; esac \
     && dotnet publish backend/apps/Dokpod.ControlPlane.Api/Dokpod.ControlPlane.Api.csproj --configuration Release --no-restore --output /app/publish /p:UseAppHost=false ${DOKPOD_EDITION:+/p:DokpodEdition=$DOKPOD_EDITION} ${RELEASE_VERSION:+/p:Version=$RELEASE_VERSION}
 
-FROM lzocateli/dotnet-aspnet:10.0.13-noble-v1 AS runtime
+FROM lzocateli/dotnet-aspnet:10.0.14-noble-v1 AS runtime
 LABEL org.opencontainers.image.title="dokpod-api" \
     org.opencontainers.image.description="API do plano de controle Dokpod para protocolo de agentes e health do laboratório." \
     org.opencontainers.image.source="https://github.com/altivy-it/dokpod" \
