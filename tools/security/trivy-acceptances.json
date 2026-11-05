@@ -1023,6 +1023,127 @@
       "responsible": "lzocateli (solicitante)",
       "accepted": "2026-10-17",
       "expires": "2027-01-15"
+    },
+    {
+      "image": "web",
+      "id": "CVE-2026-113351",
+      "package": "libexpat1",
+      "severity": "HIGH",
+      "status": "fix_deferred",
+      "impact": "Parser XML da base Debian; o nginx do console serve arquivos estáticos e não processa XML.",
+      "responsible": "lzocateli (aceite explícito em 2026-11-04)",
+      "accepted": "2026-11-04",
+      "expires": "2027-01-15"
+    },
+    {
+      "image": "web",
+      "id": "CVE-2026-117610",
+      "package": "libexpat1",
+      "severity": "HIGH",
+      "status": "affected",
+      "impact": "Parser XML da base Debian; o nginx do console serve arquivos estáticos e não processa XML.",
+      "responsible": "lzocateli (aceite explícito em 2026-11-04)",
+      "accepted": "2026-11-04",
+      "expires": "2027-01-15"
+    },
+    {
+      "image": "web",
+      "id": "CVE-2026-118370",
+      "package": "libexpat1",
+      "severity": "HIGH",
+      "status": "affected",
+      "impact": "Parser XML da base Debian; o nginx do console serve arquivos estáticos e não processa XML.",
+      "responsible": "lzocateli (aceite explícito em 2026-11-04)",
+      "accepted": "2026-11-04",
+      "expires": "2027-01-15"
+    },
+    {
+      "image": "web",
+      "id": "CVE-2026-120208",
+      "package": "libheif1",
+      "severity": "HIGH",
+      "status": "affected",
+      "impact": "Decodificador HEIF/AVIF da base Debian; o nginx do console não carrega o módulo de imagem e só serve arquivos estáticos.",
+      "responsible": "lzocateli (aceite explícito em 2026-11-04)",
+      "accepted": "2026-11-04",
+      "expires": "2027-01-15"
+    },
+    {
+      "image": "web",
+      "id": "CVE-2026-50142",
+      "package": "libheif1",
+      "severity": "HIGH",
+      "status": "affected",
+      "impact": "Decodificador HEIF/AVIF da base Debian; o nginx do console não carrega o módulo de imagem e só serve arquivos estáticos.",
+      "responsible": "lzocateli (aceite explícito em 2026-11-04)",
+      "accepted": "2026-11-04",
+      "expires": "2027-01-15"
+    },
+    {
+      "image": "web",
+      "id": "CVE-2026-62289",
+      "package": "libheif1",
+      "severity": "HIGH",
+      "status": "affected",
+      "impact": "Decodificador HEIF/AVIF da base Debian; o nginx do console não carrega o módulo de imagem e só serve arquivos estáticos.",
+      "responsible": "lzocateli (aceite explícito em 2026-11-04)",
+      "accepted": "2026-11-04",
+      "expires": "2027-01-15"
+    },
+    {
+      "image": "web",
+      "id": "CVE-2026-62292",
+      "package": "libheif1",
+      "severity": "HIGH",
+      "status": "affected",
+      "impact": "Decodificador HEIF/AVIF da base Debian; o nginx do console não carrega o módulo de imagem e só serve arquivos estáticos.",
+      "responsible": "lzocateli (aceite explícito em 2026-11-04)",
+      "accepted": "2026-11-04",
+      "expires": "2027-01-15"
+    },
+    {
+      "image": "web",
+      "id": "CVE-2026-84384",
+      "package": "libheif1",
+      "severity": "HIGH",
+      "status": "affected",
+      "impact": "Decodificador HEIF/AVIF da base Debian; o nginx do console não carrega o módulo de imagem e só serve arquivos estáticos.",
+      "responsible": "lzocateli (aceite explícito em 2026-11-04)",
+      "accepted": "2026-11-04",
+      "expires": "2027-01-15"
+    },
+    {
+      "image": "web",
+      "id": "CVE-2026-84444",
+      "package": "libheif1",
+      "severity": "HIGH",
+      "status": "affected",
+      "impact": "Decodificador HEIF/AVIF da base Debian; o nginx do console não carrega o módulo de imagem e só serve arquivos estáticos.",
+      "responsible": "lzocateli (aceite explícito em 2026-11-04)",
+      "accepted": "2026-11-04",
+      "expires": "2027-01-15"
+    },
+    {
+      "image": "web",
+      "id": "CVE-2026-84446",
+      "package": "libheif1",
+      "severity": "HIGH",
+      "status": "affected",
+      "impact": "Decodificador HEIF/AVIF da base Debian; o nginx do console não carrega o módulo de imagem e só serve arquivos estáticos.",
+      "responsible": "lzocateli (aceite explícito em 2026-11-04)",
+      "accepted": "2026-11-04",
+      "expires": "2027-01-15"
+    },
+    {
+      "image": "web",
+      "id": "CVE-2026-84447",
+      "package": "libheif1",
+      "severity": "HIGH",
+      "status": "affected",
+      "impact": "Decodificador HEIF/AVIF da base Debian; o nginx do console não carrega o módulo de imagem e só serve arquivos estáticos.",
+      "responsible": "lzocateli (aceite explícito em 2026-11-04)",
+      "accepted": "2026-11-04",
+      "expires": "2027-01-15"
     }
   ]
 }
