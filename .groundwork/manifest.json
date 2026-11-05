@@ -9,7 +9,7 @@
     "dependabot_ecosystems": "github-actions,nuget:/backend,npm:/frontend/web,docker:/frontend/web;/backend/apps/Dokpod.Bff;/backend/apps/Dokpod.ControlPlane.Api;/deploy/agent",
     "deploy_environments": "quality,production",
     "deploy_reviewers": "lzocateli",
-    "dotnet_sdk_image": "lzocateli/dotnet-sdk:10.0.402-noble-v1",
+    "dotnet_sdk_image": "lzocateli/dotnet-sdk:10.0.403-noble-v1",
     "dotnet_solution": "Dokpod.slnx",
     "github_owner": "altivy-it",
     "github_repo": "dokpod",
