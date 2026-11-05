@@ -32,8 +32,12 @@ jobs:
       packages: write
       id-token: write
       attestations: write
+      actions: read
+      checks: read
+      pull-requests: read
     with:
       tag: ${{ inputs.tag }}
+      republish: ${{ inputs.republish }}
       images: >-
         [{"name":"dokpod-api","context":".","dockerfile":"backend/apps/Dokpod.ControlPlane.Api/Dockerfile"},
         {"name":"dokpod-bff","context":".","dockerfile":"backend/apps/Dokpod.Bff/Dockerfile"},
@@ -134,6 +138,10 @@ jobs:
       contents: write
       id-token: write
       attestations: write
+      actions: read
+      checks: read
+      pull-requests: read
     with:
       tag: ${{ inputs.tag }}
       artifact-name: release-assets
+      republish: ${{ inputs.republish }}

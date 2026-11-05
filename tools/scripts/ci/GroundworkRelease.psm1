@@ -435,6 +435,183 @@ function Find-PreviewWaiver {
     return ''
 }
 
+function Assert-ReleaseDependencies {
+    param(
+        [Parameter(Mandatory)][string] $Repository,
+        [Parameter(Mandatory)][string] $Commit,
+        [AllowEmptyString()][string] $Body = '',
+        [string] $DefaultBranch = 'main'
+    )
+
+    $configured = (Read-CiCdConfig)['releaseDependencies'] ?? @()
+    if ($configured -isnot [array]) { throw 'releaseDependencies deve ser um array de números de PR.' }
+    $numbers = [System.Collections.Generic.List[int]]::new()
+    foreach ($number in $configured) {
+        if (($number -isnot [int] -and $number -isnot [long]) -or $number -lt 1 -or $number -gt [int]::MaxValue) { throw 'releaseDependencies contém número de PR inválido.' }
+        $numbers.Add([int]$number)
+    }
+    foreach ($line in $Body -split '\r?\n' | Where-Object { $_ -match '^Release-Depends-On:' }) {
+        if ($line -notmatch '^Release-Depends-On:\s*(#[1-9]\d*(?:\s*,\s*#[1-9]\d*)*)\s*$') { throw 'Release-Depends-On inválido; use Release-Depends-On: #123, #456.' }
+        foreach ($number in $Matches[1] -split '\s*,\s*' | ForEach-Object { $_.Substring(1) }) { $numbers.Add([int]$number) }
+    }
+    foreach ($number in $numbers | Select-Object -Unique) {
+        $pull = Invoke-GhJson -Path "repos/$Repository/pulls/$number"
+        $merged = [string]$pull['merge_commit_sha']
+        if (-not $pull['merged_at'] -or $pull['base']['ref'] -cne $DefaultBranch -or $pull['base']['repo']['full_name'] -cne $Repository -or $merged -notmatch '^[0-9a-f]{40}$') {
+            throw "Integração obrigatória pendente: PR #$number não integrado em $Repository/$DefaultBranch. Integre o PR antes de gerar a candidata/release."
+        }
+        $comparison = Invoke-GhJson -Path "repos/$Repository/compare/$merged...$Commit"
+        if ($comparison['status'] -cnotin @('ahead', 'identical')) { throw "PR #$number integrado, mas ausente do SHA $Commit; atualize a base e gere nova candidata/release." }
+    }
+}
+
+function Assert-StableCandidateSource {
+    param(
+        [Parameter(Mandatory)][string] $Repository,
+        [Parameter(Mandatory)][string] $Commit,
+        [Parameter(Mandatory)][hashtable] $Config
+    )
+
+    $policy = Get-PreviewPolicy -Config $Config
+    $manifest = Get-Content -LiteralPath '.release-please-manifest.json' -Raw | ConvertFrom-Json -AsHashtable
+    $version = [string]$manifest['.']
+    if (-not (Test-SemVer $version) -or $version.Contains('-')) { throw 'Versão estável inválida no manifesto.' }
+    foreach ($file in Get-ProjectVersionFiles -Config $Config) {
+        if ((Get-VersionFromFile -Path $file) -cne $version) { throw "Versão de $file difere do manifesto $version; recusa criar tag." }
+    }
+    if (-not $policy.Required) { return }
+    $base = (git rev-parse --verify "$Commit^1" 2>$null | Out-String).Trim()
+    if ($LASTEXITCODE -ne 0 -or $base -notmatch '^[0-9a-f]{40}$') { throw 'Base da release indisponível; use fetch-depth 0.' }
+    $candidate = Find-ValidatedCandidate -Repository $Repository -Version $version -Environment $policy.Environment -Commit $base
+    if ($null -eq $candidate) {
+        $previous = (git describe --tags --abbrev=0 --match 'v[0-9]*' --exclude '*-*' $base 2>$null | Out-String).Trim()
+        if (Find-PreviewWaiver -Since $previous -Until $Commit) { Write-Output '::warning::Aceite de RC dispensado por Preview-Waiver; SHA atual e CI continuam obrigatórios.'; return }
+        throw "Release v$version bloqueada: nenhuma candidata aceita em $($policy.Environment) na base $base. Gere e aceite um novo RC."
+    }
+    $allowed = @(Get-ProjectVersionFiles -Config $Config) + @(Get-ReleasePleaseFiles)
+    $changed = @(git diff --name-only $base $Commit 2>$null | Where-Object { $_ })
+    if ($LASTEXITCODE -ne 0) { throw 'Não foi possível comparar o código da candidata e da release.' }
+    $other = @($changed | Where-Object { $_ -cnotin $allowed })
+    if ($other.Count -ne 0) { throw "Release difere do RC além dos metadados permitidos: $($other -join ', '). Integre o código e gere um novo RC." }
+}
+
+function Assert-CurrentReleaseSource {
+    param(
+        [Parameter(Mandatory)][string] $Repository,
+        [Parameter(Mandatory)][string] $Commit,
+        [string] $DefaultBranch = 'main',
+        [switch] $AllowRunningCi
+    )
+
+    if ($Repository -notmatch '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$' -or $Commit -notmatch '^[0-9a-f]{40}$') { throw 'Repositório ou SHA de release inválido.' }
+    if ($DefaultBranch -notmatch '^[A-Za-z0-9._/-]+$' -or $DefaultBranch.Contains('..')) { throw 'Branch padrão inválida.' }
+    $branch = [uri]::EscapeDataString($DefaultBranch)
+    $current = Invoke-GhJson -Path "repos/$Repository/git/ref/heads/$branch"
+    $actual = [string]$current['object']['sha']
+    if ($actual -cne $Commit) {
+        throw "Fonte desatualizada: esperado $Commit, HEAD de $DefaultBranch $actual. Aguarde a integração e atualização do Release PR; gere uma nova execução/candidata."
+    }
+
+    $pages = Invoke-GhJson -Path "repos/$Repository/actions/workflows/ci.yml/runs?branch=$branch&head_sha=$Commit&event=push&per_page=100" -Paginate
+    $runs = @($pages | ForEach-Object { $_['workflow_runs'] } | Where-Object { $_['head_sha'] -ceq $Commit -and $_['head_branch'] -ceq $DefaultBranch -and $_['event'] -ceq 'push' } | Sort-Object { [long]$_['id'] } -Descending)
+    $ownRunning = $AllowRunningCi -and $runs.Count -gt 0 -and [string]$runs[0]['id'] -ceq $env:GITHUB_RUN_ID -and $runs[0]['status'] -ceq 'in_progress'
+    if ($runs.Count -eq 0 -or (-not $ownRunning -and ($runs[0]['status'] -cne 'completed' -or $runs[0]['conclusion'] -cne 'success'))) {
+        throw "CI da $DefaultBranch pendente, ausente ou sem sucesso no SHA $Commit. Aguarde Result verde e dispare novamente."
+    }
+    $suite = $runs[0]['check_suite_id']
+    $pages = Invoke-GhJson -Path "repos/$Repository/commits/$Commit/check-runs?check_name=Result&filter=latest&per_page=100" -Paginate
+    $checks = @($pages | ForEach-Object { $_['check_runs'] } | Where-Object { $_['name'] -ceq 'Result' -and $_['head_sha'] -ceq $Commit -and $_['app']['id'] -eq 15368 -and $_['check_suite']['id'] -eq $suite })
+    if ($checks.Count -eq 0 -or @($checks | Where-Object { $_['status'] -cne 'completed' -or $_['conclusion'] -cne 'success' }).Count -ne 0) {
+        throw "Result obrigatório ausente ou sem sucesso na execução CI da $DefaultBranch no SHA $Commit."
+    }
+    $current = Invoke-GhJson -Path "repos/$Repository/git/ref/heads/$branch"
+    if ([string]$current['object']['sha'] -cne $Commit) { throw "A $DefaultBranch avançou durante a validação do SHA $Commit; gere uma nova execução/candidata." }
+    Write-Output "Fonte atualizada: $DefaultBranch em $Commit, CI e Result verdes no mesmo SHA."
+}
+
+function Assert-InternalSnapshotPackage {
+    param(
+        [Parameter(Mandatory)][string] $Owner,
+        [Parameter(Mandatory)][string] $Package
+    )
+
+    if ($Owner -notmatch '^[A-Za-z0-9-]+$' -or [string]::IsNullOrWhiteSpace($Package)) { throw 'Destino de snapshot inválido.' }
+    $account = Invoke-GhJson -Path "users/$Owner"
+    $scope = switch ($account['type']) { 'Organization' { 'orgs' }; 'User' { 'users' }; default { throw 'Tipo de proprietário do feed interno desconhecido.' } }
+    $name = [uri]::EscapeDataString($Package)
+    $packageInfo = Invoke-GhJson -Path "$scope/$Owner/packages/nuget/$name" -AllowNotFound
+    if ($null -ne $packageInfo -and $packageInfo['visibility'] -cnotin @('private', 'internal')) {
+        throw "Snapshot bloqueado: pacote $Owner/$Package não é interno. Use candidata/release com aprovação de distribution para divulgação pública."
+    }
+}
+
+function Get-DistributionApprovalMode {
+    param([Parameter(Mandatory)][hashtable] $Config)
+    $policy = $Config['distributionApproval'] ?? @{}
+    if ($policy -isnot [hashtable]) { throw 'distributionApproval deve ser um objeto.' }
+    $mode = $policy['mode'] ?? 'environment'
+    if ($mode -isnot [string] -or $mode -cnotin @('environment', 'manual-dispatch')) { throw 'distributionApproval.mode deve ser environment ou manual-dispatch.' }
+    return $mode
+}
+
+function Assert-ManualDistributionApproval {
+    param(
+        [Parameter(Mandatory)][string] $Repository,
+        [Parameter(Mandatory)][string] $Commit,
+        [Parameter(Mandatory)][string] $Tag,
+        [Parameter(Mandatory)][hashtable] $Run
+    )
+
+    if (-not (Test-ReleaseTagName $Tag) -or $Tag.Substring(1).Contains('-')) { throw 'Autorização manual alternativa aceita somente versões estáveis; candidatas/previews usam aprovação nativa.' }
+    $repositoryInfo = Invoke-GhJson -Path "repos/$Repository"
+    if ($repositoryInfo['private'] -isnot [bool] -or -not $repositoryInfo['private']) { throw 'Autorização manual alternativa só é permitida em repositório privado configurado explicitamente.' }
+    $expectedTitle = "Authorize distribution | $Tag | $Commit"
+    if ($Run['head_sha'] -cne $Commit -or $Run['event'] -cne 'workflow_dispatch' -or $Run['display_title'] -cne $expectedTitle -or [string]$Run['path'] -cnotmatch '^\.github/workflows/gw-release\.yml(?:@|$)' -or $Run['head_branch'] -cnotin @($repositoryInfo['default_branch'], $Tag)) {
+        throw "Autorização manual inválida: execute Release com confirmação explícita da tag $Tag e do SHA $Commit. Push, rerun de evento automático e workflows de preview não autorizam divulgação."
+    }
+    $actor = $Run['actor']
+    $triggering = $Run['triggering_actor']
+    $login = [string]$actor['login']
+    if ($actor['type'] -cne 'User' -or $triggering['type'] -cne 'User' -or $login -notmatch '^[A-Za-z0-9-]+$' -or $triggering['login'] -cne $login) {
+        throw 'Autorização manual exige usuário humano; reexecução por outro ator exige uma nova autorização.'
+    }
+    $permission = Invoke-GhJson -Path "repos/$Repository/collaborators/$login/permission"
+    if ($permission['permission'] -cne 'admin') { throw "Usuário $login não é administrador do repositório; distribuição recusada." }
+    Write-Output "Autorização manual auditada: administrador $login confirmou $Tag/$Commit na execução $($Run['id'])."
+}
+
+function Assert-DistributionApproval {
+    param(
+        [Parameter(Mandatory)][string] $Repository,
+        [Parameter(Mandatory)][string] $Commit,
+        [Parameter(Mandatory)][string] $Tag,
+        [string] $RunId = $env:GITHUB_RUN_ID
+    )
+
+    if ($Repository -notmatch '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$' -or $Commit -notmatch '^[0-9a-f]{40}$' -or -not (Test-ReleaseTagName $Tag) -or $RunId -notmatch '^[1-9]\d{0,19}$') {
+        throw 'Distribuição bloqueada: repositório, tag, SHA ou execução inválidos.'
+    }
+    $run = Invoke-GhJson -Path "repos/$Repository/actions/runs/$RunId"
+    if ($run['head_sha'] -cne $Commit -or [string]$run['path'] -cnotmatch '^\.github/workflows/(gw-release|gw-preview|publish)\.yml(?:@|$)') {
+        throw "Distribuição bloqueada: execução $RunId não corresponde à fonte $Tag/$Commit ou ao workflow de publicação autorizado."
+    }
+    $mode = Get-DistributionApprovalMode -Config (Read-CiCdConfig)
+    if ($mode -ceq 'manual-dispatch') {
+        Assert-ManualDistributionApproval -Repository $Repository -Commit $Commit -Tag $Tag -Run $run
+    }
+    else {
+        $reviews = @(Invoke-GhJson -Path "repos/$Repository/actions/runs/$RunId/approvals" | Where-Object { $_ })
+        $distribution = @($reviews | Where-Object { @($_['environments'] | Where-Object { $_['name'] -ceq 'distribution' }).Count -gt 0 })
+        $approved = @($distribution | Where-Object { $_['state'] -ceq 'approved' -and $_['user']['type'] -ceq 'User' -and $_['user']['login'] -and -not ([string]$_['user']['login']).EndsWith('[bot]', [StringComparison]::Ordinal) })
+        if ($approved.Count -eq 0 -or @($distribution | Where-Object { $_['state'] -ceq 'rejected' }).Count -gt 0) {
+            throw "Distribuição bloqueada: aprove manualmente o Environment distribution nesta execução para $Tag/$Commit. Ambiente sem revisor, aceite de quality e aprovação de PR não autorizam publicação; rejeição exige nova execução."
+        }
+    }
+    $tagCommit = Invoke-GhJson -Path "repos/$Repository/commits/$Tag"
+    if ($tagCommit['sha'] -cne $Commit) { throw "Distribuição bloqueada: tag $Tag mudou depois da autorização do SHA $Commit." }
+    Write-Output "Distribuição autorizada: $Tag/$Commit, execução $RunId, modo $mode."
+}
+
 function Write-GitHubOutput {
     param(
         [Parameter(Mandatory)][hashtable] $Values,
@@ -452,4 +629,6 @@ function Write-GitHubOutput {
 Export-ModuleMember -Function Test-SemVer, Test-ReleaseTagName, Compare-SemVer, Read-CiCdConfig, Get-AttestationPolicy, Get-VersionFromFile,
 Get-ProjectVersionFiles, Invoke-GhJson, Assert-ReleaseManifest, Assert-ReleaseEntries, Test-RollbackAllowed,
 Find-GitHubRelease, Save-ReleaseAsset, Get-ReleaseAssetText, Write-GitHubOutput, Get-PreviewPolicy, Test-CandidateTag,
-Get-CandidateBaseVersion, Get-TagCommit, Find-ValidatedCandidate, Find-PreviewWaiver, Get-ReleasePleaseFiles
+Get-CandidateBaseVersion, Get-TagCommit, Find-ValidatedCandidate, Find-PreviewWaiver, Get-ReleasePleaseFiles, Assert-CurrentReleaseSource,
+Assert-ReleaseDependencies, Assert-StableCandidateSource, Assert-DistributionApproval, Assert-InternalSnapshotPackage,
+Get-DistributionApprovalMode, Assert-ManualDistributionApproval
