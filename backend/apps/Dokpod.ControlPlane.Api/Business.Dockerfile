@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 # Spec 031 T061 (U4): variante Business do Dockerfile ao lado. O workflow gerenciado de imagens não aceita
 # build-arg; este arquivo só muda o padrão de DOKPOD_EDITION e os rótulos (BusinessDockerfileTests impede outra divergência).
-FROM lzocateli/dotnet-sdk:10.0.402-noble-v1 AS build
+FROM lzocateli/dotnet-sdk:10.0.403-noble-v1 AS build
 USER root
 WORKDIR /src
 
@@ -32,7 +32,7 @@ FROM build AS publish
 ARG DOKPOD_EDITION=Business
 RUN dotnet publish backend/apps/Dokpod.ControlPlane.Api/Dokpod.ControlPlane.Api.csproj --configuration Release --no-restore --output /app/publish /p:UseAppHost=false ${DOKPOD_EDITION:+/p:DokpodEdition=$DOKPOD_EDITION}
 
-FROM lzocateli/dotnet-aspnet:10.0.13-noble-v1 AS runtime
+FROM lzocateli/dotnet-aspnet:10.0.14-noble-v1 AS runtime
 LABEL org.opencontainers.image.title="dokpod-api-business" \
     org.opencontainers.image.description="API do plano de controle Dokpod, edição Business (licenciamento offline, spec 031)." \
     org.opencontainers.image.source="https://github.com/altivy-it/dokpod" \

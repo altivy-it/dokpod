@@ -24,8 +24,8 @@ O baseline inicial usa imagens mantidas no projeto público [`lzocateli/containe
 
 | Uso no Dokpod | Imagem de referência | Papel |
 | --- | --- | --- |
-| restore, build, testes e publicação .NET | `lzocateli/dotnet-sdk:10.0.402-noble-v1` | estágio de build da API, BFF e agentes |
-| runtime da API, BFF e agente Linux | `lzocateli/dotnet-aspnet:10.0.13-noble-v1` | base dos artefatos ASP.NET Core e do host do agente |
+| restore, build, testes e publicação .NET | `lzocateli/dotnet-sdk:10.0.403-noble-v1` | estágio de build da API, BFF e agentes |
+| runtime da API, BFF e agente Linux | `lzocateli/dotnet-aspnet:10.0.14-noble-v1` | base dos artefatos ASP.NET Core e do host do agente |
 | comandos oficiais do frontend | `lzocateli/angular-cli:22.2.4-node24.22.1-bookworm-v1` | install, lint, typecheck, testes e build Angular |
 | toolchain JavaScript de apoio | `lzocateli/node:24.15.0-bookworm` | base do Angular CLI e tarefas Node sem Angular CLI |
 | runtime do web e proxy público | `lzocateli/nginx:1.28.0-bookworm-v1` | base da imagem final com assets Angular e configuração Dokpod |

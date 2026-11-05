@@ -10,7 +10,7 @@ set -euo pipefail
 root=$(git -C "$(dirname "$0")" rev-parse --show-toplevel)
 out=${1:-$root/artifacts/windows-agent}
 rid=${2:-win-x64}
-sdk_image=docker.io/lzocateli/dotnet-sdk:10.0.402-noble-v1
+sdk_image=docker.io/lzocateli/dotnet-sdk:10.0.403-noble-v1
 engine=$(command -v podman || command -v docker)
 commit=$(git -C "$root" rev-parse --short=12 HEAD)
 version=$(sed -n 's:.*<VersionPrefix>\(.*\)</VersionPrefix>.*:\1:p' "$root/backend/Directory.Build.props" | head -1)

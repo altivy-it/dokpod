@@ -26,7 +26,7 @@ jobs:
     permissions:
       contents: read
     container:
-      image: lzocateli/dotnet-sdk:10.0.402-noble-v1
+      image: lzocateli/dotnet-sdk:10.0.403-noble-v1
       options: --user 0
     steps:
       - name: Checkout
