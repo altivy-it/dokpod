@@ -7,6 +7,7 @@
   "bump-patch-for-minor-pre-major": false,
   "draft": true,
   "force-tag-creation": true,
+  "always-update": true,
   "changelog-sections": [
     { "type": "feat", "section": "Adicionado" },
     { "type": "fix", "section": "Corrigido" },
