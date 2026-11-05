@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.4.0](https://github.com/altivy-it/dokpod/compare/v0.3.2...v0.4.0) (2026-11-05)
+
+
+### Adicionado
+
+* **api:** avise quando houver nova versão de imagem no registro (spec 025 US1) ([#116](https://github.com/altivy-it/dokpod/issues/116)) ([f311a83](https://github.com/altivy-it/dokpod/commit/f311a83ed1c295f35971bfb74df9ff581ead3c19))
+
+
+### Corrigido
+
+* **deps:** use as imagens .NET 10.0.14 com correção da GHSA-p3jp-9v83-76w9 ([#117](https://github.com/altivy-it/dokpod/issues/117)) ([108401c](https://github.com/altivy-it/dokpod/commit/108401cfb25c8ee28362afb0e61ae864b48206af))
+* **release:** publique imagens e pacote Windows com a versão da tag ([#118](https://github.com/altivy-it/dokpod/issues/118)) ([b07faf1](https://github.com/altivy-it/dokpod/commit/b07faf142e1c698b1e95385cffd378072a196fd2))
+
 ## [0.3.2](https://github.com/altivy-it/dokpod/compare/v0.3.1...v0.3.2) (2026-11-02)
 
 
