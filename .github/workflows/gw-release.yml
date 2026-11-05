@@ -4,6 +4,7 @@
 # com a release já pública, chama post-release.yml (distribuição como Homebrew e winget).
 # Dispatch na tag com mode=republish: reenvia somente artefatos ausentes de uma release existente.
 name: Release
+run-name: ${{ inputs.confirm_distribution == true && format('Authorize distribution | {0} | {1}', inputs.authorize_tag, inputs.authorize_commit) || format('Release | {0}', github.ref_name) }}
 
 on:
   push:
@@ -11,11 +12,24 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: Executar na tag de uma release existente para reenviar artefatos ausentes
+        description: Retomar release na main ou reenviar artefatos ausentes de estável pública na tag
         type: choice
         required: true
         options:
+          - release
           - republish
+      confirm_distribution:
+        description: Autorizar distribuição privada no modo manual-dispatch; confirme tag e SHA abaixo
+        type: boolean
+        default: false
+      authorize_tag:
+        description: Tag exata que o administrador autoriza divulgar (vX.Y.Z)
+        type: string
+        default: ''
+      authorize_commit:
+        description: SHA completo de 40 caracteres autorizado para distribuição
+        type: string
+        default: ''
 
 permissions: {}
 
@@ -26,15 +40,37 @@ concurrency:
 jobs:
   release-please:
     name: Release PR
-    if: ${{ github.event_name == 'push' && github.ref_name == github.event.repository.default_branch }}
+    if: ${{ github.ref_name == github.event.repository.default_branch && (github.event_name == 'push' || inputs.mode == 'release') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
       contents: read
+      pull-requests: read
+      actions: read
+      checks: read
     outputs:
       release_created: ${{ steps.release.outputs.release_created }}
       tag_name: ${{ steps.release.outputs.tag_name }}
     steps:
+      - name: Checkout complete source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Guard final release before release-please creates a tag
+        id: source
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          CONFIRM_DISTRIBUTION: ${{ inputs.confirm_distribution || false }}
+          AUTHORIZE_TAG: ${{ inputs.authorize_tag }}
+          AUTHORIZE_COMMIT: ${{ inputs.authorize_commit }}
+        run: |
+          ./tools/scripts/ci/Assert-ReleaseSource.ps1 -Stage ReleasePlease -Repository $env:GITHUB_REPOSITORY -Commit $env:GITHUB_SHA -DefaultBranch $env:DEFAULT_BRANCH -OutputPath $env:GITHUB_OUTPUT
+          exit $LASTEXITCODE
+
       - name: Require release GitHub App
         shell: bash
         env:
@@ -63,13 +99,14 @@ jobs:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
           target-branch: ${{ github.ref_name }}
+          skip-github-release: ${{ steps.source.outputs.release_ready != 'true' }}
 
   context:
     name: Release context
     needs: release-please
     if: >-
       ${{ !cancelled() && (
-        (github.event_name == 'push' && needs.release-please.outputs.release_created == 'true') ||
+        (needs.release-please.outputs.release_created == 'true') ||
         (github.event_name == 'workflow_dispatch' && inputs.mode == 'republish')) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -81,7 +118,21 @@ jobs:
       version: ${{ steps.tag.outputs.version }}
       commit: ${{ steps.tag.outputs.commit }}
       republish: ${{ steps.tag.outputs.republish }}
+      approval_mode: ${{ steps.policy.outputs.mode }}
     steps:
+      - name: Checkout trusted workflow configuration
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Read explicit distribution authorization mode
+        id: policy
+        shell: pwsh
+        run: |
+          Import-Module ./tools/scripts/ci/GroundworkRelease.psm1
+          $mode = Get-DistributionApprovalMode -Config (Read-CiCdConfig)
+          "mode=$mode" >> $env:GITHUB_OUTPUT
+
       - name: Resolve tag
         id: resolve
         shell: bash
@@ -92,7 +143,7 @@ jobs:
           CREATED_TAG: ${{ needs.release-please.outputs.tag_name }}
         run: |
           set -euo pipefail
-          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+          if [[ "$EVENT_NAME" == "workflow_dispatch" && -z "$CREATED_TAG" ]]; then
             if [[ "$REF_TYPE" != "tag" ]]; then
               echo "::error::republish deve ser executado na tag da release (Use workflow from: Tags)."
               exit 1
@@ -116,7 +167,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ steps.resolve.outputs.tag }}
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
-          REPUBLISH: ${{ github.event_name == 'workflow_dispatch' }}
+          REPUBLISH: ${{ github.event_name == 'workflow_dispatch' && inputs.mode == 'republish' }}
         run: |
           ./tools/scripts/ci/Assert-ReleaseTag.ps1 -Tag $env:RELEASE_TAG -DefaultBranch $env:DEFAULT_BRANCH -OutputPath $env:GITHUB_OUTPUT
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -124,16 +175,53 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           "republish=$($env:REPUBLISH.ToLowerInvariant())" | Add-Content -LiteralPath $env:GITHUB_OUTPUT -Encoding utf8
 
-  publish:
-    name: Publish
+  authorize-distribution:
+    name: Authorize public distribution ${{ needs.context.outputs.tag }} at ${{ needs.context.outputs.commit }}
     needs: context
     if: ${{ !cancelled() && needs.context.result == 'success' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    environment:
+      name: ${{ needs.context.outputs.approval_mode == 'manual-dispatch' && 'distribution-manual' || 'distribution' }}
+      url: ${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ needs.context.outputs.tag }}
+    permissions:
+      contents: read
+      actions: read
+      checks: read
+      pull-requests: read
+    steps:
+      - name: Checkout authorized tag
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: refs/tags/${{ needs.context.outputs.tag }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Require human distribution approval and current source
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.context.outputs.tag }}
+          RELEASE_COMMIT: ${{ needs.context.outputs.commit }}
+          REPUBLISH: ${{ needs.context.outputs.republish }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          ./tools/scripts/ci/Assert-ReleaseSource.ps1 -Repository $env:GITHUB_REPOSITORY -Commit $env:RELEASE_COMMIT -Tag $env:RELEASE_TAG -Stable -Republish:($env:REPUBLISH -eq 'true') -DefaultBranch $env:DEFAULT_BRANCH
+          exit $LASTEXITCODE
+
+  publish:
+    name: Publish
+    needs: [context, authorize-distribution]
+    if: ${{ !cancelled() && needs.context.result == 'success' && needs.authorize-distribution.result == 'success' }}
     uses: ./.github/workflows/publish.yml
     permissions:
       contents: write
       packages: write
       id-token: write
       attestations: write
+      actions: read
+      checks: read
+      pull-requests: read
     with:
       tag: ${{ needs.context.outputs.tag }}
       version: ${{ needs.context.outputs.version }}
@@ -150,6 +238,9 @@ jobs:
       contents: write
       id-token: write
       attestations: write
+      actions: read
+      checks: read
+      pull-requests: read
     env:
       GH_TOKEN: ${{ github.token }}
       RELEASE_TAG: ${{ needs.context.outputs.tag }}
@@ -160,6 +251,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: refs/tags/${{ needs.context.outputs.tag }}
+          fetch-depth: 0
           persist-credentials: false
 
       - name: Download release entries
@@ -219,7 +311,11 @@ jobs:
         shell: pwsh
         env:
           UPLOAD_MANIFEST: ${{ steps.manifest.outputs.upload }}
+          REPUBLISH: ${{ needs.context.outputs.republish }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
+          ./tools/scripts/ci/Assert-ReleaseSource.ps1 -Repository $env:GITHUB_REPOSITORY -Commit $env:RELEASE_COMMIT -Tag $env:RELEASE_TAG -DefaultBranch $env:DEFAULT_BRANCH -Stable -Republish:($env:REPUBLISH -eq 'true')
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           if ($env:UPLOAD_MANIFEST -eq 'true') {
             gh release upload $env:RELEASE_TAG artifacts/release-manifest.json --repo $env:GITHUB_REPOSITORY
             if ($LASTEXITCODE -ne 0) { throw 'Falha ao anexar release-manifest.json.' }
