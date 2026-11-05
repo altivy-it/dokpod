@@ -110,10 +110,13 @@ jobs:
           ref: refs/tags/${{ inputs.tag }}
           persist-credentials: false
 
-      # Pacote do agente Windows (spec 006 T003): self-contained win-x64, zip, SHA-256 e manifesto.
+      # Pacote do agente Windows (spec 006 T003): self-contained win-x64, zip, SHA-256 e manifesto, com a
+      # versão da tag, inclusive nas candidatas (D11, .specify/bugs/versao-candidata-binarios).
       - name: Build release assets
         shell: bash
-        run: ./deploy/agent/publish-windows-agent.sh "$PWD/artifacts/release-assets" win-x64
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: ./deploy/agent/publish-windows-agent.sh "$PWD/artifacts/release-assets" win-x64 "$RELEASE_VERSION"
 
       - name: Upload assets
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
