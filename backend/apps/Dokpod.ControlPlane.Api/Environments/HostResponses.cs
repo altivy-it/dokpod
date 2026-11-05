@@ -62,6 +62,20 @@ internal static class HostResponses
 
     public static object ToContainer(ContainerInventory container) => ToContainerFields(container);
 
+    /// <summary>Aviso de nova versão (spec 025 T015); sem o serviço (CE) ou sem a capability, o campo não aparece.</summary>
+    public static IDictionary<string, object?> WithUpdateCheck(
+        IDictionary<string, object?> item,
+        Dokpod.ControlPlane.Application.Images.IImageUpdateAnnotationSet? updates,
+        Guid environmentId,
+        string reference,
+        string? imageId,
+        bool stale)
+    {
+        if (updates is null) return item;
+        item["updateCheck"] = updates.ForContainer(environmentId, reference, imageId, stale);
+        return item;
+    }
+
     /// <summary>Parada ou pausa justificada vigente (spec 016 FR-018); só em container parado ou pausado.</summary>
     public static IDictionary<string, object?> WithIntentional(
         IDictionary<string, object?> item,

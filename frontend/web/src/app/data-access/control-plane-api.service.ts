@@ -22,6 +22,7 @@ import {
   renewTerminalSession,
   lookupImage,
   pullImage,
+  requestImageUpdateCheck,
   registerEnvironment,
   revokeAgentIdentity,
   setEnvironmentStage,
@@ -205,6 +206,19 @@ export class ControlPlaneApiService {
       throwOnError: true,
     });
     return accepted.data.commandId;
+  }
+
+  /**
+   * "Verificar agora" (spec 025): só adianta a agenda do host. `rate_limited` traz os segundos de `Retry-After`;
+   * os demais códigos são os de `ProblemDetails.code` do contrato.
+   */
+  async requestImageUpdateCheck(environmentId: string): Promise<{ accepted: true } | { accepted: false; code: string; retryAfterSeconds?: number }> {
+    const requestToken = await this.antiforgery();
+    const result = await requestImageUpdateCheck({ path: { environmentId }, headers: { 'X-Dokpod-Antiforgery': requestToken } });
+    if (result.response?.ok) return { accepted: true };
+    const retry = Number(result.response?.headers.get('Retry-After'));
+    const code = (result.error as { code?: string } | undefined)?.code ?? 'request_failed';
+    return { accepted: false, code, retryAfterSeconds: Number.isFinite(retry) && retry > 0 ? retry : undefined };
   }
 
   /** Dados do formulário de criação (spec 013): segredos, redes e volumes do host, somente nomes. */

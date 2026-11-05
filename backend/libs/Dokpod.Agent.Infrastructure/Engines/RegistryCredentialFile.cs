@@ -40,6 +40,22 @@ public sealed class RegistryCredentialFile(string? path)
     /// <summary>Valor do cabeçalho `X-Registry-Auth` para o registro, ou nulo sem credencial configurada.</summary>
     public string? HeaderFor(string registry)
     {
+        if (CredentialFor(registry) is not { } credential) return null;
+        var json = JsonSerializer.Serialize(new Dictionary<string, string>
+        {
+            ["username"] = credential.Username,
+            ["password"] = credential.Secret,
+            ["serveraddress"] = registry,
+        });
+        return Convert.ToBase64String(Encoding.UTF8.GetBytes(json)).Replace('+', '-').Replace('/', '_');
+    }
+
+    /// <summary>
+    /// Usuário e segredo do registro (spec 025: autenticação direta no registro OCI), ou nulo sem credencial. O valor só
+    /// vai ao próprio registro ou ao seu serviço de token; nunca é registrado nem enviado ao plano de controle.
+    /// </summary>
+    public RegistryCredential? CredentialFor(string registry)
+    {
         if (string.IsNullOrWhiteSpace(path) || !File.Exists(path)) return null;
         try
         {
@@ -51,14 +67,7 @@ public sealed class RegistryCredentialFile(string? path)
                 if (!auths.TryGetProperty(key, out var entry) || !entry.TryGetProperty("auth", out var auth)) continue;
                 var decoded = Encoding.UTF8.GetString(Convert.FromBase64String(auth.GetString() ?? string.Empty));
                 var separator = decoded.IndexOf(':');
-                if (separator <= 0) return null;
-                var json = JsonSerializer.Serialize(new Dictionary<string, string>
-                {
-                    ["username"] = decoded[..separator],
-                    ["password"] = decoded[(separator + 1)..],
-                    ["serveraddress"] = registry,
-                });
-                return Convert.ToBase64String(Encoding.UTF8.GetBytes(json)).Replace('+', '-').Replace('/', '_');
+                return separator <= 0 ? null : new RegistryCredential(decoded[..separator], decoded[(separator + 1)..]);
             }
         }
         catch (Exception exception) when (exception is JsonException or FormatException or IOException or UnauthorizedAccessException)
@@ -68,4 +77,10 @@ public sealed class RegistryCredentialFile(string? path)
 
         return null;
     }
+}
+
+/// <summary>Credencial de um registro; `ToString` não expõe o segredo.</summary>
+public sealed record RegistryCredential(string Username, string Secret)
+{
+    public override string ToString() => $"RegistryCredential({Username}, ***)";
 }

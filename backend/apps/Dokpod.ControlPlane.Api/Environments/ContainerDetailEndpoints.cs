@@ -79,6 +79,17 @@ public static class ContainerDetailEndpoints
             new Dictionary<string, string> { ["kind"] = summary ? "summary" : "inspect" }, CancellationToken.None);
         if (outcome.Kind != QueryOutcomeKind.Ok) return OutcomeProblem(context, outcome);
         using var document = JsonDocument.Parse(outcome.Json);
+        if (summary && context.RequestServices.GetService<Dokpod.ControlPlane.Application.Images.IImageUpdateAnnotations>() is { } reader &&
+            await reader.LoadAsync([environmentId], cancellationToken) is { } updates &&
+            await context.RequestServices.GetRequiredService<Dokpod.ControlPlane.Application.Inventory.IContainerSearchStore>().GetAsync(environmentId, containerId, cancellationToken) is { } container)
+        {
+            // Spec 025 T015: o resumo veio do agente agora, então o host está conectado (stale = false).
+            var node = System.Text.Json.Nodes.JsonNode.Parse(outcome.Json)!;
+            node["updateCheck"] = System.Text.Json.JsonSerializer.SerializeToNode(
+                updates.ForContainer(environmentId, container.ImageReference, container.ImageId, stale: false), JsonSerializerOptions.Web);
+            return Results.Ok(node);
+        }
+
         if (summary) return Results.Ok(document.RootElement.Clone());
         return Results.Ok(new
         {
