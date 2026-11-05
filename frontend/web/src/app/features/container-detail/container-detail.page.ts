@@ -33,6 +33,7 @@ import { LogsPanel } from './logs.panel';
 import { TerminalTab } from './terminal.tab';
 import { EnvironmentDirectoryService } from '../../core/environment-directory.service';
 import { PodsApiService } from '../pods/pods-api.service';
+import { hasImageUpdateCheck, IMAGE_UPDATE_STATE_TONE, imageUpdateDescription, imageUpdateStateLabel } from '../images/image-update-labels';
 
 type TabId = 'resumo' | 'logs' | 'inspecionar' | 'estatisticas' | 'terminal';
 type Loadable<T> = { state: 'idle' | 'loading' | 'ready' | 'forbidden' | 'unavailable' | 'error'; value: T | null; message?: string };
@@ -142,6 +143,14 @@ export class ContainerDetailPage {
    */
   private readonly terminalStarted = signal(false);
   protected readonly terminalView = computed(() => (this.terminalStarted() ? null : this.terminalBlocked()));
+  /** Aviso de nova versão (spec 025): só quando o resumo traz `updateCheck` (composição Business com a capability). */
+  protected readonly updateNote = computed(() => {
+    const value = this.summary().value;
+    if (!value || !hasImageUpdateCheck(value)) return null;
+    const label = imageUpdateStateLabel(value.updateCheck);
+    return { label, tone: IMAGE_UPDATE_STATE_TONE[label] ?? 'neutral', detail: value.updateCheck ? imageUpdateDescription(value.updateCheck) : '' };
+  });
+
   protected readonly summaryItems = computed<KeyValueItem[]>(() => {
     const s = this.summary().value;
     if (!s) return [];

@@ -79,9 +79,15 @@ public static class ImageEndpoints
             return Problem(context, StatusCodes.Status503ServiceUnavailable, "persistence_unavailable", "O inventário de imagens está indisponível.");
         }
 
+        // Spec 025 T015: só na composição Business com a capability; na CE o serviço não existe e o campo não aparece.
+        var updates = context.RequestServices.GetService<Dokpod.ControlPlane.Application.Images.IImageUpdateAnnotations>() is { } reader
+            ? await reader.LoadAsync(result.Rows.Select(r => r.EnvironmentId), cancellationToken)
+            : null;
         return Results.Ok(new
         {
-            images = result.Rows.Select(row => ToItem(hosts[row.EnvironmentId], row)),
+            images = result.Rows.Select(row => updates is null
+                ? ToItem(hosts[row.EnvironmentId], row)
+                : WithUpdateCheck(ToItem(hosts[row.EnvironmentId], row), updates.ForImage(row.EnvironmentId, row.Image.RepoTags, !hosts[row.EnvironmentId].Connected))),
             summary = new
             {
                 total = result.Summary.Total,
@@ -119,6 +125,13 @@ public static class ImageEndpoints
             observedAt = row.ObservedAtUtc,
             canPull = CanPull(host),
         };
+    }
+
+    private static System.Text.Json.Nodes.JsonNode WithUpdateCheck(object item, object? check)
+    {
+        var node = System.Text.Json.JsonSerializer.SerializeToNode(item, System.Text.Json.JsonSerializerOptions.Web)!;
+        node["updateCheck"] = System.Text.Json.JsonSerializer.SerializeToNode(check, System.Text.Json.JsonSerializerOptions.Web);
+        return node;
     }
 
     internal static bool CanPull(HostView host) =>

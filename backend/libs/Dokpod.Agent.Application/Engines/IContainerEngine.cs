@@ -98,6 +98,12 @@ public sealed record EngineCreateResult(string? ContainerId, string? FailureCode
 /// <summary>Imagem local: presença e destinos `VOLUME` declarados (regra de remoção automática, FR-011).</summary>
 public sealed record EngineImageConfig(bool Present, IReadOnlyList<string> Volumes);
 
+/// <summary>
+/// Plataforma e digests de registro de uma imagem local (spec 025 D-002): `Os`, `Architecture`, `Variant` e
+/// `RepoDigests` de `/images/{id}/json`, iguais no Docker e no Podman compatível.
+/// </summary>
+public sealed record EngineImagePlatform(string Os, string Architecture, string? Variant, IReadOnlyList<string> RepoDigests);
+
 /// <summary>Objeto do host para o formulário de criação: segredo do Podman, rede ou volume (somente nomes).</summary>
 public sealed record EngineHostObject(string Name, string? Driver = null);
 
@@ -184,6 +190,10 @@ public interface IContainerEngine
     /// <summary>Inspeção da imagem local (`/images/{ref}/json`) para presença e `Config.Volumes`.</summary>
     Task<EngineImageConfig> InspectImageConfigAsync(Dokpod.Domain.Images.ImageReference reference, CancellationToken cancellationToken) =>
         Task.FromResult(new EngineImageConfig(false, []));
+
+    /// <summary>Plataforma e `RepoDigests` da imagem local pelo id (spec 025), ou nulo quando ela não existe.</summary>
+    Task<EngineImagePlatform?> InspectImagePlatformAsync(string imageId, CancellationToken cancellationToken) =>
+        Task.FromResult<EngineImagePlatform?>(null);
 
     /// <summary>Container com o label informado (reconciliação por `dokpod.command-id`, D-004).</summary>
     Task<EngineContainer?> FindByLabelAsync(string label, string value, CancellationToken cancellationToken) =>

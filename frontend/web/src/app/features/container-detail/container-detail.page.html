@@ -23,6 +23,11 @@
               }
             </div>
             <p class="ct-mono cd-image">{{ d.imageReference }} · ID {{ shortId() }}</p>
+            @if (updateNote(); as update) {
+              <p class="app-small cd-update" role="status" data-test="image-update">
+                <dok-status-chip [color]="update.tone" [label]="update.label" /> {{ update.detail }}
+              </p>
+            }
             <p class="app-small alt-num cd-facts">{{ facts() }}</p>
             @if (intentionalNote(); as note) {
               <p class="app-small cd-intentional" role="note"><dok-icon name="info" [size]="14" /> {{ note }}</p>

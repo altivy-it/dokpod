@@ -20,11 +20,26 @@ import { ShellContextService } from '../../shell/shell-context.service';
 import { StageFilterService, stageLabel } from '../../shell/stage-filter.service';
 import { ImagesFacade, imageKey, type ImageFilters, type ImageSort } from './images.facade';
 import { pullIneligibility, PullImageDrawer } from './pull-image.drawer';
+import { ControlPlaneApiService } from '../../data-access/control-plane-api.service';
+import { ToastService } from '../../design-system/toast/dok-toast';
+import { hasImageUpdateCheck, IMAGE_UPDATE_STATE_TONE, imageUpdateDetail, imageUpdateStateLabel } from './image-update-labels';
+
+/** Mensagens do "Verificar agora" (spec 025, contracts/api.md). */
+export const UPDATE_CHECK_REFUSAL: Record<string, string> = {
+  rate_limited: 'Já houve uma verificação neste host há menos de 1 minuto.',
+  agent_unsupported: 'O agente deste host não suporta a verificação de nova versão.',
+  environment_disconnected: 'O host está desconectado.',
+  license_expired: 'A licença está restrita; a verificação manual não está disponível.',
+  license_invalid: 'A licença não inclui o aviso de nova versão de imagem.',
+  authorization_denied: 'Você não tem permissão para verificar novas versões neste host.',
+};
 
 interface ImageRow {
   id: string;
   name: string;
   usage: string;
+  update: string;
+  updateDetail: string;
   host: string;
   engine: string;
   size: number;
@@ -77,10 +92,14 @@ export class ImagesPage {
   protected readonly search = signal('');
   protected readonly gridSort = signal<GridSort | null>(null);
   protected readonly drawer = signal<{ reference: string; hosts: string[] } | null>(null);
-  protected readonly tones = USAGE_TONES;
+  protected readonly tones = { ...USAGE_TONES, ...IMAGE_UPDATE_STATE_TONE };
+  private readonly api = inject(ControlPlaneApiService);
+  private readonly toasts = inject(ToastService);
+  /** A coluna do aviso só existe quando a API envia `updateCheck` (composição Business com a capability). */
+  protected readonly updateEnabled = computed(() => this.facade.items().some(hasImageUpdateCheck));
   protected readonly formatBytes = formatBytes;
 
-  protected readonly columns: GridColumn<ImageRow>[] = [
+  private readonly baseColumns: GridColumn<ImageRow>[] = [
     { field: 'name', header: 'Imagem', width: 300, key: true, locked: true, mono: true },
     { field: 'usage', header: 'Uso', type: 'status', width: 120, sortable: false, filterable: true },
     { field: 'host', header: 'Host', width: 150, sortable: false, filterable: true, groupable: true },
@@ -90,11 +109,24 @@ export class ImagesPage {
     { field: 'imageId', header: 'ID', width: 140, mono: true, sortable: false },
   ];
 
+  protected readonly columns = computed<GridColumn<ImageRow>[]>(() =>
+    this.updateEnabled()
+      ? [
+          ...this.baseColumns.slice(0, 2),
+          { field: 'update', header: 'Nova versão', type: 'status', width: 230, sortable: false },
+          { field: 'updateDetail', header: 'Verificação', width: 320, sortable: false },
+          ...this.baseColumns.slice(2),
+        ]
+      : this.baseColumns,
+  );
+
   protected readonly rows = computed<ImageRow[]>(() =>
     this.facade.items().map(item => ({
       id: imageKey(item),
       name: imageDisplayName(item),
       usage: item.inUse ? 'Em uso' : 'Sem uso',
+      update: hasImageUpdateCheck(item) ? imageUpdateStateLabel(item.updateCheck) : '',
+      updateDetail: hasImageUpdateCheck(item) ? imageUpdateDetail(item.updateCheck) : '',
       host: item.environmentName,
       engine: item.engine ? (ENGINE_LABEL[item.engine] ?? item.engine) : '—',
       size: item.sizeBytes / (1024 * 1024),
@@ -180,6 +212,8 @@ export class ImagesPage {
   protected readonly rowActionsFor = (row: ImageRow): GridRowAction[] => {
     const actions: GridRowAction[] = [];
     if (row.item.canPull && row.item.repoTags.length) actions.push({ id: 'pull', label: 'Baixar novamente', icon: 'download' });
+    // "Verificar agora" por host, com `image:pull` (canPull) e só quando o aviso existe nesta composição.
+    if (row.item.canPull && hasImageUpdateCheck(row.item)) actions.push({ id: 'update-check', label: 'Verificar agora', icon: 'refresh' });
     actions.push({ id: 'containers', label: 'Ver containers do host', icon: 'box' });
     return actions;
   };
@@ -187,7 +221,22 @@ export class ImagesPage {
 
   protected onRowAction(event: { action: string; row: ImageRow }): void {
     if (event.action === 'pull') this.openPull(event.row.item.repoTags[0] ?? '', [event.row.item.environmentId]);
+    else if (event.action === 'update-check') void this.requestUpdateCheck(event.row.item.environmentId, event.row.host);
     else void this.router.navigate(['/containers'], { queryParams: { environmentId: event.row.item.environmentId }, queryParamsHandling: 'merge' });
+  }
+
+  /** Adianta a verificação do host; a lista relê sozinha quando o resultado chega (invalidação `images`). */
+  protected async requestUpdateCheck(environmentId: string, host: string): Promise<void> {
+    const result = await this.api.requestImageUpdateCheck(environmentId);
+    if (result.accepted) {
+      this.toasts.success(`A verificação de nova versão em ${host} foi pedida; o resultado aparece em instantes.`, 'Verificar agora');
+      setTimeout(() => void this.facade.reload(), 15_000);
+      return;
+    }
+
+    const message = UPDATE_CHECK_REFUSAL[result.code] ?? 'Não foi possível pedir a verificação.';
+    const retry = result.retryAfterSeconds ? ` Tente de novo em ${result.retryAfterSeconds} s.` : '';
+    this.toasts.error(message + retry, 'Verificar agora');
   }
 
   protected openPull(reference = '', hosts: string[] = []): void {

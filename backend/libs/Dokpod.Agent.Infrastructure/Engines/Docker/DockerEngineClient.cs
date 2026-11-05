@@ -319,6 +319,22 @@ public sealed class DockerEngineClient(HttpClient httpClient, RegistryCredential
         return new EngineImageConfig(true, volumes);
     }
 
+    public async Task<EngineImagePlatform?> InspectImagePlatformAsync(string imageId, CancellationToken cancellationToken)
+    {
+        await EnsureNegotiatedAsync(cancellationToken);
+        using var response = await httpClient.GetAsync($"v{apiVersion}/images/{Uri.EscapeDataString(imageId)}/json", HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+        if (response.StatusCode == HttpStatusCode.NotFound) return null;
+        response.EnsureSuccessStatusCode();
+        await using var content = await ReadLimitedAsync(response, cancellationToken);
+        using var document = await JsonDocument.ParseAsync(content, cancellationToken: cancellationToken);
+        var root = document.RootElement;
+        string? Text(string name) => root.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String && value.GetString() is { Length: > 0 } text ? text : null;
+        var digests = root.TryGetProperty("RepoDigests", out var list) && list.ValueKind == JsonValueKind.Array
+            ? list.EnumerateArray().Where(d => d.ValueKind == JsonValueKind.String).Select(d => d.GetString()!).ToArray()
+            : [];
+        return new EngineImagePlatform(Text("Os") ?? "linux", Text("Architecture") ?? string.Empty, Text("Variant"), digests);
+    }
+
     public async Task<EngineContainer?> FindByLabelAsync(string label, string value, CancellationToken cancellationToken)
     {
         await EnsureNegotiatedAsync(cancellationToken);
