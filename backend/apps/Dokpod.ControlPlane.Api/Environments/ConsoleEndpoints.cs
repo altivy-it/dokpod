@@ -78,15 +78,24 @@ public static class ConsoleEndpoints
                 result.Items.Where(i => i.Container.DisplayStatus is ContainerDisplayStatus.Stopped or ContainerDisplayStatus.Paused)
                     .Select(i => (i.Host.Registration.EnvironmentId, i.Container.ContainerId)).ToArray(),
                 cancellationToken);
+        // Spec 025 T015: `updateCheck` só na composição Business com a capability (nenhuma chamada ao agente).
+        var updates = context.RequestServices.GetService<Dokpod.ControlPlane.Application.Images.IImageUpdateAnnotations>() is { } reader
+            ? await reader.LoadAsync(result.Items.Select(i => i.Host.Registration.EnvironmentId), cancellationToken)
+            : null;
         return Results.Ok(new
         {
-            containers = result.Items.Select(item => HostResponses.WithIntentional(
+            containers = result.Items.Select(item => HostResponses.WithUpdateCheck(HostResponses.WithIntentional(
                 HostResponses.WithResources(
                     HostResponses.ToContainerListItem(item),
                     item.Container.DisplayStatus,
                     metrics.GetContainerResources(item.Host.Registration.EnvironmentId, item.Container.ContainerId)),
                 item.Container.DisplayStatus,
-                intentional.GetValueOrDefault((item.Host.Registration.EnvironmentId, item.Container.ContainerId)))),
+                intentional.GetValueOrDefault((item.Host.Registration.EnvironmentId, item.Container.ContainerId))),
+                updates,
+                item.Host.Registration.EnvironmentId,
+                item.Container.ImageReference,
+                item.Container.ImageId,
+                !item.Host.Connected)),
             summary = new { total = result.Summary.Values.Sum(), byDisplayStatus = result.Summary },
             observedAt = result.ObservedAtUtc,
             nextCursor = EncodeContainerCursor(result.Next),

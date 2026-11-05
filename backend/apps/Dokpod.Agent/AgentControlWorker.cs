@@ -22,7 +22,8 @@ public sealed class AgentControlWorker(
     Dokpod.Agent.Application.Containers.ContainerCreationPolicy creationPolicy,
     ILogger<AgentControlWorker> logger,
     Dokpod.Agent.Application.Terminal.ExecSessionManager? execSessions = null,
-    Dokpod.Agent.Application.Pods.ISelfContainer? selfContainer = null) : BackgroundService
+    Dokpod.Agent.Application.Pods.ISelfContainer? selfContainer = null,
+    Dokpod.Agent.Infrastructure.Engines.RegistryCredentialFile? registryCredentials = null) : BackgroundService
 {
     // Containers em execução do último snapshot (alvo da amostragem de recursos, spec 009).
     private IReadOnlyList<Dokpod.Agent.Application.Metrics.SampleTarget> runningTargets = [];
@@ -177,6 +178,14 @@ public sealed class AgentControlWorker(
             TaskScheduler.Default);
         var queries = new Dokpod.Agent.Application.Queries.ContainerQueryHandler(engine, TimeProvider.System, secretFiles, creationPolicy);
         var logStreams = new Dokpod.Agent.Application.Queries.LogStreamManager(engine, TimeProvider.System);
+        // Spec 025: o servidor só pede a verificação quando aceitou a capability; o cliente do registro é um por pedido (L3).
+        var imageUpdates = established.AcceptedCapabilities.Contains(Capability.ImageUpdateCheck)
+            ? new Dokpod.Agent.Application.Images.ImageUpdateCheckHandler(
+                engine,
+                () => Dokpod.Agent.Infrastructure.Registries.OciDistributionClient.Create(registryCredentials ?? new Dokpod.Agent.Infrastructure.Engines.RegistryCredentialFile(null)),
+                TimeProvider.System,
+                (exceptionType, reason) => logger.LogWarning("Image update check failed: {ExceptionType} ({Reason})", exceptionType, reason))
+            : null;
         Task SendBackground(AgentMessage outgoing) => background.Writer.WriteAsync(outgoing, sessionCancellation.Token).AsTask();
 
         ulong serverSequence = 1;
@@ -230,6 +239,11 @@ public sealed class AgentControlWorker(
                 {
                     var request = message.ContainerQuery;
                     _ = Task.Run(() => IgnoreCancellationAsync(queries.HandleAsync(request, SendBackground, sessionCancellation.Token)), CancellationToken.None);
+                }
+                else if (message.PayloadCase == ControlPlaneMessage.PayloadOneofCase.ImageUpdateCheck && imageUpdates is not null)
+                {
+                    var request = message.ImageUpdateCheck;
+                    _ = Task.Run(() => IgnoreCancellationAsync(imageUpdates.HandleAsync(request, SendBackground, sessionCancellation.Token)), CancellationToken.None);
                 }
                 else if (message.PayloadCase == ControlPlaneMessage.PayloadOneofCase.LogStreamControl)
                 {
@@ -895,6 +909,8 @@ public sealed class AgentControlWorker(
         }
         // Métricas de host dependem de `/proc` do Linux; o agente Windows não anuncia (spec 009 FR-010).
         if (!System.OperatingSystem.IsWindows()) hello.Capabilities.Add(Capability.ResourceMetrics);
+        // Spec 025: Linux com Docker e com Podman; o agente Windows só anuncia depois de passar no mesmo teste (plano).
+        if (!System.OperatingSystem.IsWindows()) hello.Capabilities.Add(Capability.ImageUpdateCheck);
         return new AgentMessage { Hello = hello };
     }
 

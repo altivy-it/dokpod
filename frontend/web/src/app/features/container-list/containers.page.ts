@@ -30,6 +30,7 @@ import { StageFilterService, stageLabel } from '../../shell/stage-filter.service
 import { ContainersFacade, rowKey, type ContainerFilters, type ServerSort } from './containers.facade';
 import { NewContainerDrawer } from './new-container.drawer';
 import { createIneligibility } from './new-container.facade';
+import { hasImageUpdateCheck, IMAGE_UPDATE_STATE_TONE, imageUpdateDetail, imageUpdateStateLabel } from '../images/image-update-labels';
 
 interface ContainerRow {
   id: string;
@@ -43,6 +44,8 @@ interface ContainerRow {
   ports: string;
   created: string | null;
   item: ContainerListItem;
+  update: string;
+  updateDetail: string;
 }
 
 const SERVER_SORT: Record<string, [ServerSort, ServerSort]> = {
@@ -116,11 +119,15 @@ export class ContainersPage {
     // Spec 016 FR-018: parada e pausa justificadas não se confundem com falha.
     'Parado intencionalmente': 'neutral',
     'Pausado intencionalmente': 'info',
+    // Spec 025: estados do aviso de nova versão, sempre em texto.
+    ...IMAGE_UPDATE_STATE_TONE,
   };
+  /** A coluna do aviso só existe quando a API envia `updateCheck` (composição Business com a capability). */
+  protected readonly updateEnabled = computed(() => this.facade.items().some(hasImageUpdateCheck));
   protected readonly actionLabels = ACTION_LABEL;
   protected readonly statusOrder: ContainerDisplayStatus[] = ['running', 'starting', 'restarting', 'failed', 'paused', 'stopped'];
 
-  protected readonly columns: GridColumn<ContainerRow>[] = [
+  private readonly baseColumns: GridColumn<ContainerRow>[] = [
     { field: 'name', header: 'Nome', width: 190, key: true, locked: true },
     { field: 'status', header: 'Situação', type: 'status', width: 140, filterable: true, groupable: true },
     { field: 'engine', header: 'Engine', width: 100, sortable: false, filterable: true, groupable: true },
@@ -132,6 +139,17 @@ export class ContainersPage {
     { field: 'created', header: 'Criado', width: 150, type: 'datetime' },
   ];
 
+  protected readonly columns = computed<GridColumn<ContainerRow>[]>(() => {
+    if (!this.updateEnabled()) return this.baseColumns;
+    const imageIndex = this.baseColumns.findIndex(c => c.field === 'image') + 1;
+    return [
+      ...this.baseColumns.slice(0, imageIndex),
+      { field: 'update', header: 'Nova versão', type: 'status', width: 230, sortable: false },
+      { field: 'updateDetail', header: 'Verificação', width: 300, sortable: false },
+      ...this.baseColumns.slice(imageIndex),
+    ];
+  });
+
   protected readonly rows = computed<ContainerRow[]>(() =>
     this.facade.items().map(item => ({
       id: rowKey(item),
@@ -140,6 +158,8 @@ export class ContainersPage {
       engine: item.engine ? (ENGINE_LABEL[item.engine] ?? item.engine) : '—',
       host: item.environmentName,
       image: item.imageReference,
+      update: hasImageUpdateCheck(item) ? imageUpdateStateLabel(item.updateCheck) : '',
+      updateDetail: hasImageUpdateCheck(item) ? imageUpdateDetail(item.updateCheck) : '',
       cpu: item.resources?.cpuPercent ?? null,
       mem: item.resources?.memoryUsedBytes != null ? item.resources.memoryUsedBytes / (1024 * 1024) : null,
       ports: formatPorts(item),
