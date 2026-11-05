@@ -21,5 +21,7 @@
     "autoDeployEnvironment": "quality"
   },
   "attestations": true,
+  "releaseDependencies": [],
+  "distributionApproval": { "mode": "environment" },
   "rollbackMinimumVersion": "0.0.0"
 }
