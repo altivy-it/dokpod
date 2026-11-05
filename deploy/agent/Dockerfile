@@ -31,11 +31,14 @@ ENTRYPOINT ["dotnet", "run", "--no-restore", "--project", "backend/apps/Dokpod.A
 
 FROM build AS publish
 
-RUN dotnet publish backend/apps/Dokpod.Agent/Dokpod.Agent.csproj \
+# D11 (.specify/bugs/versao-candidata-binarios): a versão da tag, passada pelo publish, prevalece sobre o VersionPrefix do commit.
+ARG RELEASE_VERSION=
+RUN case "$RELEASE_VERSION" in *[!0-9A-Za-z.-]*) echo "RELEASE_VERSION inválida" >&2; exit 1 ;; esac \
+    && dotnet publish backend/apps/Dokpod.Agent/Dokpod.Agent.csproj \
     --configuration Release \
     --no-restore \
     --output /src/out \
-    /p:UseAppHost=false
+    /p:UseAppHost=false ${RELEASE_VERSION:+/p:Version=$RELEASE_VERSION}
 
 FROM ${DOTNET_RUNTIME_IMAGE} AS runtime
 

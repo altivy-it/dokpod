@@ -18,7 +18,14 @@ ENTRYPOINT ["npm", "run", "start", "--", "--host", "0.0.0.0", "--port", "4200"]
 
 FROM build AS publish
 
-RUN npm run generate:api \
+# D11 (.specify/bugs/versao-candidata-binarios): a versão da tag, passada pelo publish, prevalece sobre a do commit.
+ARG RELEASE_VERSION=
+RUN case "$RELEASE_VERSION" in *[!0-9A-Za-z.-]*) echo "RELEASE_VERSION inválida" >&2; exit 1 ;; esac \
+    && if [ -n "$RELEASE_VERSION" ]; then \
+        sed -i "s/^export const CONSOLE_VERSION = '[^']*';/export const CONSOLE_VERSION = '$RELEASE_VERSION';/" src/app/features/settings/settings-api.service.ts \
+        && grep -q "CONSOLE_VERSION = '$RELEASE_VERSION';" src/app/features/settings/settings-api.service.ts; \
+    fi \
+    && npm run generate:api \
     && npm run build -- --configuration production --base-href ${BASE_HREF}
 
 FROM lzocateli/nginx:1.28.0-bookworm-v1 AS runtime
