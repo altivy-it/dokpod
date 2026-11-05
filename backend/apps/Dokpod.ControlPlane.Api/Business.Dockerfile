@@ -43,8 +43,10 @@ LABEL org.opencontainers.image.title="dokpod-api-business" \
     org.opencontainers.image.url="https://github.com/altivy-it/dokpod"
 WORKDIR /app
 USER root
+# CVE-2026-109518 (HIGH, sem correção): o apt só serve ao build; não fica na imagem final, que não instala pacotes em execução.
 RUN apt-get update \
     && apt-get install --yes --no-install-recommends curl \
+    && apt-get purge --yes --allow-remove-essential apt libapt-pkg6.0t64 \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=publish /app/publish ./
 # Spec 005 FR-008: licença do Dokpod dentro da imagem e no rótulo OCI.
