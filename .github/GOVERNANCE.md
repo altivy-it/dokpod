@@ -55,6 +55,18 @@ repositório. Novos gates são adicionados com os manifests correspondentes e ap
 validação do comando local equivalente. Nenhum gate existe apenas de forma
 decorativa.
 
+## Responsáveis
+
+| Área | Responsável | Donos no `CODEOWNERS` |
+| --- | --- | --- |
+| Backend (`backend/`) | `lunadev00` | `lzocateli`, `lunadev00` |
+| Contratos (`contracts/`) | compartilhada | `lzocateli`, `eusener`, `lunadev00` |
+| Frontend e demais áreas | `eusener`, com revisão transversal | `lzocateli`, `eusener` |
+
+`lzocateli` permanece mantenedor durante a transição. Autor e revisor precisam ser
+pessoas independentes; duas contas da mesma pessoa não formam revisão independente.
+Estar listado no `CODEOWNERS` não garante a revisão de todos os donos.
+
 ## Configuração administrativa
 
 - mantenha as regras da `main` pelo contrato [repository-policy.json](repository-policy.json), aplicado e conferido com `groundwork github` ([REPOSITORY-POLICY.md](REPOSITORY-POLICY.md)): `Result` obrigatório sem bypass, squash, histórico linear e commits assinados;

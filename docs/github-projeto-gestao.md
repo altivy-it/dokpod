@@ -36,7 +36,7 @@ alterados nem certificados.
 
 ## Project recomendado
 
-Crie um Project de organização chamado `Dokpod Delivery` e associe o repositório `lzocateli/Dokpod`.
+Crie um Project de organização chamado `Dokpod Delivery` e associe o repositório `altivy-it/dokpod`.
 
 | Campo | Tipo | Valores sugeridos |
 | --- | --- | --- |
@@ -94,9 +94,10 @@ valores para os novos campos; não apagar histórico nem presumir alteração re
 
 ## Checklist
 
-- [ ] Criar `Dokpod Delivery` e associar `lzocateli/Dokpod`.
+- [ ] Criar `Dokpod Delivery` e associar `altivy-it/dokpod`.
 - [ ] Criar os campos personalizados e as seis views.
 - [ ] Configurar automação para novas Issues e PRs.
 - [ ] Padronizar labels `type:*` e `status:triage`.
-- [ ] Definir responsáveis pela triagem e revisão humana.
+- [x] Definir responsáveis pela revisão humana em [GOVERNANCE.md](../.github/GOVERNANCE.md#responsáveis).
+- [ ] Definir responsáveis pela triagem.
 - [ ] Criar uma Issue de teste por tipo e confirmar filtros e views.
