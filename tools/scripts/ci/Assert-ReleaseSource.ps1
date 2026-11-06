@@ -22,6 +22,9 @@ Publication, ReleasePlease ou Snapshot.
 Exige equivalência com a candidata aceita quando obrigatória.
 .PARAMETER Republish
 Somente artefatos ausentes de uma release já pública.
+.PARAMETER Preflight
+Valida a fonte antes do build, sem autorizar publicação. Exige tag e é seguido por uma
+revalidação com autorização imediatamente antes da publicação.
 .PARAMETER Tag
 Tag histórica no modo Republish.
 .PARAMETER OutputPath
@@ -42,6 +45,7 @@ param(
     [ValidateSet('Publication', 'ReleasePlease', 'Snapshot')][string] $Stage = 'Publication',
     [switch] $Stable,
     [switch] $Republish,
+    [switch] $Preflight,
     [string] $Tag = '',
     [string] $OutputPath = '',
     [Alias('h')][switch] $Help,
@@ -58,8 +62,9 @@ try {
     if ($Repository -notmatch '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$') { throw 'Repositório inválido.' }
     if ($Commit -notmatch '^[0-9a-f]{40}$') { throw 'SHA inválido.' }
     if ($DefaultBranch -notmatch '^[A-Za-z0-9._/-]+$' -or $DefaultBranch.Contains('..')) { throw 'Branch padrão inválida.' }
+    if ($Preflight -and ($Stage -ne 'Publication' -or -not (Test-ReleaseTagName $Tag))) { throw 'Preflight exige Stage Publication e uma tag de release válida.' }
     if ($Republish) {
-        Assert-DistributionApproval -Repository $Repository -Commit $Commit -Tag $Tag
+        if (-not $Preflight) { Assert-DistributionApproval -Repository $Repository -Commit $Commit -Tag $Tag }
         if ($Tag -cnotmatch '^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$') { throw 'Republish exige tag estável.' }
         $release = Find-GitHubRelease -Repository $Repository -Tag $Tag
         if ($null -eq $release -or $release['draft'] -or $release['prerelease']) { throw 'Republish histórico exige release estável já pública; rascunho exige nova validação de fonte.' }
@@ -77,13 +82,23 @@ try {
     $pages = Invoke-GhJson -Path "repos/$Repository/pulls?state=closed&head=${owner}:release-please--branches--$DefaultBranch&per_page=100" -Paginate
     $mergedPulls = @($pages | Where-Object { $_['merged_at'] })
     $pending = @($mergedPulls | Where-Object { @($_['labels'] | Where-Object { $_['name'] -ceq 'autorelease: pending' }).Count -ne 0 })
-    if ($Stage -eq 'ReleasePlease' -and $pending.Count -eq 0) {
-        Write-GitHubOutput -Path $OutputPath -Values @{ release_ready = 'false' } | Out-Null
-        Write-Output 'Atualização do Release PR: sem release integrada pendente de tag; criação de release desabilitada.'
-        exit 0
-    }
-    if ($Stage -eq 'ReleasePlease' -and ($pending.Count -ne 1 -or $pending[0]['merge_commit_sha'] -cne $Commit)) {
-        throw "Release PR integrado pendente não corresponde ao SHA $Commit; recusa criar tag de uma base antiga. Resolva a integração e gere uma nova candidata."
+    if ($Stage -eq 'ReleasePlease') {
+        $currentPending = @($pending | Where-Object { $_['merge_commit_sha'] -ceq $Commit })
+        if ($currentPending.Count -ne 1) {
+            Write-GitHubOutput -Path $OutputPath -Values @{ release_ready = 'false' } | Out-Null
+            if ($currentPending.Count -gt 1) {
+                Write-Output "Atualização do Release PR: mais de um release PR integrado corresponde ao SHA $Commit; criação de tag e release desabilitada."
+            }
+            elseif ($pending.Count -gt 0) {
+                $pendingShas = (@($pending | ForEach-Object { [string]$_['merge_commit_sha'] } | Where-Object { $_ }) -join ', ')
+                Write-Output "Atualização do Release PR: release pendente em outro SHA ($pendingShas); release-please pode atualizar o PR, mas criação de tag e release estão desabilitadas até um merge corresponder ao HEAD atual $Commit."
+            }
+            else {
+                Write-Output 'Atualização do Release PR: sem release integrada pendente de tag; criação de release desabilitada.'
+            }
+            exit 0
+        }
+        $pending = $currentPending
     }
     if ($Stage -eq 'ReleasePlease') {
         if ((Get-DistributionApprovalMode -Config (Read-CiCdConfig)) -ceq 'manual-dispatch') {
@@ -113,7 +128,7 @@ try {
     Assert-CurrentReleaseSource -Repository $Repository -Commit $Commit -DefaultBranch $DefaultBranch
     if ($Stage -eq 'Publication' -and ($Stable -or $Tag)) {
         if (-not $Tag) { $Tag = 'v' + [string]((Get-Content -LiteralPath '.release-please-manifest.json' -Raw | ConvertFrom-Json -AsHashtable)['.']) }
-        Assert-DistributionApproval -Repository $Repository -Commit $Commit -Tag $Tag
+        if (-not $Preflight) { Assert-DistributionApproval -Repository $Repository -Commit $Commit -Tag $Tag }
     }
     if ($Stage -eq 'ReleasePlease') { Write-GitHubOutput -Path $OutputPath -Values @{ release_ready = 'true' } }
 }

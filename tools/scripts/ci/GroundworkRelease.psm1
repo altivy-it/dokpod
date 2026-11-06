@@ -253,6 +253,19 @@ function Assert-ReleaseEntries {
     }
 }
 
+function Assert-RepublishAssetDigest {
+    param(
+        [Parameter(Mandatory)][hashtable] $Manifest,
+        [Parameter(Mandatory)][string] $Name,
+        [Parameter(Mandatory)][string] $Digest
+    )
+
+    Assert-ReleaseManifest -Manifest $Manifest
+    $matches = @($Manifest['artifacts'] | Where-Object { $_['kind'] -ceq 'asset' -and $_['name'] -ceq $Name })
+    if ($matches.Count -ne 1) { throw "Republish recusado: o manifesto imutável não contém o asset $Name." }
+    if ($matches[0]['digest'] -cne $Digest) { throw "Republish recusado: digest reconstruído de $Name diverge do manifesto imutável." }
+}
+
 function Test-RollbackAllowed {
     <#
     Decide a trava de rollback: alvo abaixo da versão implantada só é aceito se não for menor
