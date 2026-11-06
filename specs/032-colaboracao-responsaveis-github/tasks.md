@@ -14,7 +14,7 @@ description: "Tarefas de responsáveis e colaboração no GitHub"
 - [X] T001 [US1] Distribuir os donos por área em `.github/CODEOWNERS`
 - [X] T002 [US1] Conferir por última correspondência os donos de cada área de primeiro nível
 - [X] T003 [US1] Confirmar pela API a permissão `write` ou superior das três contas
-- [ ] T004 [US1] Confirmar zero erros em `GET /repos/altivy-it/dokpod/codeowners/errors` na branch publicada
+- [X] T004 [US1] Confirmar zero erros em `GET /repos/altivy-it/dokpod/codeowners/errors` na branch publicada
 
 ## Fase 2: História de Usuário 2 - Responsabilidades documentadas (P2)
 
