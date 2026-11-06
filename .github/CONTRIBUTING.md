@@ -97,4 +97,6 @@ globais no fluxo oficial.
 
 ## Pull requests
 
+Os responsáveis por área estão em [GOVERNANCE.md](GOVERNANCE.md#responsáveis).
+
 Mantenha PRs coesos e pequenos o bastante para revisão responsável. Mudanças incompatíveis exigem issue, ADR quando aplicável, estratégia de migração e período de compatibilidade. Não misture refactor amplo com mudança funcional.
