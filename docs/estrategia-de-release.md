@@ -18,10 +18,12 @@ código da candidata validada: entre as duas só mudam arquivos de versão, `CHA
 ```text
 PR (squash, Conventional Commit)
   └─▶ main ─▶ release-please atualiza o Release PR (versão + CHANGELOG)
-          └─▶ gw-preview.yml (manual) ─▶ tag vX.Y.Z-rc.N ─▶ publish ─▶ prerelease atestada
+    └─▶ gw-preview.yml (manual) ─▶ tag/draft ─▶ preflight privado se distributionAfterValidation=true
+      └─▶ distribution (aprovação) ─▶ publish ─▶ prerelease atestada
                   └─▶ quality: deploy/smoke ─▶ preview-acceptance.json
                           └─▶ Preview gate verde no Release PR
-                                  └─▶ merge humano ─▶ tag vX.Y.Z ─▶ publish ─▶ release estável
+          └─▶ merge humano ─▶ tag/draft ─▶ preflight conforme configuração
+            └─▶ distribution (aprovação) ─▶ publish ─▶ release estável
                                           └─▶ production (manual, com aprovação)
 ```
 
@@ -78,7 +80,8 @@ estável; as notas da estável ganham a linha "Validada na `vX.Y.Z-rc.N`".
 
 | Environment | Refs aceitas | Revisores | Uso |
 | --- | --- | --- | --- |
-| `release` | `main`, `v*` | `@lzocateli` | credenciais de publicação, da candidata e da estável |
+| `release` | `main`, `v*` | `@lzocateli` | credenciais de componentes que ainda usam esse Environment; não substitui `distribution` |
+| `distribution` | `main`, `v*` | obrigatórios | autorização humana antes de divulgar a candidata ou a estável; com `distributionAfterValidation=true`, ocorre após o preflight privado |
 | `quality` | `v*` | opcionais | deploy e aceite da candidata; também aceita estáveis |
 | `production` | `v*` | obrigatórios | somente estáveis com candidata validada |
 | `preview` | `main` | — | snapshots no feed interno |
@@ -126,10 +129,10 @@ da release. É exceção auditável, não atalho: registre o motivo real.
 | --- | --- | --- |
 | PR comum | CI, título, Gitleaks, snapshot | revisão e merge |
 | Release PR | versão e CHANGELOG | — |
-| Candidata | N, tag, publish, atestação, prerelease, notas | disparar `gw-preview.yml`; aprovar `release` |
+| Candidata | N, tag/draft, preflight privado quando configurado, publish e atestação | disparar `gw-preview.yml`; aprovar `distribution` e, separadamente, `quality` quando exigido |
 | `quality` | deploy, smoke e registro do aceite | acompanhar |
 | `Preview gate` | verificação completa | waiver, se for o caso |
-| Estável | tag, publish, release, notas com a candidata | merge do Release PR; aprovar `release` |
+| Estável | tag/draft, preflight privado quando configurado, publish, release e notas com a candidata | merge do Release PR; aprovar `distribution` após validações quando o preflight está habilitado |
 | `production` | guard | disparar e aprovar `production` |
 | Repositório | Environments, variáveis e rulesets (`groundwork github --sync`) | secrets ausentes (`--secrets`) |
 

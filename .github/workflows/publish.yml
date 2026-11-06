@@ -19,13 +19,34 @@ on:
         description: Reenvio de artefatos ausentes de uma release existente
         type: boolean
         default: false
+      preflight:
+        description: Preparar e testar artefatos sem os publicar; exige suporte implementado no publish.yml do projeto
+        type: boolean
+        default: false
+      publish_only:
+        description: Publicar somente os artefatos previamente preparados no mesmo run
+        type: boolean
+        default: false
 
 permissions: {}
 
 jobs:
+  reject-unsupported-preflight:
+    name: Reject unsupported preflight
+    if: ${{ inputs.preflight || inputs.publish_only }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Require project-specific preflight implementation
+        shell: bash
+        run: |
+          echo "::error::Este publish.yml não implementa preflight sem publicação; configure o fluxo específico do projeto antes de ativar distributionAfterValidation."
+          exit 1
 
   containers:
     name: Containers
+    if: ${{ !inputs.preflight && !inputs.publish_only }}
     uses: ./.github/workflows/gw-container-images.yml
     permissions:
       contents: read
@@ -103,6 +124,7 @@ jobs:
 
   build-assets:
     name: Build assets
+    if: ${{ !inputs.preflight && !inputs.publish_only }}
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:
