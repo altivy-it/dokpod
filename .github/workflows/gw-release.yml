@@ -1,7 +1,7 @@
 # Gerenciado pelo Altivy.Groundwork (componente release). Não edite: mudanças vão para o catálogo.
 # Push na branch padrão: release-please cria/atualiza o Release PR. Após o merge humano do
-# Release PR, cria a tag e a GitHub Release em rascunho, chama publish.yml, só então publica e,
-# com a release já pública, chama post-release.yml (distribuição como Homebrew e winget).
+# Release PR, cria a tag e a GitHub Release em rascunho, chama publish.yml e só então publica.
+# Distribuições por registry são iniciadas separadamente com uma versão explícita.
 # Dispatch na tag com mode=republish: reenvia somente artefatos ausentes de uma release existente.
 name: Release
 run-name: ${{ inputs.confirm_distribution == true && format('Authorize distribution | {0} | {1}', inputs.authorize_tag, inputs.authorize_commit) || format('Release | {0}', github.ref_name) }}
@@ -119,6 +119,7 @@ jobs:
       commit: ${{ steps.tag.outputs.commit }}
       republish: ${{ steps.tag.outputs.republish }}
       approval_mode: ${{ steps.policy.outputs.mode }}
+      distribution_after_validation: ${{ steps.policy.outputs.distribution_after_validation }}
     steps:
       - name: Checkout trusted workflow configuration
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -130,8 +131,12 @@ jobs:
         shell: pwsh
         run: |
           Import-Module ./tools/scripts/ci/GroundworkRelease.psm1
-          $mode = Get-DistributionApprovalMode -Config (Read-CiCdConfig)
+          $config = Read-CiCdConfig
+          $mode = Get-DistributionApprovalMode -Config $config
+          $afterValidation = $config['distributionAfterValidation'] ?? $false
+          if ($afterValidation -isnot [bool]) { throw 'distributionAfterValidation deve ser boolean.' }
           "mode=$mode" >> $env:GITHUB_OUTPUT
+          "distribution_after_validation=$($afterValidation.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
 
       - name: Resolve tag
         id: resolve
@@ -175,15 +180,36 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           "republish=$($env:REPUBLISH.ToLowerInvariant())" | Add-Content -LiteralPath $env:GITHUB_OUTPUT -Encoding utf8
 
+  prepare:
+    name: Prepare and validate ${{ needs.context.outputs.tag }}
+    needs: context
+    if: ${{ needs.context.outputs.distribution_after_validation == 'true' }}
+    uses: ./.github/workflows/publish.yml
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+      actions: read
+      checks: read
+      pull-requests: read
+    with:
+      tag: ${{ needs.context.outputs.tag }}
+      version: ${{ needs.context.outputs.version }}
+      republish: ${{ needs.context.outputs.republish == 'true' }}
+      preflight: true
+      publish_only: false
+    secrets: inherit
+
   authorize-distribution:
     name: Authorize public distribution ${{ needs.context.outputs.tag }} at ${{ needs.context.outputs.commit }}
-    needs: context
-    if: ${{ !cancelled() && needs.context.result == 'success' }}
+    needs: [context, prepare]
+    if: ${{ !cancelled() && needs.context.result == 'success' && (needs.context.outputs.distribution_after_validation != 'true' || needs.prepare.result == 'success') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     environment:
       name: ${{ needs.context.outputs.approval_mode == 'manual-dispatch' && 'distribution-manual' || 'distribution' }}
-      url: ${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ needs.context.outputs.tag }}
+      url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
     permissions:
       contents: read
       actions: read
@@ -211,8 +237,8 @@ jobs:
 
   publish:
     name: Publish
-    needs: [context, authorize-distribution]
-    if: ${{ !cancelled() && needs.context.result == 'success' && needs.authorize-distribution.result == 'success' }}
+    needs: [context, prepare, authorize-distribution]
+    if: ${{ !cancelled() && needs.context.result == 'success' && needs.authorize-distribution.result == 'success' && (needs.context.outputs.distribution_after_validation != 'true' || needs.prepare.result == 'success') }}
     uses: ./.github/workflows/publish.yml
     permissions:
       contents: write
@@ -226,6 +252,8 @@ jobs:
       tag: ${{ needs.context.outputs.tag }}
       version: ${{ needs.context.outputs.version }}
       republish: ${{ needs.context.outputs.republish == 'true' }}
+      preflight: false
+      publish_only: ${{ needs.context.outputs.distribution_after_validation == 'true' }}
     secrets: inherit
 
   finalize:
@@ -323,19 +351,6 @@ jobs:
 
           ./tools/scripts/ci/Test-PublishedRelease.ps1 -Tag $env:RELEASE_TAG -Repository $env:GITHUB_REPOSITORY -Publish
           exit $LASTEXITCODE
-
-  post-release:
-    name: Post release
-    needs: [context, finalize]
-    if: ${{ !cancelled() && needs.context.result == 'success' && needs.finalize.result == 'success' }}
-    uses: ./.github/workflows/post-release.yml
-    permissions:
-      contents: read
-    with:
-      tag: ${{ needs.context.outputs.tag }}
-      version: ${{ needs.context.outputs.version }}
-      republish: ${{ needs.context.outputs.republish == 'true' }}
-    secrets: inherit
 
   auto-deploy:
     name: Auto deploy

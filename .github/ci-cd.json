@@ -23,5 +23,6 @@
   "attestations": true,
   "releaseDependencies": [],
   "distributionApproval": { "mode": "environment" },
+  "distributionAfterValidation": false,
   "rollbackMinimumVersion": "0.0.0"
 }

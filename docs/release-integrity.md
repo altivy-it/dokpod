@@ -12,10 +12,13 @@ suite. Ausência, falha ou consulta inconclusiva bloqueia. O HEAD é relido depo
 das consultas de CI; ancestralidade sozinha não basta.
 
 O RC vem da versão do Release PR aberto, cuja base deve coincidir com o SHA.
-Depois da aprovação em `release`, a resolução é repetida com cabeça do Release
-PR e tag esperadas, antes de criar a tag/rascunho. A publicação de assets/pacotes
-também valida a fonte após aprovação, e a finalização revalida antes de tornar
-a GitHub Release pública. Nenhum workflow é autorizado a remover essas guardas.
+O guard valida fonte e cabeça do Release PR antes de criar a tag/rascunho. A
+autorização de divulgação ocorre no Environment `distribution`; depois da espera,
+fonte, SHA e tag são revalidados antes de qualquer upload público. Quando
+`distributionAfterValidation` está habilitado, o build/teste gera artifacts privados
+antes da aprovação e o publisher reutiliza esses mesmos bytes sem rebuild. A
+finalização revalida antes de tornar a GitHub Release pública. Nenhum workflow pode
+remover essas guardas.
 
 O Preview gate exige cabeça atual do Release PR, dependências integradas, base
 atual e CI verde antes de verificar aceite ou waiver. A release final integrada
@@ -27,6 +30,11 @@ autorizam alterações funcionais disfarçadas de metadados e exigem revisão hu
 
 Quando só atualiza o Release PR, o release-please usa `skip-github-release: true`;
 somente `release_ready=true` da guarda libera criação de release/tag.
+Se um Release PR integrado ainda marcado `autorelease: pending` pertencer a um SHA
+anterior ao HEAD atual, a guarda retorna `release_ready=false` para permitir somente
+que release-please atualize o Release PR; não cria tag nem publica. A autorização de
+criação só é liberada quando exatamente um pending corresponde ao SHA atual. Nunca
+publique pela tag antiga: resolva e revise a nova versão no HEAD vigente.
 
 ## Autorização da distribuição
 
@@ -154,15 +162,21 @@ exige fonte revalidada; não é republish histórico. Escale ao mantenedor se a
 main já avançou sobre um Release PR integrado ainda pendente de tag.
 
 Republish só é exceção de HEAD para tag estável de release **já pública**,
-checkout correspondente e artefatos ausentes. Redeploy/rollback continuam usando
-tags históricas publicadas e as políticas de deploy/`rollbackMinimumVersion`.
+checkout correspondente e artefatos ausentes. Para assets da GitHub Release, antes
+de qualquer upload o publicador exige entrada correspondente no manifesto imutável
+e digest reconstruído idêntico; asset sem entrada ou divergente é recusado antes de
+se tornar órfão na release. Redeploy/rollback continuam usando tags históricas
+publicadas e as políticas de deploy/`rollbackMinimumVersion`.
 
 Ao atualizar consumidores, execute `groundwork update --dry-run`, revise e aplique
 `groundwork update` com o catálogo local ou distribuído autorizado. Sementes não
 são migradas automaticamente. Em `ci.yml`, conceda `pull-requests`, `actions` e
 `checks: read` ao chamador de higiene; snapshot depende de `result`, mas não entra
 nos `needs` de Result. Em `publish.yml`, propague essas permissões e `republish`
-a todos os publicadores. Repasse permissões também nas chamadas aninhadas.
+a todos os publicadores. Repasse permissões também nas chamadas aninhadas. Em
+`release-please-config.json`, adicione `"always-update": true`: sem isso, um commit
+que não muda as notas (`ci`, `docs`, `chore`) deixa o Release PR atrás da branch
+padrão, e `gw-preview.yml` recusa gerar a candidata.
 Não sobrescreva personalizações nem altere hashes manualmente para esconder desvios.
 
 Correções locais do catálogo ainda não são uma versão distribuída: integre e
