@@ -1144,6 +1144,39 @@
       "responsible": "lzocateli (aceite explícito em 2026-11-04)",
       "accepted": "2026-11-04",
       "expires": "2027-01-15"
+    },
+    {
+      "image": "web",
+      "id": "CVE-2026-76844",
+      "package": "zlib1g",
+      "severity": "HIGH",
+      "status": "affected",
+      "impact": "Falha em gz_write; o nginx importa somente deflate e inflate e não usa as funções gz* da zlib.",
+      "responsible": "lzocateli (aceite explícito em 2026-11-06)",
+      "accepted": "2026-11-06",
+      "expires": "2027-01-15"
+    },
+    {
+      "image": "web",
+      "id": "CVE-2026-85091",
+      "package": "zlib1g",
+      "severity": "HIGH",
+      "status": "affected",
+      "impact": "Falha em gz_vacate, alcançada por gzprintf; o nginx importa somente deflate e inflate e não usa as funções gz* da zlib.",
+      "responsible": "lzocateli (aceite explícito em 2026-11-06)",
+      "accepted": "2026-11-06",
+      "expires": "2027-01-15"
+    },
+    {
+      "image": "web",
+      "id": "CVE-2026-115506",
+      "package": "libexpat1",
+      "severity": "HIGH",
+      "status": "affected",
+      "impact": "Parser XML da base Debian; entre os módulos do nginx só o image_filter usa a biblioteca, e ele não é carregado.",
+      "responsible": "lzocateli (aceite explícito em 2026-11-06)",
+      "accepted": "2026-11-06",
+      "expires": "2027-01-15"
     }
   ]
 }

@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "toolVersion": "0.10.1",
-  "catalogVersion": "0.10.1",
+  "toolVersion": "0.11.0",
+  "catalogVersion": "0.11.0",
   "parameters": {
     "auto_deploy_environment": "quality",
     "commit_scopes": "docs,tooling,deps,actions,repo",
@@ -18,6 +18,14 @@
     "issue_areas": "Arquitetura,Backend,Frontend,Banco de dados,Seguran\u00E7a,DevOps,Documenta\u00E7\u00E3o,Testes",
     "legacy_rulesets": "Protecao exclusiva da main,Protect release tags",
     "license": "AGPL-3.0-only",
+    "native_aot_legal_files": "LICENSE,THIRD-PARTY-NOTICES.md",
+    "native_aot_namespace_base_uri": "https://github.com/altivy-it/dokpod",
+    "native_aot_package_name": "dokpod",
+    "native_aot_project": "",
+    "native_aot_publisher": "Dokpod",
+    "native_aot_rids": "linux-x64,linux-arm64,win-x64,win-arm64,osx-arm64,osx-x64",
+    "native_aot_sdk_image": "mcr.microsoft.com/dotnet/sdk:10.0.403-noble@sha256:9c7b6b263d9d4c2e4718e16dae6d75cd8f4b5ccf206f1e7d48a98eb429981b03",
+    "native_aot_smoke_script": "",
     "nuget_auth": "trusted",
     "nuget_feed": "github",
     "nuget_rc_feed": "",
@@ -48,7 +56,7 @@
   "files": {
     ".github/CI-CD.md": {
       "component": "ci",
-      "sha256": "ae7c1d2544f662fc6bc762df137b1f1fc36291394a864a2f9ca1c21f9db9c57d"
+      "sha256": "e725d3f5a178310c38e8ad157a7ff8cd2362f2ad33ded05aae00a8c6038eea54"
     },
     ".github/REPOSITORY-POLICY.md": {
       "component": "repository-policy",
@@ -76,7 +84,7 @@
     },
     ".github/workflows/gw-github-assets.yml": {
       "component": "publish-github-assets",
-      "sha256": "50bef06ee7ba40b275eb4161686f58f411bad0b6ca658c54726220ba51d4a010"
+      "sha256": "0512dda738aa0b72bc4b488b01d60f5ee7da185f9e093b5c41355dcb5777c6c6"
     },
     ".github/workflows/gw-gitleaks.yml": {
       "component": "ci",
@@ -92,27 +100,27 @@
     },
     ".github/workflows/gw-preview.yml": {
       "component": "release-preview",
-      "sha256": "413558048ece47eba70f56b8d29250aad3b11a208cff5e8956ca2207b4dc9d0f"
+      "sha256": "9527b076843b7174584832547418d79ade9ff4527c8b41b3719919d7af8372ab"
     },
     ".github/workflows/gw-release.yml": {
       "component": "release",
-      "sha256": "d0f2a09e8e1a720b4b9ddedf5a2cc54ad66c6cffb56488fe9ca7f86df7cb06d2"
+      "sha256": "9673b92b860fe2bf44012aa61d47dc4c885fc6c2f6f24a073cf720469d23dee4"
     },
     "docs/en/release-integrity.md": {
       "component": "release",
-      "sha256": "5b6ca2b9370df633606061ae24ca3f8e27438a270d32e7361aee67c06cae6f4a"
+      "sha256": "1457d70ff69a6b252e88831c6284868435d4ba10008f35a3bbf99f57d1548add"
     },
     "docs/es/release-integrity.md": {
       "component": "release",
-      "sha256": "58607e82fb4f401aad80f8360ce66d494094ea2d7ddd72d4cd342f525c8ae149"
+      "sha256": "a2332fc0114298eb07e8ad62ecb61f955627147bc35079078828d4102fd5ab7d"
     },
     "docs/estrategia-de-release.md": {
       "component": "release-preview",
-      "sha256": "3f7241695fade303c25d59a6bd3f8aa13482b70c5c814d95a92c83cee18a6708"
+      "sha256": "e5ba96383698f129ae0d39c6602834dcd8745f50e7063e2deb807a8b510fce5d"
     },
     "docs/release-integrity.md": {
       "component": "release",
-      "sha256": "b0cbdc4c6a3410ce112b948ee7eba4637231b2640dc55e2a35da67706992d22f"
+      "sha256": "96c6dd640ad78b571b32d18930bbcbf600fdadc6070b7c0becb150bdf8ea51c6"
     },
     "docs/runbooks/deploy-e-rollback.md": {
       "component": "deploy",
@@ -120,15 +128,15 @@
     },
     "docs/runbooks/release-preview.md": {
       "component": "release-preview",
-      "sha256": "4a9f0fcf5eb89cae7dbc5e0e0f44d55f71af9da80f6ddcf6345c7e2a8dfed6a4"
+      "sha256": "d89be5e784c4dc141eec32e99bd54205be46f0bf5ed914f9fc713c6ab9251aa0"
     },
     "docs/runbooks/release.md": {
       "component": "release",
-      "sha256": "14c3450dc7ede719b850885b558565084d3b6d3e4d8364254a8ef2924894902f"
+      "sha256": "601598bda43e14329f9de6c1d3ba7ace4ec4b225d272871ed1ba8041737155c3"
     },
     "tools/scripts/ci/Add-PreviewAcceptance.ps1": {
       "component": "release-preview",
-      "sha256": "d2ed1665d1d67f902fb33a3b685f49ae4aa998f19f51edc38dd0a69dee46fac6"
+      "sha256": "e36797c1bd57e22953df4129334b5e39739dd80cda79f9dc567902a852fdaf95"
     },
     "tools/scripts/ci/Assert-ArtifactVersion.ps1": {
       "component": "release",
@@ -144,7 +152,7 @@
     },
     "tools/scripts/ci/Assert-ReleaseSource.ps1": {
       "component": "release",
-      "sha256": "b677aa65cfffd8ff7b33bf3b9b6ca731b8eea846f040c08d4a0396151994236c"
+      "sha256": "85ba8ec07c44b5fdacba27d2d0060952f79fd4bfa66e97e1834895384bcb4da2"
     },
     "tools/scripts/ci/Assert-ReleaseTag.ps1": {
       "component": "release",
@@ -160,7 +168,7 @@
     },
     "tools/scripts/ci/Get-PreviewVersion.ps1": {
       "component": "release-preview",
-      "sha256": "a66e4283405a62f5ec0d0e22fc333dc05622c0cb7c38b4e1af4056d2b98e5457"
+      "sha256": "b54e64b34b1f9dc8a94893f59e89b722c8168e53377e74e8773b62de212b5d14"
     },
     "tools/scripts/ci/Get-ReleaseManifest.ps1": {
       "component": "deploy",
@@ -168,7 +176,7 @@
     },
     "tools/scripts/ci/GroundworkRelease.psm1": {
       "component": "release",
-      "sha256": "d1c19d8990a99a334810c8e28d79977b90f89508d26e67ee1af6941d2f35a4b0"
+      "sha256": "9e71b0b47a6d6b55d1718e02fefaa06fe61ff16e9a5fd8334e1ba530ba21e284"
     },
     "tools/scripts/ci/New-ReleaseManifest.ps1": {
       "component": "release",
@@ -180,11 +188,11 @@
     },
     "tools/scripts/ci/Publish-ReleaseAssets.ps1": {
       "component": "publish-github-assets",
-      "sha256": "45d8381cb22ca825e25c921b2ea5224debdeb2abd7a1aa97631a81b0dd9b084a"
+      "sha256": "f053d16d8f0a919cfc7463b52bb444db99a9ba488c0bd7e603dec134471473fa"
     },
     "tools/scripts/ci/Test-ManagedFiles.ps1": {
       "component": "ci",
-      "sha256": "55516208cd8ea7d550fecde7d0a4891d9f550e18f96d7a28a4e3e39776f0efc5"
+      "sha256": "129fedd575c63560ddd734aad804fe24b506a924149f2ae939c71f6dfde8418e"
     },
     "tools/scripts/ci/Test-PublishedRelease.ps1": {
       "component": "release",
