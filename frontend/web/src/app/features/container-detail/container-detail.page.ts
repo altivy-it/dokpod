@@ -33,7 +33,8 @@ import { LogsPanel } from './logs.panel';
 import { TerminalTab } from './terminal.tab';
 import { EnvironmentDirectoryService } from '../../core/environment-directory.service';
 import { PodsApiService } from '../pods/pods-api.service';
-import { hasImageUpdateCheck, IMAGE_UPDATE_STATE_TONE, imageUpdateDescription, imageUpdateStateLabel } from '../images/image-update-labels';
+import { canPullNewVersion, hasImageUpdateCheck, IMAGE_UPDATE_STATE_TONE, imageUpdateDescription, imageUpdateStateLabel } from '../images/image-update-labels';
+import { pullIneligibility, PullImageDrawer } from '../images/pull-image.drawer';
 
 type TabId = 'resumo' | 'logs' | 'inspecionar' | 'estatisticas' | 'terminal';
 type Loadable<T> = { state: 'idle' | 'loading' | 'ready' | 'forbidden' | 'unavailable' | 'error'; value: T | null; message?: string };
@@ -56,6 +57,7 @@ const HEALTH: Record<string, string> = { healthy: 'saudável', unhealthy: 'não 
     DokStatusChip,
     DokTabs,
     LogsPanel,
+    PullImageDrawer,
     RouterLink,
     TerminalTab,
   ],
@@ -150,6 +152,12 @@ export class ContainerDetailPage {
     const label = imageUpdateStateLabel(value.updateCheck);
     return { label, tone: IMAGE_UPDATE_STATE_TONE[label] ?? 'neutral', detail: value.updateCheck ? imageUpdateDescription(value.updateCheck) : '' };
   });
+  /** "Baixar nova versão" (spec 025 T020): `image:pull` no host e aviso em `update_available`. */
+  protected readonly canPullNewVersion = computed(() => {
+    const env = this.directory.byId(this.environmentId());
+    return !!this.detail() && canPullNewVersion(this.summary().value?.updateCheck, !!env && pullIneligibility(env) === null);
+  });
+  protected readonly pulling = signal(false);
 
   protected readonly summaryItems = computed<KeyValueItem[]>(() => {
     const s = this.summary().value;

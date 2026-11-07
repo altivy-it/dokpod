@@ -36,7 +36,8 @@ public sealed class AgentControlService(
     IAgentIdentityRegistry? identities = null,
     Microsoft.Extensions.Hosting.IHostApplicationLifetime? lifetime = null,
     Dokpod.ControlPlane.Application.Hosts.ControlPlaneMetrics? metrics = null,
-    Dokpod.ControlPlane.Application.Images.IImageUpdateResultSink? imageUpdateResults = null) : AgentControl.AgentControlBase
+    Dokpod.ControlPlane.Application.Images.IImageUpdateResultSink? imageUpdateResults = null,
+    Dokpod.ControlPlane.Application.Images.IImagePullCompletionObserver? imagePullCompleted = null) : AgentControl.AgentControlBase
 {
     private const int MaximumMessageBytes = 1_048_576;
     private static readonly TimeSpan HeartbeatTimeout = TimeSpan.FromSeconds(90);
@@ -550,6 +551,10 @@ public sealed class AgentControlService(
                                 session.EnvironmentId,
                                 completedCommandId,
                                 context.CancellationToken);
+                            if (imagePullCompleted is not null && requestStream.Current.CommandResult.State == CommandResultState.Succeeded)
+                            {
+                                await NotifyImagePullCompletedAsync(session.EnvironmentId, completedCommandId, context.CancellationToken);
+                            }
                         }
 
                         break;
@@ -901,6 +906,23 @@ public sealed class AgentControlService(
         catch (ArgumentException)
         {
             throw new RpcException(new Status(StatusCode.InvalidArgument, "command_acceptance_invalid"));
+        }
+    }
+
+    /// <summary>Spec 025 T019: pull concluído adianta a verificação de nova versão; a falha não derruba a sessão.</summary>
+    private async Task NotifyImagePullCompletedAsync(Guid environmentId, Guid commandId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var command = await commandStore.GetAsync(environmentId, commandId, cancellationToken);
+            if (command is { Kind: Dokpod.Domain.Commands.AgentCommandKind.PullImage, State: ControlPlaneCommandState.Succeeded })
+            {
+                await imagePullCompleted!.OnPullSucceededAsync(environmentId, cancellationToken);
+            }
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            logger.LogWarning("Image update check after pull was not scheduled: {ErrorType}", exception.GetType().Name);
         }
     }
 

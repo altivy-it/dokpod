@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ImageUpdateCheck } from '../../data-access/generated/control-plane';
-import { hasImageUpdateCheck, IMAGE_UPDATE_REASON_LABEL, IMAGE_UPDATE_STATE_TONE, imageUpdateDescription, imageUpdateStateLabel } from './image-update-labels';
+import { canPullNewVersion, hasImageUpdateCheck, IMAGE_UPDATE_REASON_LABEL, IMAGE_UPDATE_STATE_TONE, imageUpdateDescription, imageUpdateStateLabel } from './image-update-labels';
 
 const check = (patch: Partial<ImageUpdateCheck>): ImageUpdateCheck => ({
   state: 'update_available',
@@ -34,6 +34,16 @@ describe('image update labels (spec 025 T017)', () => {
   it('has a pt-BR text for every reason of the contract', () => {
     expect(Object.keys(IMAGE_UPDATE_REASON_LABEL)).toHaveLength(11);
     expect(IMAGE_UPDATE_REASON_LABEL.unauthorized).toBe('Credencial recusada pelo registro');
+  });
+
+  it('offers "Baixar nova versão" only with image:pull and only in update_available (T020)', () => {
+    expect(canPullNewVersion(check({ state: 'update_available' }), true)).toBe(true);
+    expect(canPullNewVersion(check({ state: 'update_available' }), false)).toBe(false);
+    for (const state of ['up_to_date', 'not_checkable', 'failed', 'container_behind'] as const) {
+      expect(canPullNewVersion(check({ state }), true)).toBe(false);
+    }
+    expect(canPullNewVersion(null, true)).toBe(false);
+    expect(canPullNewVersion(undefined, true)).toBe(false);
   });
 
   it('shows nothing when the API does not send the field (CE)', () => {

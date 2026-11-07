@@ -1,7 +1,8 @@
 """Spec 025 (T018, História 1): na composição Business com a capability image-update-notice, Imagens, Containers e o
 detalhe do container mostram o estado da verificação em texto, com o motivo e a data; "Verificar agora" é aceito (202)
-e o segundo pedido no mesmo minuto é recusado com Retry-After (429). Na Community Edition nada disso aparece. A
-consulta real ao registro é coberta pelos testes do agente (T009–T012)."""
+e o segundo pedido no mesmo minuto é recusado com Retry-After (429). História 2 (T020): "Baixar nova versão" só com
+image:pull e só em update_available. Na Community Edition nada disso aparece. A consulta real ao registro é coberta
+pelos testes do agente (T009–T012)."""
 
 import re
 
@@ -60,6 +61,54 @@ def test_containers_and_detail_show_container_behind(page: Page, scenario) -> No
     expect(note.get_by_text("Versão nova no host; o container usa a anterior", exact=True).first).to_be_visible()
     expect(note).to_contain_text("verificada em")
     screenshot(page, "025-detalhe-aviso-1440")
+
+
+def test_pull_new_version_opens_the_pull_drawer_prefilled(page: Page, scenario) -> None:
+    """História 2 (T020): "Baixar nova versão" abre o drawer da spec 012 com a referência e o host do aviso."""
+    scenario("business-images")
+    goto(page, "imagens")
+    page.get_by_role("button", name="Ações de registry.empresa.com/loja/checkout:5.2.0 em srv-prod-01").click()
+    page.get_by_role("menuitem", name="Baixar nova versão").click()
+    dialog = page.get_by_role("dialog", name="Baixar imagem")
+    expect(dialog.get_by_label("Referência da imagem")).to_have_value("registry.empresa.com/loja/checkout:5.2.0")
+    expect(dialog.get_by_role("checkbox", name=re.compile("srv-prod-01"))).to_be_checked()
+    screenshot(page, "025-baixar-nova-versao-1440")
+    assert axe_violations(page) == []
+    dialog.get_by_role("button", name="Baixar imagem").click()
+    expect(dialog.get_by_role("region", name="Andamento do download").get_by_text("Concluído", exact=True)).to_be_visible(timeout=15_000)
+
+    submitted = page.request.get(f"{BASE_URL}__mock/submitted").json()
+    assert ["pull", "srv-prod-01", "registry.empresa.com/loja/checkout:5.2.0"] in submitted
+
+
+def test_pull_new_version_only_in_update_available(page: Page, scenario) -> None:
+    scenario("business-images")
+    goto(page, "containers")
+    page.get_by_role("button", name="Ações de checkout-web em srv-prod-01").click()
+    expect(page.get_by_role("menuitem", name="Baixar nova versão")).to_be_visible()
+    goto(page, "containers")
+    page.get_by_role("button", name=re.compile(r"Ações de redis-sessoes em ")).click()
+    expect(page.get_by_role("menuitem", name="Ver logs")).to_be_visible()
+    expect(page.get_by_role("menuitem", name="Baixar nova versão")).to_have_count(0)
+
+    goto(page, f"containers/{env(2)}/{cid('redis-sessoes')}")
+    expect(page.locator('[data-test="image-update"]')).to_be_visible()
+    expect(page.locator('[data-test="pull-new-version"]')).to_have_count(0)
+    goto(page, f"containers/{env(1)}/{cid('checkout-web')}")
+    page.locator('[data-test="pull-new-version"]').click()
+    expect(page.get_by_role("dialog", name="Baixar imagem").get_by_label("Referência da imagem")).to_have_value("registry.empresa.com/loja/checkout:5.2.0")
+
+
+def test_pull_new_version_needs_image_pull(page: Page, scenario) -> None:
+    scenario("business-images-readonly")
+    goto(page, "imagens")
+    expect(page.get_by_role("table").get_by_text("Nova versão disponível", exact=True).first).to_be_visible()
+    page.get_by_role("button", name="Ações de registry.empresa.com/loja/checkout:5.2.0 em srv-prod-01").click()
+    expect(page.get_by_role("menuitem", name="Ver containers do host")).to_be_visible()
+    expect(page.get_by_role("menuitem", name="Baixar nova versão")).to_have_count(0)
+    goto(page, f"containers/{env(1)}/{cid('checkout-web')}")
+    expect(page.locator('[data-test="image-update"]')).to_be_visible()
+    expect(page.locator('[data-test="pull-new-version"]')).to_have_count(0)
 
 
 def test_community_edition_shows_nothing(page: Page, scenario) -> None:

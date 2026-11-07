@@ -10,6 +10,7 @@ Cenários (POST /__mock/scenario {"name": ...}):
 - `readonly`: somente `environment:read`;
 - `expire-next`: a próxima chamada `/api/*` responde 401;
 - `empty`: nenhum host nem container.
+- `business-images`: aviso de nova versão de imagem (spec 025); `business-images-readonly`: o mesmo, sem `image:pull`.
 
 Spec 016: alertas, regras, silenciamentos e política de justificativa vivem em `ALERTS` e são recriados
 a cada troca de cenário; comandos de parar, pausar e remover respeitam a política do estágio.
@@ -82,6 +83,8 @@ ACTIONS_FOR = {
 def scopes() -> list[str]:
     if STATE["scenario"] == "readonly":
         return ["environment:read", "alert:read"]
+    if STATE["scenario"] == "business-images-readonly":
+        return [scope for scope in ALL_SCOPES if scope != "image:pull"]
     return ALL_SCOPES
 
 
@@ -733,7 +736,7 @@ def image_update_check(reference: str, stale: bool, for_container: bool) -> dict
 
 
 def image_updates_enabled() -> bool:
-    return STATE["scenario"] == "business-images"
+    return STATE["scenario"] in ("business-images", "business-images-readonly")
 
 
 def is_business() -> bool:
