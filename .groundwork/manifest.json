@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "toolVersion": "0.11.0",
-  "catalogVersion": "0.11.0",
+  "toolVersion": "0.11.1",
+  "catalogVersion": "0.11.1",
   "parameters": {
     "auto_deploy_environment": "quality",
     "commit_scopes": "docs,tooling,deps,actions,repo",
@@ -100,11 +100,11 @@
     },
     ".github/workflows/gw-preview.yml": {
       "component": "release-preview",
-      "sha256": "9527b076843b7174584832547418d79ade9ff4527c8b41b3719919d7af8372ab"
+      "sha256": "afd9cadab56ff16242b2fbd06e63594bb19849b9fe73bc1504acc0785ee821cf"
     },
     ".github/workflows/gw-release.yml": {
       "component": "release",
-      "sha256": "9673b92b860fe2bf44012aa61d47dc4c885fc6c2f6f24a073cf720469d23dee4"
+      "sha256": "4e3274ee70332af33eb99aecc901661031d772a797f547169911a9125b01f4e6"
     },
     "docs/en/release-integrity.md": {
       "component": "release",
