@@ -2961,6 +2961,10 @@ export type CreateAlertRuleErrors = {
      */
     409: ProblemDetails;
     /**
+     * Recusa tipada do aviso de nova versão; ProblemDetails.code segue ImageUpdateProblemCode. 429 traz Retry-After.
+     */
+    422: ProblemDetails;
+    /**
      * Autorização ou persistência indisponível.
      */
     503: ProblemDetails;
@@ -3062,6 +3066,10 @@ export type UpdateAlertRuleErrors = {
      * O ambiente já existe.
      */
     409: ProblemDetails;
+    /**
+     * Recusa tipada do aviso de nova versão; ProblemDetails.code segue ImageUpdateProblemCode. 429 traz Retry-After.
+     */
+    422: ProblemDetails;
     /**
      * Autorização ou persistência indisponível.
      */

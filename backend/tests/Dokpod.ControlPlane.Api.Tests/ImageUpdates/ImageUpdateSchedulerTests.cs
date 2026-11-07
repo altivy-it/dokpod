@@ -160,6 +160,9 @@ public sealed class ImageUpdateSchedulerTests : IAsyncLifetime
 
         public Task<IReadOnlyDictionary<string, string>> LocalImageIdsAsync(Guid environmentId, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyDictionary<string, string>>(new Dictionary<string, string>());
+
+        public Task<IReadOnlyList<ImageUpdateContainer>> ListContainersAsync(IReadOnlyCollection<Guid> environmentIds, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<ImageUpdateContainer>>([]);
     }
 
     private sealed class FakeEntitlement(bool licensed) : IImageUpdateEntitlement

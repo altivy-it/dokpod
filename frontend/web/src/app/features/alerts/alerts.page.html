@@ -178,7 +178,7 @@
 }
 
 @if (ruleDrawer(); as drawer) {
-  <app-rule-drawer [open]="true" [rule]="drawer.rule" (closed)="ruleDrawer.set(null)" (saved)="ruleSaved()" />
+  <app-rule-drawer [open]="true" [rule]="drawer.rule" [imageOutdatedAvailable]="facade.imageOutdatedAvailable()" (closed)="ruleDrawer.set(null)" (saved)="ruleSaved()" />
 }
 
 @if (silenceDrawer()) {

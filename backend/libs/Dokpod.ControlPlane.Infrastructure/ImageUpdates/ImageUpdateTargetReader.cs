@@ -37,6 +37,19 @@ public sealed class ImageUpdateTargetReader(ControlPlaneDbContext dbContext) : I
             },
             cancellationToken).ConfigureAwait(false);
 
+    public async Task<IReadOnlyList<ImageUpdateContainer>> ListContainersAsync(IReadOnlyCollection<Guid> environmentIds, CancellationToken cancellationToken) =>
+        environmentIds.Count == 0 ? [] : await QueryAsync(
+            dbContext,
+            """
+            SELECT environment_id, container_id, name, image_reference, image_id
+            FROM dokpod.inventory_containers
+            WHERE environment_id = ANY(@ids)
+            """,
+            [P("ids", environmentIds.ToArray())],
+            reader => new ImageUpdateContainer(
+                reader.GetGuid(0), reader.GetString(1), reader.GetString(2), reader.GetString(3), reader.IsDBNull(4) ? null : reader.GetString(4)),
+            cancellationToken).ConfigureAwait(false);
+
     public async Task<IReadOnlyDictionary<string, string>> LocalImageIdsAsync(Guid environmentId, CancellationToken cancellationToken)
     {
         var images = await QueryAsync(

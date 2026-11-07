@@ -8,6 +8,7 @@ using Dokpod.ControlPlane.Application.Realtime;
 using Dokpod.ControlPlane.Infrastructure;
 using Dokpod.Domain.Alerts;
 using Dokpod.Domain.Environments;
+using Dokpod.Domain.Images;
 using Dokpod.Domain.Inventory;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
@@ -177,6 +178,102 @@ public sealed class AlertSweepServiceTests
         }
     }
 
+    [Fact]
+    public async Task ImageOutdated_OpensAfterNDays_StaysOpenUntilRecreated_AndResolvesWhenUpToDate()
+    {
+        // Spec 025 T022 e cenário 5 do quickstart, com relógio injetável.
+        await using var harness = Harness.CreateOrSkip();
+        var ct = TestContext.Current.CancellationToken;
+        var host = harness.AddHost(connected: true);
+        var ruleId = Guid.NewGuid();
+        var rule = new AlertRule(ruleId, "Imagem desatualizada", null, AlertConditionKind.ImageOutdated, null, null, null, 0, AlertSeverity.Medium, new AlertScope(null, host, null), true, false, 0)
+        {
+            OutdatedDays = 1,
+        };
+        const string Reference = "registry.empresa.com/loja/checkout:5.2.0";
+        var since = harness.Clock.GetUtcNow().AddHours(-12);
+        ImageOutdatedTarget Target(string? state, DateTimeOffset? outdatedSince) => new(host, "web-1", "web-1", Reference, state, outdatedSince);
+        try
+        {
+            Assert.True(await harness.Store.SaveRuleAsync(rule, "teste", null, harness.Clock.GetUtcNow(), ct));
+
+            // Sem o aviso disponível (fonte nula), nada abre.
+            await harness.Sweep(ct);
+            harness.Images.Targets = [Target(ImageUpdateStates.UpdateAvailable, since)];
+            Assert.Equal(0, (await harness.Sweep(ct)).Opened);
+
+            harness.Clock.Advance(TimeSpan.FromHours(12) + TimeSpan.FromMinutes(1));
+            Assert.Equal(1, (await harness.Sweep(ct)).Opened);
+            var alert = (await harness.Active(host, ruleId, ct))!;
+            Assert.Equal("web-1", alert.ContainerId);
+            Assert.Contains($"Imagem {Reference} de web-1 desatualizada há 1 dia", alert.ConditionText);
+            Assert.Equal(0, (await harness.Sweep(ct)).Opened);
+
+            // Pull feito, container ainda não recriado; e uma falha da verificação: o alerta continua.
+            harness.Images.Targets = [Target(ImageUpdateStates.ContainerBehind, null)];
+            await harness.Sweep(ct);
+            harness.Images.Targets = [Target(ImageUpdateStates.Failed, since)];
+            await harness.Sweep(ct);
+            harness.Images.Targets = null;
+            await harness.Sweep(ct);
+            Assert.Equal(AlertState.Open, (await harness.Store.GetAsync(alert.AlertId, ct))!.State);
+
+            // Container recriado com a versão nova e nova verificação: resolvido.
+            harness.Images.Targets = [Target(ImageUpdateStates.UpToDate, null)];
+            Assert.Equal(1, (await harness.Sweep(ct)).Resolved);
+            var resolved = (await harness.Store.GetAsync(alert.AlertId, ct))!;
+            Assert.Equal((AlertState.Resolved, AlertResolutionReasons.ConditionCleared), (resolved.State, resolved.ResolutionReason));
+        }
+        finally
+        {
+            await harness.Cleanup(ct);
+            await harness.Context.Database.ExecuteSqlRawAsync("DELETE FROM dokpod.alert_rules WHERE rule_id = @id", [new NpgsqlParameter("id", ruleId)], ct);
+        }
+    }
+
+    [Fact]
+    public async Task ImageOutdated_DisabledRuleOrOtherHost_DoesNotOpen_AndRemovedContainerResolvesAfterTheGrace()
+    {
+        await using var harness = Harness.CreateOrSkip();
+        var ct = TestContext.Current.CancellationToken;
+        var (host, other) = (harness.AddHost(connected: true), harness.AddHost(connected: true));
+        var ruleId = Guid.NewGuid();
+        var rule = new AlertRule(ruleId, "Imagem desatualizada", null, AlertConditionKind.ImageOutdated, null, null, null, 0, AlertSeverity.Low, new AlertScope(null, host, null), false, false, 0)
+        {
+            OutdatedDays = 2,
+        };
+        var since = harness.Clock.GetUtcNow().AddDays(-3);
+        try
+        {
+            Assert.True(await harness.Store.SaveRuleAsync(rule, "teste", null, harness.Clock.GetUtcNow(), ct));
+            harness.Images.Targets =
+            [
+                new(host, "api", "api", "docker.io/library/nginx:1.27", ImageUpdateStates.UpdateAvailable, since),
+                new(other, "api", "api", "docker.io/library/nginx:1.27", ImageUpdateStates.UpdateAvailable, since),
+            ];
+            Assert.Equal(0, (await harness.Sweep(ct)).Opened);
+
+            var saved = (await harness.Store.GetRuleAsync(ruleId, ct))!;
+            Assert.True(await harness.Store.SaveRuleAsync(saved with { Enabled = true }, "teste", saved.Version, harness.Clock.GetUtcNow(), ct));
+            Assert.Equal(1, (await harness.Sweep(ct)).Opened);
+            Assert.Null(await harness.Active(other, ruleId, ct));
+            var alert = (await harness.Active(host, ruleId, ct))!;
+
+            harness.Images.Targets = [];
+            harness.Clock.Advance(TimeSpan.FromMinutes(1));
+            await harness.Sweep(ct);
+            Assert.Equal(AlertState.Open, (await harness.Store.GetAsync(alert.AlertId, ct))!.State);
+            harness.Clock.Advance(AlertSweepService.InventoryGrace);
+            await harness.Sweep(ct);
+            Assert.Equal(AlertResolutionReasons.ContainerRemoved, (await harness.Store.GetAsync(alert.AlertId, ct))!.ResolutionReason);
+        }
+        finally
+        {
+            await harness.Cleanup(ct);
+            await harness.Context.Database.ExecuteSqlRawAsync("DELETE FROM dokpod.alert_rules WHERE rule_id = @id", [new NpgsqlParameter("id", ruleId)], ct);
+        }
+    }
+
     private sealed class Harness : IAsyncDisposable
     {
         private readonly List<EnvironmentRegistration> registrations = [];
@@ -188,7 +285,7 @@ public sealed class AlertSweepServiceTests
             Justifications = new PostgresActionJustificationStore(context);
             var hosts = new HostQueryService(new NoHostStore(), new NoHostStore(), Sessions, new AgentLivenessTracker(Clock), new EngineSupportOptions());
             Metrics = new LatestMetricsCache(Clock, new MetricsOptions());
-            Service = new AlertSweepService(Store, Justifications, new Registrations(registrations), hosts, Containers, Metrics, new AlertConditionState(), new NullControlPlaneNotifier(), Clock);
+            Service = new AlertSweepService(Store, Justifications, new Registrations(registrations), hosts, Containers, Metrics, new AlertConditionState(), new NullControlPlaneNotifier(), Clock, Images);
         }
 
         public ControlPlaneDbContext Context { get; }
@@ -197,6 +294,7 @@ public sealed class AlertSweepServiceTests
         public ManualClock Clock { get; } = new(DateTimeOffset.UtcNow);
         public FakeSessions Sessions { get; } = new();
         public FakeContainers Containers { get; } = new();
+        public FakeImages Images { get; } = new();
         public LatestMetricsCache Metrics { get; }
         public AlertSweepService Service { get; }
 
@@ -279,6 +377,15 @@ public sealed class AlertSweepServiceTests
             Task.FromResult(items.GetValueOrDefault((environmentId, containerId)));
 
         public Task<ContainerSearchResult> SearchAsync(ContainerSearchQuery query, CancellationToken cancellationToken) => throw new NotSupportedException();
+    }
+
+    /// <summary>Fonte da condição de imagem; nula até o teste definir os containers (sem o aviso disponível).</summary>
+    private sealed class FakeImages : IImageOutdatedSource
+    {
+        public List<ImageOutdatedTarget>? Targets { get; set; }
+
+        public Task<IReadOnlyList<ImageOutdatedTarget>?> ListAsync(IReadOnlyCollection<Guid> environmentIds, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<ImageOutdatedTarget>?>(Targets?.Where(t => environmentIds.Contains(t.EnvironmentId)).ToArray());
     }
 
     private sealed class NoHostStore : IAgentHostStore, IInventoryStatisticsStore

@@ -61,6 +61,8 @@ export class AlertsFacade {
 
   readonly rules = signal<AlertRule[]>([]);
   readonly canManageRules = signal(false);
+  /** Spec 025: "imagem desatualizada há mais de N dias" só quando a API anuncia a condição. */
+  readonly imageOutdatedAvailable = signal(false);
   readonly silences = signal<AlertSilence[]>([]);
   readonly canManageSilences = signal(false);
   readonly showEndedSilences = signal(false);
@@ -99,6 +101,7 @@ export class AlertsFacade {
           if (generation !== this.generation) return;
           this.rules.set(page.rules);
           this.canManageRules.set(page.canManage);
+          this.imageOutdatedAvailable.set(page.imageOutdatedAvailable ?? false);
           break;
         }
         case 'silenciamentos': {

@@ -177,6 +177,77 @@ public sealed class AlertGovernanceServiceTests
     private static AlertCaller Caller(params Guid[] environments) =>
         new(Operator, "token", Guid.NewGuid(), environments.Select((id, i) => EnvironmentRegistration.Create(id, $"host-{i}", $"host-{i}", true, EnvironmentResourceScopes.Supported, EnvironmentStage.Development)).ToArray());
 
+    [Fact]
+    public async Task ImageOutdatedRule_IsUnavailableWithoutTheModule_AndCreateOrEditGoThroughTheGate()
+    {
+        // Spec 025 T021: CE recusa com 422; na Business, criar e editar regra ativa passam pelo gate; desativar, não.
+        await using var context = CreateContextOrSkip();
+        var ct = TestContext.Current.CancellationToken;
+        var host = Guid.NewGuid();
+        var decider = new Decider { [(host, EnvironmentResourceScopes.ReadAlerts)] = true, [(host, EnvironmentResourceScopes.ManageAlerts)] = true };
+        var audit = new Audit();
+        var store = new PostgresAlertStore(context);
+        var conditions = new Conditions();
+        var community = new AlertGovernanceService(store, new PostgresActionJustificationStore(context), decider, decider, audit, new NullControlPlaneNotifier(), TimeProvider.System);
+        var business = new AlertGovernanceService(store, new PostgresActionJustificationStore(context), decider, decider, audit, new NullControlPlaneNotifier(), TimeProvider.System, conditions);
+        var caller = Caller(host);
+        var ruleId = Guid.NewGuid();
+        var rule = new AlertRule(ruleId, "Imagem desatualizada em Produção", null, AlertConditionKind.ImageOutdated, null, null, null, 0, AlertSeverity.Medium,
+            new AlertScope(null, host, null), true, false, 0)
+        {
+            OutdatedDays = 7,
+        };
+        try
+        {
+            Assert.Equal((GovernanceOutcome.Unavailable, "alert_condition_unavailable"), Outcome(await community.SaveRuleAsync(caller, rule, null, ct)));
+            Assert.False(await community.ImageOutdatedAvailableAsync(ct));
+            Assert.Equal(GovernanceOutcome.Invalid, (await business.SaveRuleAsync(caller, rule with { OutdatedDays = 0 }, null, ct)).Outcome);
+
+            conditions.Denial = "license_invalid";
+            Assert.Equal((GovernanceOutcome.Forbidden, "license_invalid"), Outcome(await business.SaveRuleAsync(caller, rule, null, ct)));
+            Assert.Null(await store.GetRuleAsync(ruleId, ct));
+
+            conditions.Denial = null;
+            Assert.True(await business.ImageOutdatedAvailableAsync(ct));
+            Assert.Equal(GovernanceOutcome.Ok, (await business.SaveRuleAsync(caller, rule, null, ct)).Outcome);
+            var saved = (await store.GetRuleAsync(ruleId, ct))!;
+            Assert.Equal((AlertConditionKind.ImageOutdated, (int?)7), (saved.ConditionKind, saved.OutdatedDays));
+            Assert.Equal("alert.rule_created", Assert.Single(audit.Events).Action);
+
+            conditions.Denial = "license_expired";
+            Assert.Equal((GovernanceOutcome.Forbidden, "license_expired"), Outcome(await business.SaveRuleAsync(caller, saved with { OutdatedDays = 14 }, saved.Version, ct)));
+            Assert.Equal(GovernanceOutcome.Ok, (await business.SaveRuleAsync(caller, saved with { Enabled = false }, saved.Version, ct)).Outcome);
+            var disabled = (await store.GetRuleAsync(ruleId, ct))!;
+            Assert.False(disabled.Enabled);
+            Assert.Equal(GovernanceOutcome.Ok, (await community.SaveRuleAsync(caller, disabled, disabled.Version, ct)).Outcome);
+            Assert.Equal(GovernanceOutcome.Ok, (await business.DeleteRuleAsync(caller, ruleId, ct)).Outcome);
+            Assert.Equal(3, conditions.GateCalls);
+        }
+        finally
+        {
+            await context.Database.ExecuteSqlRawAsync("DELETE FROM dokpod.alert_rules WHERE rule_id = @id", [new NpgsqlParameter("id", ruleId)], ct);
+        }
+
+        static (GovernanceOutcome, string?) Outcome(GovernanceResult result) => (result.Outcome, result.Code);
+    }
+
+    private sealed class Conditions : IAlertConditionAvailability
+    {
+        public string? Denial { get; set; }
+
+        public int GateCalls { get; private set; }
+
+        public bool Supports(AlertConditionKind kind) => kind == AlertConditionKind.ImageOutdated;
+
+        public Task<bool> IsOfferedAsync(AlertConditionKind kind, CancellationToken cancellationToken) => Task.FromResult(Supports(kind));
+
+        public Task<string?> EnsureAllowedAsync(AlertConditionKind kind, CancellationToken cancellationToken)
+        {
+            GateCalls++;
+            return Task.FromResult(Denial);
+        }
+    }
+
     private static AlertOccurrence Occurrence(PostgresAlertStore store, Guid environment, string container, CancellationToken ct) =>
         new(store.GetRuleAsync(DiedRule, ct).GetAwaiter().GetResult()!, environment, container, container, $"Container {container} encerrado com erro (código 1)", DateTimeOffset.UtcNow, null);
 

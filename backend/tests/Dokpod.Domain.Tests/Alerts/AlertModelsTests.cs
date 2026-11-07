@@ -98,4 +98,48 @@ public sealed class AlertModelsTests
 
         Assert.False(AlertValues.TryParseState("aberto", out _));
     }
+
+    [Theory]
+    [InlineData(1, true)]
+    [InlineData(365, true)]
+    [InlineData(0, false)]
+    [InlineData(366, false)]
+    [InlineData(null, false)]
+    public void ImageOutdated_RequiresOutdatedDaysFromOneTo365(int? days, bool valid)
+    {
+        // Spec 025 T021: a condição só aceita outdatedDays, e só ela o aceita.
+        var rule = ImageOutdated() with { OutdatedDays = days };
+
+        Assert.Equal(valid, rule.Validate().Count == 0);
+        if (!valid) Assert.Contains("outdatedDays", rule.Validate());
+        Assert.True(rule.IsContainerTarget);
+    }
+
+    [Fact]
+    public void ImageOutdated_RejectsEventAndMetricFields_AndOtherConditionsRejectOutdatedDays()
+    {
+        Assert.Contains("eventType", (ImageOutdated() with { EventType = OperationalEventTypes.ContainerDied }).Validate());
+        Assert.Contains("metric", (ImageOutdated() with { Metric = AlertMetric.ContainerCpu, ThresholdPercent = 90 }).Validate());
+        var metric = new AlertRule(Guid.NewGuid(), "CPU", null, AlertConditionKind.Metric, null, AlertMetric.HostCpu, 90, 300, AlertSeverity.High, AlertScope.Everything, true, false, 0)
+        {
+            OutdatedDays = 7,
+        };
+        Assert.Contains("outdatedDays", metric.Validate());
+
+        foreach (var kind in Enum.GetValues<AlertConditionKind>())
+        {
+            Assert.True(AlertValues.TryParseConditionKind(AlertValues.ConditionKind(kind), out var parsed));
+            Assert.Equal(kind, parsed);
+        }
+
+        Assert.Equal("image_outdated", AlertValues.ConditionKind(AlertConditionKind.ImageOutdated));
+        Assert.False(AlertValues.TryParseConditionKind("imagem", out _));
+    }
+
+    private static AlertRule ImageOutdated() =>
+        new(Guid.NewGuid(), "Imagem desatualizada", null, AlertConditionKind.ImageOutdated, null, null, null, 0, AlertSeverity.Medium,
+            new AlertScope(EnvironmentStage.Production, null, null), true, false, 0)
+        {
+            OutdatedDays = 7,
+        };
 }

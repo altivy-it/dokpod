@@ -50,6 +50,10 @@ const STAGE_LABEL: Record<string, string> = { production: 'Produção', staging:
 
 /** Condição da regra em linguagem do operador. */
 export function describeRule(rule: AlertRule): string {
+  if (rule.conditionKind === 'image_outdated') {
+    const days = rule.outdatedDays ?? 0;
+    return `Imagem desatualizada há mais de ${days} ${days === 1 ? 'dia' : 'dias'}`;
+  }
   if (rule.conditionKind === 'metric') {
     const metric = RULE_METRICS.find(m => m.id === rule.metric)?.label ?? rule.metric ?? 'métrica';
     const minutes = Math.round(rule.durationSeconds / 60);

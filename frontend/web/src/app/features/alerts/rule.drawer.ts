@@ -11,13 +11,14 @@ import { actionError } from './alerts.facade';
 interface RuleForm {
   name: string;
   description: string;
-  // image_outdated (spec 025) só vem da composição Business; o formulário passa a oferecê-la na T023.
+  // image_outdated (spec 025 T023): só quando a API anuncia a condição (composição Business com a capability).
   conditionKind: AlertRule['conditionKind'];
   eventType: string;
   metric: NonNullable<AlertRule['metric']>;
   thresholdPercent: number;
   durationMinutes: number;
   minOccurrences: number;
+  outdatedDays: number;
   severity: AlertSeverity;
   stage: Stage | '';
   environmentId: string;
@@ -37,6 +38,7 @@ export function emptyRuleForm(): RuleForm {
     thresholdPercent: 80,
     durationMinutes: 0,
     minOccurrences: 1,
+    outdatedDays: 7,
     severity: 'medium',
     stage: '',
     environmentId: '',
@@ -55,6 +57,7 @@ export function ruleToForm(rule: AlertRule): RuleForm {
     thresholdPercent: rule.thresholdPercent ?? 80,
     durationMinutes: Math.round(rule.durationSeconds / 60),
     minOccurrences: rule.minOccurrences,
+    outdatedDays: rule.outdatedDays ?? 7,
     severity: rule.severity,
     stage: rule.scope.stage ?? '',
     environmentId: rule.scope.environmentId ?? '',
@@ -71,11 +74,14 @@ export function ruleRequest(form: RuleForm, version: number | null): { request: 
   const duration = Math.round(Number(form.durationMinutes) * 60);
   if (!Number.isFinite(duration) || duration < 0 || duration > 86_400) return { request: null, error: 'A duração vai de 0 a 1.440 minutos.' };
   const metric = form.conditionKind === 'metric';
+  const image = form.conditionKind === 'image_outdated';
+  const days = Number(form.outdatedDays);
+  if (image && (!Number.isInteger(days) || days < 1 || days > 365)) return { request: null, error: 'Informe de 1 a 365 dias.' };
   const threshold = Number(form.thresholdPercent);
   if (metric && (!Number.isFinite(threshold) || threshold < 1 || threshold > 100)) return { request: null, error: 'O limite vai de 1% a 100%.' };
   const occurrences = Math.round(Number(form.minOccurrences));
-  if (!metric && (!Number.isFinite(occurrences) || occurrences < 1 || occurrences > 100)) return { request: null, error: 'O mínimo de ocorrências vai de 1 a 100.' };
-  if (!metric && occurrences > 1 && duration === 0) return { request: null, error: 'Com mais de uma ocorrência, informe a janela em minutos.' };
+  if (!metric && !image && (!Number.isFinite(occurrences) || occurrences < 1 || occurrences > 100)) return { request: null, error: 'O mínimo de ocorrências vai de 1 a 100.' };
+  if (!metric && !image && occurrences > 1 && duration === 0) return { request: null, error: 'Com mais de uma ocorrência, informe a janela em minutos.' };
   const pattern = form.containerPattern.trim();
   if (pattern.length > 128) return { request: null, error: 'O padrão de nome aceita até 128 caracteres.' };
   return {
@@ -84,11 +90,12 @@ export function ruleRequest(form: RuleForm, version: number | null): { request: 
       name,
       description: form.description.trim() || null,
       conditionKind: form.conditionKind,
-      eventType: metric ? null : form.eventType,
+      eventType: metric || image ? null : form.eventType,
       metric: metric ? form.metric : null,
       thresholdPercent: metric ? threshold : null,
-      durationSeconds: duration,
-      minOccurrences: metric ? 1 : occurrences,
+      durationSeconds: image ? 0 : duration,
+      minOccurrences: metric || image ? 1 : occurrences,
+      outdatedDays: image ? days : null,
       severity: form.severity,
       scope: { stage: form.stage || null, environmentId: form.environmentId || null, containerPattern: pattern || null },
       enabled: form.enabled,
@@ -139,8 +146,21 @@ export function ruleRequest(form: RuleForm, version: number | null): { request: 
           <legend class="alt-field__label">Condição</legend>
           <label><input type="radio" name="kind" value="event" [checked]="form().conditionKind === 'event'" (change)="patch({ conditionKind: 'event' })" /> Evento operacional</label>
           <label><input type="radio" name="kind" value="metric" [checked]="form().conditionKind === 'metric'" (change)="patch({ conditionKind: 'metric', durationMinutes: form().durationMinutes || 5 })" /> Limite de CPU ou memória</label>
+          @if (offersImageOutdated()) {
+            <label><input type="radio" name="kind" value="image_outdated" [checked]="form().conditionKind === 'image_outdated'" (change)="patch({ conditionKind: 'image_outdated' })" /> Imagem desatualizada</label>
+          }
         </fieldset>
-        @if (form().conditionKind === 'event') {
+        @if (form().conditionKind === 'image_outdated') {
+          <dok-field
+            class="rd-full"
+            label="Desatualizada há mais de (dias)"
+            type="number"
+            [ngModel]="form().outdatedDays"
+            (ngModelChange)="patch({ outdatedDays: $event })"
+            name="outdatedDays"
+            help="De 1 a 365. Conta desde que o registro passou a ter uma versão nova da tag; o alerta resolve quando o container é recriado com ela."
+          />
+        } @else if (form().conditionKind === 'event') {
           <label class="rd-label rd-full">
             <span class="alt-field__label">Tipo de evento</span>
             <select class="rd-select" [disabled]="builtIn()" [ngModel]="form().eventType" (ngModelChange)="patch({ eventType: $event })" name="eventType">
@@ -206,6 +226,8 @@ export function ruleRequest(form: RuleForm, version: number | null): { request: 
 export class RuleDrawer {
   readonly open = input(false);
   readonly rule = input<AlertRule | null>(null);
+  /** `AlertRulePage.imageOutdatedAvailable` (spec 025). */
+  readonly imageOutdatedAvailable = input(false);
   readonly closed = output<void>();
   readonly saved = output<void>();
 
@@ -220,8 +242,11 @@ export class RuleDrawer {
   protected readonly stages = STAGES;
   protected readonly builtIn = computed(() => this.rule()?.builtIn ?? false);
   protected readonly hosts = computed(() => [...this.directory.environments()].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')));
+  /** A condição aparece quando a API a anuncia, ou numa regra que já a usa (para ser desativada ou removida). */
+  protected readonly offersImageOutdated = computed(() => this.imageOutdatedAvailable() || this.rule()?.conditionKind === 'image_outdated');
   protected readonly containerTarget = computed(() => {
     const form = this.form();
+    if (form.conditionKind === 'image_outdated') return true;
     return form.conditionKind === 'metric' ? form.metric.startsWith('container_') : CONTAINER_EVENTS.has(form.eventType);
   });
 

@@ -23,6 +23,8 @@ public static class ImageUpdateModule
         services.AddScoped<Dokpod.ControlPlane.Application.Images.IImageUpdateAnnotations>(provider => provider.GetRequiredService<ImageUpdateReadService>());
         services.AddScoped<ImageUpdateCheckService>();
         services.AddScoped<Dokpod.ControlPlane.Application.Images.IImagePullCompletionObserver, ImageUpdateAfterPull>();
+        services.AddScoped<Dokpod.ControlPlane.Application.Alerts.IAlertConditionAvailability, ImageOutdatedConditionAvailability>();
+        services.AddScoped<Dokpod.ControlPlane.Application.Alerts.IImageOutdatedSource, ImageOutdatedSource>();
         services.AddHostedService<ImageUpdateWorker>();
         return services;
     }

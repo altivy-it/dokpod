@@ -27,21 +27,22 @@ public sealed class PostgresAlertStore(ControlPlaneDbContext dbContext) : IAlert
     {
         var parameters = new List<NpgsqlParameter>
         {
-            P("id", rule.RuleId), P("name", rule.Name.Trim()), P("description", rule.Description), P("kind", rule.ConditionKind == AlertConditionKind.Event ? "event" : "metric"),
+            P("id", rule.RuleId), P("name", rule.Name.Trim()), P("description", rule.Description), P("kind", AlertValues.ConditionKind(rule.ConditionKind)),
             P("eventType", rule.EventType), P("metric", rule.Metric is { } metric ? AlertValues.Metric(metric) : null),
             P("threshold", rule.ThresholdPercent is { } threshold ? (decimal)threshold : null), P("duration", rule.DurationSeconds), P("occurrences", rule.MinOccurrences),
             P("severity", AlertValues.Severity(rule.Severity)), P("stage", rule.Scope.Stage is { } stage ? EnvironmentStages.ToValue(stage) : null),
             P("environment", rule.Scope.EnvironmentId), P("pattern", rule.Scope.ContainerPattern), P("enabled", rule.Enabled), P("builtIn", rule.BuiltIn),
-            P("actor", actor), P("at", at),
+            P("actor", actor), P("at", at), P("outdatedDays", rule.OutdatedDays),
         };
         if (expectedVersion is null)
         {
             return await ExecuteAsync(
                 """
                 INSERT INTO dokpod.alert_rules (rule_id, name, description, condition_kind, event_type, metric, threshold_percent, duration_seconds,
-                    min_occurrences, severity, scope_stage, scope_environment_id, scope_container_pattern, enabled, built_in, version, updated_by, updated_at_utc)
+                    min_occurrences, severity, scope_stage, scope_environment_id, scope_container_pattern, enabled, built_in, version, updated_by, updated_at_utc,
+                    outdated_days)
                 VALUES (@id, @name, @description, @kind, @eventType, @metric, @threshold, @duration, @occurrences, @severity, @stage, @environment, @pattern,
-                    @enabled, @builtIn, 1, @actor, @at)
+                    @enabled, @builtIn, 1, @actor, @at, @outdatedDays)
                 ON CONFLICT (rule_id) DO NOTHING
                 """,
                 parameters,
@@ -53,7 +54,7 @@ public sealed class PostgresAlertStore(ControlPlaneDbContext dbContext) : IAlert
             """
             UPDATE dokpod.alert_rules SET name = @name, description = @description, condition_kind = @kind, event_type = @eventType, metric = @metric,
                 threshold_percent = @threshold, duration_seconds = @duration, min_occurrences = @occurrences, severity = @severity, scope_stage = @stage,
-                scope_environment_id = @environment, scope_container_pattern = @pattern, enabled = @enabled, version = version + 1,
+                scope_environment_id = @environment, scope_container_pattern = @pattern, enabled = @enabled, outdated_days = @outdatedDays, version = version + 1,
                 updated_by = @actor, updated_at_utc = @at
             WHERE rule_id = @id AND version = @version
             """,
@@ -247,7 +248,8 @@ public sealed class PostgresAlertStore(ControlPlaneDbContext dbContext) : IAlert
 
     private static AlertRule ReadRule(DbDataReader reader)
     {
-        var kind = reader.GetString(reader.GetOrdinal("condition_kind")) == "event" ? AlertConditionKind.Event : AlertConditionKind.Metric;
+        if (!AlertValues.TryParseConditionKind(reader.GetString(reader.GetOrdinal("condition_kind")), out var kind)) kind = AlertConditionKind.Metric;
+        var outdatedOrdinal = reader.GetOrdinal("outdated_days");
         AlertValues.TryParseMetric(Nullable(reader, reader.GetOrdinal("metric")), out var metric);
         AlertValues.TryParseSeverity(reader.GetString(reader.GetOrdinal("severity")), out var severity);
         var stageText = Nullable(reader, reader.GetOrdinal("scope_stage"));
@@ -272,6 +274,7 @@ public sealed class PostgresAlertStore(ControlPlaneDbContext dbContext) : IAlert
             reader.GetInt32(reader.GetOrdinal("version")))
         {
             MinOccurrences = reader.GetInt32(reader.GetOrdinal("min_occurrences")),
+            OutdatedDays = reader.IsDBNull(outdatedOrdinal) ? null : reader.GetInt32(outdatedOrdinal),
         };
     }
 

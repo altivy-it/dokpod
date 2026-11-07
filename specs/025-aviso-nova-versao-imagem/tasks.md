@@ -245,20 +245,22 @@ description: "Tarefas da implementação do aviso de nova versão de imagem"
 
 **Teste Independente**: criar a regra em Produção, simular a defasagem com relógio injetável e conferir o alerta aberto e, depois do container recriado e de nova verificação, resolvido.
 
-- [ ] T021 [US3] Condição no domínio e na governança ([D-010](research.md#d-010-condição-de-alerta)):
+- [X] T021 [US3] Condição no domínio e na governança ([D-010](research.md#d-010-condição-de-alerta)):
   - `AlertConditionKind.ImageOutdated` e `OutdatedDays` (1 a 365, obrigatório só para ela) em `backend/libs/Dokpod.Domain/Alerts/AlertModels.cs`;
   - provedor `IAlertConditionAvailability`, registrado só pelo `ImageUpdateModule`. Sem ele (CE), criar ou editar dá `422 alert_condition_unavailable`;
   - criar e editar regra com a condição passam pelo gate (`403 license_expired` ou `license_invalid`); desativar e excluir, nunca;
   - persistência em `alert_rules.outdated_days`.
 
   Testes em `backend/tests/Dokpod.ControlPlane.Application.Tests/Alerts/` e `backend/tests/Dokpod.ControlPlane.Api.Tests/` (rotas das regras).
-- [ ] T022 [US3] Avaliação em `backend/libs/Dokpod.ControlPlane.Application/Alerts/AlertSweepService.cs`:
+- [X] T022 [US3] Avaliação em `backend/libs/Dokpod.ControlPlane.Application/Alerts/AlertSweepService.cs`:
   - abre um alerta por container em `update_available` ou `container_behind` cuja referência tem `outdated_since_utc` de N dias ou mais;
   - resolve quando o container deixa esses estados ou some;
   - silenciamentos e auditoria da 016 valem como para as outras condições.
 
   Testes com relógio injetável.
-- [ ] T023 [US3] Condição "Imagem desatualizada há mais de N dias" em `frontend/web/src/app/features/alerts/rule.drawer.ts`, visível só quando a API anuncia a condição, com validação de 1 a 365. Testes em `alerts-forms.spec.ts` e caso no `test_025_image_update.py`.
+- [X] T023 [US3] Condição "Imagem desatualizada há mais de N dias" em `frontend/web/src/app/features/alerts/rule.drawer.ts`, visível só quando a API anuncia a condição, com validação de 1 a 365. Testes em `alerts-forms.spec.ts` e caso no `test_025_image_update.py`.
+
+  *(2026-11-07: portas neutras `IAlertConditionAvailability` e `IImageOutdatedSource` em `Application.Alerts`, registradas só pelo `ImageUpdateModule`; a CE nunca referencia o módulo Business. Decisões de execução: (1) o alerta abre quando a referência tem `outdated_since` de N dias ou mais e continua aberto em `update_available`, `container_behind` e `failed` (uma falha nunca vira "Atualizada", SC-002); resolve quando o container fica em dia, recriado, ou some, depois da carência do inventário. Pelo data-model, `outdated_since` é apagado quando a referência volta a `up_to_date`, então um container em `container_behind` sem alerta prévio não abre um novo; (2) desativar uma regra não passa pelo gate nem pelo `422` da CE; (3) a auditoria da regra mantém os detalhes permitidos de hoje (sem `outdatedDays`), para não mudar a allowlist nem a exportação SIEM da 027; (4) o contrato ganhou o `422` no `POST` e no `PUT` das regras. Evidência: PostgreSQL 17.6 real com `dotnet ef database update`; domínio 191, aplicação 273, arquitetura 14 e `Dokpod.ControlPlane.Api.Tests` 363 (2 pulados por variável de medição), com `ImageOutdatedRule_*`, `ImageOutdated_*` da varredura e `ImageOutdatedAlertsTests`; frontend 200 testes, cliente regenerado e build de produção; `run-mock-e2e.sh` com a 025 e a 016 aprovadas.)*
 
 **Checkpoint**: as três histórias funcionando de forma independente.
 
