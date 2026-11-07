@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.1](https://github.com/altivy-it/dokpod/compare/v0.5.0...v0.5.1) (2026-11-07)
+
+
+### Corrigido
+
+* **release:** aplique o groundwork 0.11.2 e limite o last-release-sha ([#128](https://github.com/altivy-it/dokpod/issues/128)) ([fa18cbb](https://github.com/altivy-it/dokpod/commit/fa18cbb1c0d55610ae2c1d07a1e3ad78c957ee22))
+
 ## [0.5.0](https://github.com/altivy-it/dokpod/compare/v0.4.0...v0.5.0) (2026-11-07)
 
 
