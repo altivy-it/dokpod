@@ -123,6 +123,9 @@ Preview-Waiver: correção de segurança publicada sem candidata por indisponibi
 O waiver libera o `Preview gate` e o guard de `production`, aparece no resumo do deploy e nas notas
 da release. É exceção auditável, não atalho: registre o motivo real.
 
+O waiver vale somente desde a última estável. Sem tag estável, o limite é o `last-release-sha` de
+`release-please-config.json`, para um waiver antigo não dispensar uma release nova.
+
 ## 8. Automático e humano
 
 | Etapa | Automático | Humano |
