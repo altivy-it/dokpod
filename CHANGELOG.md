@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.6.0](https://github.com/altivy-it/dokpod/compare/v0.5.1...v0.6.0) (2026-11-07)
+
+
+### Adicionado
+
+* **api:** alerte sobre imagem desatualizada há mais de N dias (spec 025 US3) ([#134](https://github.com/altivy-it/dokpod/issues/134)) ([a159813](https://github.com/altivy-it/dokpod/commit/a159813a615462d963a453fc74a5d8d8416779e3))
+* **api:** baixe a nova versão a partir do aviso de imagem (spec 025 US2) ([#133](https://github.com/altivy-it/dokpod/issues/133)) ([7f7b712](https://github.com/altivy-it/dokpod/commit/7f7b71286aeac5647ff9db33afafc091d9dc989a))
+
 ## [0.5.1](https://github.com/altivy-it/dokpod/compare/v0.5.0...v0.5.1) (2026-11-07)
 
 
