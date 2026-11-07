@@ -429,7 +429,8 @@ function Find-ValidatedCandidate {
 function Find-PreviewWaiver {
     <#
     Rodapé "Preview-Waiver: <justificativa>" em algum commit de <desde>..<até>. Devolve a justificativa ou vazio.
-    Sem <desde> (primeira release), considera todo o histórico até <até>.
+    Sem <desde> (sem tag estável), começa no last-release-sha do release-please; sem ele (primeira release),
+    considera todo o histórico até <até>.
     #>
     [OutputType([string])]
     param(
@@ -437,6 +438,9 @@ function Find-PreviewWaiver {
         [Parameter(Mandatory)][string] $Until
     )
 
+    if (-not $Since -and (Test-Path -LiteralPath 'release-please-config.json')) {
+        $Since = [string]((Get-Content -LiteralPath 'release-please-config.json' -Raw | ConvertFrom-Json -AsHashtable)['last-release-sha'])
+    }
     $range = $Since ? "$Since..$Until" : $Until
     $messages = (git log --format='%B%x00' $range 2>$null | Out-String)
     if ($LASTEXITCODE -ne 0) { throw "Histórico $range indisponível; o checkout precisa de fetch-depth 0." }
