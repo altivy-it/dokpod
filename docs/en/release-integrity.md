@@ -147,9 +147,10 @@ it never permits stale SHAs, failing CI or missing mandatory dependencies.
 
 Signals include stale source, pending CI/integrations or RC/final code differences.
 Wait for integration/CI, update the Release PR and generate a fresh run/candidate.
-Never move existing tags or overwrite assets. If main CI was still running when
-the release push triggered, resume after it turns green using authenticated CLI
-from the repository root:
+Never move existing tags or overwrite assets. The Release PR merge push triggers
+CI and release together; the guard waits up to 20 minutes for CI on the same SHA
+and only proceeds on `success`. If CI takes longer, resume after it turns green
+using authenticated CLI from the repository root:
 
 ```bash
 gh workflow run gw-release.yml --ref main -f mode=release

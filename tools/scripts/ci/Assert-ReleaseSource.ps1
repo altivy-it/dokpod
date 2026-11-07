@@ -6,7 +6,7 @@
 Recusa novas publicações com SHA desatualizado, CI falho ou código diferente do RC aceito.
 .DESCRIPTION
 Somente leitura no GitHub. ReleasePlease libera atualização de PR comum, mas valida
-release integrada antes da tag. Publication revalida após aprovação. Snapshot exige
+release integrada antes da tag, aguardando até 20 minutos o CI do mesmo SHA. Publication revalida após aprovação. Snapshot exige
 Result verde da própria execução. Republish exige release já pública e tag imutável.
 Publication com tag e Republish exigem revisão humana de distribution no mesmo run,
 SHA e tag; quality e waiver não substituem autorização de divulgação.
@@ -125,7 +125,7 @@ try {
         foreach ($pull in $pulls) { Assert-ReleaseDependencies -Repository $Repository -Commit $Commit -Body ([string]($pull['body'] ?? '')) -DefaultBranch $DefaultBranch }
     }
     if ($Stable -or $Stage -eq 'ReleasePlease') { Assert-StableCandidateSource -Repository $Repository -Commit $Commit -Config (Read-CiCdConfig) }
-    Assert-CurrentReleaseSource -Repository $Repository -Commit $Commit -DefaultBranch $DefaultBranch
+    Assert-CurrentReleaseSource -Repository $Repository -Commit $Commit -DefaultBranch $DefaultBranch -CiWaitSeconds ($Stage -eq 'ReleasePlease' ? 1200 : 0)
     if ($Stage -eq 'Publication' -and ($Stable -or $Tag)) {
         if (-not $Tag) { $Tag = 'v' + [string]((Get-Content -LiteralPath '.release-please-manifest.json' -Raw | ConvertFrom-Json -AsHashtable)['.']) }
         if (-not $Preflight) { Assert-DistributionApproval -Repository $Repository -Commit $Commit -Tag $Tag }

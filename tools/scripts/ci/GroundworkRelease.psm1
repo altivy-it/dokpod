@@ -517,7 +517,9 @@ function Assert-CurrentReleaseSource {
         [Parameter(Mandatory)][string] $Repository,
         [Parameter(Mandatory)][string] $Commit,
         [string] $DefaultBranch = 'main',
-        [switch] $AllowRunningCi
+        [switch] $AllowRunningCi,
+        [ValidateRange(0, 3600)][int] $CiWaitSeconds = 0,
+        [ValidateRange(0, 300)][int] $CiPollSeconds = 30
     )
 
     if ($Repository -notmatch '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$' -or $Commit -notmatch '^[0-9a-f]{40}$') { throw 'Repositório ou SHA de release inválido.' }
@@ -529,9 +531,17 @@ function Assert-CurrentReleaseSource {
         throw "Fonte desatualizada: esperado $Commit, HEAD de $DefaultBranch $actual. Aguarde a integração e atualização do Release PR; gere uma nova execução/candidata."
     }
 
-    $pages = Invoke-GhJson -Path "repos/$Repository/actions/workflows/ci.yml/runs?branch=$branch&head_sha=$Commit&event=push&per_page=100" -Paginate
-    $runs = @($pages | ForEach-Object { $_['workflow_runs'] } | Where-Object { $_['head_sha'] -ceq $Commit -and $_['head_branch'] -ceq $DefaultBranch -and $_['event'] -ceq 'push' } | Sort-Object { [long]$_['id'] } -Descending)
-    $ownRunning = $AllowRunningCi -and $runs.Count -gt 0 -and [string]$runs[0]['id'] -ceq $env:GITHUB_RUN_ID -and $runs[0]['status'] -ceq 'in_progress'
+    # O push do merge dispara CI e Release juntos: aguarda o CI do mesmo SHA terminar, sem aceitar resultado diferente de success.
+    $deadline = [datetime]::UtcNow.AddSeconds($CiWaitSeconds)
+    while ($true) {
+        $pages = Invoke-GhJson -Path "repos/$Repository/actions/workflows/ci.yml/runs?branch=$branch&head_sha=$Commit&event=push&per_page=100" -Paginate
+        $runs = @($pages | ForEach-Object { $_['workflow_runs'] } | Where-Object { $_['head_sha'] -ceq $Commit -and $_['head_branch'] -ceq $DefaultBranch -and $_['event'] -ceq 'push' } | Sort-Object { [long]$_['id'] } -Descending)
+        $ownRunning = $AllowRunningCi -and $runs.Count -gt 0 -and [string]$runs[0]['id'] -ceq $env:GITHUB_RUN_ID -and $runs[0]['status'] -ceq 'in_progress'
+        $running = $runs.Count -eq 0 -or $runs[0]['status'] -cne 'completed'
+        if ($ownRunning -or -not $running -or [datetime]::UtcNow -ge $deadline) { break }
+        Write-Output "Aguardando CI da $DefaultBranch no SHA $Commit ($(if ($runs.Count) { $runs[0]['status'] } else { 'ainda não criado' }))."
+        Start-Sleep -Seconds $CiPollSeconds
+    }
     if ($runs.Count -eq 0 -or (-not $ownRunning -and ($runs[0]['status'] -cne 'completed' -or $runs[0]['conclusion'] -cne 'success'))) {
         throw "CI da $DefaultBranch pendente, ausente ou sem sucesso no SHA $Commit. Aguarde Result verde e dispare novamente."
     }

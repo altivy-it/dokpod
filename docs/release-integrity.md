@@ -149,8 +149,9 @@ SHA antigo, CI falho ou dependência obrigatória ausente.
 Sinais: mensagem `Fonte desatualizada`, `CI ... pendente`, `Integração obrigatória
 pendente` ou `Release difere do RC`. Aguarde a integração/CI, atualize o Release
 PR e gere nova execução/candidata. Nunca mova tags existentes ou substitua assets.
-Se o CI da main ainda não terminou quando o push disparou a release, depois de
-ficar verde retome pela CLI autenticada, na raiz do repositório:
+O push do merge do Release PR dispara CI e release juntos; a guarda aguarda até
+20 minutos o CI do mesmo SHA e só segue com `success`. Se o CI demorar mais que
+isso, depois de ficar verde retome pela CLI autenticada, na raiz do repositório:
 
 ```bash
 gh workflow run gw-release.yml --ref main -f mode=release
