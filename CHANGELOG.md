@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.5.0](https://github.com/altivy-it/dokpod/compare/v0.4.0...v0.5.0) (2026-11-07)
+
+
+### Adicionado
+
+* **api:** avise quando houver nova versão de imagem no registro (spec 025 US1) ([#116](https://github.com/altivy-it/dokpod/issues/116)) ([a0cb355](https://github.com/altivy-it/dokpod/commit/a0cb35559270b4e366836724ee4bb2b6c1b33621))
+
+
+### Corrigido
+
+* **deps:** use as imagens .NET 10.0.14 com correção da GHSA-p3jp-9v83-76w9 ([#117](https://github.com/altivy-it/dokpod/issues/117)) ([c984974](https://github.com/altivy-it/dokpod/commit/c9849743f5bc69727a44347afac0729e16bcd8d6))
+* **release:** aceite CVEs do web e aplique o groundwork 0.11.0 ([#123](https://github.com/altivy-it/dokpod/issues/123)) ([3308e3f](https://github.com/altivy-it/dokpod/commit/3308e3f49ea614aa174e0876bb89ba174907c873))
+* **release:** publique imagens e pacote Windows com a versão da tag ([#118](https://github.com/altivy-it/dokpod/issues/118)) ([22b68f3](https://github.com/altivy-it/dokpod/commit/22b68f3debad75b90a716367229d9fe7355a17c9))
+* **release:** remova o apt das imagens e mantenha o Release PR sobre a main ([#122](https://github.com/altivy-it/dokpod/issues/122)) ([9166a89](https://github.com/altivy-it/dokpod/commit/9166a899ff37e714b6ac10db042539688967f727))
+
 ## [0.4.0](https://github.com/altivy-it/dokpod/compare/v0.3.2...v0.4.0) (2026-11-05)
 
 
