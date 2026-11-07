@@ -147,8 +147,9 @@ permite SHA antiguo, CI fallido ni dependencia obligatoria ausente.
 
 Señales: fuente desactualizada, CI/integración pendiente o diferencias RC/final.
 Espere integración/CI, actualice Release PR y genere una ejecución/candidata nueva.
-Nunca mueva tags existentes ni sobrescriba assets. Si el CI de main seguía en
-ejecución cuando el push disparó release, retome cuando esté verde mediante CLI
+Nunca mueva tags existentes ni sobrescriba assets. El push del merge del Release PR
+dispara CI y release juntos; la guarda espera hasta 20 minutos el CI del mismo SHA y
+solo sigue con `success`. Si el CI tarda más, retome cuando esté verde mediante CLI
 autenticada desde la raíz del repositorio:
 
 ```bash

@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "toolVersion": "0.11.2",
-  "catalogVersion": "0.11.2",
+  "toolVersion": "0.11.3",
+  "catalogVersion": "0.11.3",
   "parameters": {
     "auto_deploy_environment": "quality",
     "commit_scopes": "docs,tooling,deps,actions,repo",
@@ -104,15 +104,15 @@
     },
     ".github/workflows/gw-release.yml": {
       "component": "release",
-      "sha256": "4e3274ee70332af33eb99aecc901661031d772a797f547169911a9125b01f4e6"
+      "sha256": "f36588108ed5e8021040cdc79d349523998492ae726f5477940c274a6a46c2c7"
     },
     "docs/en/release-integrity.md": {
       "component": "release",
-      "sha256": "1457d70ff69a6b252e88831c6284868435d4ba10008f35a3bbf99f57d1548add"
+      "sha256": "07f64083c92a116ae70724106cd70c44d3bbe60f41e94604109a4fc3bec4eef2"
     },
     "docs/es/release-integrity.md": {
       "component": "release",
-      "sha256": "a2332fc0114298eb07e8ad62ecb61f955627147bc35079078828d4102fd5ab7d"
+      "sha256": "1c7546d8415fd36487be19d4ef864050e5fd2d741f08f4280243e40552f5cec6"
     },
     "docs/estrategia-de-release.md": {
       "component": "release-preview",
@@ -120,7 +120,7 @@
     },
     "docs/release-integrity.md": {
       "component": "release",
-      "sha256": "96c6dd640ad78b571b32d18930bbcbf600fdadc6070b7c0becb150bdf8ea51c6"
+      "sha256": "992ae3b91c77d6e284be39d5f0e0eb9eb1a52ecb35557040f57eaaaac2273e8e"
     },
     "docs/runbooks/deploy-e-rollback.md": {
       "component": "deploy",
@@ -152,7 +152,7 @@
     },
     "tools/scripts/ci/Assert-ReleaseSource.ps1": {
       "component": "release",
-      "sha256": "85ba8ec07c44b5fdacba27d2d0060952f79fd4bfa66e97e1834895384bcb4da2"
+      "sha256": "25511e7f5e189284e08bba912f2b75cfbb067331d2d97c72a83dee785da4a030"
     },
     "tools/scripts/ci/Assert-ReleaseTag.ps1": {
       "component": "release",
@@ -176,7 +176,7 @@
     },
     "tools/scripts/ci/GroundworkRelease.psm1": {
       "component": "release",
-      "sha256": "055072a9d89c6d8eacbb40052ee99c0468e8920f35c72168e1a1a26838fe41ab"
+      "sha256": "44a94259dd338c0d7eeb6a56bde4bbf2d2aef1bb7b452f30b873a57e1f2f5861"
     },
     "tools/scripts/ci/New-ReleaseManifest.ps1": {
       "component": "release",
