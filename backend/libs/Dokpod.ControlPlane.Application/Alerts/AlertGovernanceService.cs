@@ -19,6 +19,9 @@ public enum GovernanceOutcome
     Invalid,
     Conflict,
     AuthorizationUnavailable,
+
+    /// <summary>Condição sem o módulo que a avalia nesta composição (<c>422</c>).</summary>
+    Unavailable,
 }
 
 public sealed record GovernanceResult(GovernanceOutcome Outcome, string? Code = null, Guid? Id = null)
@@ -38,8 +41,10 @@ public sealed class AlertGovernanceService(
     IEnvironmentGrantReader grantReader,
     IAuditEventWriter auditWriter,
     IControlPlaneNotifier notifier,
-    TimeProvider timeProvider)
+    TimeProvider timeProvider,
+    IAlertConditionAvailability? conditions = null)
 {
+    public const string ConditionUnavailable = "alert_condition_unavailable";
     public const int MinComment = ActionJustifications.MinLength;
     public const int MaxComment = ActionJustifications.MaxLength;
 
@@ -183,8 +188,17 @@ public sealed class AlertGovernanceService(
             if (previous.BuiltIn) rule = rule with { ConditionKind = previous.ConditionKind, EventType = previous.EventType, Metric = previous.Metric, BuiltIn = true };
         }
 
+        // Sem o módulo (CE): criar ou manter ativa uma regra da condição é recusado; desativar continua possível.
+        if (!IsAvailable(rule.ConditionKind) && (previous is null || rule.Enabled)) return new GovernanceResult(GovernanceOutcome.Unavailable, ConditionUnavailable);
         var covered = await CoveredHostsAsync(caller, rule.Scope, previous?.Scope, cancellationToken).ConfigureAwait(false);
         if (covered is null) return new GovernanceResult(GovernanceOutcome.Forbidden, "authorization_denied");
+        // Spec 025 T021: criar ou editar uma regra ativa da condição passa pelo gate, depois da autorização; desativar não.
+        if (conditions is not null && conditions.Supports(rule.ConditionKind) && (previous is null || rule.Enabled) &&
+            await conditions.EnsureAllowedAsync(rule.ConditionKind, cancellationToken).ConfigureAwait(false) is { } denial)
+        {
+            return new GovernanceResult(GovernanceOutcome.Forbidden, denial);
+        }
+
         if (!await alerts.SaveRuleAsync(rule with { BuiltIn = previous?.BuiltIn ?? false }, caller.Actor.Label, expectedVersion, timeProvider.GetUtcNow(), cancellationToken).ConfigureAwait(false))
         {
             return new GovernanceResult(GovernanceOutcome.Conflict, expectedVersion is null ? "rule_exists" : "version_conflict");
@@ -202,6 +216,15 @@ public sealed class AlertGovernanceService(
         foreach (var host in covered) await AuditAsync(caller, expectedVersion is null ? "alert.rule_created" : "alert.rule_updated", host, details, cancellationToken).ConfigureAwait(false);
         return GovernanceResult.Ok(rule.RuleId);
     }
+
+    /// <summary>A tela pode oferecer "imagem desatualizada há mais de N dias" (contracts/api.md, <c>imageOutdatedAvailable</c>).</summary>
+    public async Task<bool> ImageOutdatedAvailableAsync(CancellationToken cancellationToken) =>
+        IsAvailable(AlertConditionKind.ImageOutdated) &&
+        await conditions!.IsOfferedAsync(AlertConditionKind.ImageOutdated, cancellationToken).ConfigureAwait(false);
+
+    /// <summary>Evento e métrica existem em toda composição; as demais condições dependem do provedor do módulo.</summary>
+    private bool IsAvailable(AlertConditionKind kind) =>
+        kind is AlertConditionKind.Event or AlertConditionKind.Metric || conditions?.Supports(kind) == true;
 
     public async Task<GovernanceResult> DeleteRuleAsync(AlertCaller caller, Guid ruleId, CancellationToken cancellationToken)
     {

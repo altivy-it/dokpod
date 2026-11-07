@@ -1415,6 +1415,8 @@ paths:
           $ref: '#/components/responses/AccessDenied'
         '409':
           $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ImageUpdateProblem'
         '503':
           $ref: '#/components/responses/DependencyUnavailable'
   /api/v1/alert-rules/{ruleId}:
@@ -1452,6 +1454,8 @@ paths:
           $ref: '#/components/responses/AccessDenied'
         '404':
           $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ImageUpdateProblem'
         '409':
           $ref: '#/components/responses/Conflict'
         '503':

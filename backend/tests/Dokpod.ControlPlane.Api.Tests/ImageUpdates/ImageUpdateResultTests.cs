@@ -113,5 +113,8 @@ public sealed class ImageUpdateResultTests : IAsyncLifetime
 
         public Task<IReadOnlyDictionary<string, string>> LocalImageIdsAsync(Guid environmentId, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyDictionary<string, string>>(new Dictionary<string, string> { [Reference] = LocalImage });
+
+        public Task<IReadOnlyList<ImageUpdateContainer>> ListContainersAsync(IReadOnlyCollection<Guid> environmentIds, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<ImageUpdateContainer>>([]);
     }
 }

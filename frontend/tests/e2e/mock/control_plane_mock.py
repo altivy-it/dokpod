@@ -1592,7 +1592,8 @@ def _alert_routes(self, method: str, path: str, q, query) -> object | None:
             a["timeline"].append({"at": iso(0), "kind": "silenced", "actor": "u-mariana", "comment": text})
         return self.send_json(200, {"id": a["id"]})
     if path == "/api/v1/alert-rules" and method == "GET":
-        return self.send_json(200, {"rules": ALERTS["rules"], "canManage": manage})
+        # Spec 025: a condição "imagem desatualizada" só existe na composição Business com a capability.
+        return self.send_json(200, {"rules": ALERTS["rules"], "canManage": manage, "imageOutdatedAvailable": image_updates_enabled()})
     m = re.fullmatch(r"/api/v1/alert-rules(?:/([^/]+))?", path)
     if m:
         if not manage:
@@ -1612,10 +1613,14 @@ def _alert_routes(self, method: str, path: str, q, query) -> object | None:
         body = self.read_body()
         if not (body.get("name") or "").strip():
             return invalid("name")
+        if body.get("conditionKind") == "image_outdated" and not image_updates_enabled() and (not existing or body.get("enabled")):
+            return self.send_json(422, problem(422, "Condição indisponível", "alert_condition_unavailable"), "application/problem+json")
+        if body.get("conditionKind") == "image_outdated" and not 1 <= (body.get("outdatedDays") or 0) <= 365:
+            return invalid("outdatedDays")
         if existing and body.get("version") != existing["version"]:
             return self.send_json(409, problem(409, "Versão desatualizada", "version_conflict"), "application/problem+json")
         rule = {**(existing or {"id": str(uuid.uuid4()), "builtIn": False, "version": 0}),
-                **{k: body.get(k) for k in ("name", "description", "conditionKind", "eventType", "metric", "thresholdPercent", "durationSeconds", "severity", "enabled")},
+                **{k: body.get(k) for k in ("name", "description", "conditionKind", "eventType", "metric", "thresholdPercent", "durationSeconds", "severity", "enabled", "outdatedDays")},
                 "minOccurrences": body.get("minOccurrences") or 1,
                 "scope": body.get("scope") or {"stage": None, "environmentId": None, "containerPattern": None}}
         rule["version"] += 1

@@ -1,8 +1,9 @@
 """Spec 025 (T018, História 1): na composição Business com a capability image-update-notice, Imagens, Containers e o
 detalhe do container mostram o estado da verificação em texto, com o motivo e a data; "Verificar agora" é aceito (202)
 e o segundo pedido no mesmo minuto é recusado com Retry-After (429). História 2 (T020): "Baixar nova versão" só com
-image:pull e só em update_available. Na Community Edition nada disso aparece. A consulta real ao registro é coberta
-pelos testes do agente (T009–T012)."""
+image:pull e só em update_available. História 3 (T023): a condição de alerta "Imagem desatualizada" só aparece quando
+a API a anuncia. Na Community Edition nada disso aparece. A consulta real ao registro é coberta pelos testes do
+agente (T009–T012)."""
 
 import re
 
@@ -109,6 +110,34 @@ def test_pull_new_version_needs_image_pull(page: Page, scenario) -> None:
     goto(page, f"containers/{env(1)}/{cid('checkout-web')}")
     expect(page.locator('[data-test="image-update"]')).to_be_visible()
     expect(page.locator('[data-test="pull-new-version"]')).to_have_count(0)
+
+
+def test_image_outdated_rule_is_offered_only_when_the_api_announces_it(page: Page, scenario) -> None:
+    """História 3 (T023): condição "Imagem desatualizada" com 1 a 365 dias; na CE ela não aparece."""
+    scenario("business-images")
+    goto(page, "alertas?vista=regras")
+    page.get_by_role("button", name="Nova regra").click()
+    drawer = page.get_by_role("dialog")
+    drawer.get_by_label("Nome", exact=True).fill("Imagem desatualizada em Produção")
+    drawer.get_by_text("Imagem desatualizada", exact=True).click()
+    days = drawer.get_by_label("Desatualizada há mais de (dias)")
+    expect(days).to_have_value("7")
+    expect(drawer.get_by_label("Containers (padrão de nome)")).to_be_visible()
+    days.fill("400")
+    drawer.get_by_role("button", name="Criar regra").click()
+    expect(drawer.get_by_role("alert")).to_have_text("Informe de 1 a 365 dias.")
+    days.fill("7")
+    drawer.get_by_label("Estágio").select_option("production")
+    screenshot(page, "025-regra-imagem-desatualizada-1440")
+    assert axe_violations(page) == []
+    drawer.get_by_role("button", name="Criar regra").click()
+    expect(page.get_by_text("Regra salva. Vale para as próximas avaliações.", exact=True)).to_be_visible()
+    expect(page.get_by_text("Imagem desatualizada há mais de 7 dias")).to_be_visible()
+
+    scenario("default")
+    goto(page, "alertas?vista=regras")
+    page.get_by_role("button", name="Nova regra").click()
+    expect(page.get_by_role("dialog").get_by_text("Imagem desatualizada", exact=True)).to_have_count(0)
 
 
 def test_community_edition_shows_nothing(page: Page, scenario) -> None:

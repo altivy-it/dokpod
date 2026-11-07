@@ -43,6 +43,21 @@ describe('alert rule form (spec 016 US4)', () => {
     expect(metric.request).toEqual(expect.objectContaining({ eventType: null, metric: 'host_cpu', thresholdPercent: 85, durationSeconds: 300, minOccurrences: 1 }));
   });
 
+  it('builds an image_outdated rule with 1 to 365 days and no event, metric or window (spec 025 T023)', () => {
+    const form = { ...emptyRuleForm(), name: 'Imagem desatualizada', conditionKind: 'image_outdated' as const, outdatedDays: 7, durationMinutes: 5, minOccurrences: 3 };
+    const { request, error } = ruleRequest(form, null);
+    expect(error).toBeNull();
+    expect(request).toEqual(
+      expect.objectContaining({ conditionKind: 'image_outdated', outdatedDays: 7, eventType: null, metric: null, thresholdPercent: null, durationSeconds: 0, minOccurrences: 1 }),
+    );
+    for (const days of [0, 366, 2.5]) expect(ruleRequest({ ...form, outdatedDays: days }, null).error).toContain('1 a 365 dias');
+    expect(ruleRequest({ ...emptyRuleForm(), name: 'Evento' }, null).request?.outdatedDays).toBeNull();
+    const saved: AlertRule = { ...rule, conditionKind: 'image_outdated', eventType: null, outdatedDays: 30, builtIn: false };
+    expect(ruleToForm(saved).outdatedDays).toBe(30);
+    expect(describeRule(saved)).toBe('Imagem desatualizada há mais de 30 dias');
+    expect(describeRule({ ...saved, outdatedDays: 1 })).toBe('Imagem desatualizada há mais de 1 dia');
+  });
+
   it('describes rules and scopes for the operator', () => {
     expect(describeRule(rule)).toBe('Container reiniciado automaticamente: 3 vezes em 10 min');
     expect(describeRule({ ...rule, conditionKind: 'metric', metric: 'host_memory', thresholdPercent: 80, durationSeconds: 300, minOccurrences: 1 })).toBe('Memória do host acima de 80% por 5 min');

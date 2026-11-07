@@ -23,6 +23,9 @@ public enum AlertConditionKind
 {
     Event,
     Metric,
+
+    /// <summary>Imagem desatualizada há mais de N dias (spec 025 D-010); só na composição Business.</summary>
+    ImageOutdated,
 }
 
 public enum AlertMetric
@@ -71,6 +74,17 @@ public static class AlertValues
 
     public static bool TryParseMetric(string? value, out AlertMetric metric) =>
         TryParse(value, out metric, ("host_cpu", AlertMetric.HostCpu), ("host_memory", AlertMetric.HostMemory), ("container_cpu", AlertMetric.ContainerCpu), ("container_memory", AlertMetric.ContainerMemory));
+
+    public static string ConditionKind(AlertConditionKind value) => value switch
+    {
+        AlertConditionKind.Event => "event",
+        AlertConditionKind.Metric => "metric",
+        AlertConditionKind.ImageOutdated => "image_outdated",
+        _ => throw new ArgumentOutOfRangeException(nameof(value)),
+    };
+
+    public static bool TryParseConditionKind(string? value, out AlertConditionKind kind) =>
+        TryParse(value, out kind, ("event", AlertConditionKind.Event), ("metric", AlertConditionKind.Metric), ("image_outdated", AlertConditionKind.ImageOutdated));
 
     private static bool TryParse<T>(string? value, out T result, params (string Text, T Value)[] options)
     {
@@ -141,6 +155,11 @@ public sealed record AlertRule(
     public const int MaxDescriptionLength = 500;
     public const int MaxDurationSeconds = 3_600;
     public const int MaxOccurrences = 100;
+    public const int MinOutdatedDays = 1;
+    public const int MaxOutdatedDays = 365;
+
+    /// <summary>Dias de defasagem para abrir (só em <see cref="AlertConditionKind.ImageOutdated"/>, obrigatório nela).</summary>
+    public int? OutdatedDays { get; init; }
 
     /// <summary>
     /// Ocorrências mínimas dentro de `DurationSeconds` para abrir (regras de evento; ex.: 3 reinícios em 10 minutos).
@@ -151,9 +170,12 @@ public sealed record AlertRule(
     /// <summary>Códigos de saída que representam parada, não falha (D-004): normal, SIGKILL e SIGTERM.</summary>
     public static IReadOnlySet<int> StopExitCodes { get; } = new HashSet<int> { 0, 137, 143 };
 
-    public bool IsContainerTarget => ConditionKind == AlertConditionKind.Metric
-        ? Metric is AlertMetric.ContainerCpu or AlertMetric.ContainerMemory
-        : EventType is not (OperationalEventTypes.AgentDisconnected or OperationalEventTypes.EngineVersionOutdated or OperationalEventTypes.EventsDropped);
+    public bool IsContainerTarget => ConditionKind switch
+    {
+        AlertConditionKind.Metric => Metric is AlertMetric.ContainerCpu or AlertMetric.ContainerMemory,
+        AlertConditionKind.ImageOutdated => true,
+        _ => EventType is not (OperationalEventTypes.AgentDisconnected or OperationalEventTypes.EngineVersionOutdated or OperationalEventTypes.EventsDropped),
+    };
 
     public IReadOnlyList<string> Validate()
     {
@@ -168,13 +190,20 @@ public sealed record AlertRule(
             if (EventType is null || !OperationalEventTypes.Severity.ContainsKey(EventType)) errors.Add("eventType");
             if (Metric is not null || ThresholdPercent is not null) errors.Add("metric");
         }
-        else
+        else if (ConditionKind == AlertConditionKind.Metric)
         {
             if (Metric is null) errors.Add("metric");
             if (ThresholdPercent is not (>= 1 and <= 100)) errors.Add("thresholdPercent");
             if (EventType is not null) errors.Add("eventType");
         }
+        else
+        {
+            if (OutdatedDays is not (>= MinOutdatedDays and <= MaxOutdatedDays)) errors.Add("outdatedDays");
+            if (EventType is not null) errors.Add("eventType");
+            if (Metric is not null || ThresholdPercent is not null) errors.Add("metric");
+        }
 
+        if (ConditionKind != AlertConditionKind.ImageOutdated && OutdatedDays is not null) errors.Add("outdatedDays");
         return errors;
     }
 }

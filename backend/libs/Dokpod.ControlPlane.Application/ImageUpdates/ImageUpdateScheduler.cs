@@ -24,6 +24,9 @@ public interface IImageUpdateTargetReader
     /// (D-008): forma canônica da referência → <c>image_id</c>.
     /// </summary>
     Task<IReadOnlyDictionary<string, string>> LocalImageIdsAsync(Guid environmentId, CancellationToken cancellationToken);
+
+    /// <summary>Containers dos hosts na projeção do inventário, com a referência e a imagem local (spec 025 T022).</summary>
+    Task<IReadOnlyList<ImageUpdateContainer>> ListContainersAsync(IReadOnlyCollection<Guid> environmentIds, CancellationToken cancellationToken);
 }
 
 /// <summary>Canal da mensagem 17 até o agente conectado (D-004).</summary>

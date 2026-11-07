@@ -8,6 +8,7 @@ using Dokpod.Domain.Alerts;
 using Dokpod.Domain.Environments;
 using Dokpod.Domain.Events;
 using Dokpod.Domain.Hosts;
+using Dokpod.Domain.Images;
 using Dokpod.Domain.Inventory;
 
 namespace Dokpod.ControlPlane.Application.Alerts;
@@ -37,7 +38,8 @@ public sealed class AlertSweepService(
     LatestMetricsCache metrics,
     AlertConditionState state,
     IControlPlaneNotifier notifier,
-    TimeProvider timeProvider)
+    TimeProvider timeProvider,
+    IImageOutdatedSource? imageOutdated = null)
 {
     /// <summary>Tempo para o inventário refletir um container antes de a ausência valer como remoção.</summary>
     public static readonly TimeSpan InventoryGrace = TimeSpan.FromMinutes(2);
@@ -154,6 +156,11 @@ public sealed class AlertSweepService(
             }
         }
 
+        // 3b. Imagem desatualizada há N dias (spec 025 T022).
+        var (imageOpened, imageResolved) = await SweepImageOutdatedAsync(rules.Values, hosts, active, silences, now, touched, cancellationToken).ConfigureAwait(false);
+        opened += imageOpened;
+        resolved += imageResolved;
+
         // 4. Silenciamentos: aplica aos abertos cobertos e devolve a "aberto" quando a janela termina (FR-013).
         foreach (var alert in await alerts.ListActiveAsync(cancellationToken).ConfigureAwait(false))
         {
@@ -198,6 +205,65 @@ public sealed class AlertSweepService(
         }
 
         return new AlertSweepResult(opened, resolved, silenced, unsilenced, ended);
+    }
+
+    /// <summary>
+    /// Abre um alerta por container cuja referência está desatualizada há N dias ou mais. O alerta continua enquanto o
+    /// container usa uma versão anterior (<c>update_available</c>, <c>container_behind</c>) ou a verificação falha (uma
+    /// falha nunca vira "Atualizada", SC-002), e resolve quando ele é recriado em dia ou deixa de existir. Sem o módulo
+    /// ou sem o aviso disponível, nada muda.
+    /// </summary>
+    private async Task<(int Opened, int Resolved)> SweepImageOutdatedAsync(
+        IEnumerable<AlertRule> allRules,
+        IReadOnlyDictionary<Guid, HostView> hosts,
+        IReadOnlyList<AlertRecord> active,
+        IReadOnlyList<AlertSilence> silences,
+        DateTimeOffset now,
+        HashSet<Guid> touched,
+        CancellationToken cancellationToken)
+    {
+        var rules = allRules.Where(r => r.ConditionKind == AlertConditionKind.ImageOutdated).ToArray();
+        if (imageOutdated is null || rules.Length == 0 || hosts.Count == 0) return (0, 0);
+        var targets = await imageOutdated.ListAsync(hosts.Keys.ToArray(), cancellationToken).ConfigureAwait(false);
+        if (targets is null) return (0, 0);
+        var byContainer = targets.ToDictionary(t => (t.EnvironmentId, t.ContainerId));
+        int opened = 0, resolved = 0;
+
+        foreach (var alert in active.Where(a => rules.Any(r => r.RuleId == a.RuleId) && hosts.ContainsKey(a.EnvironmentId) && a.ContainerId is not null))
+        {
+            var reason = !byContainer.TryGetValue((alert.EnvironmentId, alert.ContainerId!), out var target)
+                ? now - alert.LastOccurredAtUtc > InventoryGrace ? AlertResolutionReasons.ContainerRemoved : null
+                : target.State is ImageUpdateStates.UpdateAvailable or ImageUpdateStates.ContainerBehind or ImageUpdateStates.Failed ? null
+                : AlertResolutionReasons.ConditionCleared;
+            if (reason is not null && await alerts.TransitionAsync(alert.AlertId, AlertState.Resolved, null, null, reason, now, AlertTimelineKinds.Resolved, null, null, cancellationToken).ConfigureAwait(false))
+            {
+                resolved++;
+                touched.Add(alert.EnvironmentId);
+            }
+        }
+
+        foreach (var rule in rules.Where(r => r.Enabled && r.OutdatedDays is not null))
+        {
+            var limit = TimeSpan.FromDays(rule.OutdatedDays!.Value);
+            foreach (var target in targets)
+            {
+                if (target.State != ImageUpdateStates.UpdateAvailable || target.OutdatedSinceUtc is not { } since || now - since < limit) continue;
+                if (!hosts.TryGetValue(target.EnvironmentId, out var host) || !rule.Scope.Covers(host.Registration.Stage, target.EnvironmentId, target.ContainerName)) continue;
+                if (active.Any(a => a.RuleId == rule.RuleId && a.EnvironmentId == target.EnvironmentId && a.ContainerId == target.ContainerId)) continue;
+                var days = (int)Math.Floor((now - since).TotalDays);
+                var text = $"Imagem {target.Reference} de {target.ContainerName} desatualizada há {days} {(days == 1 ? "dia" : "dias")} (limite {rule.OutdatedDays} {(rule.OutdatedDays == 1 ? "dia" : "dias")})";
+                var silence = CoveringSilence(silences, host.Registration.Stage, target.EnvironmentId, target.ContainerName);
+                var (_, isNew) = await alerts.OpenOrOccurAsync(
+                    new AlertOccurrence(rule, target.EnvironmentId, target.ContainerId, target.ContainerName, text, now, silence?.SilenceId), cancellationToken).ConfigureAwait(false);
+                if (isNew)
+                {
+                    opened++;
+                    touched.Add(target.EnvironmentId);
+                }
+            }
+        }
+
+        return (opened, resolved);
     }
 
     private async Task<IReadOnlyList<(string? ContainerId, string? ContainerName, double? Value)>> MetricValuesAsync(

@@ -27,7 +27,8 @@ public sealed record AlertRuleRequest(
     string Severity,
     AlertScopeRequest? Scope,
     bool Enabled,
-    int? Version);
+    int? Version,
+    int? OutdatedDays = null);
 
 public sealed record CreateSilenceRequest(AlertScopeRequest? Scope, DateTimeOffset? StartsAt, DateTimeOffset EndsAt, string? Justification);
 
@@ -90,6 +91,7 @@ public static class AlertEndpoints
         GovernanceOutcome.Forbidden => Problem(context, StatusCodes.Status403Forbidden, result.Code ?? "authorization_denied", "Você não tem permissão para esta ação."),
         GovernanceOutcome.Conflict => Problem(context, StatusCodes.Status409Conflict, result.Code ?? "conflict", "O recurso mudou; atualize e tente de novo."),
         GovernanceOutcome.Invalid => Problem(context, StatusCodes.Status400BadRequest, result.Code ?? "invalid_request", "Dados inválidos."),
+        GovernanceOutcome.Unavailable => Problem(context, StatusCodes.Status422UnprocessableEntity, result.Code ?? AlertGovernanceService.ConditionUnavailable, "Condição indisponível nesta edição."),
         _ => Problem(context, StatusCodes.Status503ServiceUnavailable, "authorization_unavailable", "A autorização está indisponível."),
     };
 
@@ -155,7 +157,7 @@ public static class AlertEndpoints
         var (caller, error) = await CallerAsync(context, authorized, ct);
         if (error is not null) return error;
         var (rules, canManage) = await service.ListRulesAsync(caller!, ct);
-        return Results.Ok(new { rules = rules.Select(ToRule), canManage });
+        return Results.Ok(new { rules = rules.Select(ToRule), canManage, imageOutdatedAvailable = await service.ImageOutdatedAvailableAsync(ct) });
     }
 
     private static async Task<IResult> SaveRuleAsync(Guid ruleId, AlertRuleRequest body, int? version, HttpContext context, AuthorizedEnvironmentsService authorized, AlertGovernanceService service, CancellationToken ct)
@@ -294,10 +296,11 @@ public static class AlertEndpoints
         id = r.RuleId,
         name = r.Name,
         description = r.Description,
-        conditionKind = r.ConditionKind == AlertConditionKind.Event ? "event" : "metric",
+        conditionKind = AlertValues.ConditionKind(r.ConditionKind),
         eventType = r.EventType,
         metric = r.Metric is { } m ? AlertValues.Metric(m) : null,
         thresholdPercent = r.ThresholdPercent,
+        outdatedDays = r.OutdatedDays,
         durationSeconds = r.DurationSeconds,
         minOccurrences = r.MinOccurrences,
         severity = AlertValues.Severity(r.Severity),
@@ -318,8 +321,7 @@ public static class AlertEndpoints
     {
         rule = null;
         field = null;
-        var kind = body.ConditionKind switch { "event" => AlertConditionKind.Event, "metric" => (AlertConditionKind?)AlertConditionKind.Metric, _ => null };
-        if (kind is null) { field = "conditionKind"; return false; }
+        if (!AlertValues.TryParseConditionKind(body.ConditionKind, out var kind)) { field = "conditionKind"; return false; }
         if (!AlertValues.TryParseSeverity(body.Severity, out var severity)) { field = "severity"; return false; }
         AlertMetric? metric = null;
         if (body.Metric is not null)
@@ -329,9 +331,10 @@ public static class AlertEndpoints
         }
 
         if (!TryScope(body.Scope, out var scope)) { field = "scope"; return false; }
-        rule = new AlertRule(ruleId, body.Name ?? string.Empty, body.Description, kind.Value, body.EventType, metric, body.ThresholdPercent, body.DurationSeconds, severity, scope!, body.Enabled, false, body.Version ?? 0)
+        rule = new AlertRule(ruleId, body.Name ?? string.Empty, body.Description, kind, body.EventType, metric, body.ThresholdPercent, body.DurationSeconds, severity, scope!, body.Enabled, false, body.Version ?? 0)
         {
             MinOccurrences = body.MinOccurrences ?? 1,
+            OutdatedDays = body.OutdatedDays,
         };
         return true;
     }
