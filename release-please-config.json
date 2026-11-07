@@ -8,7 +8,7 @@
   "draft": true,
   "force-tag-creation": true,
   "always-update": true,
-  "last-release-sha": "e37f677972ebe5b78393bd13ad42e38a5bfbf762",
+  "last-release-sha": "45e896c2971724b53bdda1d3d0f9caf7dda52c15",
   "changelog-sections": [
     { "type": "feat", "section": "Adicionado" },
     { "type": "fix", "section": "Corrigido" },

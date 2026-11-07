@@ -243,6 +243,7 @@ jobs:
   finalize:
     name: Finalize candidate
     needs: [context, publish]
+    if: ${{ !cancelled() && needs.context.result == 'success' && needs.publish.result == 'success' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -318,6 +319,7 @@ jobs:
   quality:
     name: Dispatch preview environment
     needs: [resolve, context, finalize]
+    if: ${{ !cancelled() && needs.finalize.result == 'success' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:

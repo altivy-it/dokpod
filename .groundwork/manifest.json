@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "toolVersion": "0.11.1",
-  "catalogVersion": "0.11.1",
+  "toolVersion": "0.11.2",
+  "catalogVersion": "0.11.2",
   "parameters": {
     "auto_deploy_environment": "quality",
     "commit_scopes": "docs,tooling,deps,actions,repo",
@@ -100,7 +100,7 @@
     },
     ".github/workflows/gw-preview.yml": {
       "component": "release-preview",
-      "sha256": "afd9cadab56ff16242b2fbd06e63594bb19849b9fe73bc1504acc0785ee821cf"
+      "sha256": "88967a422d63d2c09310fabd9bd7aba9d144390d02473b18b3dacabb3ca0a4b6"
     },
     ".github/workflows/gw-release.yml": {
       "component": "release",
@@ -116,7 +116,7 @@
     },
     "docs/estrategia-de-release.md": {
       "component": "release-preview",
-      "sha256": "e5ba96383698f129ae0d39c6602834dcd8745f50e7063e2deb807a8b510fce5d"
+      "sha256": "bdd50c22c3f03f67ea6b4370cd9fccbeac907ba1a4fcde054144fd16452d6709"
     },
     "docs/release-integrity.md": {
       "component": "release",
@@ -176,7 +176,7 @@
     },
     "tools/scripts/ci/GroundworkRelease.psm1": {
       "component": "release",
-      "sha256": "9e71b0b47a6d6b55d1718e02fefaa06fe61ff16e9a5fd8334e1ba530ba21e284"
+      "sha256": "055072a9d89c6d8eacbb40052ee99c0468e8920f35c72168e1a1a26838fe41ab"
     },
     "tools/scripts/ci/New-ReleaseManifest.ps1": {
       "component": "release",
