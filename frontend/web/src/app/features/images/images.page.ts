@@ -22,7 +22,7 @@ import { ImagesFacade, imageKey, type ImageFilters, type ImageSort } from './ima
 import { pullIneligibility, PullImageDrawer } from './pull-image.drawer';
 import { ControlPlaneApiService } from '../../data-access/control-plane-api.service';
 import { ToastService } from '../../design-system/toast/dok-toast';
-import { hasImageUpdateCheck, IMAGE_UPDATE_STATE_TONE, imageUpdateDetail, imageUpdateStateLabel } from './image-update-labels';
+import { canPullNewVersion, hasImageUpdateCheck, IMAGE_UPDATE_STATE_TONE, imageUpdateDetail, imageUpdateStateLabel } from './image-update-labels';
 
 /** Mensagens do "Verificar agora" (spec 025, contracts/api.md). */
 export const UPDATE_CHECK_REFUSAL: Record<string, string> = {
@@ -211,7 +211,11 @@ export class ImagesPage {
 
   protected readonly rowActionsFor = (row: ImageRow): GridRowAction[] => {
     const actions: GridRowAction[] = [];
-    if (row.item.canPull && row.item.repoTags.length) actions.push({ id: 'pull', label: 'Baixar novamente', icon: 'download' });
+    if (row.item.repoTags.length && canPullNewVersion(row.item.updateCheck, row.item.canPull)) {
+      actions.push({ id: 'pull', label: 'Baixar nova versão', icon: 'download' });
+    } else if (row.item.canPull && row.item.repoTags.length) {
+      actions.push({ id: 'pull', label: 'Baixar novamente', icon: 'download' });
+    }
     // "Verificar agora" por host, com `image:pull` (canPull) e só quando o aviso existe nesta composição.
     if (row.item.canPull && hasImageUpdateCheck(row.item)) actions.push({ id: 'update-check', label: 'Verificar agora', icon: 'refresh' });
     actions.push({ id: 'containers', label: 'Ver containers do host', icon: 'box' });

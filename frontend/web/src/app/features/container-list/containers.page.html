@@ -143,3 +143,7 @@
 @if (creating()) {
   <app-new-container-drawer [open]="true" (closed)="closeCreate()" />
 }
+
+@if (pulling(); as p) {
+  <app-pull-image-drawer [open]="true" [initialReference]="p.reference" [preselected]="p.hosts" (closed)="pulling.set(null)" />
+}

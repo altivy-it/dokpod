@@ -30,7 +30,8 @@ import { StageFilterService, stageLabel } from '../../shell/stage-filter.service
 import { ContainersFacade, rowKey, type ContainerFilters, type ServerSort } from './containers.facade';
 import { NewContainerDrawer } from './new-container.drawer';
 import { createIneligibility } from './new-container.facade';
-import { hasImageUpdateCheck, IMAGE_UPDATE_STATE_TONE, imageUpdateDetail, imageUpdateStateLabel } from '../images/image-update-labels';
+import { canPullNewVersion, hasImageUpdateCheck, IMAGE_UPDATE_STATE_TONE, imageUpdateDetail, imageUpdateStateLabel } from '../images/image-update-labels';
+import { pullIneligibility, PullImageDrawer } from '../images/pull-image.drawer';
 
 interface ContainerRow {
   id: string;
@@ -84,6 +85,7 @@ function asArray(value: string | string[] | undefined): string[] {
     DokIcon,
     DokStatusChip,
     NewContainerDrawer,
+    PullImageDrawer,
   ],
   providers: [ContainersFacade],
   styleUrl: './containers.page.css',
@@ -113,6 +115,8 @@ export class ContainersPage {
   protected readonly moreOpen = signal(false);
   /** Drawer "Novo container" (spec 013), também aberto por `?novo=1` vindo da Visão geral. */
   protected readonly creating = signal(false);
+  /** "Baixar nova versão" (spec 025 T020): drawer de pull da spec 012 com a referência e o host do container. */
+  protected readonly pulling = signal<{ reference: string; hosts: string[] } | null>(null);
   protected readonly statusLabels = CONTAINER_STATUS;
   protected readonly tones: Record<string, string> = {
     ...CONTAINER_STATUS_TONES,
@@ -298,6 +302,7 @@ export class ContainersPage {
     // Spec 014 T012: terminal só quando a API concede `exec` (scope × capability × em execução).
     if (allowed.has('exec' as ContainerAction)) actions.push({ id: 'terminal', label: 'Abrir terminal', icon: 'command' });
     actions.push({ id: 'inspect', label: 'Inspecionar', icon: 'eye' });
+    if (this.canPullNewVersion(row.item)) actions.push({ id: 'pull-update', label: 'Baixar nova versão', icon: 'download' });
     for (const action of ['start', 'restart', 'stop', 'pause', 'unpause', 'delete'] as ContainerAction[]) {
       if (allowed.has(action)) actions.push({ id: action, label: ACTION_LABEL[action].verb, icon: ACTION_LABEL[action].icon, danger: action === 'delete' });
     }
@@ -311,7 +316,17 @@ export class ContainersPage {
       this.openDetail(event.row.item, tab);
       return;
     }
+    if (event.action === 'pull-update') {
+      this.pulling.set({ reference: event.row.item.imageReference, hosts: [event.row.item.environmentId] });
+      return;
+    }
     this.prepare(event.action as ContainerAction, [event.row.item]);
+  }
+
+  /** `image:pull` vem do host (scope × capability × conexão), como no drawer de pull. */
+  private canPullNewVersion(item: ContainerListItem): boolean {
+    const env = this.directory.byId(item.environmentId);
+    return canPullNewVersion(item.updateCheck, !!env && pullIneligibility(env) === null);
   }
 
   protected openDetail(item: ContainerListItem, tab = 'logs'): void {

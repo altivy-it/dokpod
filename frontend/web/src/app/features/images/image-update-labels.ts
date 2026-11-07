@@ -57,6 +57,14 @@ export function imageUpdateDescription(check: ImageUpdateCheck | null | undefine
   return parts.join(' · ');
 }
 
+/**
+ * "Baixar nova versão" (spec 025 T020): só com `image:pull` e só em `update_available`. Em `container_behind` a versão
+ * nova já está no host; falta recriar o container, o que o Dokpod não faz (FR-004).
+ */
+export function canPullNewVersion(check: ImageUpdateCheck | null | undefined, canPull: boolean): boolean {
+  return canPull && check?.state === 'update_available';
+}
+
 /** O aviso só existe quando a API envia o campo (composição Business com a capability). */
 export function hasImageUpdateCheck(item: { updateCheck?: ImageUpdateCheck | null }): boolean {
   return 'updateCheck' in item && item.updateCheck !== undefined;

@@ -26,6 +26,11 @@
             @if (updateNote(); as update) {
               <p class="app-small cd-update" role="status" data-test="image-update">
                 <dok-status-chip [color]="update.tone" [label]="update.label" /> {{ update.detail }}
+                @if (canPullNewVersion()) {
+                  <button dok-button variant="outline" size="sm" startIcon="download" type="button" data-test="pull-new-version" (click)="pulling.set(true)">
+                    Baixar nova versão
+                  </button>
+                }
               </p>
             }
             <p class="app-small alt-num cd-facts">{{ facts() }}</p>
@@ -234,4 +239,8 @@
     (cancelled)="pending.set(null)"
     (confirmed)="confirm($event)"
   />
+}
+
+@if (pulling() && detail(); as d) {
+  <app-pull-image-drawer [open]="true" [initialReference]="d.imageReference" [preselected]="[d.environmentId]" (closed)="pulling.set(false)" />
 }

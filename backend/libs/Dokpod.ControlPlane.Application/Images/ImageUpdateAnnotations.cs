@@ -19,6 +19,15 @@ public interface IImageUpdateAnnotationSet
     object? ForContainer(Guid environmentId, string reference, string? imageId, bool stale);
 }
 
+/// <summary>
+/// Porta neutra chamada depois de um pull concluído com sucesso (spec 025 T019); presente só na composição Business. Só
+/// adianta a verificação de nova versão: nunca cria, recria ou atualiza container (FR-004).
+/// </summary>
+public interface IImagePullCompletionObserver
+{
+    Task OnPullSucceededAsync(Guid environmentId, CancellationToken cancellationToken);
+}
+
 /// <summary>Porta neutra do recebimento da mensagem 27; presente só na composição Business, que aceita a capability 23.</summary>
 public interface IImageUpdateResultSink
 {
