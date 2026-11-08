@@ -30,6 +30,7 @@ se estiverem.
 | `certificates` | lista de Certificado gerenciado | |
 | `environments` | lista de `{environmentId, name, agentFingerprint, packageGeneratedAt?}` | Primeiro ambiente e hosts adicionais. |
 | `journal` | lista de `{runId, step, status, at}` | Só apoia a retomada; o plano é sempre recalculado do observado. |
+| `sqlOverrides` | lista de `{path, purpose, originalSha256, appliedSha256, confirmedBy, confirmedAt, runId}` | Desvios do catálogo SQL confirmados (FR-041); só cresce; é a lista que `verify` aceita. |
 | `lastRun` | `{runId, startedAt, finishedAt, outcome}` | `outcome`: `converged`, `changed`, `prerequisite_failed`, `declined`, `failed`, `paused_for_manual_migration`. |
 
 ## Componente
@@ -57,6 +58,23 @@ O esquema completo está em [contracts/answers.schema.json](contracts/answers.sc
   (FR-008, FR-015).
 - **Respostas da execução guiada**: o modo guiado grava `answers.yaml` em `installDir` para reexecução não interativa.
 
+## Catálogo SQL
+
+Fonte: `backend/libs/Dokpod.ControlPlane.Infrastructure/Sql/manifest.json`
+([D-013](research.md#d-013-catálogo-de-arquivos-sql-e-sobreposição-externa)).
+
+| Campo | Tipo | Regra |
+| --- | --- | --- |
+| `version` | semver | Igual à da release; um diretório sobreposto com outra versão é recusado. |
+| `files[].path` | caminho relativo | Único. Migrations em `Migrations/Script/<id>/Up\|Down/*.sql`; o restante em `Sql/Installation/{bootstrap,checks,status}/`. |
+| `files[].purpose` | `migration` \| `bootstrap` \| `check` \| `status` | |
+| `files[].executor` | `ef` \| `psql` \| `admin` | `psql` usa variáveis `:"x"` e `:'x'`; `admin` usa `@x`; nenhum aceita concatenação. |
+| `files[].parameters` | lista de `{name, kind: identifier\|literal\|secret}` | Um `secret` só vem de arquivo, nunca da linha de comando. |
+| `files[].sha256` | hex | Conferido no build e na carga. |
+
+Sobreposição: um arquivo com o mesmo `path` no `--sql-dir` substitui o da release, depois da confirmação nomeada, e é
+registrado em `sqlOverrides`.
+
 ## Certificado gerenciado
 
 | Campo | Tipo | Regra |
@@ -76,6 +94,7 @@ conectados, conforme [troca da CA](../../docs/runbooks/troca-da-ca-dos-agentes.m
 
 | Nome no `secretsDir` | Consumidor | Gerado quando |
 | --- | --- | --- |
+| `sql-override/` (em `installDir`, não secreto) | modo administrativo e `psql` | Cópia conferida do `--sql-dir` usado na última execução, para reexecução e auditoria. |
 | `ConnectionStrings__ControlPlane` | API (role `dokpod_runtime`) | Cenário com PostgreSQL provisionado ou existente. |
 | `dokpod-owner-connection` | modo administrativo (role `dokpod_owner`) | Sempre. |
 | `Authentication__Keycloak__ClientSecret` | BFF | Na criação do client `dokpod-bff`. |

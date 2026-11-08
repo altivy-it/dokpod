@@ -12,6 +12,7 @@ dar ao usuário, por exemplo a um DBA, controle sobre o que vai ao banco (revis�
 -- to: 202611150001_<Nome>
 -- plan-hash: <sha256>
 -- migration: 202611150001_<Nome> sha256=<sha256>
+-- override: Migrations/Script/202611150001_<Nome>/Up/01-<Nome>.sql original=<sha256> applied=<sha256>
 -- generated-at: 2026-11-15T12:00:00Z
 -- Aplicar com: psql -v ON_ERROR_STOP=1 -f <arquivo>  (cada migration tem a própria transação)
 
@@ -27,6 +28,8 @@ COMMIT;
   `START TRANSACTION;` e `COMMIT;` daquela migration.
 - O arquivo não usa blocos `DO` para controle de reexecução. Reaplicar uma migration já aplicada falha na inserção do
   histórico (chave primária) dentro da transação, que é desfeita. Esse é o comportamento seguro esperado.
+- Há uma linha `-- override:` por arquivo do catálogo sobreposto que entrou neste arquivo (FR-041). Sem sobreposição,
+  não há nenhuma.
 - O arquivo não contém segredo nem nome de role com senha. `GRANT`s, quando existem, nomeiam as roles
   `dokpod_owner` e `dokpod_runtime`.
 - `from` vazio significa banco novo: o arquivo cria o schema `dokpod` e o histórico.

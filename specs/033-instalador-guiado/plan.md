@@ -26,6 +26,9 @@ idempotente.
   ([D-005](research.md#d-005-pki-e-validação-de-certificados)).
 - **Segredos**: só por arquivo montado (`secrets:` e provedor *key-per-file* na API e no BFF)
   ([D-006](research.md#d-006-segredos-entregues-aos-serviços-por-arquivo)).
+- **SQL só em arquivos**: todo SQL do instalador e do modo administrativo fica num catálogo `.sql` com manifesto, o
+  mesmo que as migrations do EF Core carregam. Ele é distribuído para revisão e pode ser sobreposto com confirmação
+  nomeada e registro ([D-013](research.md#d-013-catálogo-de-arquivos-sql-e-sobreposição-externa)).
 - **Idempotência**: plano calculado do estado observado mais um estado sem segredos em `installDir/state`
   ([D-007](research.md#d-007-estado-plano-e-retomada)).
 
@@ -113,7 +116,7 @@ Reavaliação pós-desenho (Fase 1): sem violações. Duas decisões duradouras 
 specs/033-instalador-guiado/
 ├── spec.md
 ├── plan.md                      # este arquivo
-├── research.md                  # D-001 a D-012
+├── research.md                  # D-001 a D-013
 ├── data-model.md                # layout, estado, componentes, segredos, pacote de host
 ├── quickstart.md                # cenários 1 a 8
 ├── contracts/
@@ -139,6 +142,8 @@ backend/apps/Dokpod.ControlPlane.Api/
 ├── Admin/                       # modo administrativo: migrations, environments, agent-identities
 └── Program.cs / ApiHost.cs      # despacho de `admin` antes de subir o host; key-per-file em /run/secrets
 backend/apps/Dokpod.Bff/         # key-per-file em /run/secrets
+backend/libs/Dokpod.ControlPlane.Infrastructure/Sql/  # catálogo SQL: manifest.json e Installation/{bootstrap,checks,status}
+backend/libs/Dokpod.ControlPlane.Infrastructure/Migrations/MigrationSqlScriptLoader.cs  # raiz externa só no modo administrativo
 backend/libs/Dokpod.ControlPlane.Application/  # registro de identidade de agente com auditoria
 backend/libs/Dokpod.Domain/Auditing/           # ação environment.agent_identity_register
 backend/tests/Dokpod.ControlPlane.Api.Tests/Admin/
@@ -161,7 +166,8 @@ docs/seguranca.md                              # seção do instalador e do modo
 
 1. **Governança e segurança**: threat model (instalador, socket montado, credenciais administrativas transitórias, modo
    administrativo, pacote de host) e os ADRs `proposed`, antes de qualquer código.
-2. **Modo administrativo** (sem dependência do instalador):
+2. **Catálogo SQL e modo administrativo** (sem dependência do instalador):
+   - catálogo com manifesto e varredura que proíbe SQL no código;
    - `migrations status|plan|script|apply|verify`;
    - `environments register`;
    - `agent-identities register|revoke`;

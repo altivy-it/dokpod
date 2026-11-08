@@ -1,6 +1,6 @@
 # Quickstart de validação: Instalador guiado do Dokpod
 
-Cenários executáveis que provam a feature de ponta a ponta. Os contratos estão em [contracts/](contracts/), e o layout e
+Cenários executáveis (1 a 9) que provam a feature de ponta a ponta. Os contratos estão em [contracts/](contracts/), e o layout e
 o estado em [data-model.md](data-model.md).
 
 ## Pré-requisitos
@@ -100,3 +100,21 @@ Depois dos cenários 1 a 6, procure cada canário em:
 2. `sh install.sh host revoke --environment <id> --reason teste`. **Esperado**: o agente perde a sessão, e a auditoria
    registra a revogação.
 3. Altere um byte de uma imagem no diretório `--offline` e instale. **Esperado**: código 5 antes de qualquer alteração.
+
+## Cenário 9 - Catálogo SQL sobreposto (FR-039 a FR-041, SC-011)
+
+1. `sh install.sh sql export --version N+1 --out /tmp/sql-n1`. **Esperado**: a árvore `Migrations/Script/` e
+   `Sql/Installation/` com `manifest.json` (finalidade, executor, parâmetros e hash de cada arquivo).
+2. Altere um arquivo de uma migration pendente (por exemplo, um índice com outro `fillfactor`).
+3. `sh install.sh upgrade --version N+1 --sql-dir /tmp/sql-n1 --yes`. **Esperado**: código 4, porque `--yes` não
+   confirma sobreposição. O plano lista o arquivo com o hash original e o novo.
+4. Repita com `--confirm-sql-overrides <caminho>`. **Esperado**:
+   - a migration aplicada com o arquivo alterado;
+   - o desvio em `sqlOverrides` do estado, no relatório e na linha `-- override:` do SQL exportado;
+   - o `verify` dá `ok`, com o caminho em `acceptedOverrides`.
+5. Num clone, aplique à mão outro arquivo alterado sem passar pelo `--sql-dir` e rode o `verify`. **Esperado**: código 6,
+   com a divergência não registrada.
+6. Coloque no `--sql-dir` um arquivo sem correspondente na release, ou um `manifest.json` de outra versão.
+   **Esperado**: recusa antes de qualquer alteração.
+7. Varredura do SC-011: os testes `NoInlineSqlTests` e `NoInlineSql.Tests.ps1` passam, e nenhum literal SQL aparece em
+   `backend/apps/Dokpod.ControlPlane.Api/Admin/` nem em `deploy/installer/src/`.

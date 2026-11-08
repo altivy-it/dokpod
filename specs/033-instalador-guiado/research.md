@@ -81,7 +81,8 @@ avulso da mesma imagem e da mesma versão, com a conexão do *owner* do schema, 
 | `migrations verify` | Confere histórico e hashes depois de uma aplicação manual. |
 
 O SQL é gerado por `IMigrator.GenerateScript(from, to, MigrationsSqlGenerationOptions.Default)` a partir da última
-migration aplicada. O hash de cada migration é o SHA-256 do SQL gerado para ela, gravado no cabeçalho e conferido por
+migration aplicada. O corpo de cada migration vem dos arquivos do catálogo, com a sobreposição externa quando informada
+([D-013](#d-013-catálogo-de-arquivos-sql-e-sobreposição-externa)). O hash de cada migration é o SHA-256 do SQL gerado para ela, gravado no cabeçalho e conferido por
 `verify`.
 
 **Justificativa**:
@@ -219,8 +220,8 @@ interrupção (FR-026, FR-027, SC-004).
 
   Nenhuma das duas é superusuário ou tem `CREATEROLE`.
 - **Credencial administrativa**: entra por arquivo informado ou por prompt, só durante a execução.
-- **Banco e roles já criados pelo DBA**: o instalador valida os privilégios com `has_*_privilege` e recusa excesso ou
-  falta (FR-008).
+- **Banco e roles já criados pelo DBA**: o instalador valida os privilégios pelos arquivos de verificação do
+  catálogo ([D-013](#d-013-catálogo-de-arquivos-sql-e-sobreposição-externa)) e recusa excesso ou falta (FR-008).
 
 **Ponto a validar**: a API ainda não foi qualificada com uma role sem DDL. Funções com `SECURITY DEFINER` já existem
 (`202610130004_RestrictTemporalRetention`, `202610150001_AuditConsole`), mas falta confirmar que a criação antecipada de
@@ -257,3 +258,63 @@ aplicá-la, e a atualização passa pelo instalador (FR-023, FR-032).
   varredura de segredos canário (SC-005).
 
 **Verificação de licença**: Pester 5.7.x é Apache-2.0, mantido pelo projeto Pester. Fixar a versão exata na imagem.
+
+## D-013: Catálogo de arquivos SQL e sobreposição externa
+
+Diretriz do solicitante (2026-11-08): "certifique que o instalador não tenha comandos SQL fixos, o ideal é usar arquivos
+SQL, assim pode ser usado pelo EfCore migrations e pode ser alterado externamente". Esclarecimento: opção B (FR-039 a
+FR-041).
+
+**Decisão**:
+- **Catálogo único**: todo SQL executado pelo instalador ou pelo modo administrativo fica em arquivos `.sql` em
+  `backend/libs/Dokpod.ControlPlane.Infrastructure/`.
+  - As migrations continuam em `Migrations/Script/<id>/Up|Down/*.sql`, já carregadas pelas migrations do EF Core via
+    `MigrationSqlScriptLoader`.
+  - Os demais arquivos vão para `Sql/Installation/`:
+    - `bootstrap/` (banco, roles, concessões e `ALTER DEFAULT PRIVILEGES` para as tabelas futuras);
+    - `checks/` (versão do servidor e privilégios das roles);
+    - `status/` (contagens de conferência).
+- **Manifesto**: `Sql/manifest.json` lista, para cada arquivo:
+  - `path` e `sha256`;
+  - `purpose` (`migration`, `bootstrap`, `check` ou `status`);
+  - `executor`: `ef` (migration), `psql` (precisa de credencial administrativa, que o modo administrativo não tem) ou
+    `admin` (modo administrativo, conexão do *owner*);
+  - os parâmetros declarados.
+
+  O manifesto é gerado e conferido no build. Um teste falha se um arquivo não estiver listado ou se o hash divergir.
+- **Parâmetros sem concatenação**:
+  - executor `psql`: variáveis do `psql` (`:"role"` para identificadores e `:'value'` para literais), passadas por `-v`
+    e nunca por interpolação de texto;
+  - executor `admin`: parâmetros nomeados do Npgsql (`@name`).
+
+  Segredos, como as senhas das roles, entram por variável de `psql` lida de arquivo, nunca na linha de comando.
+- **Distribuição**: os arquivos ficam embutidos na assembly, como hoje, e são copiados com o manifesto para `/app/sql/` na
+  imagem da API e na do instalador. Também saem como asset da release `dokpod-sql-<versão>.tar.gz`, atestado como os
+  demais. `install.sh sql export --out <dir>` extrai a árvore para revisão e alteração.
+- **Sobreposição** (`--sql-dir`):
+  - o diretório sobreposto precisa ter o manifesto da mesma versão;
+  - ele substitui arquivos de mesmo caminho e recusa um caminho sem correspondente na release;
+  - o plano mostra cada arquivo alterado com o hash original e o novo, e exige a confirmação que o nomeie
+    (`--confirm-sql-overrides <lista>` no modo não interativo).
+- **Carga no modo administrativo**: o `MigrationSqlScriptLoader` ganha uma raiz externa opcional
+  (`/run/sql-override`, montada só no container do modo administrativo). O runtime da API não monta nem lê essa raiz,
+  então a aplicação nunca executa SQL sobreposto fora de uma migration confirmada.
+- **Registro**: cada desvio aplicado vai para `state/installation.json` (`sqlOverrides`), para o relatório e para o
+  cabeçalho do SQL exportado (`-- override:`).
+- **Verificação**: `admin migrations verify` recebe a lista de desvios registrados. Divergência de hash registrada é
+  aceita e listada; divergência não registrada dá código 6.
+- **Varredura de SQL no código**: um teste de arquitetura em `Dokpod.Architecture.Tests` e um Pester no instalador
+  recusam SQL no código-fonte (palavras-chave DDL/DML em literais de C# e PowerShell) fora do catálogo. As exceções são
+  listadas explicitamente; a única aceita é a chamada `migrationBuilder.AddColumn/DropColumn` da migration
+  `202609210004`, que o EF gera.
+
+**Justificativa**:
+- Uma fonte só para o EF Core e para o uso externo evita divergência entre o que a aplicação migra e o que o DBA revisa.
+- O manifesto com hash torna toda alteração visível.
+- O runtime sem acesso à raiz externa mantém a garantia de schema.
+
+**Alternativas consideradas**:
+- **Templates em `deploy/installer/templates/postgres/`**: rejeitada, porque separava o SQL de bootstrap das migrations
+  e dava duas fontes.
+- **Sobreposição lida também pelo runtime**: rejeitada, porque permitiria schema não confirmado.
+- **Opções A e C do esclarecimento**: A não permite a alteração externa pedida, e C a permite sem rastro.

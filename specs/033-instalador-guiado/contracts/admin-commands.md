@@ -9,8 +9,10 @@ docker run --rm --network <rede-interna> \
   ghcr.io/altivy-it/dokpod-api@sha256:<digest> admin <grupo> <comando> [opções] --output json
 ```
 
-- Vale para `dokpod-api` e `dokpod-api-business`. A edição só muda os comandos de licença, que estão fora deste
-  contrato.
+- Vale para `dokpod-api` e `dokpod-api-business`. A edição só muda `admin licensing import`, que só existe na Business.
+- Com catálogo sobreposto, o instalador monta o diretório conferido em `/run/sql-override` (somente leitura). O
+  `MigrationSqlScriptLoader` o usa só no modo administrativo, e o runtime da API não o monta (D-013).
+- Todo SQL dos comandos vem do catálogo (`/app/sql/manifest.json`); não há SQL no código (FR-039).
 - O modo administrativo não abre portas, não inicia hosted services e termina ao fim do comando.
 - A conexão vem só do arquivo montado; não há opção de conexão na linha de comando.
 - Saída JSON em stdout e mensagens em stderr, sem segredos.
@@ -21,10 +23,10 @@ docker run --rm --network <rede-interna> \
 | Comando | Saída JSON | Efeito |
 | --- | --- | --- |
 | `status` | `{databaseVersion, targetVersion, applied:[id], pending:[id], newerThanTarget:[id]}` | Nenhum. |
-| `plan` | `{from, to, migrations:[{id, sha256, objects:{created:[], altered:[], dropped:[]}}], planHash}` | Nenhum. O resumo de objetos vem de análise do SQL gerado (`CREATE`/`ALTER`/`DROP` de nível superior). |
+| `plan` | `{from, to, migrations:[{id, sha256, overridden, originalSha256?, objects:{created:[], altered:[], dropped:[]}}], planHash}` | Nenhum. O resumo de objetos vem de análise do SQL gerado (`CREATE`/`ALTER`/`DROP` de nível superior). |
 | `script --out <arquivo>` | `{path, sha256, planHash}` | Nenhum no banco. Grava o arquivo do [formato](migration-script.md). |
 | `apply --confirm <planHash>` | `{applied:[id], durationMs}` | Aplica as pendentes, uma transação por migration. Recusa se o `planHash` não for o do plano atual, ou se `newerThanTarget` não estiver vazio (código 6). |
-| `verify --script <arquivo>` | `{ok, missing:[id], unexpected:[id], hashMismatch:[id]}` | Nenhum. Confere o histórico contra o cabeçalho do arquivo exportado. |
+| `verify --script <arquivo> [--accepted-overrides <arquivo>]` | `{ok, missing:[id], unexpected:[id], hashMismatch:[id], acceptedOverrides:[path]}` | Nenhum. Confere o histórico contra o cabeçalho do arquivo exportado. Uma divergência de hash só é aceita se o caminho estiver em `--accepted-overrides` (o `sqlOverrides` do estado); senão, código 6. |
 
 O `planHash` é o SHA-256 da lista ordenada de `id:sha256`. Ele liga a confirmação do usuário ao plano que ele viu
 (FR-036).
@@ -54,6 +56,19 @@ admin agent-identities revoke   --environment <uuid> --actor <operador> --reason
 - **Idempotência de `register`**: o mesmo par não muda nada. Um fingerprint já ligado a outro ambiente, ou já revogado,
   dá código 8.
 - `revoke` usa `AgentIdentityRevocationService`, o mesmo caminho do endpoint `.../agent-identity/revoke`, e audita com a mesma ação do endpoint.
+
+## `admin licensing import` (só Business)
+
+```text
+admin licensing import --file /run/import/license.jws --slot <prd|hml> --actor <operador> --reason <texto>
+```
+
+- Usa o mesmo serviço de importação de `PUT /api/v1/licensing/license?slotId=` (spec 031), com as mesmas validações e a
+  mesma auditoria, e ator técnico `installer`.
+- **Idempotência**: a mesma licença já ativa no slot não muda nada.
+- **Recusa**: uma licença inválida, de outra organização ou revogada é recusada com o código de erro da spec 031
+  (saída 2).
+- Na CE, o comando não existe (saída 2, com a mensagem "edição sem licenciamento").
 
 ## Segurança
 
