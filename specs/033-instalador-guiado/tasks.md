@@ -57,7 +57,11 @@ código.
   - a confiança no `install.sh` e no digest do instalador (D-001, D-010);
   - o arquivo de respostas e as referências a segredos (FR-002);
   - a senha temporária do primeiro administrador (FR-014);
-  - a recriação total (FR-029).
+  - a recriação total (FR-029);
+  - o catálogo SQL sobreposto, que é SQL do operador executado como `dokpod_owner` (FR-041, D-013): quem pode gravar em
+    `installDir/sql-override/` e se uma reexecução reaplica algo sem nova confirmação;
+  - o banco de estado SQLite (FR-044, D-014): adulteração de `installation.db` (por exemplo, `run_lock` ou
+    `sql_overrides`), integridade e reconstrução a partir do observado.
 
   Registrar lacunas, riscos residuais e a decisão do revisor humano. Bloqueia todas as tarefas de código.
 - [ ] T002 [P] ADR `proposed` "Modo administrativo da imagem da API para migrations e bootstrap" em
@@ -65,13 +69,16 @@ código.
   as alternativas rejeitadas (bundle, imagem migrator, migração na inicialização, `--idempotent`, `INSERT` direto) e a
   relação com o enrollment futuro.
 - [ ] T003 [P] ADR `proposed` "Instalador como imagem da release com bootstrap `install.sh`" em
-  `docs/adr/2026-0011-instalador-da-release.md`, com D-001, D-002 e D-010.
+  `docs/adr/2026-0011-instalador-da-release.md`, com D-001, D-002, D-010 e o estado local em SQLite (D-014),
+  registrado como arquivo da ferramenta e não datastore do produto.
 - [ ] T004 [P] Registrar na matriz de `docs/distribuicao.md` a imagem base do instalador e suas ferramentas. Para cada
   uma, conferir e anotar licença, versão exata e manutenção:
   - a imagem PowerShell 7.5 (candidata `mcr.microsoft.com/powershell:7.5-ubuntu-24.04`, MIT, ou equivalente em
     `lzocateli/containers`);
   - Docker CLI e plugin Compose v2 (Apache-2.0);
   - `openssl` e `postgresql-client`;
+  - `Microsoft.Data.Sqlite` (MIT) e `SQLitePCLRaw.bundle_e_sqlite3` (Apache-2.0) para o estado em SQLite, que é de
+    domínio público (D-014);
   - Pester 5.7.x (Apache-2.0);
   - PSScriptAnalyzer 1.24.x (MIT), para a análise estática dos módulos.
 
@@ -108,15 +115,17 @@ segredos, imagens e renderização). Nenhuma história começa antes desta fase.
 - [ ] T007 [P] Arquivos de instalação em `backend/libs/Dokpod.ControlPlane.Infrastructure/Sql/Installation/`, com
   parâmetros nomeados e sem concatenação:
   - `bootstrap/01-create-database.sql`;
-  - `bootstrap/02-create-roles.sql` (`dokpod_owner` e `dokpod_runtime`, sem `SUPERUSER`/`CREATEROLE`, senha por
-    variável `secret`);
+  - `bootstrap/02-create-roles.sql` (`dokpod_owner` e `dokpod_runtime`, sem `SUPERUSER`/`CREATEROLE`; a senha é lida
+    pelo próprio arquivo com `\set` a partir de `/run/secrets`, declarada como parâmetro `secret` no manifesto);
   - `bootstrap/03-grants.sql` (DML e `EXECUTE` a `dokpod_runtime`, mais `ALTER DEFAULT PRIVILEGES` de `dokpod_owner` no
     schema `dokpod` para as tabelas e funções futuras);
   - `checks/server-version.sql` e `checks/role-privileges.sql` (`rolsuper`, `rolcreaterole`, `CONNECT`, `USAGE`, DML e
     ausência de DDL);
   - `status/conference-counts.sql` (linhas de `dokpod.audit_events` e `dokpod.agent_identities`, usado no SC-008).
 
-  Executor `psql` para bootstrap e checks (variáveis `:"x"` e `:'x'` por `-v`); `admin` para status (`@x`). Testes com
+  Executor `psql` para bootstrap e checks: identificadores e literais não secretos em `:"x"` e `:'x'` por `-v`, e
+  segredos nunca por `-v` nem por variável de ambiente. Executor `admin` para status (`@x`). Teste com valor canário
+  na senha, conferindo que ela não aparece no `ps` nem no `docker inspect` do container do `psql`. Testes com
   PostgreSQL real em `backend/tests/Dokpod.ControlPlane.Api.Tests/Admin/InstallationSqlTests.cs`, incluindo nome de role
   com aspas e literal com apóstrofo.
 - [ ] T008 Raiz externa opcional no `MigrationSqlScriptLoader`
@@ -133,7 +142,8 @@ segredos, imagens e renderização). Nenhuma história começa antes desta fase.
   - teste em `backend/tests/Dokpod.Architecture.Tests/NoInlineSqlTests.cs` que recusa literais C# com palavras-chave
     DDL/DML (`CREATE`, `ALTER`, `DROP`, `INSERT`, `UPDATE`, `DELETE`, `SELECT`, `GRANT`) em
     `backend/apps/Dokpod.ControlPlane.Api/Admin/` e nos serviços chamados por ele;
-  - teste equivalente em `deploy/installer/tests/NoInlineSql.Tests.ps1` para `deploy/installer/src/`.
+  - teste equivalente em `deploy/installer/tests/NoInlineSql.Tests.ps1` para `deploy/installer/src/`, exigindo que
+    toda consulta ao estado SQLite venha de `deploy/installer/sql/state/`.
 
   Exceções explícitas e justificadas numa lista no próprio teste.
 
@@ -219,14 +229,26 @@ segredos, imagens e renderização). Nenhuma história começa antes desta fase.
   - recusar `installDir` igual a `secretsDir`, um dentro do outro ou dentro de checkout Git;
   - modo guiado gravando `answers.yaml` sem segredos;
   - sem TTY e com resposta faltante, código 2.
-- [ ] T019 [P] Estado, *lock* e relatório em `deploy/installer/src/State.psm1`, com testes em
-  `deploy/installer/tests/State.Tests.ps1`:
-  - `state/installation.json` com os campos de [data-model.md](data-model.md#instalação-stateinstallationjson);
+- [ ] T019 [P] (FR-044, FR-034) Estado em SQLite, *lock* e relatório em `deploy/installer/src/State.psm1`, com testes
+  em `deploy/installer/tests/State.Tests.ps1` e arquivos SQL em `deploy/installer/sql/state/` (D-014):
+  - `schema/0001-initial.sql` com as tabelas `installation`, `components`, `certificates`, `environments`,
+    `sql_overrides`, `runs`, `run_steps` e `run_lock` de [data-model.md](data-model.md#estado-da-instalação-sqlite),
+    `PRAGMA user_version`, `journal_mode=WAL` e `foreign_keys=ON`;
+  - `queries/*.sql` com uma consulta por arquivo e parâmetros `$name`;
+  - `manifest.json` no formato de D-013;
+  - acesso só por `Microsoft.Data.Sqlite`;
   - `version` só aumenta;
-  - `schemaVersion` migrado para a frente;
+  - schema aplicado só para a frente; `user_version` maior que o conhecido dá código 2;
+  - `run_steps` gravado numa transação depois de cada etapa;
+  - `run_lock` em `BEGIN IMMEDIATE`, com código 7 se ocupado e liberação de *lock* velho só com confirmação;
+  - `PRAGMA integrity_check` no início, e banco ausente ou corrompido numa instalação existente reconstruído a partir
+    do observado só com confirmação;
+  - backup `VACUUM INTO state/backups/<runId>.db`, mantendo as 10 últimas;
+  - retenção das 200 últimas execuções em `runs`/`run_steps` e de seus `reports/*.json`, preservando sempre as que têm
+    linha em `sql_overrides`;
   - `outcome` em `converged|changed|prerequisite_failed|declined|failed|paused_for_manual_migration`;
-  - *lock* `state/.lock` com código 7 em execução concorrente;
-  - `reports/<runId>.json` sem segredos (FR-034).
+  - `reports/<runId>.json` sem segredos (FR-034), gerado a partir do banco;
+  - teste de que nenhuma coluna recebe valor canário de segredo.
 - [ ] T020 Motor de plano em `deploy/installer/src/Plan.psm1`, com testes em `deploy/installer/tests/Plan.Tests.ps1`:
   - desejado (respostas mais versão) contra observado (inspect do engine, `admin migrations status`, `-DryRun` dos
     scripts do Keycloak, sistema de arquivos);
@@ -290,7 +312,8 @@ segredos, imagens e renderização). Nenhuma história começa antes desta fase.
   - `secrets:` montados em `/run/secrets`;
   - socket só no agente;
   - alias do nome público na borda dentro da rede interna;
-  - `SSL_CERT_FILE` com a CA local na API e no BFF quando aplicável (D-008);
+  - `SSL_CERT_FILE` da API e do BFF com um bundle das raízes do sistema, da CA local (quando usada) e da
+    `keycloak.caCertificate` (quando informada), conforme D-008;
   - `dokpod.env` sem segredos;
   - `deploy.env` no formato de `deploy/hooks/compose-deploy-hook.sh` (`COMPOSE_DIR`, `COMPOSE_FILE`, `ENV_FILE`,
     `PROJECT`, `SERVICES`, `ORDER`);
@@ -323,7 +346,9 @@ conectado e um administrador que precisa trocar a senha.
   - duas instâncias `dokpod-postgres` e `keycloak-postgres` (`lzocateli/postgresql:18.4-pgvector0.8.6-bookworm`),
     volumes e credenciais próprios (FR-007);
   - no `dokpod-postgres`, banco e roles `dokpod_owner` e `dokpod_runtime` pelos arquivos `Sql/Installation/bootstrap/`
-    do catálogo, executados com `psql -v` em container (T007, T016);
+    do catálogo, executados com `psql` em container avulso (T007, T016);
+  - conexão do `psql` pelo `PGPASSFILE` num tmpfs montado só nesse container e apagado ao fim, nunca por
+    `PGPASSWORD` ou outra variável de ambiente (FR-033). Teste com canário no `docker inspect`;
   - conexões gravadas em `secretsDir` (`dokpod-owner-connection`, `ConnectionStrings__ControlPlane`).
 
   Testes em `deploy/installer/tests/Postgres.Tests.ps1`.
@@ -341,7 +366,7 @@ conectado e um administrador que precisa trocar a senha.
   - lista das pendentes com objetos afetados e confirmação ligada ao `planHash` (FR-036);
   - com `--sql-dir`: conferência do manifesto, cópia para `installDir/sql-override/`, lista de cada arquivo alterado
     com o hash original e o novo, confirmação nomeada (`--confirm-sql-overrides`), montagem em `/run/sql-override` e
-    registro em `sqlOverrides` do estado e no relatório (FR-041);
+    registro na tabela `sql_overrides` do estado e no relatório (FR-041);
   - `apply`; com `manualMigrations`, `script` para `installDir/migrations/<de>-<para>.sql`, pausa com código 10 e
     `verify` na retomada (FR-037, FR-038);
   - banco com migration mais nova dá código 6 (FR-010);
@@ -350,7 +375,7 @@ conectado e um administrador que precisa trocar a senha.
   - sobreposição de arquivo de migration já aplicada: avisa que não tem efeito nesse banco e só registra com
     confirmação (caso de borda da spec);
   - depois de `apply` com sobreposição, `admin migrations fingerprint` gravado em
-    `sqlOverrides[].acceptedSchemaFingerprint` (FR-042).
+    `sql_overrides.accepted_schema_fingerprint` (FR-042).
 
   Testes em `deploy/installer/tests/Migrations.Tests.ps1`.
 - [ ] T031 [US1] Primeiro ambiente em `deploy/installer/src/Environments.psm1`:
@@ -388,6 +413,7 @@ conectado e um administrador que precisa trocar a senha.
 
 - [ ] T035 [US2] `postgres.mode: existing-create` em `deploy/installer/src/Postgres.psm1`:
   - credencial administrativa de `{file}`/`{env}` ou prompt, usada uma vez e descartada (nunca em `secretsDir`);
+  - entregue ao container do `psql` só por `PGPASSFILE` em tmpfs, apagado ao fim, como no T028 (FR-033);
   - criação do banco `dokpod`, de `dokpod_owner` e de `dokpod_runtime` pelos mesmos arquivos de bootstrap do catálogo;
   - `sslMode` e `caCertificate` respeitados;
   - versão mínima do servidor conferida (FR-008).
@@ -518,7 +544,8 @@ conectado e um administrador que precisa trocar a senha.
   suíte .NET completa, Pester completo e `PSScriptAnalyzer` (T004) sem avisos nos módulos de
   `deploy/installer/src/`.
 - [ ] T058 Revisão de segurança e privacidade das superfícies de T001 contra o implementado, em
-  `specs/033-instalador-guiado/threat-model.md`, com achados e correções.
+  `specs/033-instalador-guiado/threat-model.md`, com achados e correções. Inclui o SQL sobreposto e o banco de estado
+  SQLite.
 - [ ] T059 Validar o cenário 9 do quickstart (catálogo SQL sobreposto) e registrar em `validation.md` (FR-039 a
   FR-041, SC-011):
   - `sql export` e alteração de um arquivo de migration pendente;

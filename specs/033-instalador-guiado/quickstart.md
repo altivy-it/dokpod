@@ -56,7 +56,8 @@ o estado em [data-model.md](data-model.md).
 ## Cenário 4 - Keycloak existente (P2, SC-006)
 
 1. Exporte o realm `outro` e o `master` (sem segredos) antes. Repita o cenário nos dois engines (SC-002).
-2. Responda `keycloak.mode: existing` com `administratorUser` igual a um usuário existente.
+2. Responda `keycloak.mode: existing` com `administratorUser` igual a um usuário existente. Use um Keycloak com
+   certificado de uma CA privada, informada em `keycloak.caCertificate`, para conferir que API e BFF confiam nela.
 3. **Esperado**:
    - o realm `dokpod` foi criado e o usuário indicado entra no console;
    - a reexecução lista `keep` para o realm;
@@ -114,8 +115,8 @@ Depois dos cenários 1 a 6, procure cada canário em:
    confirma sobreposição. O plano lista o arquivo com o hash original e o novo.
 4. Repita com `--confirm-sql-overrides <caminho>`. **Esperado**:
    - a migration aplicada com o arquivo alterado;
-   - o desvio em `sqlOverrides` do estado, no relatório e na linha `-- override:` do SQL exportado;
-   - `acceptedSchemaFingerprint` gravado no estado;
+   - o desvio na tabela `sql_overrides` do estado, no relatório e na linha `-- override:` do SQL exportado;
+   - `accepted_schema_fingerprint` gravado no estado;
    - o `verify` dá `ok`, com a impressão aceita.
 5. Num clone, aplique à mão um arquivo alterado sem passar pelo `--sql-dir`. Repita para cada caso: coluna, índice,
    restrição, função e gatilho. Rode o `verify` sem `--script`. **Esperado**: código 6 em todos, com `schemaDiff`
@@ -123,6 +124,6 @@ Depois dos cenários 1 a 6, procure cada canário em:
 6. Coloque no `--sql-dir` um arquivo sem correspondente na release, ou um `manifest.json` de outra versão.
    **Esperado**: recusa antes de qualquer alteração.
 7. Altere no `--sql-dir` o arquivo de uma migration já aplicada e reexecute. **Esperado**: o plano avisa que a alteração
-   não tem efeito nesse banco, e ela só entra em `sqlOverrides` com confirmação nomeada.
+   não tem efeito nesse banco, e ela só entra em `sql_overrides` com confirmação nomeada.
 8. Varredura do SC-011: os testes `NoInlineSqlTests` e `NoInlineSql.Tests.ps1` passam, e nenhum literal SQL aparece em
    `backend/apps/Dokpod.ControlPlane.Api/Admin/` nem em `deploy/installer/src/`.

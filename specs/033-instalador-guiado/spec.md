@@ -52,6 +52,12 @@ O solicitante (Lincoln, `@lzocateli`) aprovou as recomendações de topologia, p
   - **F2, opção a**: a porta gRPC com mTLS dos agentes é a única exceção à borda como porta pública (FR-021, FR-022).
   - **F3**: com nginx existente, web e BFF só escutam em loopback ou em rede interna (FR-043).
   - **F4, F5 e F6**: ajustes nas tarefas: backup na primeira instalação, os dois engines nos cenários 2 e 3, e repasse das variáveis `{env}`.
+- Diretriz do solicitante: "Se for necessário manter estado da instalação use sqlite". O estado da instalação fica num banco SQLite local em `installDir`, sem segredos, com schema e consultas em arquivos SQL (FR-044).
+- Correções A1 a A7 do segundo `/speckit-analyze`, aprovadas pelo solicitante ("sim faça as correções"):
+  - **A1, A2**: segredos do `psql` só por arquivo.
+  - **A3**: CA privada do Keycloak existente na confiança da API e do BFF.
+  - **A4**: SQL sobreposto e estado SQLite no threat model.
+  - **A5 a A7**: layout, escopo da auditoria no FR-024 e retenção do estado.
 - P: Quando alguém altera um arquivo SQL de migration fora do instalador (por exemplo, um DBA ajusta tablespace ou índice), o que o instalador deve fazer com a versão alterada? → R: Opção B (recomendada), escolhida pelo solicitante em resposta à diretriz "certifique que o instalador não tenha comandos SQL fixos, o ideal é usar arquivos SQL, assim pode ser usado pelo EfCore migrations e pode ser alterado externamente". O instalador aceita um diretório de SQL sobreposto. O plano mostra cada arquivo alterado com o hash original e o novo, aplica após confirmação nomeada e registra o desvio no estado e no relatório. O `verify` aceita o desvio só se ele foi registrado (FR-039 a FR-041).
 
 ## Cenários do Usuário e Testes (obrigatório)
@@ -140,7 +146,8 @@ Depois da instalação, o administrador adiciona outros hosts Linux e, mais tard
 
 ### Casos de Borda
 
-- O instalador é interrompido no meio (queda de energia, Ctrl+C): a próxima execução detecta o estado parcial e continua de onde parou, sem duplicar banco, realm, ambiente ou identidade.
+- O instalador é interrompido no meio (queda de energia, Ctrl+C): a próxima execução detecta o estado parcial e continua de onde parou, sem duplicar banco, realm, ambiente ou identidade. O banco de estado só registra uma etapa depois que ela termina, numa transação.
+- O banco de estado foi apagado ou está corrompido: o instalador recusa seguir em silêncio. Ele mostra o que reconstruiu a partir do observado (containers, banco, realm, certificados) e só grava um estado novo com confirmação.
 - O nome público muda depois da instalação: a reexecução com o novo nome mostra que borda, BFF, redirect URIs do Keycloak e certificado da borda serão alterados, e pede confirmação.
 - A porta da borda ou da API já está ocupada por outro processo: o instalador para nas verificações iniciais e oferece outra porta.
 - O PostgreSQL existente está numa versão abaixo da suportada ou sem extensão requerida: o instalador para com o motivo antes de criar a role.
@@ -209,7 +216,7 @@ Depois da instalação, o administrador adiciona outros hosts Linux e, mais tard
 
 **Ambiente e agentes**
 
-- **FR-024**: O instalador DEVE cadastrar o primeiro ambiente (host local), provisionar seus recursos de autorização no Keycloak, emitir o certificado do agente, registrar a identidade do agente vinculada ao ambiente e subir o agente com o engine escolhido. Tudo isso DEVE ficar registrado na auditoria do Dokpod, sem SQL manual.
+- **FR-024**: O instalador DEVE cadastrar o primeiro ambiente (host local), provisionar seus recursos de autorização no Keycloak, emitir o certificado do agente, registrar a identidade do agente vinculada ao ambiente e subir o agente com o engine escolhido. O cadastro do ambiente e o registro da identidade DEVEM ficar na auditoria do Dokpod, sem SQL manual. O provisionamento no Keycloak e as demais etapas DEVEM ficar no relatório de execução (FR-034).
 - **FR-025**: O instalador DEVE gerar, sob pedido, o pacote de um novo host Linux (ambiente cadastrado, certificado e identidade do agente, CA, endpoint e definição do container), sem nenhum outro segredo da instalação, e permitir revogar a identidade de um host pelo caminho de revogação já existente.
 
 **Idempotência e recriação**
@@ -229,11 +236,12 @@ Depois da instalação, o administrador adiciona outros hosts Linux e, mais tard
 
 - **FR-033**: Nenhum segredo (senhas, client secrets, chaves privadas, connection strings, senha temporária após a entrega) DEVE aparecer na saída, nos logs do instalador, nos arquivos não secretos ou em argumentos de processo visíveis a outros usuários.
 - **FR-034**: O instalador DEVE registrar, no diretório de instalação, um relatório de cada execução sem segredos: versão, cenário, plano, o que mudou, verificações e resultado.
+- **FR-044**: O estado da instalação DEVE ficar num banco SQLite local em `installDir`, sem segredos. Ele guarda versão, edição, componentes, certificados, ambientes, desvios de SQL confirmados e o histórico das execuções. O schema DEVE evoluir só para a frente e, como no FR-039, schema e consultas ficam em arquivos `.sql` versionados, com parâmetros nomeados. Um estado de versão mais nova que a do instalador é recusado. Estado ausente ou corrompido nunca é recriado em silêncio: o instalador reconstrói o que puder a partir do observado e pede confirmação.
 - **FR-035**: Toda ferramenta do instalador DEVE oferecer ajuda sem efeitos colaterais e códigos de saída distintos para sucesso, falha de pré-requisito, recusa de confirmação e erro na aplicação.
 
 ### Entidades Principais
 
-- **Instalação**: o Dokpod num host. Tem versão, edição, cenário, nome público, diretório de instalação, destino de segredos e o estado de cada componente (provisionado pelo instalador ou existente do usuário).
+- **Instalação**: o Dokpod num host, registrada no banco de estado SQLite local (FR-044). Tem versão, edição, cenário, nome público, diretório de instalação, destino de segredos e o estado de cada componente (provisionado pelo instalador ou existente do usuário).
 - **Componente**: unidade convergida pelo instalador (PostgreSQL, Keycloak, borda, web, BFF, API, agente, realm, migrations, certificados, segredos). Tem origem (provisionado ou existente), estado esperado, estado observado e se pode ser recriado.
 - **Arquivo de respostas**: as escolhas da instalação sem segredos, com referências a onde estão os segredos. Permite reexecutar e automatizar.
 - **Segredo da instalação**: valor sensível gerado ou recebido (credenciais do banco, client secret do BFF, senhas de PFX, chave da CA), guardado só no destino protegido e nunca exibido.

@@ -10,28 +10,29 @@ existem. O estado do instalador fica em arquivos no host.
 
 | Caminho (padrão root / rootless) | Conteúdo | Permissão |
 | --- | --- | --- |
-| `/opt/dokpod` / `~/.local/share/dokpod` (`installDir`) | `compose.yaml`, `dokpod.env` (sem segredos), `edge/`, `deploy.env`, `answers.yaml`, `state/`, `reports/`, `packages/` | `0750` |
+| `/opt/dokpod` / `~/.local/share/dokpod` (`installDir`) | `compose.yaml`, `dokpod.env` (sem segredos), `edge/`, `deploy.env`, `answers.yaml`, `state/` (`installation.db` e `backups/`), `sql-override/` (cópia conferida do último `--sql-dir`, para reexecução e auditoria, não secreta), `reports/`, `packages/` | `0750` |
 | `/etc/dokpod/secrets` / `~/.config/dokpod/secrets` (`secretsDir`) | Um arquivo por segredo e a pasta `pki/` (chave da CA local e PFX) | `0700`, arquivos `0600` |
 
 `installDir` e `secretsDir` precisam ser diferentes e nenhum pode ficar dentro de um checkout Git. O instalador recusa
 se estiverem.
 
-## Instalação (`state/installation.json`)
+## Estado da instalação (SQLite)
 
-| Campo | Tipo | Regra |
+Banco `installDir/state/installation.db` ([D-014](research.md#d-014-estado-da-instalação-em-sqlite), FR-044). O schema
+fica em `deploy/installer/sql/state/schema/`, e a versão em `PRAGMA user_version`.
+
+| Tabela | Colunas principais | Regra |
 | --- | --- | --- |
-| `schemaVersion` | inteiro | Versão do formato do estado; o instalador migra formatos antigos para a frente. |
-| `installationId` | UUID | Gerado na primeira execução; nunca muda. |
-| `version` | semver | Versão instalada da release. Só aumenta (FR-032). |
-| `edition` | `ce` \| `business` | Trocar de edição é uma mudança confirmada. |
-| `engine` | `docker` \| `podman-rootless` \| `podman-rootful` | Engine do plano de controle e do agente local. |
-| `publicUrl` | URL https | Origem pública da borda. Mudar exige confirmação (caso de borda "nome público muda"). |
-| `components` | lista de Componente | Um por item convergido. |
-| `certificates` | lista de Certificado gerenciado | |
-| `environments` | lista de `{environmentId, name, agentFingerprint, packageGeneratedAt?}` | Primeiro ambiente e hosts adicionais. |
-| `journal` | lista de `{runId, step, status, at}` | Só apoia a retomada; o plano é sempre recalculado do observado. |
-| `sqlOverrides` | lista de `{path, purpose, originalSha256, appliedSha256, acceptedSchemaFingerprint, confirmedBy, confirmedAt, runId}` | Desvios do catálogo SQL confirmados (FR-041); só cresce; é a lista que `verify` aceita. |
-| `lastRun` | `{runId, startedAt, finishedAt, outcome}` | `outcome`: `converged`, `changed`, `prerequisite_failed`, `declined`, `failed`, `paused_for_manual_migration`. |
+| `installation` | `installation_id` (UUID, PK, linha única), `version` (semver), `edition` (`ce`\|`business`), `engine` (`docker`\|`podman-rootless`\|`podman-rootful`), `public_url`, `created_at`, `updated_at` | `installation_id` nunca muda. `version` só aumenta (FR-032). Trocar `edition` ou `public_url` exige confirmação. |
+| `components` | `name` (PK, enum de [Componente](#componente)), `origin`, `desired_hash`, `observed_json`, `recreatable` | Uma linha por item convergido. |
+| `certificates` | `role` (PK), `origin`, `subject_alt_names_json`, `not_after`, `fingerprint_sha256`, `secret_ref`, `ca_state` (`active`\|`rotating`) | Ver [Certificado gerenciado](#certificado-gerenciado). |
+| `environments` | `environment_id` (UUID, PK), `name`, `engine` (`docker`\|`podman`\|`windows`), `agent_fingerprint`, `package_generated_at`, `revoked_at` | Primeiro ambiente e hosts adicionais. |
+| `sql_overrides` | `id` (PK), `path`, `purpose`, `original_sha256`, `applied_sha256`, `accepted_schema_fingerprint`, `confirmed_by`, `confirmed_at`, `run_id` (FK) | Desvios do catálogo SQL confirmados (FR-041, FR-042). Só recebe inserções; é o que `verify` aceita. |
+| `runs` | `run_id` (UUID, PK), `command`, `started_at`, `finished_at`, `outcome`, `exit_code`, `report_path` | `outcome` em `converged`, `changed`, `prerequisite_failed`, `declined`, `failed`, `paused_for_manual_migration`. Retenção: as 200 últimas execuções e seus relatórios, preservando sempre as que têm `sql_overrides`. O volume é de uma linha por execução, então a regra de particionamento da constituição não se aplica. |
+| `run_steps` | `run_id` (FK), `step`, `status` (`done`\|`failed`\|`skipped`), `at` | Gravado numa transação só depois da etapa terminar; apoia a retomada, mas o plano é sempre recalculado do observado. |
+| `run_lock` | `id` (PK, sempre 1), `run_id`, `container_name`, `acquired_at` | Adquirido em `BEGIN IMMEDIATE`; ocupado dá código 7; velho (container inexistente) só é liberado com confirmação. |
+
+Nenhuma coluna guarda segredo. `secret_ref` é só um caminho relativo a `secretsDir`.
 
 ## Componente
 
@@ -78,7 +79,7 @@ Impressão do schema: `Sql/schema/expected-schema.json` por versão (FR-042), li
 criadas em execução e sem concessões.
 
 Sobreposição: um arquivo com o mesmo `path` no `--sql-dir` substitui o da release, depois da confirmação nomeada, e é
-registrado em `sqlOverrides`.
+registrado em `sql_overrides`.
 
 ## Certificado gerenciado
 
@@ -99,7 +100,6 @@ conectados, conforme [troca da CA](../../docs/runbooks/troca-da-ca-dos-agentes.m
 
 | Nome no `secretsDir` | Consumidor | Gerado quando |
 | --- | --- | --- |
-| `sql-override/` (em `installDir`, não secreto) | modo administrativo e `psql` | Cópia conferida do `--sql-dir` usado na última execução, para reexecução e auditoria. |
 | `ConnectionStrings__ControlPlane` | API (role `dokpod_runtime`) | Cenário com PostgreSQL provisionado ou existente. |
 | `dokpod-owner-connection` | modo administrativo (role `dokpod_owner`) | Sempre. |
 | `Authentication__Keycloak__ClientSecret` | BFF | Na criação do client `dokpod-bff`. |

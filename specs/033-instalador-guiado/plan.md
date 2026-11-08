@@ -43,6 +43,8 @@ idempotente.
 - Na imagem do instalador:
   - Docker CLI e plugin Compose v2 (Apache-2.0);
   - `openssl` e `postgresql-client` da distribuição base;
+  - `Microsoft.Data.Sqlite` (MIT) com `SQLitePCLRaw.bundle_e_sqlite3` (Apache-2.0), para o estado em SQLite
+    (SQLite em domínio público);
   - Pester 5.7.x (Apache-2.0) e PSScriptAnalyzer 1.24.x (MIT), só para testes e análise.
 
   Imagem base a confirmar na matriz `lzocateli/containers`; com PowerShell, a candidata é derivar de
@@ -55,7 +57,9 @@ idempotente.
 **Persistência**:
 - Nenhuma tabela nova. Usa `dokpod.environments`, `dokpod.agent_identities`, `dokpod.audit_events` (ação nova
   `environment.agent_identity_register`) e `__EFMigrationsHistory`.
-- Estado do instalador em arquivos ([data-model.md](data-model.md)).
+- Estado do instalador em SQLite local (`installDir/state/installation.db`), com schema e consultas em arquivos SQL
+  de `deploy/installer/sql/state/` ([D-014](research.md#d-014-estado-da-instalação-em-sqlite),
+  [data-model.md](data-model.md#estado-da-instalação-sqlite)).
 
 **Testes**:
 - Pester na imagem do instalador (plano, validação de respostas e certificados, renderização de compose e borda);
@@ -102,7 +106,7 @@ ACME, agente Windows (exceto o certificado e o cadastro do ambiente).
 | VI. Qualidade verificável por plataforma | Docker e Podman rootless reais. PostgreSQL real para migrations e privilégios. Navegador pela borda nginx. Imagem do instalador com build, SBOM, assinatura e smoke. | Atende |
 | Restrição: toolchains em containers | O host só precisa do engine; `install.sh` só baixa, verifica e executa a imagem. | Atende |
 | Restrição: dependências | Licenças verificadas acima; a imagem base exige registro na matriz antes do uso. | Atende, com pendência de registro |
-| Restrição: novo datastore ou serviço | Nenhum. PostgreSQL, Keycloak e nginx já são da arquitetura. | Atende |
+| Restrição: novo datastore ou serviço | Nenhum serviço novo; PostgreSQL, Keycloak e nginx já são da arquitetura. O SQLite é um arquivo local de estado do instalador, não um datastore do produto, e é registrado no ADR do instalador (T003). | Atende, com registro em ADR |
 
 Reavaliação pós-desenho (Fase 1): sem violações. Duas decisões duradouras pedem ADR `proposed`, com revisor humano:
 - D-003 e D-004, modo administrativo da imagem da API;
@@ -116,7 +120,7 @@ Reavaliação pós-desenho (Fase 1): sem violações. Duas decisões duradouras 
 specs/033-instalador-guiado/
 ├── spec.md
 ├── plan.md                      # este arquivo
-├── research.md                  # D-001 a D-013
+├── research.md                  # D-001 a D-014
 ├── data-model.md                # layout, estado, componentes, segredos, pacote de host
 ├── quickstart.md                # cenários 1 a 8
 ├── contracts/
@@ -136,6 +140,7 @@ deploy/installer/
 ├── Dockerfile                   # imagem dokpod-installer
 ├── src/                         # módulos PowerShell: respostas, pré-requisitos, plano, pki, postgres,
 │                                # keycloak, compose, borda, migrations, ambientes, pacote de host, relatório
+├── sql/state/                   # schema (forward-only) e consultas do estado SQLite, com manifest.json
 ├── templates/                   # compose.yaml, dokpod.conf (nginx), deploy.env, compose.agent.yaml
 └── tests/                       # Pester
 backend/apps/Dokpod.ControlPlane.Api/

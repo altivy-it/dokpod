@@ -178,16 +178,19 @@ Confirmar a versão exata em `Directory.Packages.props` na implementação.
 ## D-007: Estado, plano e retomada
 
 **Decisão**:
-- **Estado**: `<install-dir>/state/installation.json` ([modelo](data-model.md)), sem segredos. Guarda versão, edição,
-  cenário, origem de cada componente, hash da configuração gerada, fingerprints e validade dos certificados e um
-  *journal* das etapas.
+- **Estado**: banco SQLite `<install-dir>/state/installation.db` ([modelo](data-model.md#estado-da-instalação-sqlite),
+  [D-014](#d-014-estado-da-instalação-em-sqlite)), sem segredos. Guarda versão, edição, cenário, origem de cada
+  componente, hash da configuração gerada, fingerprints e validade dos certificados, desvios de SQL e as etapas de
+  cada execução.
 - **Plano**: o "desejado" vem do arquivo de respostas mais a versão; o "observado" é lido do engine (inspect),
   do banco (`admin migrations status`), do Keycloak (`-DryRun` dos scripts) e do sistema de arquivos.
 - **Ações**: cada uma é `create`, `update`, `keep`, `recreate` ou `remove`.
-- **Concorrência**: um *lock* em `<install-dir>/state/.lock` impede execuções simultâneas.
+- **Concorrência**: a linha única de `run_lock` no banco de estado, adquirida numa transação `BEGIN IMMEDIATE`,
+  impede execuções simultâneas (código 7). Um *lock* cujo container `dokpod-installer-<runId>` não existe mais é
+  velho e pode ser liberado com confirmação.
 - **Retomada**: refaz o plano a partir do observado. Etapas já concluídas aparecem como `keep`.
 
-**Justificativa**: o plano baseado no observado, e não só no *journal*, converge mesmo após mudança manual ou
+**Justificativa**: o plano baseado no observado, e não só nas etapas registradas, converge mesmo após mudança manual ou
 interrupção (FR-026, FR-027, SC-004).
 
 ## D-008: Borda e nome público
@@ -201,8 +204,9 @@ interrupção (FR-026, FR-027, SC-004).
   (FR-043, correção F3).
 - **Nome público dentro da rede**: na rede interna, a borda recebe o nome público como alias. Assim API e BFF alcançam a
   `Authority` pelo mesmo nome do navegador, sem `extra_hosts` nem IP fixo, o que substitui o arranjo de laboratório.
-- **CA local**: quando a borda usa a CA local, a raiz vai para o repositório de confiança dos containers da API e do BFF
-  por `SSL_CERT_FILE` montado.
+- **Confiança TLS da API e do BFF**: os dois validam a `Authority` do Keycloak por TLS. O instalador monta em
+  `SSL_CERT_FILE` um bundle com as raízes do sistema, a CA local (quando a borda ou o Keycloak provisionado a usam)
+  e a `keycloak.caCertificate` (quando um Keycloak existente usa CA privada). A correção A3 cobre esse último caso.
 
 - **Porta dos agentes remotos** (correção F2, opção a): com `agentGrpcPort`, a API publica a porta gRPC com mTLS
   diretamente, como na arquitetura atual (`17443` no laboratório). É a única exceção à borda (FR-022). Ela só aceita
@@ -296,7 +300,10 @@ FR-041).
     e nunca por interpolação de texto;
   - executor `admin`: parâmetros nomeados do Npgsql (`@name`).
 
-  Segredos, como as senhas das roles, entram por variável de `psql` lida de arquivo, nunca na linha de comando.
+  Segredos, como as senhas das roles, nunca vão por `-v` nem por variável de ambiente. O próprio `.sql` os lê do
+  arquivo montado em `/run/secrets` com `\set nome `cat /run/secrets/<arquivo>``, e o manifesto declara esse
+  arquivo no parâmetro `secret`. Só identificadores e literais não secretos vão por `-v` (correção A1 do
+  `/speckit-analyze`).
 - **Distribuição**: os arquivos ficam embutidos na assembly, como hoje, e são copiados com o manifesto para `/app/sql/` na
   imagem da API e na do instalador. Também saem como asset da release `dokpod-sql-<versão>.tar.gz`, atestado como os
   demais. `install.sh sql export --out <dir>` extrai a árvore para revisão e alteração.
@@ -308,7 +315,7 @@ FR-041).
 - **Carga no modo administrativo**: o `MigrationSqlScriptLoader` ganha uma raiz externa opcional
   (`/run/sql-override`, montada só no container do modo administrativo). O runtime da API não monta nem lê essa raiz,
   então a aplicação nunca executa SQL sobreposto fora de uma migration confirmada.
-- **Registro**: cada desvio aplicado vai para `state/installation.json` (`sqlOverrides`), para o relatório e para o
+- **Registro**: cada desvio aplicado vai para a tabela `sql_overrides` do banco de estado, para o relatório e para o
   cabeçalho do SQL exportado (`-- override:`).
 - **Verificação pelo schema** (correção F1 do `/speckit-analyze`): `__EFMigrationsHistory` guarda só o ID e a versão do
   EF, então o hash do arquivo aplicado não pode ser conferido no banco. A verificação tem duas partes:
@@ -321,7 +328,7 @@ FR-041).
   - **Geração**: `expected-schema.json` é gerado por um teste de integração que aplica todas as migrations num
     PostgreSQL real. Ele é versionado, e o teste falha se estiver desatualizado.
   - **Sobreposição**: depois de uma aplicação confirmada com `--sql-dir`, o instalador grava a impressão observada em
-    `sqlOverrides[].acceptedSchemaFingerprint`. A conferência aceita a impressão esperada ou a última aceita;
+    `sql_overrides.accepted_schema_fingerprint`. A conferência aceita a impressão esperada ou a última aceita;
     qualquer outra dá código 6, com a lista de objetos divergentes.
   - **Hash do arquivo**: quando o usuário entrega o arquivo que aplicou, o `verify --script` recalcula os hashes
     dele e os compara com o cabeçalho e o catálogo, apontando qual arquivo mudou. Essa conferência é complementar,
@@ -341,3 +348,53 @@ FR-041).
   e dava duas fontes.
 - **Sobreposição lida também pelo runtime**: rejeitada, porque permitiria schema não confirmado.
 - **Opções A e C do esclarecimento**: A não permite a alteração externa pedida, e C a permite sem rastro.
+
+## D-014: Estado da instalação em SQLite
+
+Diretriz do solicitante (2026-11-08): "Se for necessário manter estado da instalação use sqlite" (FR-044).
+
+**Decisão**:
+- **Arquivo**: o estado fica em `<install-dir>/state/installation.db`, com modo `0640`, SQLite 3, `journal_mode=WAL` e
+  `foreign_keys=ON`. Ele não tem segredos, porque segredos só existem em `secretsDir`.
+- **Acesso**: o instalador acessa o banco por `Microsoft.Data.Sqlite`, carregado no PowerShell 7 da imagem, com comandos
+  parametrizados (`$name`). Não usa o CLI `sqlite3` nem concatena valores.
+- **Arquivos SQL**: schema e consultas ficam em `deploy/installer/sql/state/`, com `manifest.json` no formato do catálogo
+  de D-013. A diretriz de FR-039 vale aqui também.
+  - `schema/NNNN-<nome>.sql`: forward-only, aplicados em ordem; `PRAGMA user_version` registra o último.
+  - `queries/<nome>.sql`: uma consulta por arquivo.
+
+  Os testes `NoInlineSql.Tests.ps1` cobrem esses arquivos.
+- **Escrita**: cada etapa é registrada em `run_steps` numa transação, só depois de concluída, o que garante a retomada
+  (FR-027).
+- **Versão do estado**: um `user_version` maior que o conhecido pelo instalador dá código 2, com a versão necessária.
+- **Integridade**: cada execução começa com `PRAGMA integrity_check`.
+  - Banco corrompido ou ausente numa instalação que já existe (containers com o rótulo da instalação, realm ou banco do
+    Dokpod presentes) não é recriado em silêncio.
+  - Nesse caso, o instalador reconstrói o estado a partir do observado, mostra o resultado e grava só com confirmação.
+- **Backup**: o instalador copia o banco por `VACUUM INTO` para `state/backups/<runId>.db` antes de cada execução que
+  altera algo, mantendo as 10 últimas.
+- **Retenção**: ficam as 200 últimas execuções (`runs`, `run_steps` e `reports/*.json`); as que têm
+  `sql_overrides` são sempre preservadas. Com uma linha por execução, o volume não chega ao da regra de
+  particionamento da constituição (correção A7).
+- **Relatório**: o relatório de execução continua um JSON legível em `reports/<runId>.json` (FR-034), gerado a partir do
+  banco.
+
+**Justificativa**:
+- Atende a diretriz com transações e integridade, que um JSON reescrito a cada etapa não tem.
+- Consultas para `status` e a retomada ficam simples.
+- O SQLite é um arquivo local da ferramenta, não um serviço nem um datastore do produto, então não muda a arquitetura do
+  Dokpod. Mesmo assim, é registrado no ADR do instalador (T003), conforme a regra "novo datastore exige ADR".
+
+**Verificação de licença**:
+- SQLite: domínio público.
+- `Microsoft.Data.Sqlite`: MIT, Microsoft.
+- `SQLitePCLRaw.bundle_e_sqlite3`: Apache-2.0.
+
+Fixar as versões exatas em T004.
+
+**Alternativas consideradas**:
+- **JSON**: rejeitado, porque não tem transação nem integridade e foi substituído por diretriz do solicitante.
+- **CLI `sqlite3` com `.parameter set`**: rejeitado, porque a passagem de parâmetros por linha de comando é frágil e pode
+  vazar valores no `ps`.
+- **Estado no PostgreSQL do Dokpod**: rejeitado, porque o estado precisa existir antes do banco e nos cenários com banco
+  do usuário.
