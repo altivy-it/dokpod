@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.0](https://github.com/altivy-it/dokpod/compare/v0.6.0...v0.7.0) (2026-11-08)
+
+
+### Adicionado
+
+* **api:** feche o refinamento do aviso de nova versão de imagem (spec 025) ([#136](https://github.com/altivy-it/dokpod/issues/136)) ([1cfb1f3](https://github.com/altivy-it/dokpod/commit/1cfb1f34d53c6e451f4b5a92fdb4cd784c994b30))
+
 ## [0.6.0](https://github.com/altivy-it/dokpod/compare/v0.5.1...v0.6.0) (2026-11-07)
 
 
