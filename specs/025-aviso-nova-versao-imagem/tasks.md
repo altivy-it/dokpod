@@ -268,20 +268,27 @@ description: "Tarefas da implementação do aviso de nova versão de imagem"
 
 ## Fase Final: Refinamento e Aspectos Transversais
 
-- [ ] T024 [P] Canário de SC-003 em `backend/tests/Dokpod.ControlPlane.Api.Tests/ImageUpdates/ImageUpdateCanaryTests.cs` e `backend/tests/Dokpod.Agent.Infrastructure.Tests/Registries/`. Uma senha e um token plantados no `config.json` do host não aparecem:
+- [X] T024 [P] Canário de SC-003 em `backend/tests/Dokpod.ControlPlane.Api.Tests/ImageUpdates/ImageUpdateCanaryTests.cs` e `backend/tests/Dokpod.Agent.Infrastructure.Tests/Registries/`. Uma senha e um token plantados no `config.json` do host não aparecem:
   - nas respostas da API;
   - no banco;
   - nos logs do agente e da API;
   - em spans e métricas (pipeline de `ApiTelemetryInstrumentation`).
-- [ ] T025 [P] Medição de SC-004 em `backend/tests/Dokpod.ControlPlane.Api.Tests/ImageUpdates/ImageUpdateListImpactTests.cs`, isolada por variável (`DOKPOD_TEST_SC025=1`, como o SC-004 da 027). Com 200 imagens verificadas em um host, o p95 da primeira página de Imagens e de Containers fica no máximo 10% acima do p95 sem dados de verificação, com os dois valores na saída.
-- [ ] T026 [P] Métricas `dokpod.image_update.checks` (por estado e motivo) e `dokpod.image_update.outdated` (gauge por host), sem referência nem registro como dimensão, e linha em `docs/runbooks/observabilidade.md`.
-- [ ] T027 Documentação:
+  *(2026-11-07: `ImageUpdateCanaryTests` passa pelo agente real (`RegistryCredentialFile`, `OciDistributionClient`, `ImageUpdateCheckHandler`) contra um registro HTTPS em processo, com `Basic` e `Bearer`, e pela ingestão no PostgreSQL real; `RegistryCredentialCanaryTests` usa o registro de teste do agente e os listeners de `System.Net`. Achado F1: o canário falhou 1 em 8 execuções por corrida no cache de tokens do cliente OCI (`Dictionary` usado por 4 consultas simultâneas), corrigida com `ConcurrentDictionary`; depois, 6 execuções seguidas aprovadas.)*
+- [X] T025 [P] Medição de SC-004 em `backend/tests/Dokpod.ControlPlane.Api.Tests/ImageUpdates/ImageUpdateListImpactTests.cs`, isolada por variável (`DOKPOD_TEST_SC025=1`, como o SC-004 da 027). Com 200 imagens verificadas em um host, o p95 da primeira página de Imagens e de Containers fica no máximo 10% acima do p95 sem dados de verificação, com os dois valores na saída.
+  *(2026-11-07: a primeira medição reprovou (Imagens 125,9%, Containers acima de 140%): as listas liam todos os resultados do host e repetiam o parse das referências. Achado F2, corrigido: `IImageUpdateAnnotations.LoadAsync` recebe as referências da página e lê só as linhas delas, em todas as grafias com a mesma forma canônica (`ImageUpdateLookup.Spellings`), com a forma canônica memorizada. Depois: 102,1% e 102,2%. Detalhes em [validation.md](validation.md).)*
+- [X] T026 [P] Métricas `dokpod.image_update.checks` (por estado e motivo) e `dokpod.image_update.outdated` (gauge por host), sem referência nem registro como dimensão, e linha em `docs/runbooks/observabilidade.md`.
+  *(2026-11-07: `ImageUpdateMetrics` no meter do plano de controle, registrada só pelo módulo Business; o contador cobre os resultados do agente e os decididos no plano de controle, e o gauge usa `environment.id` e é atualizado na última página de cada resultado.)*
+- [X] T027 Documentação:
   - novo `docs/runbooks/imagens-aviso-nova-versao.md`, com estados, motivos, credencial e proxy do agente (`HTTPS_PROXY`), registros inseguros, cota do Docker Hub, agente Windows e licença restrita;
   - linha da capability `image-update-notice` em `docs/licenciamento.md` (seção de capabilities implementadas);
   - seção em `docs/seguranca.md` sobre a saída do agente para registros.
+  *(2026-11-07: runbook com estados, motivos, credencial, proxy, registros inseguros, cota do Docker Hub, agente Windows, licença e diagnóstico.)*
 - [ ] T028 Validação com agentes Docker e Podman reais da stack E2E: capability anunciada nos dois engines e cenários 1 e 3 do quickstart contra um registro real.
-- [ ] T029 Revisão de segurança e privacidade contra o T001, registrada em `specs/025-aviso-nova-versao-imagem/threat-model.md`.
-- [ ] T030 Executar os cenários de [quickstart.md](quickstart.md) e registrar as evidências em `specs/025-aviso-nova-versao-imagem/validation.md`, com `NOT RUN` explícito no que faltar. O teste contra `registry:2` real (T012), a medição de SC-004 (T025) e os agentes reais (T028) não rodam no CI: registrar a execução dedicada de cada um, com comando e resultado, ou `NOT RUN` com o motivo.
+  *(2026-11-07: NOT RUN. A stack E2E deste host é de 2026-10-31, CE, com os agentes parados, e a imagem Business exige licença com `image-update-notice` assinada por chave que só um build local de teste tem. Os passos para executar estão em [validation.md](validation.md).)*
+- [X] T029 Revisão de segurança e privacidade contra o T001, registrada em `specs/025-aviso-nova-versao-imagem/threat-model.md`.
+  *(2026-11-07: L1–L5 e B1–B5 conferidos no código e nos testes; achados F1–F3 registrados; revisão humana pendente no PR.)*
+- [X] T030 Executar os cenários de [quickstart.md](quickstart.md) e registrar as evidências em `specs/025-aviso-nova-versao-imagem/validation.md`, com `NOT RUN` explícito no que faltar. O teste contra `registry:2` real (T012), a medição de SC-004 (T025) e os agentes reais (T028) não rodam no CI: registrar a execução dedicada de cada um, com comando e resultado, ou `NOT RUN` com o motivo.
+  *(2026-11-07: T012 com `registry:3.1.2` real (58 aprovados, nenhum ignorado), T025 aprovada depois da correção F2, T028 NOT RUN com o motivo; suíte backend completa e E2E simulado `test_025` aprovados.)*
 
 ---
 

@@ -48,6 +48,40 @@ public sealed class ImageUpdateResultTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task AppliedPage_CountsByStateAndReason_AndTheGaugeHasOnlyTheHost()
+    {
+        // Spec 025 T026: nenhuma referência, registro ou digest nas dimensões.
+        using var metrics = new ImageUpdateMetrics();
+        var measured = new List<(string Name, long Value, KeyValuePair<string, object?>[] Tags)>();
+        using var listener = new System.Diagnostics.Metrics.MeterListener();
+        listener.InstrumentPublished = (instrument, l) =>
+        {
+            if (ReferenceEquals(instrument.Meter, metrics.Meter)) l.EnableMeasurementEvents(instrument);
+        };
+        listener.SetMeasurementEventCallback<long>((instrument, value, tags, _) =>
+        {
+            lock (measured) measured.Add((instrument.Name, value, tags.ToArray()));
+        });
+        listener.Start();
+        var page = Page(requestId,
+            Result(ImageUpdateState.UpdateAvailable),
+            Result(ImageUpdateState.UpdateAvailable, platform: "linux/arm64"),
+            Result(ImageUpdateState.Failed, reason: ImageUpdateReasons.Timeout, reference: "quay.io/app/api:2"));
+
+        Assert.Equal(ImageUpdatePageOutcome.Applied, await new ImageUpdateResultIngestion(Store, new LocalImages(), time, metrics).ApplyAsync(environmentId, page, Ct));
+        listener.RecordObservableInstruments();
+
+        long Sum(string name, string key, string value) =>
+            measured.Where(m => m.Name == name && m.Tags.Any(t => t.Key == key && Equals(t.Value, value))).Sum(m => m.Value);
+        Assert.Equal(2, Sum("dokpod.image_update.checks", "image_update.state", ImageUpdateStates.UpdateAvailable));
+        Assert.Equal(1, Sum("dokpod.image_update.checks", "image_update.reason", ImageUpdateReasons.Timeout));
+        Assert.Equal(1, Sum("dokpod.image_update.outdated", "environment.id", environmentId.ToString("D")));
+        var keys = measured.SelectMany(m => m.Tags.Select(t => t.Key)).ToHashSet();
+        Assert.Subset(new HashSet<string> { "image_update.state", "image_update.reason", "environment.id" }, keys);
+        Assert.DoesNotContain(measured.SelectMany(m => m.Tags), t => t.Value is string text && (text.Contains("nginx", StringComparison.Ordinal) || text.Contains("quay.io", StringComparison.Ordinal)));
+    }
+
+    [Fact]
     public async Task OtherOrLateRequest_IsDiscarded()
     {
         Assert.Equal(ImageUpdatePageOutcome.Discarded, await Ingestion().ApplyAsync(environmentId, Page(Guid.NewGuid(), Result(ImageUpdateState.UpToDate)), Ct));

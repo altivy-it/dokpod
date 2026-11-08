@@ -78,6 +78,9 @@ public interface IImageUpdateStore
 
     Task<IReadOnlyList<ImageUpdateCheck>> ListAsync(IReadOnlyCollection<Guid> environmentIds, CancellationToken cancellationToken);
 
+    /// <summary>Só as linhas cuja referência gravada está em <paramref name="references"/> (grafias exatas).</summary>
+    Task<IReadOnlyList<ImageUpdateCheck>> ListAsync(IReadOnlyCollection<Guid> environmentIds, IReadOnlyCollection<string> references, CancellationToken cancellationToken);
+
     Task<ImageUpdateScheduleState?> GetScheduleAsync(Guid environmentId, CancellationToken cancellationToken);
 }
 

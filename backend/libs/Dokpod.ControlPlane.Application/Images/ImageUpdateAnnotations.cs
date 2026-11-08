@@ -8,8 +8,11 @@ namespace Dokpod.ControlPlane.Application.Images;
 /// </summary>
 public interface IImageUpdateAnnotations
 {
-    /// <summary>Resultados dos hosts, ou nulo quando o campo não deve aparecer (sem a capability na licença).</summary>
-    Task<IImageUpdateAnnotationSet?> LoadAsync(IEnumerable<Guid> environmentIds, CancellationToken cancellationToken);
+    /// <summary>
+    /// Resultados das referências da página (tags das imagens ou referências dos containers) nos hosts, ou nulo quando o
+    /// campo não deve aparecer (sem a capability na licença). Só as referências da página são lidas (SC-004).
+    /// </summary>
+    Task<IImageUpdateAnnotationSet?> LoadAsync(IEnumerable<Guid> environmentIds, IEnumerable<string> references, CancellationToken cancellationToken);
 }
 
 public interface IImageUpdateAnnotationSet

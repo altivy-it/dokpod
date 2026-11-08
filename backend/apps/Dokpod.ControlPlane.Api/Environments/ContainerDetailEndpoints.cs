@@ -80,8 +80,8 @@ public static class ContainerDetailEndpoints
         if (outcome.Kind != QueryOutcomeKind.Ok) return OutcomeProblem(context, outcome);
         using var document = JsonDocument.Parse(outcome.Json);
         if (summary && context.RequestServices.GetService<Dokpod.ControlPlane.Application.Images.IImageUpdateAnnotations>() is { } reader &&
-            await reader.LoadAsync([environmentId], cancellationToken) is { } updates &&
-            await context.RequestServices.GetRequiredService<Dokpod.ControlPlane.Application.Inventory.IContainerSearchStore>().GetAsync(environmentId, containerId, cancellationToken) is { } container)
+            await context.RequestServices.GetRequiredService<Dokpod.ControlPlane.Application.Inventory.IContainerSearchStore>().GetAsync(environmentId, containerId, cancellationToken) is { } container &&
+            await reader.LoadAsync([environmentId], [container.ImageReference], cancellationToken) is { } updates)
         {
             // Spec 025 T015: o resumo veio do agente agora, então o host está conectado (stale = false).
             var node = System.Text.Json.Nodes.JsonNode.Parse(outcome.Json)!;

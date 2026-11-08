@@ -155,6 +155,18 @@ public sealed class ImageUpdateStore(ControlPlaneDbContext dbContext) : IImageUp
             cancellationToken).ConfigureAwait(false);
     }
 
+    public async Task<IReadOnlyList<ImageUpdateCheck>> ListAsync(
+        IReadOnlyCollection<Guid> environmentIds, IReadOnlyCollection<string> references, CancellationToken cancellationToken)
+    {
+        if (environmentIds.Count == 0 || references.Count == 0) return [];
+        return await QueryAsync(
+            dbContext,
+            $"SELECT {Columns} FROM dokpod.image_update_checks WHERE environment_id = ANY(@ids) AND reference = ANY(@references)",
+            [Ids(environmentIds), P("references", references.ToArray())],
+            Read,
+            cancellationToken).ConfigureAwait(false);
+    }
+
     public async Task<ImageUpdateScheduleState?> GetScheduleAsync(Guid environmentId, CancellationToken cancellationToken) =>
         (await QueryAsync(
             dbContext,

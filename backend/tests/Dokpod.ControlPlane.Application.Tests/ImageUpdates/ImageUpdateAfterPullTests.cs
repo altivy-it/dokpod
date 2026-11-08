@@ -110,6 +110,9 @@ public sealed class ImageUpdateAfterPullTests
         public Task<IReadOnlyList<ImageUpdateCheck>> ListAsync(IReadOnlyCollection<Guid> environmentIds, CancellationToken cancellationToken) =>
             Unexpected<IReadOnlyList<ImageUpdateCheck>>();
 
+        public Task<IReadOnlyList<ImageUpdateCheck>> ListAsync(IReadOnlyCollection<Guid> environmentIds, IReadOnlyCollection<string> references, CancellationToken cancellationToken) =>
+            Unexpected<IReadOnlyList<ImageUpdateCheck>>();
+
         public Task<ImageUpdateScheduleState?> GetScheduleAsync(Guid environmentId, CancellationToken cancellationToken) => Unexpected<ImageUpdateScheduleState?>();
 
         private Task Unexpected([System.Runtime.CompilerServices.CallerMemberName] string name = "")

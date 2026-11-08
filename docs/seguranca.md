@@ -289,6 +289,25 @@ Logs, métricas e traces da exportação não levam host, resposta do coletor ne
 
 **Risco residual**: as redes privadas do cliente são permitidas como destino, então quem tem `audit-export:manage` alcança serviços internos nelas (só por TLS, com teste limitado e auditado); aceito no threat model da spec (R6).
 
+## Threat model: aviso de nova versão de imagem (spec 025)
+
+**Fronteira nova**: o agente Linux passa a abrir **conexões de saída** do host para os registros OCI das imagens que o host já usa, além do engine local: `HEAD` (e `GET` só quando o índice mudou) de manifesto em HTTPS, com a credencial do `config.json` do host (`DOKPOD_AGENT_REGISTRY_AUTH_FILE`). O plano de controle só escolhe as referências (do inventário do host, filtradas pela política de registros do estágio) e recebe estado, motivo e digests pelo canal mTLS existente. Decisão em [ADR 2026-0009](adr/2026-0009-agente-consulta-registros-oci.md); detalhes no [threat model da spec](../specs/025-aviso-nova-versao-imagem/threat-model.md) e no [runbook](runbooks/imagens-aviso-nova-versao.md).
+
+| Ameaça | Mitigação | Teste negativo |
+| --- | --- | --- |
+| Interceptação ou registro falso | TLS sempre verificado pelo trust store do sistema, sem opção de desligar; registro inseguro do engine vira `insecure_registry` sem nenhuma chamada HTTP | `ImageUpdateCheckerTests` (inseguro sem HTTP), `OciDistributionClientTests` |
+| Credencial do host enviada a outro host pelo `realm` do desafio `Bearer` (ou SSRF por ele) | `realm` só em `https`; a credencial só vai ao `realm` do mesmo host do registro ou a `auth.docker.io` para o Docker Hub; nos demais, token anônimo | `OciDistributionClientTests` (`realm` em outro host sem credencial, `realm` `http` recusado sem pedido) |
+| Redirecionamento para endereço interno ou outro host | Redirecionamento só no mesmo host, até 3 saltos; `Authorization` nunca segue para outro | `OciDistributionClientTests` (outro host recusado) |
+| Credencial ou token fora do host | Nenhum campo do protocolo os carrega; o token fica só na instância do cliente de um pedido; falhas registradas só por tipo de exceção e motivo | `ImageUpdateCanaryTests` (senha e token do `config.json` e token emitido ausentes das páginas do agente, dos logs, do banco, das respostas e dos spans e métricas da API), `RegistryCredentialCanaryTests`, `ImageUpdateCheckHandlerTests` |
+| Resposta enorme ou lenta | 10 s por requisição, 5 min por pedido, 4 MiB de manifesto, 64 KiB de token, 4 consultas simultâneas, 500 itens | `OciDistributionClientTests`, `ImageUpdateCheckHandlerTests` |
+| Agente comprometido forjando resultados | Só valem para o próprio host, com `request_id` pendente e prazo de 6 min; página fora do contrato recusada inteira | `ImageUpdateResultTests` |
+| Quem só lê descobre registros privados ou digests | `updateCheck` só em respostas que já exigem `environment:read`; sem digest remoto nem registro resolvido | `ImageUpdateReadTests` |
+| "Verificar agora" em massa | `image:pull` no host, 1 por minuto por host, auditado (`image.update_check_requested`) | `ImageUpdateEndpointsTests` (`429 rate_limited`, Keycloak indisponível nega) |
+
+Métricas só por estado, motivo e ID do host (`dokpod.image_update.checks`, `dokpod.image_update.outdated`); nenhuma dimensão leva referência, registro ou digest (`ImageUpdateResultTests`). O agente não tem exportador de telemetria.
+
+**Risco residual**: quem controla o host controla o `config.json`, o trust store e o resultado da verificação; um agente comprometido pode mostrar "Atualizada" para as imagens do próprio host; e, com proxy só no daemon do engine, a verificação falha até o `HTTPS_PROXY` ser configurado no agente. Aceitos no threat model da spec (R1–R5).
+
 ## Cadeia de fornecimento (spec 005)
 
 - **Vulnerabilidades**: o job Images do CI gera SBOM CycloneDX e relatório Trivy HIGH/CRITICAL por imagem e reprova HIGH/CRITICAL com correção disponível ou sem aceite vigente; aceites em [seguranca-excecoes.md](seguranca-excecoes.md).

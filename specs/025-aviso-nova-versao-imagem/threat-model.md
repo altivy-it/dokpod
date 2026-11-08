@@ -131,3 +131,48 @@ HOST GERENCIADO
 | Agente Windows sem a capability até passar no teste contra o registro | Aceito |
 | Saída direta do agente para registros exige ADR? (plan.md, itens para a revisão humana) | Sim, porque cria precedente de saída do agente além do engine: [ADR 2026-0009](../../docs/adr/2026-0009-agente-consulta-registros-oci.md), criado pelo `/dokpod-create-adr` que o solicitante invocou em 2026-11-01, aceito pelo solicitante em 2026-11-01 ("ADR provado"). Não bloqueia a implementação, que segue esta decisão |
 | Declaração | "Minha decisão é executar suas recomendações, escreva a ADR se fizer sentido e não causar prejuizo ou regreção a funcionalidades e robustes do projeto como um todo" |
+
+## Revisão de segurança e privacidade (T029)
+
+**Data**: 2026-11-07 · **Origem**: IA assistida · **Revisor humano**: pendente (o solicitante aprova o PR). Cada mitigação
+deste documento foi conferida no código entregue (T003–T026) e no teste que a refuta.
+
+### Lacunas L1–L5
+
+| # | Conferido no código | Evidência |
+| --- | --- | --- |
+| L1 | `OciDistributionClient.AuthorizeAsync`: `realm` sem `https` ou com `UserInfo` é recusado; a credencial só vai ao `realm` do mesmo host do registro ou a `auth.docker.io` no Docker Hub | `Bearer_RealmOnAnotherHost_NeverReceivesTheCredential`, `Bearer_HttpRealm_IsRefusedWithoutAnyTokenRequest` |
+| L2 | `ImageUpdateCheckHandler` só repassa o tipo da exceção e o motivo; o `AgentControlWorker` registra `Image update check failed: {ExceptionType} ({Reason})`. O cliente OCI não registra nada | `UnexpectedFailure_IsLoggedOnlyByTypeAndReason`; `ImageUpdateCanaryTests` (exceção com a senha na mensagem não chega ao log) |
+| L3 | Um cliente por pedido (`createRegistryClient()` em `HandleAsync`); tokens só no dicionário da instância | `EachRequestGetsANewRegistryClient` |
+| L4 | Resposta do token lida até 64 KiB | `LargeTokenResponse_IsInvalid` |
+| L5 | Aceita; agenda espalhada entre 5 h 24 min e 6 h e 1 pedido manual por minuto por host | `DueHost_SendsTheAllowedReferences_AndRecordsTheOthersLocally`, `ImageUpdateEndpointsTests` |
+
+### Fronteiras B1–B5
+
+- **B1**: `OciDistributionClient.Create` usa a validação TLS padrão do sistema, sem callback de aceitação; registro inseguro
+  sai como `insecure_registry` antes de qualquer HTTP (`ImageUpdateChecker`). Redirecionamento só no mesmo host e
+  `https`, até 3 saltos. Limites de 10 s, 5 min, 4 MiB e 4 consultas conferidos nos testes do cliente e do handler.
+- **B2**: a credencial é escolhida pelo registro normalizado da referência (`RegistryCredentialFile.CredentialFor`, chaves
+  exatas e as quatro do Docker Hub, sem curinga); `RegistryCredential.ToString` mascara o segredo. O canário da T024
+  planta senha e token no `config.json`, confirma que chegaram ao registro e que não aparecem nas páginas do agente, nos
+  logs, nas linhas de `image_update_checks` e `image_update_schedules`, nas respostas nem nos spans e métricas do
+  pipeline da API.
+- **B3**: a ingestão valida estado, motivo, plataforma, digests e tamanhos e recusa a página inteira fora do contrato; o
+  store descarta `request_id` que não é o pendente ou chega depois de 6 min (`ImageUpdateResultTests`).
+- **B4**: `updateCheck` só é montado depois da autorização das rotas existentes e só para os hosts autorizados da página;
+  a view não tem digest remoto nem registro (`WorstStateAcrossPlatforms_Wins_AndTheViewNeverCarriesTheRemoteDigest`).
+  "Verificar agora" e as regras de alerta passam pelo gate da licença (`ImageUpdateEndpointsTests`,
+  `AlertGovernanceServiceTests`).
+- **B5**: dimensões das métricas restritas a `image_update.state`, `image_update.reason` e `environment.id`
+  (`AppliedPage_CountsByStateAndReason_AndTheGaugeHasOnlyTheHost`). O registro é chamado pelo agente, que não exporta
+  telemetria.
+
+### Achados do refinamento
+
+| # | Achado | Tratamento |
+| --- | --- | --- |
+| F1 | O canário da T024 falhou 1 em 8 execuções: o `OciDistributionClient` guardava os tokens num `Dictionary` comum, mas o handler usa a mesma instância em até 4 consultas simultâneas. Uma escrita concorrente podia lançar exceção e marcar a referência como `registry_unavailable` (nunca `up_to_date`, então sem falso "Atualizada") | Corrigido: `ConcurrentDictionary`; `RegistryCredentialCanaryTests` consulta 16 repositórios com 8 em paralelo na mesma instância |
+| F2 | A medição da T025 reprovou o SC-004 (p95 de Imagens a 126% e de Containers a 165% do valor sem verificação): as listas liam todos os resultados do host e repetiam o parse das referências | Corrigido: a leitura traz só as referências da página, em todas as grafias com a mesma forma canônica, e a forma canônica fica memorizada. Domínio de registro em maiúsculas é a única grafia que não entra no filtro; nesse caso o campo `updateCheck` não aparece, o que não mostra falso "Atualizada" |
+| F3 | O gauge `dokpod.image_update.outdated` usa o ID do host como dimensão | Aceitável: UUID opaco, mesmo critério de `destination.id` da 027; nenhuma referência ou registro. Host removido mantém o último valor até a API reiniciar |
+
+Nenhuma lacuna nova bloqueia a entrega. Os riscos residuais R1–R5 continuam como aceitos em 2026-11-01.

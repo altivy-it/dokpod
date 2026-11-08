@@ -81,7 +81,7 @@ public static class ImageEndpoints
 
         // Spec 025 T015: só na composição Business com a capability; na CE o serviço não existe e o campo não aparece.
         var updates = context.RequestServices.GetService<Dokpod.ControlPlane.Application.Images.IImageUpdateAnnotations>() is { } reader
-            ? await reader.LoadAsync(result.Rows.Select(r => r.EnvironmentId), cancellationToken)
+            ? await reader.LoadAsync(result.Rows.Select(r => r.EnvironmentId), result.Rows.SelectMany(r => r.Image.RepoTags), cancellationToken)
             : null;
         return Results.Ok(new
         {
