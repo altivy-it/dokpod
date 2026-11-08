@@ -18,7 +18,7 @@ install.sh [comando] [opções]
 | `sql export --out <diretório>` | Extrai o catálogo SQL da versão (arquivos e `manifest.json`) para revisão e alteração. Sem efeitos. | FR-040 |
 | `recreate <item>[,<item>...]` | Recria certificados (`pki:edge`, `pki:api`, `pki:agent:<id>`, `pki:ca`), segredos (`secret:<nome>`), configuração (`config`) ou serviços (`service:<nome>`). | FR-029, FR-030 |
 | `recreate --all` | Recriação total. Pede a confirmação normal e depois a segunda confirmação nomeada para dados. | FR-029, SC-008 |
-| `host add --name <nome> [--engine docker\|podman\|windows]` | Cadastra o ambiente, emite o certificado e gera o pacote em `packages/`. Com `windows`, o pacote traz PFX, CA e os parâmetros de `manage-windows-service.ps1 -Action Install` (endpoint e `environmentId`), sem definição de container. | FR-025 |
+| `host add --name <nome> [--engine docker\|podman\|windows]` (Docker e Podman só rootless) | Cadastra o ambiente, emite o certificado e gera o pacote em `packages/`. Com `windows`, o pacote traz PFX, CA e os parâmetros de `manage-windows-service.ps1 -Action Install` (endpoint e `environmentId`), sem definição de container. | FR-025 |
 | `host revoke --environment <id> --reason <texto>` | Revoga a identidade do agente. | FR-025 |
 | `certificates check` | Lista validade e alerta vencimento. | FR-019 |
 | `status` | Estado convergido ou divergente por componente, sem efeitos. | FR-026 |

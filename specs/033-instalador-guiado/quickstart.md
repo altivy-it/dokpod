@@ -5,8 +5,9 @@ o estado em [data-model.md](data-model.md).
 
 ## Pré-requisitos
 
-- **Hosts**: dois hosts Linux x86-64 descartáveis (VM ou container de sistema), um com Docker Engine ≥ 27 e outro com
-  Podman ≥ 5 rootless, ambos com Compose. Nada mais instalado.
+- **Hosts**: dois hosts Linux x86-64 descartáveis (VM ou container de sistema), um com Docker Engine ≥ 27 em modo rootless e
+  outro com Podman ≥ 5 rootless, ambos com Compose e *linger* do usuário. Nada mais instalado. Um terceiro host com
+  engine rootful serve só para conferir a recusa.
 - **Nome público**: um nome que resolva para o host (por exemplo, `dokpod.lab.test` no `/etc/hosts` do host e do
   navegador).
 - **Release**: a candidata da release em teste (`vX.Y.Z-rc.N`), com o `install.sh` baixado dos assets e conferido pelo
@@ -24,6 +25,9 @@ o estado em [data-model.md](data-model.md).
 3. Abra a URL num navegador que confie na CA local (`secretsDir/pki/ca.crt`). **Esperado**: o login pede a troca de
    senha, e o console mostra o host local conectado com seus containers.
 4. Repita no host Podman rootless. **Esperado**: mesmo resultado, e o agente local usa o socket do usuário.
+4a. No host rootful, rode o instalador. **Esperado**: código 3 antes de qualquer alteração, com a orientação do modo
+    rootless. Com `edge.httpsPort: 443` num host com `ip_unprivileged_port_start` em 1024, **Esperado**: código 3 com
+    as três saídas.
 5. Meça o tempo do passo 1 até o login, sem o download das imagens. **Esperado**: no máximo 20 minutos.
 
 ## Cenário 2 - Reexecução e retomada (SC-003, SC-004)
@@ -39,7 +43,7 @@ o estado em [data-model.md](data-model.md).
 ## Cenário 3 - PostgreSQL e nginx existentes (P2)
 
 1. Responda `postgres.mode: existing-create` com a credencial administrativa por arquivo, e `edge.mode: existing`.
-   Repita o cenário nos dois engines (Docker Engine e Podman rootless, SC-002).
+   Repita o cenário nos dois engines (Docker Engine rootless e Podman rootless, SC-002).
 2. **Esperado**:
    - nenhum container de PostgreSQL ou nginx foi criado;
    - existem `dokpod_owner` e `dokpod_runtime` sem `SUPERUSER`/`CREATEROLE`;

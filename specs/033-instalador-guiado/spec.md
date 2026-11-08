@@ -52,6 +52,7 @@ O solicitante (Lincoln, `@lzocateli`) aprovou as recomendações de topologia, p
   - **F2, opção a**: a porta gRPC com mTLS dos agentes é a única exceção à borda como porta pública (FR-021, FR-022).
   - **F3**: com nginx existente, web e BFF só escutam em loopback ou em rede interna (FR-043).
   - **F4, F5 e F6**: ajustes nas tarefas: backup na primeira instalação, os dois engines nos cenários 2 e 3, e repasse das variáveis `{env}`.
+- Revisão do threat model (T001): o solicitante aceitou a premissa central (o instalador tem o poder do operador sobre o engine) com a restrição "a aplicação funciona rootless, o pré-requisito é docker ou podman ambos rootless". Docker e Podman só em modo rootless, no plano de controle e nos hosts adicionais; o modo rootful fica fora do escopo e é recusado nas verificações iniciais (FR-003).
 - Diretriz do solicitante: "Se for necessário manter estado da instalação use sqlite". O estado da instalação fica num banco SQLite local em `installDir`, sem segredos, com schema e consultas em arquivos SQL (FR-044).
 - Correções A1 a A7 do segundo `/speckit-analyze`, aprovadas pelo solicitante ("sim faça as correções"):
   - **A1, A2**: segredos do `psql` só por arquivo.
@@ -152,7 +153,10 @@ Depois da instalação, o administrador adiciona outros hosts Linux e, mais tard
 - A porta da borda ou da API já está ocupada por outro processo: o instalador para nas verificações iniciais e oferece outra porta.
 - O PostgreSQL existente está numa versão abaixo da suportada ou sem extensão requerida: o instalador para com o motivo antes de criar a role.
 - O certificado informado pela organização não tem o SAN ou o EKU exigido, ou está vencido: o instalador recusa e diz o que falta.
-- Engine Podman rootless: o instalador usa o socket do usuário, ajusta a resolução de nomes curtos de imagem e não exige privilégio de root além do que o Podman exige.
+- Engine em modo rootful (Docker com daemon de root ou Podman como root): o instalador recusa nas verificações iniciais, com código 3, e indica como usar o modo rootless.
+- Docker rootless ou Podman rootless: o instalador usa o socket do usuário (`$XDG_RUNTIME_DIR/docker.sock` ou `$XDG_RUNTIME_DIR/podman/podman.sock`), ajusta a resolução de nomes curtos de imagem no Podman e não exige privilégio de root em nenhuma etapa.
+- A porta pública pedida é menor que a primeira porta sem privilégio do host (`net.ipv4.ip_unprivileged_port_start`, 1024 por padrão), que o modo rootless não consegue publicar: o instalador para nas verificações iniciais e oferece três saídas. Usar outra porta, usar um nginx existente do host na porta 443 (cenário 2) ou o administrador do host baixar o limite. Ele nunca altera o `sysctl` sozinho.
+- O encaminhamento de portas do modo rootless não preserva o IP de origem do cliente: o instalador avisa nas verificações iniciais, porque a auditoria registraria o IP do encaminhador. Ele indica a configuração que preserva o IP (`pasta` no Podman; driver de portas `slirp4netns` no Docker rootless) ou o nginx existente do host.
 - Docker e Podman no mesmo host: o usuário escolhe qual engine o agente local gerencia. O socket nunca é exposto por rede.
 - A release pedida não existe, ou uma imagem tem assinatura inválida: o instalador para antes de qualquer alteração.
 - Host sem acesso à internet: o instalador aceita imagens pré-carregadas (exportadas da release), verificadas pelo manifesto e pela assinatura.
@@ -169,7 +173,7 @@ Depois da instalação, o administrador adiciona outros hosts Linux e, mais tard
 
 - **FR-001**: O instalador DEVE oferecer um ponto de entrada único que, no modo guiado, pergunte o cenário (instalação completa, PostgreSQL existente, nginx existente, Keycloak existente, em qualquer combinação), a versão, a edição (CE ou Business), o nome público, o engine do agente local e a origem de cada certificado.
 - **FR-002**: O instalador DEVE aceitar um arquivo de respostas para execução não interativa, com o mesmo resultado do modo guiado. Esse arquivo DEVE recusar segredos em texto e aceitar apenas referências a arquivos ou variáveis de ambiente.
-- **FR-003**: Antes de alterar qualquer coisa, o instalador DEVE verificar os pré-requisitos (engine e versão mínima, Compose, portas livres, espaço em disco, resolução do nome público, alcance de PostgreSQL e Keycloak existentes e suas versões) e parar com a correção sugerida quando algum falhar.
+- **FR-003**: Antes de alterar qualquer coisa, o instalador DEVE verificar os pré-requisitos (engine em modo rootless e versão mínima, recusando o modo rootful; Compose, portas livres, espaço em disco, resolução do nome público, alcance de PostgreSQL e Keycloak existentes e suas versões) e parar com a correção sugerida quando algum falhar.
 - **FR-004**: O instalador DEVE mostrar o plano de alterações (o que cria, altera, mantém e recria) e só aplicar após confirmação. Um modo de simulação DEVE mostrar o plano sem efeitos.
 
 **Imagens e versão**
@@ -254,7 +258,7 @@ Depois da instalação, o administrador adiciona outros hosts Linux e, mais tard
 ### Resultados Mensuráveis
 
 - **SC-001**: Num host Linux limpo com só o engine de containers, um administrador sem conhecimento prévio do projeto conclui a instalação completa e entra no console em até 20 minutos, sem editar arquivo nem executar comando além do instalador (excluído o tempo de download das imagens).
-- **SC-002**: Os três cenários (completo, PostgreSQL ou nginx existente, Keycloak existente) e suas combinações concluem com Docker Engine e com Podman rootless, e terminam com o host local conectado e o login funcionando.
+- **SC-002**: Os três cenários (completo, PostgreSQL ou nginx existente, Keycloak existente) e suas combinações concluem com Docker Engine rootless e com Podman rootless, e terminam com o host local conectado e o login funcionando.
 - **SC-003**: Uma segunda execução com as mesmas respostas termina em até 2 minutos sem alterar nenhum container, segredo, certificado, banco ou realm, conferido por comparação do estado antes e depois.
 - **SC-004**: Uma execução interrompida em cada etapa e retomada converge para o mesmo estado de uma execução sem interrupção, sem recurso duplicado.
 - **SC-005**: Nenhum segredo da instalação aparece na saída, no relatório, nos arquivos não secretos ou na lista de processos, verificado por varredura com valores canário.
@@ -267,7 +271,7 @@ Depois da instalação, o administrador adiciona outros hosts Linux e, mais tard
 
 ## Premissas
 
-- O host do plano de controle é Linux (x86-64) com Docker Engine ≥ 27 ou Podman ≥ 5, com Compose, conforme a matriz de engines homologados. macOS e Windows como host do plano de controle ficam fora.
+- O host do plano de controle e os hosts adicionais são Linux (x86-64) com Docker Engine ≥ 27 em modo rootless ou Podman ≥ 5 rootless, com Compose. O modo rootful não é suportado pelo instalador, conforme a matriz de engines homologados. macOS e Windows como host do plano de controle ficam fora.
 - A instalação atende um único host de plano de controle; alta disponibilidade, réplicas e Kubernetes ficam fora.
 - O agente Windows continua pelo script próprio (`deploy/agent/manage-windows-service.ps1`). O instalador só cadastra o ambiente, emite o certificado e registra a identidade (`host add --engine windows`). O pacote leva o PFX, a CA e os parâmetros para o script, sem definição de container.
 - Emissão automática por ACME fica fora; o usuário traz certificado público ou usa a CA local (adequada a redes internas, com a raiz distribuída explicitamente).

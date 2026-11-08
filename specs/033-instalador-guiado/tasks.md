@@ -17,7 +17,7 @@ description: "Tarefas da implementação do instalador guiado do Dokpod"
 **Testes**: obrigatórios (constituição, princípio VI):
 - Pester na imagem do instalador;
 - testes .NET do modo administrativo contra PostgreSQL 17.6 real;
-- ponta a ponta em hosts descartáveis com Docker Engine e Podman rootless reais, navegador pela borda nginx;
+- ponta a ponta em hosts descartáveis com Docker Engine rootless e Podman rootless reais, navegador pela borda nginx;
 - canário de segredos.
 
 **Organização**: agrupadas por história da spec para implementação e validação independentes.
@@ -47,7 +47,7 @@ exige autorização humana explícita.
 **Objetivo**: fronteira de segurança aceita, decisões duradouras propostas e dependências registradas antes de qualquer
 código.
 
-- [ ] T001 Threat model em `specs/033-instalador-guiado/threat-model.md`, no formato de
+- [X] T001 Threat model em `specs/033-instalador-guiado/threat-model.md`, no formato de
   `specs/025-aviso-nova-versao-imagem/threat-model.md`. Cobrir:
   - o socket do engine montado no container do instalador;
   - as credenciais administrativas transitórias do PostgreSQL e do Keycloak (FR-008, FR-015);
@@ -63,7 +63,10 @@ código.
   - o banco de estado SQLite (FR-044, D-014): adulteração de `installation.db` (por exemplo, `run_lock` ou
     `sql_overrides`), integridade e reconstrução a partir do observado.
 
-  Registrar lacunas, riscos residuais e a decisão do revisor humano. Bloqueia todas as tarefas de código.
+  Registrar lacunas, riscos residuais e a decisão do revisor humano. Bloqueia todas as tarefas de código. Nota
+  (2026-11-08): aceito pelo solicitante. A premissa central foi aceita com a restrição a engines rootless (D-015).
+  As recomendações L1–L7 foram aceitas e aplicadas: L1 em T026 e T037, L2 e L6 em T046 e T027, L3 em T029, L4 em
+  T030, L5 em T010 e T028, L7 em T024 e T053. Os riscos R1–R7 foram aceitos.
 - [ ] T002 [P] ADR `proposed` "Modo administrativo da imagem da API para migrations e bootstrap" em
   `docs/adr/2026-0010-modo-administrativo-da-api.md`, seguindo `.github/ADR_TEMPLATE.md`. Ele registra D-003 e D-004,
   as alternativas rejeitadas (bundle, imagem migrator, migração na inicialização, `--idempotent`, `INSERT` direto) e a
@@ -156,6 +159,8 @@ segredos, imagens e renderização). Nenhuma história começa antes desta fase.
     (0, 1, 2, 6 e 8).
   - A conexão vem só de `/run/secrets/ConnectionStrings__ControlPlane`; não há opção de linha de comando.
   - Saída JSON em stdout (`--output json`) e mensagens sem segredos em stderr.
+  - O instalador executa o container avulso com `--read-only`, sem socket do engine, sem porta publicada, só na rede
+    interna do banco e só com os mounts do comando (L5 do threat model).
 - [ ] T011 [P] Testes de `admin migrations` contra PostgreSQL real em
   `backend/tests/Dokpod.ControlPlane.Api.Tests/Admin/AdminMigrationsTests.cs`:
   - banco vazio e banco na penúltima migration;
@@ -260,7 +265,12 @@ segredos, imagens e renderização). Nenhuma história começa antes desta fase.
   Depende de T019.
 - [ ] T021 [P] Pré-requisitos em `deploy/installer/src/Prerequisites.psm1`, com testes em
   `deploy/installer/tests/Prerequisites.Tests.ps1`. Verificar:
-  - engine e versão mínima (Docker ≥ 27, Podman ≥ 5) e Compose v2 pela API do socket;
+  - engine em modo rootless e versão mínima (Docker ≥ 27 rootless, Podman ≥ 5 rootless) e Compose v2 pela API do
+    socket, recusando o modo rootful com código 3 (`SecurityOptions` com `name=rootless` no Docker,
+    `host.security.rootless` no Podman; D-015);
+  - `edge.httpsPort` contra `net.ipv4.ip_unprivileged_port_start`, com as três saídas de D-015 e sem alterar o `sysctl`;
+  - preservação do IP de origem pelo driver de portas (aviso, sem bloqueio) e *linger* do usuário (aviso com o
+    comando);
   - portas livres;
   - espaço em disco;
   - resolução do nome público;
@@ -287,15 +297,17 @@ segredos, imagens e renderização). Nenhuma história começa antes desta fase.
   O teste usa valores canário e confere saída, relatório e arquivos gerados.
 - [ ] T024 Imagem `deploy/installer/Dockerfile`, com as versões de T004 fixadas e usuário não root, mais
   `deploy/installer/install.sh` POSIX:
-  - detecta o engine e o socket (Docker, Podman rootless em `$XDG_RUNTIME_DIR/podman/podman.sock`, rootful em
-    `/run/podman/podman.sock`);
+  - detecta o engine e o socket rootless (`$XDG_RUNTIME_DIR/docker.sock` ou `$XDG_RUNTIME_DIR/podman/podman.sock`) e
+    recusa socket fora de `$XDG_RUNTIME_DIR` (D-015);
   - verifica a imagem do instalador pelo digest gravado no próprio script (placeholder substituído na publicação, T051)
     com cosign em container por digest;
   - executa a imagem montando só o socket, `installDir` e `secretsDir`;
   - repassa os argumentos e não tem lógica de instalação;
   - repassa ao container só as variáveis referenciadas em `{"env": ...}` no arquivo de respostas, por nome
     (`-e NOME`, sem valor na linha de comando nem eco), para que FR-002 funcione. Teste em
-    `deploy/installer/tests/InstallSh.Tests.ps1` com valor canário.
+    `deploy/installer/tests/InstallSh.Tests.ps1` com valor canário;
+  - executa o instalador e todos os containers avulsos com `--log-driver none` (`--log-driver=none` no Podman), para
+    que o driver de log do engine não grave a saída nem a senha temporária (L7 do threat model).
 
   Os scripts `tools/scripts/configure-keycloak.ps1` e `provision-environment-authorization.ps1` são copiados para a
   imagem no build, sem duplicação. Depende de T004 e T005.
@@ -319,13 +331,19 @@ segredos, imagens e renderização). Nenhuma história começa antes desta fase.
     `PROJECT`, `SERVICES`, `ORDER`);
   - `edge/dokpod.conf` com `/dokpod/`, BFF, SignalR e, com Keycloak provisionado, `/realms/` e `/resources/`.
 
-  `nginx -t` em container no teste e `docker compose config` sem erro.
+  - `Security__TrustedNetworks` do BFF só com a sub-rede interna da borda provisionada, ou `127.0.0.1/32` e
+    `::1/128` com nginx existente em loopback (ou a sub-rede da rede interna compartilhada). Faixa maior que a rede
+    interna é recusada (L1 do threat model).
+
+  `nginx -t` em container no teste e `docker compose config` sem erro. Teste de que o BFF ignora `X-Forwarded-*` vindos
+  de fora da rede confiável.
 - [ ] T027 (FR-001, FR-004, FR-035) CLI em `deploy/installer/src/Dokpod.Installer.ps1`, com testes em `deploy/installer/tests/Cli.Tests.ps1`:
   - comandos, opções e códigos de saída 0 a 7 e 10 de [installer-cli.md](contracts/installer-cli.md);
   - `--dry-run` e `plan` sem efeitos;
   - `--yes` não confirma remoção de dados nem migrations, que exigem `--confirm-data-removal <lista>` e
     `--confirm-migrations <planHash>`;
-  - `status`, `help` e `sql export --out` sem efeitos (FR-035, FR-040);
+  - `status`, `help` e `sql export --out` sem efeitos (FR-035, FR-040). `status` lista as identidades de pacote de
+    host sem conexão há mais de 7 dias e sugere `host revoke` (L6 do threat model);
   - `--sql-dir` e `--confirm-sql-overrides`, com `--yes` sem confirmar sobreposição.
 
   Depende de T018 a T023, T025 e T026.
@@ -349,7 +367,9 @@ conectado e um administrador que precisa trocar a senha.
     do catálogo, executados com `psql` em container avulso (T007, T016);
   - conexão do `psql` pelo `PGPASSFILE` num tmpfs montado só nesse container e apagado ao fim, nunca por
     `PGPASSWORD` ou outra variável de ambiente (FR-033). Teste com canário no `docker inspect`;
-  - conexões gravadas em `secretsDir` (`dokpod-owner-connection`, `ConnectionStrings__ControlPlane`).
+  - conexões gravadas em `secretsDir` (`dokpod-owner-connection`, `ConnectionStrings__ControlPlane`);
+  - container avulso do `psql` com `--read-only`, sem socket do engine, sem porta publicada e só na rede interna do
+    banco (L5 do threat model).
 
   Testes em `deploy/installer/tests/Postgres.Tests.ps1`.
 - [ ] T029 [US1] Keycloak provisionado em `deploy/installer/src/Keycloak.psm1`:
@@ -358,7 +378,8 @@ conectado e um administrador que precisa trocar a senha.
   - `configure-keycloak.ps1 -Bootstrap` com o realm, o `BffBaseUrl` público e o usuário inicial com senha temporária
     (FR-013, FR-014);
   - client secret do BFF gravado em `secretsDir/Authentication__Keycloak__ClientSecret`;
-  - remoção do administrador de bootstrap depois que o administrador nominal existe.
+  - remoção do administrador de bootstrap depois que o administrador nominal existe. Se falhar, a execução termina com
+    `outcome: failed` e a ação no relatório, nunca `converged`, e a reexecução tenta de novo (L3 do threat model).
 
   Testes em `deploy/installer/tests/Keycloak.Tests.ps1` com um Keycloak real em container.
 - [ ] T030 [US1] Etapa de migrations em `deploy/installer/src/Migrations.psm1`:
@@ -375,7 +396,10 @@ conectado e um administrador que precisa trocar a senha.
   - sobreposição de arquivo de migration já aplicada: avisa que não tem efeito nesse banco e só registra com
     confirmação (caso de borda da spec);
   - depois de `apply` com sobreposição, `admin migrations fingerprint` gravado em
-    `sql_overrides.accepted_schema_fingerprint` (FR-042).
+    `sql_overrides.accepted_schema_fingerprint` (FR-042);
+  - na reexecução, hashes da cópia em `installDir/sql-override/` recalculados e comparados com
+    `sql_overrides.applied_sha256`; qualquer diferença volta ao plano e exige nova confirmação nomeada (L4 do threat
+    model).
 
   Testes em `deploy/installer/tests/Migrations.Tests.ps1`.
 - [ ] T031 [US1] Primeiro ambiente em `deploy/installer/src/Environments.psm1`:
@@ -397,7 +421,8 @@ conectado e um administrador que precisa trocar a senha.
 - [ ] T033 [US1] Retomada e reexecução: interromper em cada etapa (pki, banco, migrations, realm, ambiente, serviços) e
   retomar, com teste em `deploy/installer/tests/Resume.Tests.ps1` usando engine real em container. A reexecução com as
   mesmas respostas deve dar plano todo `keep` e `outcome: converged` em até 2 minutos (SC-003, SC-004).
-- [ ] T034 [US1] (SC-001, SC-002) Validar os cenários 1 e 2 do quickstart em host descartável com Docker Engine e com Podman rootless.
+- [ ] T034 [US1] (SC-001, SC-002) Validar os cenários 1 e 2 do quickstart em host descartável com Docker Engine rootless e com Podman rootless,
+  incluindo a recusa de um engine rootful e de `httpsPort` abaixo do limite do host.
   Medir o tempo (SC-001), entrar pela borda com Playwright (`lzocateli/playwright-e2e`) e registrar as evidências em
   `specs/033-instalador-guiado/validation.md`.
 
@@ -427,9 +452,10 @@ conectado e um administrador que precisa trocar a senha.
   - validar com `nginx -t` em container;
   - listar os passos manuais (certificado, `include`, `reload`), sem tocar em arquivo fora de `installDir`.
 
-  Testes em `deploy/installer/tests/Edge.Tests.ps1`, incluindo a recusa de `upstreamHost` fora de loopback.
+  Testes em `deploy/installer/tests/Edge.Tests.ps1`, incluindo a recusa de `upstreamHost` fora de loopback e
+  `Security__TrustedNetworks` restrito ao loopback ou à rede interna compartilhada (L1 do threat model).
 - [ ] T038 [US2] Combinações (só PostgreSQL existente, só nginx existente, ambos) no motor de plano, com teste em
-  `deploy/installer/tests/Plan.Tests.ps1`. Validar o cenário 3 do quickstart com Docker Engine e com Podman rootless
+  `deploy/installer/tests/Plan.Tests.ps1`. Validar o cenário 3 do quickstart com Docker Engine rootless e com Podman rootless
   (SC-002) e registrar em `validation.md`.
 
 ---
@@ -451,7 +477,7 @@ conectado e um administrador que precisa trocar a senha.
 - [ ] T040 [US3] Divergências do realm: usar o `-DryRun` dos scripts para listar no plano cada item a corrigir e aplicar
   só após confirmação, preservando usuários, sessões e customizações fora do contrato. Testes em
   `deploy/installer/tests/Keycloak.Tests.ps1` com Keycloak real, incluindo redirect URI alterado à mão.
-- [ ] T041 [US3] Validar o cenário 4 do quickstart com Docker Engine e com Podman rootless (SC-002): os exports de
+- [ ] T041 [US3] Validar o cenário 4 do quickstart com Docker Engine rootless e com Podman rootless (SC-002): os exports de
   `master` e `outro` iguais antes e depois (SC-006), registrado em `validation.md`.
 
 ---
@@ -498,6 +524,11 @@ conectado e um administrador que precisa trocar a senha.
     `deploy/agent/manage-windows-service.ps1 -Action Install` (`-ControlPlaneEndpoint` e `-EnvironmentId`). A
     instalação no Windows continua pelo script e pelo runbook de `docs/runbooks/qualificacao-windows.md`.
 
+  - pacote cifrado com uma frase gerada, exibida uma vez em TTY ou gravada em `secretsDir` sem TTY, e nunca guardada no
+    pacote; o `README.txt` explica como abri-lo (L2 do threat model);
+  - `package_generated_at` registrado para o aviso de `status` sobre pacote sem conexão há mais de 7 dias (L6 do
+    threat model).
+
   Exige `agentGrpcPort`, a única porta publicada além da borda, só com mTLS (FR-022). Testes em `deploy/installer/tests/Hosts.Tests.ps1` conferindo o conteúdo do pacote.
 - [ ] T047 [US5] `host revoke --environment --reason` por `admin agent-identities revoke`, com o pacote marcado como
   revogado no estado.
@@ -531,8 +562,8 @@ conectado e um administrador que precisa trocar a senha.
 - [ ] T052 [P] Smoke test da imagem do instalador no CI (`.github/workflows/ci.yml`): `--help`, `plan --dry-run` com
   arquivo de respostas de exemplo e Pester completo dentro da imagem.
 - [ ] T053 Canário de segredos (SC-005) em `deploy/installer/tests/SecretCanary.Tests.ps1` e no cenário 7 do quickstart.
-  Procurar cada valor em saída, `reports/*.json`, `installDir`, `docker inspect`, `ps -ef` durante a execução e logs dos
-  containers, e confirmar zero ocorrências.
+  Procurar cada valor em saída, `reports/*.json`, `installDir`, `docker inspect`, `ps -ef` durante a execução, logs dos
+  containers e journal do host (`journalctl --user`, L7 do threat model), e confirmar zero ocorrências.
 - [ ] T054 [P] Runbook `docs/runbooks/instalacao.md`: os três cenários, o arquivo de respostas, migrations manuais
   revisadas por DBA, recriação, pacote de host, atualização, desinstalação e o que é preservado.
 - [ ] T055 [P] Atualizar `docs/distribuicao.md` (caminho de instalação e imagem do instalador), `docs/seguranca.md`

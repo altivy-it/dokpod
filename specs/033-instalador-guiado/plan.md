@@ -66,10 +66,11 @@ idempotente.
 - `Dokpod.ControlPlane.Api.Tests` para o modo administrativo contra PostgreSQL 17.6 real, incluindo
   `apply` versus SQL exportado (SC-010) e role `dokpod_runtime` sem DDL (D-009);
 - `Dokpod.Bff.Tests` para a leitura por arquivo;
-- ponta a ponta pelos cenários do [quickstart](quickstart.md) em hosts descartáveis com Docker e Podman rootless, com o
+- ponta a ponta pelos cenários do [quickstart](quickstart.md) em hosts descartáveis com Docker rootless e Podman rootless, com o
   navegador pela borda do próprio instalador.
 
-**Plataforma Alvo**: host Linux x86-64 com Docker Engine ≥ 27 ou Podman ≥ 5 (rootless ou rootful), com Compose. Os
+**Plataforma Alvo**: host Linux x86-64 com Docker Engine ≥ 27 rootless ou Podman ≥ 5 rootless, com Compose. O modo
+rootful é recusado ([D-015](research.md#d-015-somente-engines-rootless)). Os
 serviços do Dokpod e a infraestrutura provisionada rodam em containers atrás da borda nginx.
 
 **Tipo de Projeto**: ferramenta de instalação e operação do plano de controle self-hosted, mais um modo administrativo na
@@ -120,7 +121,7 @@ Reavaliação pós-desenho (Fase 1): sem violações. Duas decisões duradouras 
 specs/033-instalador-guiado/
 ├── spec.md
 ├── plan.md                      # este arquivo
-├── research.md                  # D-001 a D-014
+├── research.md                  # D-001 a D-015
 ├── data-model.md                # layout, estado, componentes, segredos, pacote de host
 ├── quickstart.md                # cenários 1 a 8
 ├── contracts/

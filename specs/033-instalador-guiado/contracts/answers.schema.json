@@ -121,10 +121,10 @@
       "pattern": "^https://[^/]+(:[0-9]+)?$"
     },
     "engine": {
+      "description": "Só engines rootless (D-015); o modo rootful é recusado.",
       "enum": [
-        "docker",
-        "podman-rootless",
-        "podman-rootful"
+        "docker-rootless",
+        "podman-rootless"
       ]
     },
     "installDir": {
@@ -375,7 +375,10 @@
             },
             "httpsPort": {
               "type": "integer",
-              "default": 443
+              "minimum": 1,
+              "maximum": 65535,
+              "default": 443,
+              "description": "Abaixo de net.ipv4.ip_unprivileged_port_start do host é recusada nas verificações iniciais (D-015)."
             }
           }
         },

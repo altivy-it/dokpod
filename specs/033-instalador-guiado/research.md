@@ -51,8 +51,8 @@ Os fontes ficam em `deploy/installer/`: são scripts de instalação, que perten
 ## D-002: Orquestração de Compose em Docker e Podman
 
 **Decisão**: o instalador usa sempre o Docker CLI com Compose v2 de dentro da sua imagem, apontado para o socket montado.
-No Docker é o socket do daemon; no Podman, o socket da API compatível (rootless: `$XDG_RUNTIME_DIR/podman/podman.sock`;
-rootful: `/run/podman/podman.sock`). O projeto Compose gerado não depende de `podman-compose`.
+Só engines rootless ([D-015](#d-015-somente-engines-rootless)): no Docker rootless, `$XDG_RUNTIME_DIR/docker.sock`;
+no Podman rootless, `$XDG_RUNTIME_DIR/podman/podman.sock`. O projeto Compose gerado não depende de `podman-compose`.
 
 **Justificativa**:
 - Um único comportamento de Compose, com `up --wait` e health, nos dois engines; o `podman-compose` não tem `--wait`
@@ -197,7 +197,7 @@ interrupção (FR-026, FR-027, SC-004).
 
 **Decisão**:
 - **Sem nginx**: o instalador sobe `dokpod-edge` (`lzocateli/nginx:1.28.0-bookworm-v1`) com a configuração gerada.
-  Ela publica `443` e encaminha `/dokpod/` para web e BFF (com SignalR). Quando o Keycloak é provisionado, encaminha
+  Ela publica a porta de `edge.httpsPort` (padrão `443`, sujeita a D-015) e encaminha `/dokpod/` para web e BFF (com SignalR). Quando o Keycloak é provisionado, encaminha
   também `/realms/` e `/resources/` para ele.
 - **Com nginx existente**: gera `dokpod.conf` com os mesmos `location` e o valida com `nginx -t` em container. Web e
   BFF escutam só em loopback ou numa rede interna compartilhada com o nginx do usuário; outro endereço é recusado
@@ -398,3 +398,45 @@ Fixar as versões exatas em T004.
   vazar valores no `ps`.
 - **Estado no PostgreSQL do Dokpod**: rejeitado, porque o estado precisa existir antes do banco e nos cenários com banco
   do usuário.
+
+## D-015: Somente engines rootless
+
+Decisão do solicitante na revisão do threat model (T001): "a aplicação funciona rootless, o pré-requisito é docker ou
+podman ambos rootless".
+
+**Decisão**:
+- **Engines suportados**: Docker Engine ≥ 27 em modo rootless e Podman ≥ 5 rootless, no plano de controle e nos hosts
+  adicionais. O modo rootful é recusado com código 3 e com orientação para usar o modo rootless.
+- **Detecção**:
+  - Docker: `SecurityOptions` de `GET /info` contém `name=rootless`.
+  - Podman: `host.security.rootless` de `GET /libpod/info` é `true`.
+
+  O instalador não confia no caminho do socket.
+- **Sockets**: `$XDG_RUNTIME_DIR/docker.sock` (Docker rootless) e `$XDG_RUNTIME_DIR/podman/podman.sock` (Podman). O
+  `install.sh` recusa socket fora de `$XDG_RUNTIME_DIR`.
+- **Portas abaixo de 1024**: o modo rootless só publica porta privilegiada se o administrador do host baixar
+  `net.ipv4.ip_unprivileged_port_start`.
+  - O instalador lê esse valor e, se `edge.httpsPort` ficar abaixo dele, para com três saídas: outra porta (por
+    exemplo `8443`), um nginx existente do host na `443` (cenário 2) ou o administrador baixar o limite.
+  - Ele nunca altera o `sysctl` sozinho.
+- **IP de origem**: o encaminhamento de portas rootless pode trocar o IP do cliente pelo do encaminhador. Isso
+  prejudica a auditoria, que registra o IP do pedido.
+  - O instalador verifica o driver: no Podman, `pasta`, padrão desde o 5, preserva o IP; no Docker rootless, o driver
+    `builtin` não preserva, e `slirp4netns` preserva.
+  - Se o IP não for preservado, ele avisa e indica a configuração ou o nginx existente do host. Não bloqueia a
+    instalação.
+- **Volumes e permissões**: os dados dos containers ficam no armazenamento do usuário. Os UIDs dentro dos containers
+  são mapeados pelo `subuid` do usuário, e o instalador grava os arquivos de `secretsDir` montados com o dono esperado
+  pelo container (`podman unshare` ou `chown` pelo próprio container), sem `sudo`.
+- **Serviço depois do reboot**: os containers só sobem após reinício se o usuário tiver *linger*
+  (`loginctl enable-linger`). O instalador verifica e, sem *linger*, avisa com o comando, que exige o administrador do
+  host. Ele não executa o comando sozinho.
+
+**Justificativa**:
+- Menor privilégio. Com o socket rootless, o instalador e o agente ficam limitados ao usuário, o que reduz o risco R1
+  do threat model.
+- O laboratório do projeto já roda com Podman rootless (`deploy/e2e/README.md`).
+
+**Alternativas consideradas**:
+- **Suportar também rootful**: rejeitada pela decisão do solicitante.
+- **Baixar `ip_unprivileged_port_start` automaticamente**: rejeitada, porque exige root e muda o host além do Dokpod.

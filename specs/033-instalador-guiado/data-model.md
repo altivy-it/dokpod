@@ -8,10 +8,10 @@ existem. O estado do instalador fica em arquivos no host.
 
 ## Layout no host
 
-| Caminho (padrão root / rootless) | Conteúdo | Permissão |
+| Caminho (padrão, usuário rootless) | Conteúdo | Permissão |
 | --- | --- | --- |
-| `/opt/dokpod` / `~/.local/share/dokpod` (`installDir`) | `compose.yaml`, `dokpod.env` (sem segredos), `edge/`, `deploy.env`, `answers.yaml`, `state/` (`installation.db` e `backups/`), `sql-override/` (cópia conferida do último `--sql-dir`, para reexecução e auditoria, não secreta), `reports/`, `packages/` | `0750` |
-| `/etc/dokpod/secrets` / `~/.config/dokpod/secrets` (`secretsDir`) | Um arquivo por segredo e a pasta `pki/` (chave da CA local e PFX) | `0700`, arquivos `0600` |
+| `~/.local/share/dokpod` (`installDir`) | `compose.yaml`, `dokpod.env` (sem segredos), `edge/`, `deploy.env`, `answers.yaml`, `state/` (`installation.db` e `backups/`), `sql-override/` (cópia conferida do último `--sql-dir`, para reexecução e auditoria, não secreta), `reports/`, `packages/` | `0750` |
+| `~/.config/dokpod/secrets` (`secretsDir`) | Um arquivo por segredo e a pasta `pki/` (chave da CA local e PFX) | `0700`, arquivos `0600` |
 
 `installDir` e `secretsDir` precisam ser diferentes e nenhum pode ficar dentro de um checkout Git. O instalador recusa
 se estiverem.
@@ -23,7 +23,7 @@ fica em `deploy/installer/sql/state/schema/`, e a versão em `PRAGMA user_versio
 
 | Tabela | Colunas principais | Regra |
 | --- | --- | --- |
-| `installation` | `installation_id` (UUID, PK, linha única), `version` (semver), `edition` (`ce`\|`business`), `engine` (`docker`\|`podman-rootless`\|`podman-rootful`), `public_url`, `created_at`, `updated_at` | `installation_id` nunca muda. `version` só aumenta (FR-032). Trocar `edition` ou `public_url` exige confirmação. |
+| `installation` | `installation_id` (UUID, PK, linha única), `version` (semver), `edition` (`ce`\|`business`), `engine` (`docker-rootless`\|`podman-rootless`), `public_url`, `created_at`, `updated_at` | `installation_id` nunca muda. `version` só aumenta (FR-032). Trocar `edition` ou `public_url` exige confirmação. |
 | `components` | `name` (PK, enum de [Componente](#componente)), `origin`, `desired_hash`, `observed_json`, `recreatable` | Uma linha por item convergido. |
 | `certificates` | `role` (PK), `origin`, `subject_alt_names_json`, `not_after`, `fingerprint_sha256`, `secret_ref`, `ca_state` (`active`\|`rotating`) | Ver [Certificado gerenciado](#certificado-gerenciado). |
 | `environments` | `environment_id` (UUID, PK), `name`, `engine` (`docker`\|`podman`\|`windows`), `agent_fingerprint`, `package_generated_at`, `revoked_at` | Primeiro ambiente e hosts adicionais. |
