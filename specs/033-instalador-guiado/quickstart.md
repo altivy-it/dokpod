@@ -31,7 +31,7 @@ o estado em [data-model.md](data-model.md).
 1. Registre o estado: `docker ps --format '{{.ID}} {{.Image}}'`, `ls -l --time-style=full-iso` de `installDir` e
    `secretsDir`, `admin migrations status` e o export do realm sem segredos.
 2. Rode `sh install.sh --answers <installDir>/answers.yaml --yes`. **Esperado**: plano todo `keep`, código 0, relatório
-   com `outcome: converged` e nenhuma diferença no estado do passo 1.
+   com `outcome: converged`, nenhuma diferença no estado do passo 1 e duração de até 2 minutos (SC-003).
 3. Numa instalação nova, interrompa com `Ctrl+C` em cada etapa (pki, banco, migrations, realm, ambiente, serviços) e
    retome. **Esperado**: o estado final é igual ao de uma execução sem interrupção, sem banco, realm, ambiente ou
    identidade duplicados.
@@ -122,5 +122,7 @@ Depois dos cenários 1 a 6, procure cada canário em:
    apontando o objeto (FR-042, SC-011).
 6. Coloque no `--sql-dir` um arquivo sem correspondente na release, ou um `manifest.json` de outra versão.
    **Esperado**: recusa antes de qualquer alteração.
-7. Varredura do SC-011: os testes `NoInlineSqlTests` e `NoInlineSql.Tests.ps1` passam, e nenhum literal SQL aparece em
+7. Altere no `--sql-dir` o arquivo de uma migration já aplicada e reexecute. **Esperado**: o plano avisa que a alteração
+   não tem efeito nesse banco, e ela só entra em `sqlOverrides` com confirmação nomeada.
+8. Varredura do SC-011: os testes `NoInlineSqlTests` e `NoInlineSql.Tests.ps1` passam, e nenhum literal SQL aparece em
    `backend/apps/Dokpod.ControlPlane.Api/Admin/` nem em `deploy/installer/src/`.

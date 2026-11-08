@@ -105,6 +105,7 @@ conectados, conforme [troca da CA](../../docs/runbooks/troca-da-ca-dos-agentes.m
 | `Authentication__Keycloak__ClientSecret` | BFF | Na criação do client `dokpod-bff`. |
 | `keycloak-db-password`, `dokpod-db-password` | instâncias provisionadas | Cenário 1. |
 | `keycloak-bootstrap-admin` | Keycloak provisionado, só no primeiro start | Cenário 1. Removido depois que o administrador nominal existe. |
+| `initial-admin-password` | entrega ao operador, só sem TTY | Cenário 1, sem TTY. Removido na primeira execução seguinte que confirmar, pela API administrativa do Keycloak, que o usuário não tem mais a ação obrigatória `UPDATE_PASSWORD`. Nunca entra no relatório. |
 | `pki/ca.key`, `pki/*.pfx`, `pki/*.pass` | instalador, API e agentes | Conforme D-005. |
 
 Regra comum: um arquivo existente nunca é sobrescrito sem `recreate` daquele item (FR-028).
@@ -117,6 +118,9 @@ Arquivo `packages/<environmentId>.tar` com modo `0600` e SHA-256 ao lado. Ele co
 - `agent.env`, com endpoint e `environmentId`;
 - `compose.agent.yaml`;
 - `README.txt`.
+
+Com `--engine windows`, o pacote troca `compose.agent.yaml` por `windows-service.txt`, com os parâmetros de
+`deploy/agent/manage-windows-service.ps1`.
 
 Ele não contém nenhum outro arquivo de `secretsDir`. A revogação usa `agent-identities revoke` e invalida o pacote.
 

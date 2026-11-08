@@ -247,7 +247,7 @@ Depois da instalação, o administrador adiciona outros hosts Linux e, mais tard
 
 - **SC-001**: Num host Linux limpo com só o engine de containers, um administrador sem conhecimento prévio do projeto conclui a instalação completa e entra no console em até 20 minutos, sem editar arquivo nem executar comando além do instalador (excluído o tempo de download das imagens).
 - **SC-002**: Os três cenários (completo, PostgreSQL ou nginx existente, Keycloak existente) e suas combinações concluem com Docker Engine e com Podman rootless, e terminam com o host local conectado e o login funcionando.
-- **SC-003**: Uma segunda execução com as mesmas respostas termina sem alterar nenhum container, segredo, certificado, banco ou realm, conferido por comparação do estado antes e depois.
+- **SC-003**: Uma segunda execução com as mesmas respostas termina em até 2 minutos sem alterar nenhum container, segredo, certificado, banco ou realm, conferido por comparação do estado antes e depois.
 - **SC-004**: Uma execução interrompida em cada etapa e retomada converge para o mesmo estado de uma execução sem interrupção, sem recurso duplicado.
 - **SC-005**: Nenhum segredo da instalação aparece na saída, no relatório, nos arquivos não secretos ou na lista de processos, verificado por varredura com valores canário.
 - **SC-006**: Em Keycloak e PostgreSQL existentes, nenhum realm além do do Dokpod e nenhum banco ou role além dos do Dokpod é alterado, verificado por comparação antes e depois.
@@ -261,7 +261,7 @@ Depois da instalação, o administrador adiciona outros hosts Linux e, mais tard
 
 - O host do plano de controle é Linux (x86-64) com Docker Engine ≥ 27 ou Podman ≥ 5, com Compose, conforme a matriz de engines homologados. macOS e Windows como host do plano de controle ficam fora.
 - A instalação atende um único host de plano de controle; alta disponibilidade, réplicas e Kubernetes ficam fora.
-- O agente Windows continua pelo script próprio, e o instalador só pode gerar o certificado e cadastrar o ambiente dele.
+- O agente Windows continua pelo script próprio (`deploy/agent/manage-windows-service.ps1`). O instalador só cadastra o ambiente, emite o certificado e registra a identidade (`host add --engine windows`). O pacote leva o PFX, a CA e os parâmetros para o script, sem definição de container.
 - Emissão automática por ACME fica fora; o usuário traz certificado público ou usa a CA local (adequada a redes internas, com a raiz distribuída explicitamente).
 - O instalador é distribuído com a release, assinado como os demais artefatos, e roda em containers a partir das imagens da release. O formato exato é decidido no plano.
 - As versões homologadas de PostgreSQL e Keycloak são as da matriz de distribuição (`docs/distribuicao.md`).

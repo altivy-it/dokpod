@@ -43,7 +43,7 @@ idempotente.
 - Na imagem do instalador:
   - Docker CLI e plugin Compose v2 (Apache-2.0);
   - `openssl` e `postgresql-client` da distribuição base;
-  - Pester 5.7.x (Apache-2.0, só para testes).
+  - Pester 5.7.x (Apache-2.0) e PSScriptAnalyzer 1.24.x (MIT), só para testes e análise.
 
   Imagem base a confirmar na matriz `lzocateli/containers`; com PowerShell, a candidata é derivar de
   `mcr.microsoft.com/powershell:7.5-ubuntu-24.04` (MIT), que só pode entrar depois de registrada na matriz de
@@ -73,7 +73,7 @@ imagem da API.
 
 **Metas de Desempenho**:
 - instalação completa em até 20 minutos sem contar download (SC-001);
-- reexecução convergida em até 2 minutos;
+- reexecução convergida em até 2 minutos (SC-003);
 - novo host conectado em até 5 minutos (SC-009).
 
 **Restrições**:

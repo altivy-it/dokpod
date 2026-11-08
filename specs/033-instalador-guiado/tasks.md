@@ -72,7 +72,8 @@ código.
     `lzocateli/containers`);
   - Docker CLI e plugin Compose v2 (Apache-2.0);
   - `openssl` e `postgresql-client`;
-  - Pester 5.7.x (Apache-2.0).
+  - Pester 5.7.x (Apache-2.0);
+  - PSScriptAnalyzer 1.24.x (MIT), para a análise estática dos módulos.
 
   Dependência sem licença verificada bloqueia T024.
 - [ ] T005 Esqueleto de `deploy/installer/`: `README.md`, `src/`, `templates/`, `tests/`, e
@@ -138,7 +139,7 @@ segredos, imagens e renderização). Nenhuma história começa antes desta fase.
 
 ### Modo administrativo da imagem da API
 
-- [ ] T010 Despacho de `admin` em `backend/apps/Dokpod.ControlPlane.Api/Program.cs` e
+- [ ] T010 (FR-009) Despacho de `admin` em `backend/apps/Dokpod.ControlPlane.Api/Program.cs` e
   `backend/apps/Dokpod.ControlPlane.Api/Admin/AdminCommandHost.cs`:
   - Com `args[0] == "admin"`, monta só o `DbContext` e os serviços de aplicação necessários, sem Kestrel, gRPC,
     SignalR nem hosted services, e termina com os códigos de [admin-commands.md](contracts/admin-commands.md)
@@ -245,7 +246,7 @@ segredos, imagens e renderização). Nenhuma história começa antes desta fase.
   - `unqualified-search-registries` no Podman.
 
   Qualquer falha dá código 3 sem efeito (FR-003).
-- [ ] T022 [P] PKI em `deploy/installer/src/Pki.psm1`, com testes em `deploy/installer/tests/Pki.Tests.ps1`:
+- [ ] T022 [P] (FR-016, FR-017) PKI em `deploy/installer/src/Pki.psm1`, com testes em `deploy/installer/tests/Pki.Tests.ps1`:
   - CA local ECDSA P-256 de 10 anos (`CA:true,pathlen:0`);
   - servidor e cliente de 397 dias, EKU `serverAuth` para borda e API e `clientAuth` para agentes;
   - SAN da API `api` mais o nome público quando `agentGrpcPort` é definido;
@@ -283,7 +284,7 @@ segredos, imagens e renderização). Nenhuma história começa antes desta fase.
   - `cosign verify` com a identidade do `publish.yml` de `docs/release-integrity.md` antes de qualquer `pull` ou uso;
   - modo `--offline` com `docker load` e assinaturas exportadas;
   - assinatura ou manifesto inválido dá código 5 sem efeito (FR-005, FR-006).
-- [ ] T026 [P] Renderização em `deploy/installer/src/Render.psm1` e templates em `deploy/installer/templates/`, com
+- [ ] T026 [P] (FR-020, FR-022, FR-023) Renderização em `deploy/installer/src/Render.psm1` e templates em `deploy/installer/templates/`, com
   testes em `deploy/installer/tests/Render.Tests.ps1`:
   - `compose.yaml` com `ASPNETCORE_ENVIRONMENT=Production`, sem IP fixo, redes internas e só a borda publicada;
   - `secrets:` montados em `/run/secrets`;
@@ -296,7 +297,7 @@ segredos, imagens e renderização). Nenhuma história começa antes desta fase.
   - `edge/dokpod.conf` com `/dokpod/`, BFF, SignalR e, com Keycloak provisionado, `/realms/` e `/resources/`.
 
   `nginx -t` em container no teste e `docker compose config` sem erro.
-- [ ] T027 CLI em `deploy/installer/src/Dokpod.Installer.ps1`, com testes em `deploy/installer/tests/Cli.Tests.ps1`:
+- [ ] T027 (FR-001, FR-004, FR-035) CLI em `deploy/installer/src/Dokpod.Installer.ps1`, com testes em `deploy/installer/tests/Cli.Tests.ps1`:
   - comandos, opções e códigos de saída 0 a 7 e 10 de [installer-cli.md](contracts/installer-cli.md);
   - `--dry-run` e `plan` sem efeitos;
   - `--yes` não confirma remoção de dados nem migrations, que exigem `--confirm-data-removal <lista>` e
@@ -360,17 +361,18 @@ conectado e um administrador que precisa trocar a senha.
   - serviço `agent` do engine escolhido, com socket só nele (FR-024).
 
   Testes em `deploy/installer/tests/Environments.Tests.ps1`.
-- [ ] T032 [US1] Borda provisionada (`dokpod-edge` com `lzocateli/nginx:1.28.0-bookworm-v1`) e subida ordenada em
+- [ ] T032 [US1] (FR-021) Borda provisionada (`dokpod-edge` com `lzocateli/nginx:1.28.0-bookworm-v1`) e subida ordenada em
   `deploy/installer/src/Services.psm1`:
   - `docker compose up --wait` por etapa (bancos, Keycloak, API, BFF e web, borda, agente);
   - health de cada serviço;
   - edição Business com `dokpod-api-business` e `admin licensing import` quando `license` existe (FR-031);
   - resumo final com URL, usuário, caminho do relatório e senha temporária exibida uma vez só em TTY, ou em
-    `secretsDir/initial-admin-password` sem TTY.
+    `secretsDir/initial-admin-password` sem TTY, removido na primeira execução seguinte em que o Keycloak mostrar a senha
+    já trocada (sem `UPDATE_PASSWORD`), conforme [data-model.md](data-model.md#segredo-da-instalação).
 - [ ] T033 [US1] Retomada e reexecução: interromper em cada etapa (pki, banco, migrations, realm, ambiente, serviços) e
   retomar, com teste em `deploy/installer/tests/Resume.Tests.ps1` usando engine real em container. A reexecução com as
-  mesmas respostas deve dar plano todo `keep` e `outcome: converged` (SC-003, SC-004).
-- [ ] T034 [US1] Validar os cenários 1 e 2 do quickstart em host descartável com Docker Engine e com Podman rootless.
+  mesmas respostas deve dar plano todo `keep` e `outcome: converged` em até 2 minutos (SC-003, SC-004).
+- [ ] T034 [US1] (SC-001, SC-002) Validar os cenários 1 e 2 do quickstart em host descartável com Docker Engine e com Podman rootless.
   Medir o tempo (SC-001), entrar pela borda com Playwright (`lzocateli/playwright-e2e`) e registrar as evidências em
   `specs/033-instalador-guiado/validation.md`.
 
@@ -392,7 +394,7 @@ conectado e um administrador que precisa trocar a senha.
 - [ ] T036 [US2] `postgres.mode: existing-prepared`: validar conexão, versão e privilégios com `checks/server-version.sql`
   e `checks/role-privileges.sql` do catálogo (sem `rolsuper`, sem `rolcreaterole`, `CONNECT` e `USAGE` presentes), e recusar com código 3 dizendo o
   privilégio em excesso ou em falta. Testes em `deploy/installer/tests/Postgres.Tests.ps1` com PostgreSQL real.
-- [ ] T037 [US2] `edge.mode: existing` em `deploy/installer/src/Edge.psm1`:
+- [ ] T037 [US2] (FR-021, FR-043) `edge.mode: existing` em `deploy/installer/src/Edge.psm1`:
   - gerar `installDir/edge/dokpod.conf` com `upstreamHost`, `webPort` e `bffPort`;
   - publicar web e BFF só em `upstreamHost`, aceitando apenas `127.0.0.1`, `::1` ou `{network}` (rede interna
     compartilhada com o nginx do usuário), e recusar outro valor com código 2 (FR-043);
@@ -465,7 +467,10 @@ conectado e um administrador que precisa trocar a senha.
   - ambiente cadastrado, certificado de cliente, identidade registrada;
   - `packages/<environmentId>.tar` `0600` com `agent.pfx`, `agent.pass`, `ca.crt`, `agent.env`, `compose.agent.yaml` e
     `README.txt`, mais SHA-256;
-  - nenhum outro arquivo de `secretsDir` (FR-025).
+  - nenhum outro arquivo de `secretsDir` (FR-025);
+  - `--engine windows`: o pacote troca `compose.agent.yaml` por `windows-service.txt`, com os parâmetros de
+    `deploy/agent/manage-windows-service.ps1 -Action Install` (`-ControlPlaneEndpoint` e `-EnvironmentId`). A
+    instalação no Windows continua pelo script e pelo runbook de `docs/runbooks/qualificacao-windows.md`.
 
   Exige `agentGrpcPort`, a única porta publicada além da borda, só com mTLS (FR-022). Testes em `deploy/installer/tests/Hosts.Tests.ps1` conferindo o conteúdo do pacote.
 - [ ] T047 [US5] `host revoke --environment --reason` por `admin agent-identities revoke`, com o pacote marcado como
@@ -510,7 +515,8 @@ conectado e um administrador que precisa trocar a senha.
 - [ ] T056 Varredura Gitleaks com `.gitleaks.toml` nos arquivos novos e alterados. Nunca escrever pares chave=valor de
   senha nem em exemplos.
 - [ ] T057 Formatação, análise estática e testes amplos: `dotnet format --verify-no-changes` nos projetos alterados,
-  suíte .NET completa, Pester completo e `PSScriptAnalyzer` (se adotado em T004).
+  suíte .NET completa, Pester completo e `PSScriptAnalyzer` (T004) sem avisos nos módulos de
+  `deploy/installer/src/`.
 - [ ] T058 Revisão de segurança e privacidade das superfícies de T001 contra o implementado, em
   `specs/033-instalador-guiado/threat-model.md`, com achados e correções.
 - [ ] T059 Validar o cenário 9 do quickstart (catálogo SQL sobreposto) e registrar em `validation.md` (FR-039 a
@@ -519,6 +525,7 @@ conectado e um administrador que precisa trocar a senha.
   - plano com os hashes;
   - recusa sem confirmação nomeada;
   - aplicação confirmada;
+  - aviso para sobreposição de migration já aplicada, registrada só com confirmação;
   - `verify` aceitando a impressão registrada;
   - alteração manual sem registro (coluna, índice, restrição, função, gatilho) detectada pela impressão do schema,
     com código 6 (FR-042).
