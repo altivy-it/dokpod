@@ -64,6 +64,28 @@ public sealed class ImageUpdateReadTests : IAsyncLifetime
         Assert.Contains("\"checkedAt\"", json, StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData("nginx:1.28", "docker.io/library/nginx:1.28")]
+    [InlineData("docker.io/nginx:1.28", "nginx:1.28")]
+    [InlineData("library/nginx", "nginx:latest")]
+    [InlineData("registry.empresa.com/app/api:3", "registry.empresa.com/app/api:3")]
+    public async Task PageLoad_ReadsOnlyThePageReferences_InAnySpellingOfTheSameCanonical(string stored, string onThePage)
+    {
+        // SC-004: a lista lê só as referências da página, mas casa a grafia gravada (a do container) pela forma canônica.
+        var now = DateTimeOffset.UtcNow;
+        await Store.UpsertLocalAsync(environmentId,
+        [
+            new ImageUpdateResult(stored, "linux/amd64", ImageUpdateStates.UpdateAvailable, null, Remote, LocalImage),
+            new ImageUpdateResult("redis:7", "linux/amd64", ImageUpdateStates.UpdateAvailable, null, Remote, LocalImage),
+        ], now, Ct);
+
+        var lookup = (await Reader(licensed: true).LoadAsync([environmentId], [onThePage], Ct))!;
+
+        Assert.Equal(ImageUpdateStates.UpdateAvailable, lookup.ForImage(environmentId, [onThePage], stale: false)!.State);
+        Assert.Equal(ImageUpdateStates.UpdateAvailable, lookup.ForContainer(environmentId, onThePage, LocalImage, stale: false)!.State);
+        Assert.Null(lookup.ForContainer(environmentId, "redis:7", LocalImage, stale: false));
+    }
+
     [Fact]
     public async Task WithoutTheCapabilityInTheLicense_TheFieldIsAbsent()
     {

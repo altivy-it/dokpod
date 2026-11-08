@@ -80,7 +80,8 @@ public sealed class ImageUpdateScheduler(
     IRegistryPolicyStore registryPolicies,
     ImagePullPolicy pullPolicy,
     TimeProvider timeProvider,
-    Func<double>? jitter = null)
+    Func<double>? jitter = null,
+    ImageUpdateMetrics? metrics = null)
 {
     public const int MaxDuePerCycle = 100;
 
@@ -143,7 +144,12 @@ public sealed class ImageUpdateScheduler(
             items.Add(new ImageUpdateCheckItem { Reference = target.Reference, ImageId = target.ImageId ?? string.Empty });
         }
 
-        if (local.Count > 0) await store.UpsertLocalAsync(environmentId, local, now, cancellationToken).ConfigureAwait(false);
+        if (local.Count > 0)
+        {
+            await store.UpsertLocalAsync(environmentId, local, now, cancellationToken).ConfigureAwait(false);
+            metrics?.Checked(local);
+        }
+
         var requestId = Guid.NewGuid();
         if (items.Count > 0)
         {

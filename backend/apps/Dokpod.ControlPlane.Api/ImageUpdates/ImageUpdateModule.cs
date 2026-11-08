@@ -16,6 +16,7 @@ public static class ImageUpdateModule
         services.AddScoped<IImageUpdateTargetReader, ImageUpdateTargetReader>();
         services.AddScoped<IImageUpdateEntitlement, LicenseImageUpdateEntitlement>();
         services.AddSingleton<IImageUpdateAgentChannel, DispatcherImageUpdateAgentChannel>();
+        services.AddSingleton<ImageUpdateMetrics>();
         services.AddScoped<ImageUpdateScheduler>();
         services.AddScoped<ImageUpdateResultIngestion>();
         services.AddScoped<Dokpod.ControlPlane.Application.Images.IImageUpdateResultSink>(provider => provider.GetRequiredService<ImageUpdateResultIngestion>());

@@ -80,7 +80,7 @@ public static class ConsoleEndpoints
                 cancellationToken);
         // Spec 025 T015: `updateCheck` só na composição Business com a capability (nenhuma chamada ao agente).
         var updates = context.RequestServices.GetService<Dokpod.ControlPlane.Application.Images.IImageUpdateAnnotations>() is { } reader
-            ? await reader.LoadAsync(result.Items.Select(i => i.Host.Registration.EnvironmentId), cancellationToken)
+            ? await reader.LoadAsync(result.Items.Select(i => i.Host.Registration.EnvironmentId), result.Items.Select(i => i.Container.ImageReference), cancellationToken)
             : null;
         return Results.Ok(new
         {

@@ -18,7 +18,8 @@ public enum ImageUpdatePageOutcome
 /// Recebimento da mensagem 27 (spec 025 T014): valida a página inteira (estado, motivo, plataforma, digests e
 /// tamanhos) e só então grava pelo <see cref="IImageUpdateStore"/>, que descarta pedidos fora do pendente ou do prazo.
 /// </summary>
-public sealed class ImageUpdateResultIngestion(IImageUpdateStore store, IImageUpdateTargetReader targets, TimeProvider timeProvider)
+public sealed class ImageUpdateResultIngestion(
+    IImageUpdateStore store, IImageUpdateTargetReader targets, TimeProvider timeProvider, ImageUpdateMetrics? metrics = null)
     : Dokpod.ControlPlane.Application.Images.IImageUpdateResultSink
 {
     public const int MaxReferenceLength = 512;
@@ -58,7 +59,14 @@ public sealed class ImageUpdateResultIngestion(IImageUpdateStore store, IImageUp
             r.Raw.RemoteDigest.Length == 0 ? null : r.Raw.RemoteDigest,
             localImages.TryGetValue(r.Reference.Canonical, out var imageId) ? imageId : null)).ToArray();
         var outcome = await store.ApplyPageAsync(environmentId, requestId, mapped, page.IsLastPage, timeProvider.GetUtcNow(), cancellationToken).ConfigureAwait(false);
-        return outcome == ImageUpdateApplyOutcome.Applied ? ImageUpdatePageOutcome.Applied : ImageUpdatePageOutcome.Discarded;
+        if (outcome != ImageUpdateApplyOutcome.Applied) return ImageUpdatePageOutcome.Discarded;
+        if (metrics is not null)
+        {
+            metrics.Checked(mapped);
+            if (page.IsLastPage) metrics.Observe(environmentId, await store.ListAsync([environmentId], cancellationToken).ConfigureAwait(false));
+        }
+
+        return ImageUpdatePageOutcome.Applied;
     }
 
     async Task<bool> Dokpod.ControlPlane.Application.Images.IImageUpdateResultSink.ApplyAsync(

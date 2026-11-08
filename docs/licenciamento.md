@@ -81,6 +81,7 @@ estiver nela. Com a licença restrita, o que já está configurado continua func
 | Capability | Recurso | Com a licença restrita ou sem a capability | Spec e operação |
 | --- | --- | --- | --- |
 | `audit-siem-export` | Exportação da trilha de auditoria para SIEM por syslog e OpenTelemetry | Destinos ativos continuam enviando; criar, editar, reativar e testar são recusados; desativar e excluir sempre funcionam | [spec 027](../specs/027-exportacao-auditoria-siem/spec.md), [runbook](runbooks/auditoria-exportacao-siem.md) |
+| `image-update-notice` | Aviso de nova versão de imagem em Imagens, Containers e no resumo do container, "Verificar agora" e alerta de imagem desatualizada há mais de N dias | Verificações e regras já configuradas continuam; "Verificar agora" e criar, editar ou reativar regra de imagem desatualizada são recusados; desativar e excluir sempre funcionam. Sem a capability na licença, nada é verificado e o campo `updateCheck` não aparece | [spec 025](../specs/025-aviso-nova-versao-imagem/spec.md), [runbook](runbooks/imagens-aviso-nova-versao.md) |
 
 ## Métricas comerciais
 

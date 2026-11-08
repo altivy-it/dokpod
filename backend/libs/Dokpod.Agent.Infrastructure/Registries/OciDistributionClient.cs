@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
@@ -25,7 +26,8 @@ public sealed class OciDistributionClient(HttpMessageInvoker http, Func<string, 
 
     private readonly TimeSpan timeoutPerRequest = requestTimeout ?? RequestTimeout;
 
-    private readonly Dictionary<string, AuthenticationHeaderValue> authorizations = new(StringComparer.Ordinal);
+    // O handler consulta até 4 referências ao mesmo tempo com esta instância (T024 achou a corrida com Dictionary).
+    private readonly ConcurrentDictionary<string, AuthenticationHeaderValue> authorizations = new(StringComparer.Ordinal);
 
     /// <summary>Cliente de produção: TLS verificado pelo sistema, proxy das variáveis do container, sem redirecionamento automático.</summary>
     public static OciDistributionClient Create(RegistryCredentialFile credentialFile) =>
