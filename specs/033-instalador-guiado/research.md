@@ -29,8 +29,9 @@ Fatos de código usados como evidência (repositório na `v0.7.0`, `46416a3`):
   `dokpod-installer` pelo digest gravado nele mesmo na publicação e a verifica com cosign (também em container, por digest
   fixado). Depois a executa com o socket do engine, o diretório de instalação e o destino de segredos montados, e
   repassa os argumentos.
-- **Imagem `dokpod-installer`**: PowerShell 7 com Docker CLI e plugin Compose v2, `openssl`, cliente `psql` e os scripts
-  do instalador. Ela traz cópias de `configure-keycloak.ps1` e `provision-environment-authorization.ps1` da mesma versão.
+- **Imagem `dokpod-installer`**: PowerShell 7.6 com Docker CLI e plugin Compose v2, `openssl` e os scripts
+  do instalador. Ela traz cópias de `configure-keycloak.ps1` e `provision-environment-authorization.ps1` da mesma versão. O `psql` não entra na
+  imagem: roda num container avulso da imagem PostgreSQL da matriz (`lzocateli/postgresql:18.4-pgvector0.8.6-bookworm`).
 
 Os fontes ficam em `deploy/installer/`: são scripts de instalação, que pertencem ao módulo proprietário
 (`.github/copilot-instructions.md`, "Scripts e automação").
@@ -263,14 +264,14 @@ aplicá-la, e a atualização passa pelo instalador (FR-023, FR-032).
 ## D-012: Testes do instalador
 
 **Decisão**:
-- **Lógica do plano, validação de respostas e de certificados**: Pester 5 (Apache-2.0) dentro da imagem do instalador,
-  em CI.
+- **Lógica do plano, validação de respostas e de certificados**: Pester 6.2.0 (Apache-2.0) no estágio de testes da
+  imagem do instalador, em CI.
 - **Modo administrativo**: testes .NET contra PostgreSQL 17.6 real, no padrão dos testes de integração existentes,
   incluindo a igualdade de schema entre `apply` e o SQL exportado (SC-010).
 - **Ponta a ponta**: os cenários do [quickstart](quickstart.md) num host Linux descartável, nos dois engines, com
   varredura de segredos canário (SC-005).
 
-**Verificação de licença**: Pester 5.7.x é Apache-2.0, mantido pelo projeto Pester. Fixar a versão exata na imagem.
+**Verificação de licença**: Pester 6.2.0 é Apache-2.0, mantido pelo projeto Pester (conferido em 2026-11-08, T004).
 
 ## D-013: Catálogo de arquivos SQL e sobreposição externa
 

@@ -41,16 +41,18 @@ idempotente.
 
 **Dependências Principais**:
 - Na imagem do instalador:
-  - Docker CLI e plugin Compose v2 (Apache-2.0);
-  - `openssl` e `postgresql-client` da distribuição base;
+  - PowerShell 7.6.9 (MIT), Docker CLI 29.9.2 e Compose v5.6.1 (Apache-2.0), fixados por SHA-256;
+  - `openssl` da distribuição base (Apache-2.0);
   - `Microsoft.Data.Sqlite` (MIT) com `SQLitePCLRaw.bundle_e_sqlite3` (Apache-2.0), para o estado em SQLite
     (SQLite em domínio público);
-  - Pester 5.7.x (Apache-2.0) e PSScriptAnalyzer 1.24.x (MIT), só para testes e análise.
+  - Pester 6.2.0 (Apache-2.0) e PSScriptAnalyzer 1.25.0 (MIT), só no estágio de testes.
 
-  Imagem base a confirmar na matriz `lzocateli/containers`; com PowerShell, a candidata é derivar de
-  `mcr.microsoft.com/powershell:7.5-ubuntu-24.04` (MIT), que só pode entrar depois de registrada na matriz de
-  `docs/distribuicao.md`.
-- Cosign em container por digest fixado, como já é usado na validação da release.
+  Imagem base `lzocateli/dotnet-aspnet:10.0.14-noble-v1`, já homologada. A `mcr.microsoft.com/powershell:7.5-ubuntu-24.04`
+  foi rejeitada por estar sem atualização desde janeiro de 2025. O registro completo está na seção "Instalador
+  (spec 033)" de `docs/distribuicao.md` (T004).
+- `psql` em container avulso da imagem `lzocateli/postgresql:18.4-pgvector0.8.6-bookworm` da matriz, fora da imagem do
+  instalador.
+- Cosign v3.1.4 (Apache-2.0) em container por digest fixado.
 - `Microsoft.Extensions.Configuration.KeyPerFile` (MIT, ASP.NET Core 10).
 - Nenhum pacote pago, copyleft ou sem licença verificada.
 

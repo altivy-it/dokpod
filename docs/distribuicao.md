@@ -37,6 +37,42 @@ O baseline inicial usa imagens mantidas no projeto público [`lzocateli/containe
 
 A imagem PostgreSQL inclui pgvector 0.8.6, mas o Dokpod não habilita nem depende dessa extensão. API, BFF, agente Linux e web produzem imagens próprias `dokpod/*`; as imagens acima são bases, toolchains ou serviços de infraestrutura, não substitutos dos artefatos do produto.
 
+### Instalador (spec 033)
+
+A imagem `dokpod-installer` ([ADR 2026-0011](adr/2026-0011-instalador-da-release.md), proposto) parte da base de runtime
+já homologada e acrescenta só o que o instalador executa. Os itens abaixo tiveram licença e versão conferidas em
+2026-11-08 (T004 da [spec 033](../specs/033-instalador-guiado/spec.md)).
+
+**Base e ferramentas da imagem:**
+
+| Item | Versão fixada | Licença | Origem e verificação | Papel |
+| --- | --- | --- | --- | --- |
+| Imagem base | `lzocateli/dotnet-aspnet:10.0.14-noble-v1` | ver matriz acima | já homologada | runtime da imagem do instalador |
+| PowerShell | 7.6.9 (`powershell-7.6.9-linux-x64.tar.gz`) | MIT | release do `PowerShell/PowerShell`, SHA-256 `1da6d6d6035d651f20e70ddee7c4c15ac6ab8b9fb40ee92240d91263f28a884b`, publicada em 2026-10-25 | linguagem do instalador |
+| Docker CLI | 29.9.2 (binário estático, `download.docker.com`) | Apache-2.0 | `docker/cli`; SHA-256 fixado no Dockerfile (T024) | cliente do engine rootless pelo socket montado |
+| Docker Compose | v5.6.1 (`docker-compose-linux-x86_64`) | Apache-2.0 | release do `docker/compose`, SHA-256 `47737f4236e6d3ccea7291995203f8f018058783b4c3a9469119811a0b5db8c0`, publicada em 2026-10-21 | orquestração nos dois engines rootless (D-002) |
+| OpenSSL | pacote `openssl` do Ubuntu 24.04 (noble) | Apache-2.0 | repositório da distribuição base; apt removido da imagem final | CA local e validação de certificados (D-005) |
+
+**Pacotes .NET carregados pelo PowerShell:**
+
+| Item | Versão fixada | Licença | Origem e verificação | Papel |
+| --- | --- | --- | --- | --- |
+| `Microsoft.Data.Sqlite` | 10.0.14 | MIT | NuGet (Microsoft), publicada em 2026-10-25 | acesso ao estado SQLite (D-014) |
+| `SQLitePCLRaw.bundle_e_sqlite3` | 2.1.13 (dependência de `Microsoft.Data.Sqlite` 10.0.14) | Apache-2.0 | NuGet | SQLite nativo empacotado |
+| SQLite | a do `e_sqlite3` do bundle | domínio público | sqlite.org | formato do estado |
+
+**Fora da imagem:**
+
+| Item | Versão fixada | Licença | Origem e verificação | Papel |
+| --- | --- | --- | --- | --- |
+| Pester | 6.2.0 | Apache-2.0 | PowerShell Gallery, publicada em 2026-09-09 | testes do instalador; só no estágio de testes, nunca na imagem final |
+| PSScriptAnalyzer | 1.25.0 | MIT | PowerShell Gallery, publicada em 2026-03-20 | análise estática dos módulos; só no estágio de testes |
+| `psql` | da imagem `lzocateli/postgresql:18.4-pgvector0.8.6-bookworm` | ver matriz acima | já homologada | container avulso para bootstrap e verificações do catálogo SQL (D-013); não entra na imagem do instalador |
+| cosign | v3.1.4 (`ghcr.io/sigstore/cosign/cosign`, por digest) | Apache-2.0 | release do `sigstore/cosign`, publicada em 2026-10-20 | verificação de imagens pelo `install.sh` e pelo instalador (D-010) |
+
+A imagem oficial `mcr.microsoft.com/powershell:7.5-ubuntu-24.04` foi considerada e rejeitada: a tag não recebe
+atualização desde janeiro de 2025. A versão 7.6 do PowerShell não tem imagem MCR equivalente.
+
 Versões desta tabela podem receber atualização de patch sem novo ADR quando contratos, major versions e fronteiras permanecem iguais. A atualização exige build, SBOM, scan, testes do recorte, compatibilidade e atualização desta tabela. Mudança de major version, troca de distribuição base ou substituição de tecnologia exige revisão arquitetural proporcional.
 
 ## Plano de controle containerizado
