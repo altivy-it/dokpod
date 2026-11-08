@@ -67,16 +67,17 @@ Fonte: `backend/libs/Dokpod.ControlPlane.Infrastructure/Sql/manifest.json`
 | Campo | Tipo | Regra |
 | --- | --- | --- |
 | `version` | semver | Igual à da release; um diretório sobreposto com outra versão é recusado. |
-| `files[].path` | caminho relativo | Único. Migrations em `Migrations/Script/<id>/Up\|Down/*.sql`; o restante em `Sql/Installation/{bootstrap,checks,status}/`. |
+| `files[].path` | caminho relativo à raiz do catálogo | Único. Migrations em `Migrations/Script/<id>/Up\|Down/*.sql`; o restante em `Installation/{bootstrap,checks,status}/`. Na fonte, `Installation/` fica em `Sql/` do projeto de infraestrutura; na imagem, tudo fica em `/app/sql`. |
 | `files[].purpose` | `migration` \| `bootstrap` \| `check` \| `status` | |
 | `files[].executor` | `ef` \| `psql` \| `admin` | `psql` usa variáveis `:"x"` e `:'x'`; `admin` usa `@x`; nenhum aceita concatenação. |
 | `files[].parameters` | lista de `{name, kind: identifier\|literal\|secret}` | Um `secret` só vem de arquivo, nunca da linha de comando. |
 | `files[].sha256` | hex | Conferido no build e na carga. |
 
-Impressão do schema: `Sql/schema/expected-schema.json` por versão (FR-042), lida por
-`Sql/Installation/checks/schema-fingerprint.sql`. Ela tem `version`, `objects[]` (`kind` em
-`table|column|index|constraint|function|trigger`, `name`, `definitionSha256`) e `sha256` do conjunto, sem partições
-criadas em execução e sem concessões.
+Impressão do schema: `schema/expected-schema.json` por versão (FR-042), lida por
+`Installation/checks/schema-fingerprint.sql`. Ela tem `objects[]` (`kind` em
+`table|view|column|index|constraint|function|trigger`, `name`, `definitionSha256`) e `sha256` do conjunto. Ficam de fora
+as partições criadas em execução, o que é herdado delas (`conparentid`, `tgparentid`), as restrições `NOT NULL` (já
+na coluna) e as concessões, para que a impressão seja a mesma no PostgreSQL 17 e no 18.
 
 Sobreposição: um arquivo com o mesmo `path` no `--sql-dir` substitui o da release, depois da confirmação nomeada, e é
 registrado em `sql_overrides`.

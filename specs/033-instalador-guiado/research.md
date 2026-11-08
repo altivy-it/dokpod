@@ -321,8 +321,8 @@ FR-041).
 - **Verificação pelo schema** (correção F1 do `/speckit-analyze`): `__EFMigrationsHistory` guarda só o ID e a versão do
   EF, então o hash do arquivo aplicado não pode ser conferido no banco. A verificação tem duas partes:
   - **IDs**: as migrations esperadas estão no histórico.
-  - **Schema**: a impressão do schema real, lida por `Sql/Installation/checks/schema-fingerprint.sql` (executor
-    `admin`), é comparada com `Sql/schema/expected-schema.json` da versão.
+  - **Schema**: a impressão do schema real, lida por `Installation/checks/schema-fingerprint.sql` (executor
+    `admin`), é comparada com `schema/expected-schema.json` da versão.
 
   A impressão cobre tabelas, colunas, índices, restrições, funções (assinatura e SHA-256 do corpo) e gatilhos do
   schema `dokpod`, e exclui as partições criadas em execução (`relispartition`) e as concessões.

@@ -68,6 +68,10 @@ jobs:
         with:
           persist-credentials: false
 
+      # Spec 033 T007: os arquivos psql do catálogo SQL são testados pelo psql, como o instalador os executa.
+      - name: Install PostgreSQL client
+        run: apt-get update && apt-get install --yes --no-install-recommends postgresql-client
+
       - name: Restore local tools
         run: dotnet tool restore
 

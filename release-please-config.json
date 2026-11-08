@@ -28,6 +28,7 @@
       "extra-files": [
         { "type": "xml", "path": "backend/Directory.Build.props", "xpath": "//Project/PropertyGroup/VersionPrefix" },
         { "type": "json", "path": "frontend/web/package.json", "jsonpath": "$.version" },
+        { "type": "json", "path": "backend/libs/Dokpod.ControlPlane.Infrastructure/Sql/manifest.json", "jsonpath": "$.version" },
         { "type": "generic", "path": "frontend/web/src/app/features/settings/settings-api.service.ts" }
       ]
     }

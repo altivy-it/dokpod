@@ -111,14 +111,14 @@ segredos, imagens e renderização). Nenhuma história começa antes desta fase.
 
 ### Catálogo SQL (FR-039 a FR-041, D-013)
 
-- [ ] T006 Catálogo SQL em `backend/libs/Dokpod.ControlPlane.Infrastructure/Sql/`:
+- [X] T006 Catálogo SQL em `backend/libs/Dokpod.ControlPlane.Infrastructure/Sql/`:
   - `manifest.json` com `version`, `files[].path`, `purpose` (`migration|bootstrap|check|status`), `executor`
     (`ef|psql|admin`), `parameters[]` (`identifier|literal|secret`) e `sha256`, cobrindo os arquivos existentes de
     `Migrations/Script/` e os novos de `Sql/Installation/`;
   - arquivos como recurso embutido, como hoje, e cópia da árvore com o manifesto para `/app/sql/` em
     `backend/apps/Dokpod.ControlPlane.Api/Dockerfile` e `Business.Dockerfile`.
 
-  - `Sql/Installation/checks/schema-fingerprint.sql` (executor `admin`) e `Sql/schema/expected-schema.json` (FR-042):
+  - `Installation/checks/schema-fingerprint.sql` (executor `admin`) e `schema/expected-schema.json` (FR-042):
     tabelas, colunas (tipo, nulidade, default), índices, restrições, funções (assinatura e SHA-256 do corpo) e
     gatilhos do schema `dokpod`, sem `relispartition` e sem concessões. O arquivo é gerado por
     `backend/tests/Dokpod.ControlPlane.Api.Tests/Admin/ExpectedSchemaTests.cs`, que aplica todas as migrations em
@@ -126,7 +126,13 @@ segredos, imagens e renderização). Nenhuma história começa antes desta fase.
 
   Testes em `backend/tests/Dokpod.Architecture.Tests/SqlCatalogTests.cs`: todo `.sql` está no manifesto, todo item do
   manifesto existe, os hashes conferem e a versão é a do produto.
-- [ ] T007 [P] Arquivos de instalação em `backend/libs/Dokpod.ControlPlane.Infrastructure/Sql/Installation/`, com
+  Nota (2026-11-08): `Sql/manifest.json` com 60 arquivos (53 de migration e 7 de instalação), versão atualizada pelo
+  release-please (`extra-files`) e catálogo lido por `SqlFiles/SqlCatalog.cs`; as imagens copiam a árvore para
+  `/app/sql` (`Migrations/Script/`, `Installation/`, `schema/`, `manifest.json`). Atualização dos hashes e da impressão
+  com `DOKPOD_UPDATE_SQL_CATALOG=1`. A impressão (652 objetos) sai igual no PostgreSQL 17.6 e no 18.4: foi preciso
+  excluir as cópias de FK e gatilho herdadas por partição (`conparentid`, `tgparentid`) e as restrições `NOT NULL` que
+  o 18 passou a guardar em `pg_constraint`. Inclui `view` como tipo, além dos da spec.
+- [X] T007 [P] Arquivos de instalação em `backend/libs/Dokpod.ControlPlane.Infrastructure/Sql/Installation/`, com
   parâmetros nomeados e sem concatenação:
   - `bootstrap/01-create-database.sql`;
   - `bootstrap/02-create-roles.sql` (`dokpod_owner` e `dokpod_runtime`, sem `SUPERUSER`/`CREATEROLE`; a senha é lida
@@ -142,7 +148,12 @@ segredos, imagens e renderização). Nenhuma história começa antes desta fase.
   na senha, conferindo que ela não aparece no `ps` nem no `docker inspect` do container do `psql`. Testes com
   PostgreSQL real em `backend/tests/Dokpod.ControlPlane.Api.Tests/Admin/InstallationSqlTests.cs`, incluindo nome de role
   com aspas e literal com apóstrofo.
-- [ ] T008 Raiz externa opcional no `MigrationSqlScriptLoader`
+  Nota (2026-11-08): ordem ajustada para `01-create-roles.sql`, `02-create-database.sql` e `03-grants.sql`, porque o
+  banco precisa da role dona antes. Senhas lidas pelo próprio arquivo com `\set` e crase a partir de
+  `*_password_file`; o teste confere o verificador SCRAM contra a senha canário. Bootstrap rodado duas vezes
+  (idempotente). O CI ganhou o passo `Install PostgreSQL client` no job de backend. Risco anotado para a T058: com
+  `log_statement` em `ddl` ou `all` no servidor, o `ALTER ROLE ... PASSWORD` aparece no log do PostgreSQL.
+- [X] T008 Raiz externa opcional no `MigrationSqlScriptLoader`
   (`backend/libs/Dokpod.ControlPlane.Infrastructure/Migrations/MigrationSqlScriptLoader.cs`), habilitada só pelo modo
   administrativo com `/run/sql-override`:
   - exige `manifest.json` da mesma versão;
@@ -152,7 +163,10 @@ segredos, imagens e renderização). Nenhuma história começa antes desta fase.
   O runtime da API nunca habilita essa raiz. Testes em
   `backend/tests/Dokpod.ControlPlane.Api.Tests/Admin/SqlOverrideTests.cs`: sobreposição usada no modo administrativo e
   ignorada no runtime, versão divergente recusada, caminho sem correspondente recusado.
-- [ ] T009 [P] Varredura contra SQL no código (SC-011):
+  Nota (2026-11-08): `SqlCatalog.UseOverride` abre a raiz por `AsyncLocal` e registra cada uso em `Uses`;
+  `MigrationSqlScriptLoader` passou a ler pelo catálogo. Recusa versão divergente, manifesto ausente, arquivo sem
+  correspondente, link simbólico, sobreposição aninhada e a impressão do schema esperado.
+- [X] T009 [P] Varredura contra SQL no código (SC-011):
   - teste em `backend/tests/Dokpod.Architecture.Tests/NoInlineSqlTests.cs` que recusa literais C# com palavras-chave
     DDL/DML (`CREATE`, `ALTER`, `DROP`, `INSERT`, `UPDATE`, `DELETE`, `SELECT`, `GRANT`) em
     `backend/apps/Dokpod.ControlPlane.Api/Admin/` e nos serviços chamados por ele;
@@ -160,6 +174,10 @@ segredos, imagens e renderização). Nenhuma história começa antes desta fase.
     toda consulta ao estado SQLite venha de `deploy/installer/sql/state/`.
 
   Exceções explícitas e justificadas numa lista no próprio teste.
+
+  Nota (2026-11-08): `NoInlineSqlTests` cobre `Admin/` (a partir da T010) e `SqlFiles/`, com controles positivos e
+  negativos do detector; `NoInlineSql.Tests.ps1` usa o parser do PowerShell e cobre também `PRAGMA` do SQLite
+  (10 testes Pester 6.2.0).
 
 ### Modo administrativo da imagem da API
 
@@ -221,7 +239,7 @@ segredos, imagens e renderização). Nenhuma história começa antes desta fase.
 - [ ] T016 Qualificar a role `dokpod_runtime` (D-009) em
   `backend/tests/Dokpod.ControlPlane.Api.Tests/Admin/RuntimeRolePrivilegesTests.cs`:
   - aplicar as migrations como `dokpod_owner` e conceder a `dokpod_runtime` só DML e `EXECUTE` no schema `dokpod` pelos
-    arquivos `Sql/Installation/bootstrap/` de T007, sem `SUPERUSER`/`CREATEROLE`/DDL;
+    arquivos `Installation/bootstrap/` de T007, sem `SUPERUSER`/`CREATEROLE`/DDL;
   - exercitar com `dokpod_runtime` a criação antecipada de partições, a retenção, a auditoria, o inventário e os
     comandos.
 
@@ -374,7 +392,7 @@ conectado e um administrador que precisa trocar a senha.
 - [ ] T028 [US1] PostgreSQL provisionado em `deploy/installer/src/Postgres.psm1`:
   - duas instâncias `dokpod-postgres` e `keycloak-postgres` (`lzocateli/postgresql:18.4-pgvector0.8.6-bookworm`),
     volumes e credenciais próprios (FR-007);
-  - no `dokpod-postgres`, banco e roles `dokpod_owner` e `dokpod_runtime` pelos arquivos `Sql/Installation/bootstrap/`
+  - no `dokpod-postgres`, banco e roles `dokpod_owner` e `dokpod_runtime` pelos arquivos `Installation/bootstrap/`
     do catálogo, executados com `psql` em container avulso (T007, T016);
   - conexão do `psql` pelo `PGPASSFILE` num tmpfs montado só nesse container e apagado ao fim, nunca por
     `PGPASSWORD` ou outra variável de ambiente (FR-033). Teste com canário no `docker inspect`;

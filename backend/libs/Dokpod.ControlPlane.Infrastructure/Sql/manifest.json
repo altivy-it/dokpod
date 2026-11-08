@@ -1,0 +1,477 @@
+{
+  "version": "0.7.0",
+  "expectedSchema": {
+    "path": "schema/expected-schema.json",
+    "sha256": "62dc5fa4c983fd849a591bb55d1cfcda7d45282afc2ebe4fced99306982ce0d8"
+  },
+  "files": [
+    {
+      "path": "Installation/bootstrap/01-create-roles.sql",
+      "purpose": "bootstrap",
+      "executor": "psql",
+      "parameters": [
+        {
+          "name": "owner_role",
+          "kind": "identifier"
+        },
+        {
+          "name": "runtime_role",
+          "kind": "identifier"
+        },
+        {
+          "name": "owner_password_file",
+          "kind": "secret"
+        },
+        {
+          "name": "runtime_password_file",
+          "kind": "secret"
+        }
+      ],
+      "sha256": "c86e9d48870ff297610158d0df897ca25784cd1833537be2f22f694d238a69d7"
+    },
+    {
+      "path": "Installation/bootstrap/02-create-database.sql",
+      "purpose": "bootstrap",
+      "executor": "psql",
+      "parameters": [
+        {
+          "name": "database",
+          "kind": "identifier"
+        },
+        {
+          "name": "owner_role",
+          "kind": "identifier"
+        }
+      ],
+      "sha256": "bba9e5c4109414c567907f6bd2393872bac541e6d12e5e50de08551c963a6685"
+    },
+    {
+      "path": "Installation/bootstrap/03-grants.sql",
+      "purpose": "bootstrap",
+      "executor": "psql",
+      "parameters": [
+        {
+          "name": "database",
+          "kind": "identifier"
+        },
+        {
+          "name": "owner_role",
+          "kind": "identifier"
+        },
+        {
+          "name": "runtime_role",
+          "kind": "identifier"
+        }
+      ],
+      "sha256": "a9c0f443aa99313b9cf249698ec8d1f7ff62e28de2a1db4142c858d2784c53dd"
+    },
+    {
+      "path": "Installation/checks/role-privileges.sql",
+      "purpose": "check",
+      "executor": "psql",
+      "parameters": [
+        {
+          "name": "role",
+          "kind": "identifier"
+        },
+        {
+          "name": "database",
+          "kind": "identifier"
+        }
+      ],
+      "sha256": "f5f098f609b8da6729034ee45c1530f23a7c5fadac66c853a3a815288d1d2d2c"
+    },
+    {
+      "path": "Installation/checks/schema-fingerprint.sql",
+      "purpose": "check",
+      "executor": "admin",
+      "parameters": [],
+      "sha256": "348c0d18d498a495b6540a025b138217a5166f3637dcdd035ee834490db5b439"
+    },
+    {
+      "path": "Installation/checks/server-version.sql",
+      "purpose": "check",
+      "executor": "psql",
+      "parameters": [],
+      "sha256": "31f690508cb701afa56de8bda1f0eef493ff84f75e8ada83250aade4acf18f75"
+    },
+    {
+      "path": "Installation/status/conference-counts.sql",
+      "purpose": "status",
+      "executor": "admin",
+      "parameters": [],
+      "sha256": "a76de05392ceb9fd94fe7be13fc40393a75058dda1d29f30992ef26055c5b4b2"
+    },
+    {
+      "path": "Migrations/Script/202609120001_CreateAuditEvents/Up/01-CreateAuditEvents.sql",
+      "purpose": "migration",
+      "executor": "ef",
+      "parameters": [],
+      "sha256": "e0d8aa7e7518f3475e72ccc7f39674a8ab32529008bdd64a26aca493aac288d1"
+    },
+    {
+      "path": "Migrations/Script/202609170001_CreateAgentIdentities/Down/01-DropAgentIdentities.sql",
+      "purpose": "migration",
+      "executor": "ef",
+      "parameters": [],
+      "sha256": "ae8863029260f7fd28f71c9266aa9db27e35bf3d160a8f4654f24c0159e8b086"
+    },
+    {
+      "path": "Migrations/Script/202609170001_CreateAgentIdentities/Up/01-CreateAgentIdentities.sql",
+      "purpose": "migration",
+      "executor": "ef",
+      "parameters": [],
+      "sha256": "8704cc8ed00c10e1bd9c9cdfcb78d73b2113e88a0b05a1f3361b70d96708a1f4"
+    },
+    {
+      "path": "Migrations/Script/202609170002_CreateEnvironments/Down/01-DropEnvironments.sql",
+      "purpose": "migration",
+      "executor": "ef",
+      "parameters": [],
+      "sha256": "8473ce9dbe6a7bda5ceb91ef0314930532075679659b0ae01a0e8094edc7637c"
+    },
+    {
+      "path": "Migrations/Script/202609170002_CreateEnvironments/Up/01-CreateEnvironments.sql",
+      "purpose": "migration",
+      "executor": "ef",
+      "parameters": [],
+      "sha256": "c2b435f4f6e3af1496e5457d150f2c749371388065afb07e87398b1f16400999"
+    },
+    {
+      "path": "Migrations/Script/202609170003_IsolateControlPlaneSchema/Up/01-IsolateControlPlaneSchema.sql",
+      "purpose": "migration",
+      "executor": "ef",
+      "parameters": [],
+      "sha256": "ecbd70a9d36dad843894a6abef0082c4069dd8d1402d6d5065a9a160d68c631a"
+    },
+    {
+      "path": "Migrations/Script/202609200001_CreateInventoryProjection/Down/01-DropInventoryProjection.sql",
+      "purpose": "migration",
+      "executor": "ef",
+      "parameters": [],
+      "sha256": "ea4e0a00031b4a4a0415da742c8d64f62ca6e8dd6fda949f7b350eb0672d267e"
+    },
+    {
+      "path": "Migrations/Script/202609200001_CreateInventoryProjection/Up/01-CreateInventoryProjection.sql",
+      "purpose": "migration",
+      "executor": "ef",
+      "parameters": [],
+      "sha256": "0b07883ba3fe440e625a0d80f3c5c8f4a6268c32dac136677a81f7326ae59991"
+    },
+    {
+      "path": "Migrations/Script/202609210001_CreateAgentCommands/Down/01-DropAgentCommands.sql",
+      "purpose": "migration",
+      "executor": "ef",
+      "parameters": [],
+      "sha256": "7710ab61aadb9088c2b94f4c0a4b3ce40f429498e3faa2af731af2b0beeaca78"
+    },
+    {
+      "path": "Migrations/Script/202609210001_CreateAgentCommands/Up/01-CreateAgentCommands.sql",
+      "purpose": "migration",
+      "executor": "ef",
+      "parameters": [],
+      "sha256": "5df5ba89fb0b777433d634ba8415c0fd12403108fc82b7a78744fd3e9c4f4907"
+    },
+    {
+      "path": "Migrations/Script/202609210002_ConstrainAgentCommandPayloadHash/Down/01-RestorePayloadHash.sql",
+      "purpose": "migration",
+      "executor": "ef",
+      "parameters": [],
+      "sha256": "7647d075d8d0b16121343d025ca5b6bc6021d61928eb8efcdfe8d32a4d8b7af4"
+    },
+    {
+      "path": "Migrations/Script/202609210002_ConstrainAgentCommandPayloadHash/Up/01-ConstrainPayloadHash.sql",
+      "purpose": "migration",
+      "executor": "ef",
+      "parameters": [],
+      "sha256": "457fe3320f7a2ca8c0c8ba5de0c7266e0c5092daf5a69a308bf9e958a7d647d2"
+    },
+    {
+      "path": "Migrations/Script/202609210003_AddAgentCommandResults/Down/01-DropResultColumns.sql",
+      "purpose": "migration",
+      "executor": "ef",
+      "parameters": [],
+      "sha256": "544db8abc46fc138c2a3c63bf3b7c20e61a05bd2d896c92042f96a5909045047"
+    },
+    {
+      "path": "Migrations/Script/202609210003_AddAgentCommandResults/Up/01-AddResultColumns.sql",
+      "purpose": "migration",
+      "executor": "ef",
+      "parameters": [],
+      "sha256": "9b2b0d61e0dbe9b2845f79fc08419e8f146078cb0dd1bbb152d13907e213f526"
+    },
+    {
+      "path": "Migrations/Script/202609210005_AddAuditCommandCorrelation/Up/01-AddAuditCommandCorrelation.sql",
+      "purpose": "migration",
+      "executor": "ef",
+      "parameters": [],
+      "sha256": "6b7f28b4b91e2112b1e2dcf5e8a7555bc838e6124be3ece3677f7d5bf50dd67a"
+    },
+    {
+      "path": "Migrations/Script/202609220001_PartitionAgentCommands/Up/01-PartitionAgentCommands.sql",
+      "purpose": "migration",
+      "executor": "ef",
+      "parameters": [],
+      "sha256": "dad2bf8e955955c37cf5da59fb7f5baf4eeba9a2f27cf256811acdc87e178e5f"
+    },
+    {
+      "path": "Migrations/Script/202609220002_ScheduleTemporalPartitions/Up/01-ScheduleTemporalPartitions.sql",
+      "purpose": "migration",
+      "executor": "ef",
+      "parameters": [],
+      "sha256": "153870a8470fa26e9e8738834128b81debc884be00c2e1d3fc05f8ec9d5a494b"
+    },
+    {
+      "path": "Migrations/Script/202610130001_ConsoleOverview/Down/01-ConsoleOverview.sql",
+      "purpose": "migration",
+      "executor": "ef",
+      "parameters": [],
+      "sha256": "aba43ccca8435dba7f66c544db28613581eabaae327215394c943235315feca9"
+    },
+    {
+      "path": "Migrations/Script/202610130001_ConsoleOverview/Up/01-ConsoleOverview.sql",
+      "purpose": "migration",
+      "executor": "ef",
+      "parameters": [],
+      "sha256": "ba7723975a30499b6af6f193892ebca527d71dd79938c5a2615f2e5dc2079e08"
+    },
+    {
+      "path": "Migrations/Script/202610130002_PauseCommands/Down/01-PauseCommands.sql",
+      "purpose": "migration",
+      "executor": "ef",
+      "parameters": [],
+      "sha256": "e994425211da3f759b7fe03720631f85b658cc39562ee2c52f167121a758f9e0"
+    },
+    {
+      "path": "Migrations/Script/202610130002_PauseCommands/Up/01-PauseCommands.sql",
+      "purpose": "migration",
+      "executor": "ef",
+      "parameters": [],
+      "sha256": "2925afc3ee6f202f262d5e3609828349964e98584d8ca1a60a3792973e0cb4bd"
+    },
+    {
+      "path": "Migrations/Script/202610130003_AuditSubjectDetails/Down/01-AuditSubjectDetails.sql",
+      "purpose": "migration",
+      "executor": "ef",
+      "parameters": [],
+      "sha256": "3565c47b1078b2d2280d6cb09822d1cba6690315c36205f4b87751a307f48ae9"
+    },
+    {
+      "path": "Migrations/Script/202610130003_AuditSubjectDetails/Up/01-AuditSubjectDetails.sql",
+      "purpose": "migration",
+      "executor": "ef",
+      "parameters": [],
+      "sha256": "c94dc281825f78b255f74d00659dfddb548da068fbbbd68e350dbb490b303e6e"
+    },
+    {
+      "path": "Migrations/Script/202610130004_RestrictTemporalRetention/Down/01-RestrictTemporalRetention.sql",
+      "purpose": "migration",
+      "executor": "ef",
+      "parameters": [],
+      "sha256": "ac9282fe498e799456552d98cb6ab022fc7ccb70ca68d197a615489becd3a10c"
+    },
+    {
+      "path": "Migrations/Script/202610130004_RestrictTemporalRetention/Up/01-RestrictTemporalRetention.sql",
+      "purpose": "migration",
+      "executor": "ef",
+      "parameters": [],
+      "sha256": "298e65b9b4c94102123854e7aef5b98a64252dc1c824ce50dd2f638bc851f50d"
+    },
+    {
+      "path": "Migrations/Script/202610130005_HostResourceSamples/Down/01-HostResourceSamples.sql",
+      "purpose": "migration",
+      "executor": "ef",
+      "parameters": [],
+      "sha256": "f064bb00b4a701a338215f1529d17cd40659807055b227acb095a27ceb875d85"
+    },
+    {
+      "path": "Migrations/Script/202610130005_HostResourceSamples/Up/01-HostResourceSamples.sql",
+      "purpose": "migration",
+      "executor": "ef",
+      "parameters": [],
+      "sha256": "26d120ddb999a8068e66a8b60bf92c764373585ba9e352ee38f8f30b38889c88"
+    },
+    {
+      "path": "Migrations/Script/202610130006_ImagesAndPull/Down/01-ImagesAndPull.sql",
+      "purpose": "migration",
+      "executor": "ef",
+      "parameters": [],
+      "sha256": "9fb536f8ca3dcdcd7d6d34e17278e0271d1df2a9f984cedc4174958e7c3d514a"
+    },
+    {
+      "path": "Migrations/Script/202610130006_ImagesAndPull/Up/01-ImagesAndPull.sql",
+      "purpose": "migration",
+      "executor": "ef",
+      "parameters": [],
+      "sha256": "04b85a1731a9c478239e507ab0af9a15c16cce42f35cd4c54615ac013d815a7c"
+    },
+    {
+      "path": "Migrations/Script/202610130007_ContainerCreation/Down/01-ContainerCreation.sql",
+      "purpose": "migration",
+      "executor": "ef",
+      "parameters": [],
+      "sha256": "71cb1e6227098818c0933ae88bd3fa0481904f4c639449b9d584ccc054526335"
+    },
+    {
+      "path": "Migrations/Script/202610130007_ContainerCreation/Up/01-ContainerCreation.sql",
+      "purpose": "migration",
+      "executor": "ef",
+      "parameters": [],
+      "sha256": "830d2a0da3fbc01ea9e93209b01219a111d8ca351931fa28c8eda67a512a4515"
+    },
+    {
+      "path": "Migrations/Script/202610130008_FixRetentionPartitionDelete/Down/01-FixRetentionPartitionDelete.sql",
+      "purpose": "migration",
+      "executor": "ef",
+      "parameters": [],
+      "sha256": "8c451e1b4693fdbec3a15642ae3ddecf4ee7df18098284ce19c89f3ff04cc177"
+    },
+    {
+      "path": "Migrations/Script/202610130008_FixRetentionPartitionDelete/Up/01-FixRetentionPartitionDelete.sql",
+      "purpose": "migration",
+      "executor": "ef",
+      "parameters": [],
+      "sha256": "293bd9c744b24111b434a55829036abed1207091ad837867a5d7b46e5aa8fe6e"
+    },
+    {
+      "path": "Migrations/Script/202610140001_AlertGovernance/Down/01-AlertGovernance.sql",
+      "purpose": "migration",
+      "executor": "ef",
+      "parameters": [],
+      "sha256": "61a3af65006610afea6c1da77426507bf8b85b07955197e9232878546d38bbf1"
+    },
+    {
+      "path": "Migrations/Script/202610140001_AlertGovernance/Up/01-AlertGovernance.sql",
+      "purpose": "migration",
+      "executor": "ef",
+      "parameters": [],
+      "sha256": "fd111049a05c7dc18b8586da5ea87155a21e81a317765bf6d6c03db53ddb35ac"
+    },
+    {
+      "path": "Migrations/Script/202610150001_AuditConsole/Down/01-AuditConsole.sql",
+      "purpose": "migration",
+      "executor": "ef",
+      "parameters": [],
+      "sha256": "ad00f22bff246a4acee62f90fd7b6d91cb6b5b76e66b6baccf6d8e57d6d07ec4"
+    },
+    {
+      "path": "Migrations/Script/202610150001_AuditConsole/Up/01-AuditConsole.sql",
+      "purpose": "migration",
+      "executor": "ef",
+      "parameters": [],
+      "sha256": "0400b2fcd27a965cd8e319c90a9b0da867d7001da726816d16164cc2ce11361f"
+    },
+    {
+      "path": "Migrations/Script/202610150002_AuditFullTextSearch/Down/01-AuditFullTextSearch.sql",
+      "purpose": "migration",
+      "executor": "ef",
+      "parameters": [],
+      "sha256": "a5aa69a7805c19e1e232afd6bf36884cc4043c64b71959be5d9bd010dd2e54ac"
+    },
+    {
+      "path": "Migrations/Script/202610150002_AuditFullTextSearch/Up/01-AuditFullTextSearch.sql",
+      "purpose": "migration",
+      "executor": "ef",
+      "parameters": [],
+      "sha256": "898ca69f0e8cad15cd0b4f306ecd5dc037bce7e2e60d5792d295eddc616e54ea"
+    },
+    {
+      "path": "Migrations/Script/202610150003_VolumeInventory/Down/01-VolumeInventory.sql",
+      "purpose": "migration",
+      "executor": "ef",
+      "parameters": [],
+      "sha256": "5c2d350f552a776642e84975a47bc6fc98a67a7a75b6acedfba3ce28308edfc0"
+    },
+    {
+      "path": "Migrations/Script/202610150003_VolumeInventory/Up/01-VolumeInventory.sql",
+      "purpose": "migration",
+      "executor": "ef",
+      "parameters": [],
+      "sha256": "9669119b6a25ba024a0b446e5890af9da77af9546aad1d7dd8b57d44f98f6474"
+    },
+    {
+      "path": "Migrations/Script/202610150004_NetworkInventory/Down/01-NetworkInventory.sql",
+      "purpose": "migration",
+      "executor": "ef",
+      "parameters": [],
+      "sha256": "e42716cea4b9834f7ac788e4bc2dd2679b7576013074f106e0376d97a3a41fe6"
+    },
+    {
+      "path": "Migrations/Script/202610150004_NetworkInventory/Up/01-NetworkInventory.sql",
+      "purpose": "migration",
+      "executor": "ef",
+      "parameters": [],
+      "sha256": "147013a6fdf755294c440d43525c153f0790c99041b1f0f33fe9d9f0e21c0e0b"
+    },
+    {
+      "path": "Migrations/Script/202610150005_RegistryInventory/Down/01-RegistryInventory.sql",
+      "purpose": "migration",
+      "executor": "ef",
+      "parameters": [],
+      "sha256": "51588604b9605dec18ddeda7309a48607498b5e7851ab90592c9664405af2641"
+    },
+    {
+      "path": "Migrations/Script/202610150005_RegistryInventory/Up/01-RegistryInventory.sql",
+      "purpose": "migration",
+      "executor": "ef",
+      "parameters": [],
+      "sha256": "425c09f6db033b3baf0f0d25466e5e41c201e27cda7b5a274c7d4ce6605da477"
+    },
+    {
+      "path": "Migrations/Script/202610160001_PodInventory/Down/01-PodInventory.sql",
+      "purpose": "migration",
+      "executor": "ef",
+      "parameters": [],
+      "sha256": "2f9ae21e8ffffea93aa60bc7ead291aa08995c7e41a04cb5c2c31184a7ab8f2e"
+    },
+    {
+      "path": "Migrations/Script/202610160001_PodInventory/Up/01-PodInventory.sql",
+      "purpose": "migration",
+      "executor": "ef",
+      "parameters": [],
+      "sha256": "c097ce7c891279f56e66b1b5899d422b2d521ce6103b5fbf2606c2e7d37eafd0"
+    },
+    {
+      "path": "Migrations/Script/202610310001_Licensing/Down/01-Licensing.sql",
+      "purpose": "migration",
+      "executor": "ef",
+      "parameters": [],
+      "sha256": "a05909e85208530d3ea2f5ee984ff8e35a4118a1976fdb8fa18896254ef0b2d5"
+    },
+    {
+      "path": "Migrations/Script/202610310001_Licensing/Up/01-Licensing.sql",
+      "purpose": "migration",
+      "executor": "ef",
+      "parameters": [],
+      "sha256": "a5d81d3b05623a6900071f67b4eaa064bdf867c1120b7f72030658923f3a8548"
+    },
+    {
+      "path": "Migrations/Script/202611010001_AuditExport/Down/01-AuditExport.sql",
+      "purpose": "migration",
+      "executor": "ef",
+      "parameters": [],
+      "sha256": "1809a68bc0635ff756c16cdcb39f672b1734a3c013a57fa11d6863a723a2dd2f"
+    },
+    {
+      "path": "Migrations/Script/202611010001_AuditExport/Up/01-AuditExport.sql",
+      "purpose": "migration",
+      "executor": "ef",
+      "parameters": [],
+      "sha256": "4eec0be7fb1bd57bf08ba597ac9926e61675abbbea8c6f3e4d38565a7abb63f9"
+    },
+    {
+      "path": "Migrations/Script/202611010002_ImageUpdateCheck/Down/01-ImageUpdateCheck.sql",
+      "purpose": "migration",
+      "executor": "ef",
+      "parameters": [],
+      "sha256": "3c398e512cf893f288b3ea4ff03456dc4ba6db8fe2a3996b11a6236b3d68dfc6"
+    },
+    {
+      "path": "Migrations/Script/202611010002_ImageUpdateCheck/Up/01-ImageUpdateCheck.sql",
+      "purpose": "migration",
+      "executor": "ef",
+      "parameters": [],
+      "sha256": "0890504713549e28f31e02e7581e307e60223df8b9283088e6106b0758646e72"
+    }
+  ]
+}

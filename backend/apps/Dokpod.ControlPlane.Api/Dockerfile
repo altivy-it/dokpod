@@ -47,6 +47,9 @@ RUN apt-get update \
     && apt-get purge --yes --allow-remove-essential apt libapt-pkg6.0t64 \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=publish /app/publish ./
+# Spec 033 (FR-040, D-013): catálogo SQL legível e alterável fora da imagem; o runtime só o lê embutido na assembly.
+COPY --from=publish /src/backend/libs/Dokpod.ControlPlane.Infrastructure/Sql/ /app/sql/
+COPY --from=publish /src/backend/libs/Dokpod.ControlPlane.Infrastructure/Migrations/Script/ /app/sql/Migrations/Script/
 # Spec 005 FR-008: licença do Dokpod dentro da imagem e no rótulo OCI.
 LABEL org.opencontainers.image.licenses="AGPL-3.0-only"
 COPY LICENSE /usr/share/licenses/dokpod/LICENSE
