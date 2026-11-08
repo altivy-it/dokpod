@@ -67,14 +67,14 @@ código.
   (2026-11-08): aceito pelo solicitante. A premissa central foi aceita com a restrição a engines rootless (D-015).
   As recomendações L1–L7 foram aceitas e aplicadas: L1 em T026 e T037, L2 e L6 em T046 e T027, L3 em T029, L4 em
   T030, L5 em T010 e T028, L7 em T024 e T053. Os riscos R1–R7 foram aceitos.
-- [ ] T002 [P] ADR `proposed` "Modo administrativo da imagem da API para migrations e bootstrap" em
+- [X] T002 [P] ADR `proposed` "Modo administrativo da imagem da API para migrations e bootstrap" em
   `docs/adr/2026-0010-modo-administrativo-da-api.md`, seguindo `.github/ADR_TEMPLATE.md`. Ele registra D-003 e D-004,
   as alternativas rejeitadas (bundle, imagem migrator, migração na inicialização, `--idempotent`, `INSERT` direto) e a
   relação com o enrollment futuro.
-- [ ] T003 [P] ADR `proposed` "Instalador como imagem da release com bootstrap `install.sh`" em
+- [X] T003 [P] ADR `proposed` "Instalador como imagem da release com bootstrap `install.sh`" em
   `docs/adr/2026-0011-instalador-da-release.md`, com D-001, D-002, D-010 e o estado local em SQLite (D-014),
   registrado como arquivo da ferramenta e não datastore do produto.
-- [ ] T004 [P] Registrar na matriz de `docs/distribuicao.md` a imagem base do instalador e suas ferramentas. Para cada
+- [X] T004 [P] Registrar na matriz de `docs/distribuicao.md` a imagem base do instalador e suas ferramentas. Para cada
   uma, conferir e anotar licença, versão exata e manutenção:
   - a imagem PowerShell 7.5 (candidata `mcr.microsoft.com/powershell:7.5-ubuntu-24.04`, MIT, ou equivalente em
     `lzocateli/containers`);
@@ -85,11 +85,22 @@ código.
   - Pester 5.7.x (Apache-2.0);
   - PSScriptAnalyzer 1.24.x (MIT), para a análise estática dos módulos.
 
-  Dependência sem licença verificada bloqueia T024.
-- [ ] T005 Esqueleto de `deploy/installer/`: `README.md`, `src/`, `templates/`, `tests/`, e
+  Dependência sem licença verificada bloqueia T024. Nota (2026-11-08): registrado na seção "Instalador (spec 033)" de
+  `docs/distribuicao.md`.
+  - A imagem MCR 7.5 foi rejeitada (sem atualização desde janeiro de 2025). A base passou a ser
+    `lzocateli/dotnet-aspnet:10.0.14-noble-v1` com PowerShell 7.6.9 por SHA-256.
+  - `postgresql-client` saiu da imagem: o `psql` roda em container avulso da imagem PostgreSQL da matriz.
+  - Versões fixadas: Pester 6.2.0, PSScriptAnalyzer 1.25.0, Docker CLI 29.9.2, Compose v5.6.1,
+    `Microsoft.Data.Sqlite` 10.0.14, `SQLitePCLRaw.bundle_e_sqlite3` 2.1.13 e cosign v3.1.4.
+- [X] T005 Esqueleto de `deploy/installer/`: `README.md`, `src/`, `templates/`, `tests/`, e
   `src/Dokpod.Installer.ps1` com `--help` sem efeitos colaterais e a lista de comandos de
   [installer-cli.md](contracts/installer-cli.md), seguindo `.github/instructions/script-authoring.instructions.md` e
   `.github/SCRIPTING.md`.
+  Nota (2026-11-08): `deploy/installer/{README.md,src/Dokpod.Installer.ps1,sql/state/,templates/,tests/}`. Validado em
+  container PowerShell 7: `--help`, `help` e `status --help` saem com 0 e `Get-Help -Full` funciona; comandos do contrato
+  são recusados com código 2, apontando a tarefa que os entrega. O PSScriptAnalyzer 1.25.0 só aponta
+  `PSUseBOMForUnicodeEncodedFile`, que contraria a convenção do repositório (scripts UTF-8 sem BOM). A T057 deve excluir
+  essa regra nas configurações do analisador.
 
 ---
 
