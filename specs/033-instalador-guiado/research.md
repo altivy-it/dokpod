@@ -196,13 +196,22 @@ interrupção (FR-026, FR-027, SC-004).
 - **Sem nginx**: o instalador sobe `dokpod-edge` (`lzocateli/nginx:1.28.0-bookworm-v1`) com a configuração gerada.
   Ela publica `443` e encaminha `/dokpod/` para web e BFF (com SignalR). Quando o Keycloak é provisionado, encaminha
   também `/realms/` e `/resources/` para ele.
-- **Com nginx existente**: gera `dokpod.conf` com os mesmos `location` e o valida com `nginx -t` em container.
+- **Com nginx existente**: gera `dokpod.conf` com os mesmos `location` e o valida com `nginx -t` em container. Web e
+  BFF escutam só em loopback ou numa rede interna compartilhada com o nginx do usuário; outro endereço é recusado
+  (FR-043, correção F3).
 - **Nome público dentro da rede**: na rede interna, a borda recebe o nome público como alias. Assim API e BFF alcançam a
   `Authority` pelo mesmo nome do navegador, sem `extra_hosts` nem IP fixo, o que substitui o arranjo de laboratório.
 - **CA local**: quando a borda usa a CA local, a raiz vai para o repositório de confiança dos containers da API e do BFF
   por `SSL_CERT_FILE` montado.
 
-**Justificativa**: remove a dependência de `identity-global`, `host-gateway` e IPs fixos (FR-022).
+- **Porta dos agentes remotos** (correção F2, opção a): com `agentGrpcPort`, a API publica a porta gRPC com mTLS
+  diretamente, como na arquitetura atual (`17443` no laboratório). É a única exceção à borda (FR-022). Ela só aceita
+  certificado de cliente de ambiente cadastrado. Sem `agentGrpcPort`, a porta não é publicada, e só o agente local
+  conecta pela rede interna.
+
+**Justificativa**: remove a dependência de `identity-global`, `host-gateway` e IPs fixos (FR-022). A alternativa de
+passar o gRPC pela borda sem terminar o TLS (`stream` do nginx) foi rejeitada: acrescenta configuração e uma
+dependência de módulo sem mudar a fronteira de confiança, que é o mTLS.
 
 **Alternativas consideradas**:
 - **Keycloak em subdomínio próprio**: aceito como opção (`keycloak.publicUrl`), mas não é o padrão, para exigir um nome
@@ -301,8 +310,22 @@ FR-041).
   então a aplicação nunca executa SQL sobreposto fora de uma migration confirmada.
 - **Registro**: cada desvio aplicado vai para `state/installation.json` (`sqlOverrides`), para o relatório e para o
   cabeçalho do SQL exportado (`-- override:`).
-- **Verificação**: `admin migrations verify` recebe a lista de desvios registrados. Divergência de hash registrada é
-  aceita e listada; divergência não registrada dá código 6.
+- **Verificação pelo schema** (correção F1 do `/speckit-analyze`): `__EFMigrationsHistory` guarda só o ID e a versão do
+  EF, então o hash do arquivo aplicado não pode ser conferido no banco. A verificação tem duas partes:
+  - **IDs**: as migrations esperadas estão no histórico.
+  - **Schema**: a impressão do schema real, lida por `Sql/Installation/checks/schema-fingerprint.sql` (executor
+    `admin`), é comparada com `Sql/schema/expected-schema.json` da versão.
+
+  A impressão cobre tabelas, colunas, índices, restrições, funções (assinatura e SHA-256 do corpo) e gatilhos do
+  schema `dokpod`, e exclui as partições criadas em execução (`relispartition`) e as concessões.
+  - **Geração**: `expected-schema.json` é gerado por um teste de integração que aplica todas as migrations num
+    PostgreSQL real. Ele é versionado, e o teste falha se estiver desatualizado.
+  - **Sobreposição**: depois de uma aplicação confirmada com `--sql-dir`, o instalador grava a impressão observada em
+    `sqlOverrides[].acceptedSchemaFingerprint`. A conferência aceita a impressão esperada ou a última aceita;
+    qualquer outra dá código 6, com a lista de objetos divergentes.
+  - **Hash do arquivo**: quando o usuário entrega o arquivo que aplicou, o `verify --script` recalcula os hashes
+    dele e os compara com o cabeçalho e o catálogo, apontando qual arquivo mudou. Essa conferência é complementar,
+    não é a garantia.
 - **Varredura de SQL no código**: um teste de arquitetura em `Dokpod.Architecture.Tests` e um Pester no instalador
   recusam SQL no código-fonte (palavras-chave DDL/DML em literais de C# e PowerShell) fora do catálogo. As exceções são
   listadas explicitamente; a única aceita é a chamada `migrationBuilder.AddColumn/DropColumn` da migration

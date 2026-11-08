@@ -25,8 +25,9 @@ docker run --rm --network <rede-interna> \
 | `status` | `{databaseVersion, targetVersion, applied:[id], pending:[id], newerThanTarget:[id]}` | Nenhum. |
 | `plan` | `{from, to, migrations:[{id, sha256, overridden, originalSha256?, objects:{created:[], altered:[], dropped:[]}}], planHash}` | Nenhum. O resumo de objetos vem de análise do SQL gerado (`CREATE`/`ALTER`/`DROP` de nível superior). |
 | `script --out <arquivo>` | `{path, sha256, planHash}` | Nenhum no banco. Grava o arquivo do [formato](migration-script.md). |
+| `fingerprint` | `{sha256, objects:[{kind, name, definitionSha256}]}` | Nenhum. Impressão do schema real, usada pelo instalador para registrar `acceptedSchemaFingerprint` depois de uma aplicação com sobreposição. |
 | `apply --confirm <planHash>` | `{applied:[id], durationMs}` | Aplica as pendentes, uma transação por migration. Recusa se o `planHash` não for o do plano atual, ou se `newerThanTarget` não estiver vazio (código 6). |
-| `verify --script <arquivo> [--accepted-overrides <arquivo>]` | `{ok, missing:[id], unexpected:[id], hashMismatch:[id], acceptedOverrides:[path]}` | Nenhum. Confere o histórico contra o cabeçalho do arquivo exportado. Uma divergência de hash só é aceita se o caminho estiver em `--accepted-overrides` (o `sqlOverrides` do estado); senão, código 6. |
+| `verify [--script <arquivo>] [--accepted-fingerprints <arquivo>]` | `{ok, missing:[id], unexpected:[id], schemaDiff:[{kind, name, expected, actual}], fileHashMismatch:[path]}` | Nenhum. (1) Confere os IDs do histórico. (2) Compara a impressão do schema real (`checks/schema-fingerprint.sql`) com `schema/expected-schema.json` ou com uma impressão aceita de `--accepted-fingerprints` (os `acceptedSchemaFingerprint` do estado). Diferença não aceita dá código 6. (3) Com `--script`, recalcula os hashes do arquivo entregue e aponta os arquivos alterados (complementar). |
 
 O `planHash` é o SHA-256 da lista ordenada de `id:sha256`. Ele liga a confirmação do usuário ao plano que ele viu
 (FR-036).

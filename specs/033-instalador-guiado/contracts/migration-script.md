@@ -35,5 +35,6 @@ COMMIT;
 - `from` vazio significa banco novo: o arquivo cria o schema `dokpod` e o histórico.
 - **Compatibilidade**: executável por `psql` da versão do servidor homologado ou superior, sem extensões além das que as
   próprias migrations criam.
-- Depois da aplicação manual, `admin migrations verify --script <arquivo>` confere o histórico. O instalador só segue
-  com `ok: true`.
+- Depois da aplicação manual, `admin migrations verify` confere o histórico e o schema real contra a impressão
+  esperada (FR-042). Com `--script <arquivo>`, também aponta os arquivos alterados. O instalador só segue com
+  `ok: true`.

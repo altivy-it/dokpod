@@ -39,6 +39,7 @@ o estado em [data-model.md](data-model.md).
 ## Cenário 3 - PostgreSQL e nginx existentes (P2)
 
 1. Responda `postgres.mode: existing-create` com a credencial administrativa por arquivo, e `edge.mode: existing`.
+   Repita o cenário nos dois engines (Docker Engine e Podman rootless, SC-002).
 2. **Esperado**:
    - nenhum container de PostgreSQL ou nginx foi criado;
    - existem `dokpod_owner` e `dokpod_runtime` sem `SUPERUSER`/`CREATEROLE`;
@@ -46,12 +47,15 @@ o estado em [data-model.md](data-model.md).
    - a credencial administrativa não está em `installDir` nem em `secretsDir`.
 3. Inclua o `dokpod.conf` gerado no nginx existente e recarregue. **Esperado**: o console funciona, e o site anterior do
    nginx continua igual.
-4. Repita com `existing-prepared`, primeiro com uma role `SUPERUSER` e depois com uma sem `CONNECT`. **Esperado**: as duas
+4. Responda `edge.upstreamHost` com um IP que não seja de loopback. **Esperado**: código 2 (FR-043).
+5. Repita com `existing-prepared`, primeiro com uma role `SUPERUSER` e depois com uma sem `CONNECT`. **Esperado**: as duas
    são recusadas com código 3, e a mensagem diz o privilégio em excesso ou em falta.
+6. Com `existing-prepared` sobre um banco que já tem dados, instale. **Esperado**: o instalador exige a confirmação de
+   backup antes das migrations (FR-011).
 
 ## Cenário 4 - Keycloak existente (P2, SC-006)
 
-1. Exporte o realm `outro` e o `master` (sem segredos) antes.
+1. Exporte o realm `outro` e o `master` (sem segredos) antes. Repita o cenário nos dois engines (SC-002).
 2. Responda `keycloak.mode: existing` com `administratorUser` igual a um usuário existente.
 3. **Esperado**:
    - o realm `dokpod` foi criado e o usuário indicado entra no console;
@@ -111,9 +115,11 @@ Depois dos cenários 1 a 6, procure cada canário em:
 4. Repita com `--confirm-sql-overrides <caminho>`. **Esperado**:
    - a migration aplicada com o arquivo alterado;
    - o desvio em `sqlOverrides` do estado, no relatório e na linha `-- override:` do SQL exportado;
-   - o `verify` dá `ok`, com o caminho em `acceptedOverrides`.
-5. Num clone, aplique à mão outro arquivo alterado sem passar pelo `--sql-dir` e rode o `verify`. **Esperado**: código 6,
-   com a divergência não registrada.
+   - `acceptedSchemaFingerprint` gravado no estado;
+   - o `verify` dá `ok`, com a impressão aceita.
+5. Num clone, aplique à mão um arquivo alterado sem passar pelo `--sql-dir`. Repita para cada caso: coluna, índice,
+   restrição, função e gatilho. Rode o `verify` sem `--script`. **Esperado**: código 6 em todos, com `schemaDiff`
+   apontando o objeto (FR-042, SC-011).
 6. Coloque no `--sql-dir` um arquivo sem correspondente na release, ou um `manifest.json` de outra versão.
    **Esperado**: recusa antes de qualquer alteração.
 7. Varredura do SC-011: os testes `NoInlineSqlTests` e `NoInlineSql.Tests.ps1` passam, e nenhum literal SQL aparece em

@@ -96,6 +96,12 @@ segredos, imagens e renderização). Nenhuma história começa antes desta fase.
   - arquivos como recurso embutido, como hoje, e cópia da árvore com o manifesto para `/app/sql/` em
     `backend/apps/Dokpod.ControlPlane.Api/Dockerfile` e `Business.Dockerfile`.
 
+  - `Sql/Installation/checks/schema-fingerprint.sql` (executor `admin`) e `Sql/schema/expected-schema.json` (FR-042):
+    tabelas, colunas (tipo, nulidade, default), índices, restrições, funções (assinatura e SHA-256 do corpo) e
+    gatilhos do schema `dokpod`, sem `relispartition` e sem concessões. O arquivo é gerado por
+    `backend/tests/Dokpod.ControlPlane.Api.Tests/Admin/ExpectedSchemaTests.cs`, que aplica todas as migrations em
+    PostgreSQL real e falha se estiver desatualizado.
+
   Testes em `backend/tests/Dokpod.Architecture.Tests/SqlCatalogTests.cs`: todo `.sql` está no manifesto, todo item do
   manifesto existe, os hashes conferem e a versão é a do produto.
 - [ ] T007 [P] Arquivos de instalação em `backend/libs/Dokpod.ControlPlane.Infrastructure/Sql/Installation/`, com
@@ -158,9 +164,12 @@ segredos, imagens e renderização). Nenhuma história começa antes desta fase.
   - `sha256` do trecho entre `START TRANSACTION;` e `COMMIT;` de cada migration e `planHash` como SHA-256 da lista
     ordenada `id:sha256`;
   - resumo de objetos de `plan` a partir de `CREATE`/`ALTER`/`DROP` de nível superior;
-  - `verify --script [--accepted-overrides]` comparando histórico e cabeçalho (`missing`, `unexpected`,
-    `hashMismatch`), e aceitando divergência de hash só para os caminhos registrados (`acceptedOverrides`); a não
-    registrada dá código 6.
+  - `fingerprint` com a impressão do schema real;
+  - `verify [--script] [--accepted-fingerprints]` conferindo os IDs do histórico e a impressão do schema real
+    contra `expected-schema.json` ou uma impressão aceita (`schemaDiff` objeto a objeto, código 6 se a diferença não
+    for aceita) e, com `--script`, os hashes do arquivo entregue (`fileHashMismatch`), conforme FR-042;
+  - teste em `AdminMigrationsTests.cs`: cada alteração manual (coluna, índice, restrição, função, gatilho) é
+    detectada sem `--script`, e partições criadas em execução não geram diferença.
 
   Depende de T010, T011 e T008.
 - [ ] T013 [P] Ação de auditoria `environment.agent_identity_register` na categoria `environments` de
@@ -257,10 +266,13 @@ segredos, imagens e renderização). Nenhuma história começa antes desta fase.
   `deploy/installer/install.sh` POSIX:
   - detecta o engine e o socket (Docker, Podman rootless em `$XDG_RUNTIME_DIR/podman/podman.sock`, rootful em
     `/run/podman/podman.sock`);
-  - verifica a imagem do instalador pelo digest gravado no próprio script (placeholder substituído na publicação, T060)
+  - verifica a imagem do instalador pelo digest gravado no próprio script (placeholder substituído na publicação, T051)
     com cosign em container por digest;
   - executa a imagem montando só o socket, `installDir` e `secretsDir`;
-  - repassa os argumentos e não tem lógica de instalação.
+  - repassa os argumentos e não tem lógica de instalação;
+  - repassa ao container só as variáveis referenciadas em `{"env": ...}` no arquivo de respostas, por nome
+    (`-e NOME`, sem valor na linha de comando nem eco), para que FR-002 funcione. Teste em
+    `deploy/installer/tests/InstallSh.Tests.ps1` com valor canário.
 
   Os scripts `tools/scripts/configure-keycloak.ps1` e `provision-environment-authorization.ps1` são copiados para a
   imagem no build, sem duplicação. Depende de T004 e T005.
@@ -331,7 +343,13 @@ conectado e um administrador que precisa trocar a senha.
     registro em `sqlOverrides` do estado e no relatório (FR-041);
   - `apply`; com `manualMigrations`, `script` para `installDir/migrations/<de>-<para>.sql`, pausa com código 10 e
     `verify` na retomada (FR-037, FR-038);
-  - banco com migration mais nova dá código 6 (FR-010).
+  - banco com migration mais nova dá código 6 (FR-010);
+  - banco que já tem dados, inclusive na primeira instalação sobre `existing-prepared`, exige a confirmação de backup
+    (ou `pg_dump` quando `dokpod-postgres` é provisionado) antes do `apply`, como no T048 (FR-011);
+  - sobreposição de arquivo de migration já aplicada: avisa que não tem efeito nesse banco e só registra com
+    confirmação (caso de borda da spec);
+  - depois de `apply` com sobreposição, `admin migrations fingerprint` gravado em
+    `sqlOverrides[].acceptedSchemaFingerprint` (FR-042).
 
   Testes em `deploy/installer/tests/Migrations.Tests.ps1`.
 - [ ] T031 [US1] Primeiro ambiente em `deploy/installer/src/Environments.psm1`:
@@ -376,13 +394,15 @@ conectado e um administrador que precisa trocar a senha.
   privilégio em excesso ou em falta. Testes em `deploy/installer/tests/Postgres.Tests.ps1` com PostgreSQL real.
 - [ ] T037 [US2] `edge.mode: existing` em `deploy/installer/src/Edge.psm1`:
   - gerar `installDir/edge/dokpod.conf` com `upstreamHost`, `webPort` e `bffPort`;
-  - publicar web e BFF só em `upstreamHost`;
+  - publicar web e BFF só em `upstreamHost`, aceitando apenas `127.0.0.1`, `::1` ou `{network}` (rede interna
+    compartilhada com o nginx do usuário), e recusar outro valor com código 2 (FR-043);
   - validar com `nginx -t` em container;
   - listar os passos manuais (certificado, `include`, `reload`), sem tocar em arquivo fora de `installDir`.
 
-  Testes em `deploy/installer/tests/Edge.Tests.ps1`.
+  Testes em `deploy/installer/tests/Edge.Tests.ps1`, incluindo a recusa de `upstreamHost` fora de loopback.
 - [ ] T038 [US2] Combinações (só PostgreSQL existente, só nginx existente, ambos) no motor de plano, com teste em
-  `deploy/installer/tests/Plan.Tests.ps1`. Validar o cenário 3 do quickstart e registrar em `validation.md`.
+  `deploy/installer/tests/Plan.Tests.ps1`. Validar o cenário 3 do quickstart com Docker Engine e com Podman rootless
+  (SC-002) e registrar em `validation.md`.
 
 ---
 
@@ -403,8 +423,8 @@ conectado e um administrador que precisa trocar a senha.
 - [ ] T040 [US3] Divergências do realm: usar o `-DryRun` dos scripts para listar no plano cada item a corrigir e aplicar
   só após confirmação, preservando usuários, sessões e customizações fora do contrato. Testes em
   `deploy/installer/tests/Keycloak.Tests.ps1` com Keycloak real, incluindo redirect URI alterado à mão.
-- [ ] T041 [US3] Validar o cenário 4 do quickstart: os exports de `master` e `outro` iguais antes e depois (SC-006),
-  registrado em `validation.md`.
+- [ ] T041 [US3] Validar o cenário 4 do quickstart com Docker Engine e com Podman rootless (SC-002): os exports de
+  `master` e `outro` iguais antes e depois (SC-006), registrado em `validation.md`.
 
 ---
 
@@ -447,7 +467,7 @@ conectado e um administrador que precisa trocar a senha.
     `README.txt`, mais SHA-256;
   - nenhum outro arquivo de `secretsDir` (FR-025).
 
-  Exige `agentGrpcPort`. Testes em `deploy/installer/tests/Hosts.Tests.ps1` conferindo o conteúdo do pacote.
+  Exige `agentGrpcPort`, a única porta publicada além da borda, só com mTLS (FR-022). Testes em `deploy/installer/tests/Hosts.Tests.ps1` conferindo o conteúdo do pacote.
 - [ ] T047 [US5] `host revoke --environment --reason` por `admin agent-identities revoke`, com o pacote marcado como
   revogado no estado.
 - [ ] T048 [US5] `upgrade --version` em `deploy/installer/src/Upgrade.psm1`:
@@ -499,7 +519,9 @@ conectado e um administrador que precisa trocar a senha.
   - plano com os hashes;
   - recusa sem confirmação nomeada;
   - aplicação confirmada;
-  - `verify` aceitando o desvio registrado e recusando um desvio não registrado.
+  - `verify` aceitando a impressão registrada;
+  - alteração manual sem registro (coluna, índice, restrição, função, gatilho) detectada pela impressão do schema,
+    com código 6 (FR-042).
 - [ ] T060 Fechar `specs/033-instalador-guiado/validation.md`: os nove cenários do quickstart, o ambiente, os resultados,
   os `NOT RUN` com motivo e o estado das tarefas.
 

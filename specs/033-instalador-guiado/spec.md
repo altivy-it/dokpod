@@ -47,6 +47,11 @@ Análise do repositório em 2026-11-08, na `v0.7.0` (`46416a3`):
 O solicitante (Lincoln, `@lzocateli`) aprovou as recomendações de topologia, pré-requisitos, modos de execução, credenciais administrativas e atualização ("1 ok, 2 ok, 3 ok, 4 ok, … 6 ok").
 
 - P: Como aplicar migrations sem SDK? → R: A decisão foi mantida, com um objetivo a mais: "pode ser para que o usuário tenha maior controle sobre o que será aplicado no banco". O meio publicado pela release deve permitir ver, antes de aplicar, quais migrations estão pendentes e o SQL exato de cada uma. Também deve permitir exportar esse SQL para revisão (por exemplo, por um DBA) e aplicá-lo fora do instalador. Nesse caso, o instalador só confere que o banco ficou na versão esperada. Os requisitos estão em FR-036 a FR-038.
+- Correções do `/speckit-analyze` aprovadas pelo solicitante ("aplique as correções F1 a F6, com F2 opção a"):
+  - **F1**: o histórico de migrations não guarda o SQL aplicado, então a conferência passa a comparar o schema real com a impressão do schema esperado (FR-042).
+  - **F2, opção a**: a porta gRPC com mTLS dos agentes é a única exceção à borda como porta pública (FR-021, FR-022).
+  - **F3**: com nginx existente, web e BFF só escutam em loopback ou em rede interna (FR-043).
+  - **F4, F5 e F6**: ajustes nas tarefas: backup na primeira instalação, os dois engines nos cenários 2 e 3, e repasse das variáveis `{env}`.
 - P: Quando alguém altera um arquivo SQL de migration fora do instalador (por exemplo, um DBA ajusta tablespace ou índice), o que o instalador deve fazer com a versão alterada? → R: Opção B (recomendada), escolhida pelo solicitante em resposta à diretriz "certifique que o instalador não tenha comandos SQL fixos, o ideal é usar arquivos SQL, assim pode ser usado pelo EfCore migrations e pode ser alterado externamente". O instalador aceita um diretório de SQL sobreposto. O plano mostra cada arquivo alterado com o hash original e o novo, aplica após confirmação nomeada e registra o desvio no estado e no relatório. O `verify` aceita o desvio só se ele foi registrado (FR-039 a FR-041).
 
 ## Cenários do Usuário e Testes (obrigatório)
@@ -145,7 +150,7 @@ Depois da instalação, o administrador adiciona outros hosts Linux e, mais tard
 - A release pedida não existe, ou uma imagem tem assinatura inválida: o instalador para antes de qualquer alteração.
 - Host sem acesso à internet: o instalador aceita imagens pré-carregadas (exportadas da release), verificadas pelo manifesto e pela assinatura.
 - O banco tem migrations de uma versão mais nova que a pedida: o instalador recusa, porque as migrations são forward-only.
-- Um arquivo de migration alterado à mão foi aplicado sem passar pelo diretório sobreposto: o `verify` aponta a divergência de hash não registrada e recusa seguir até que o desvio seja registrado pelo diretório sobreposto ou que o banco volte ao esperado.
+- Um arquivo de migration alterado à mão foi aplicado sem passar pelo diretório sobreposto: a conferência do schema aponta, objeto a objeto, a diferença não registrada e recusa seguir. Para continuar, o desvio precisa ser registrado com o mesmo arquivo pelo diretório sobreposto, com confirmação nomeada, ou o banco precisa voltar ao esperado.
 - O diretório sobreposto altera um arquivo de uma migration que já está aplicada: o instalador avisa que a alteração não tem efeito nesse banco e só a registra se o usuário confirmar.
 - O arquivo de respostas contém um segredo em texto: o instalador recusa e indica como referenciar o segredo por arquivo.
 
@@ -177,7 +182,8 @@ Depois da instalação, o administrador adiciona outros hosts Linux e, mais tard
 - **FR-038**: Quando o usuário escolher aplicar as migrations por conta própria, o instalador DEVE pausar nessa etapa. Na retomada, DEVE conferir que o banco está exatamente na versão esperada e que o histórico de migrations confere com o exportado. Ele recusa seguir se faltar migration ou houver divergência e diz qual.
 - **FR-039**: O instalador e o modo administrativo NÃO DEVEM ter SQL escrito no código. Todo SQL que executam fica em arquivos `.sql` versionados: migrations, criação de banco e roles, concessões, validação de privilégios, consultas de status e verificação, e contagens de conferência. Os arquivos de migration são os mesmos que as migrations do EF Core carregam, uma fonte só. Os demais arquivos ficam ao lado deles, com parâmetros nomeados em vez de valores concatenados.
 - **FR-040**: A release DEVE disponibilizar esses arquivos para leitura e alteração externa, na imagem e como pacote, com um manifesto que liste cada arquivo, sua finalidade e seu hash.
-- **FR-041**: O usuário DEVE poder informar um diretório de SQL sobreposto, que substitui arquivos da release com o mesmo caminho. Cada arquivo alterado aparece no plano com o hash original e o novo e exige confirmação que o nomeie. O desvio fica registrado no estado e no relatório. O `verify` aceita a divergência de hash só quando ela está registrada e recusa a não registrada. Um arquivo sobreposto sem correspondente na release, ou um diretório sem o manifesto, é recusado.
+- **FR-041**: O usuário DEVE poder informar um diretório de SQL sobreposto, que substitui arquivos da release com o mesmo caminho. Cada arquivo alterado aparece no plano com o hash original e o novo e exige confirmação que o nomeie. O desvio fica registrado no estado e no relatório. Um arquivo sobreposto sem correspondente na release, ou um diretório sem o manifesto, é recusado.
+- **FR-042**: A release DEVE publicar a impressão do schema esperado da versão: tabelas, colunas (tipo, nulidade e default), índices, restrições, funções (assinatura e hash do corpo) e gatilhos do schema `dokpod`, sem as partições criadas em execução e sem concessões. A conferência DEVE comparar essa impressão com o schema real do banco, porque o histórico de migrations não guarda o SQL aplicado. A diferença só é aceita quando corresponde a um desvio registrado: a impressão observada depois da aplicação confirmada com o diretório sobreposto, guardada no estado. Diferença não registrada é recusada e listada objeto a objeto.
 
 **Identidade**
 
@@ -196,9 +202,10 @@ Depois da instalação, o administrador adiciona outros hosts Linux e, mais tard
 **Arquivos, borda e serviços**
 
 - **FR-020**: O instalador DEVE gerar a definição dos serviços (Compose), as configurações não secretas e a configuração de borda num diretório de instalação escolhido pelo usuário, fora do repositório. Os segredos ficam num destino separado, com permissões restritas.
-- **FR-021**: No cenário sem nginx, o instalador DEVE subir a borda do Dokpod, a única porta pública, encaminhando o console, o BFF e o SignalR. No cenário com nginx existente, DEVE gerar o arquivo de site, validar a sintaxe em container e listar os passos manuais restantes, sem alterar outros arquivos do nginx.
-- **FR-022**: Os serviços DEVEM rodar com configuração de produção (sem modo de desenvolvimento), sem IPs fixos obrigatórios e só com redes internas, exceto pela borda. O socket do engine só é montado no agente e nunca é publicado por rede.
+- **FR-021**: No cenário sem nginx, o instalador DEVE subir a borda do Dokpod, a única porta pública HTTP, encaminhando o console, o BFF e o SignalR. No cenário com nginx existente, DEVE gerar o arquivo de site, validar a sintaxe em container e listar os passos manuais restantes, sem alterar outros arquivos do nginx.
+- **FR-022**: Os serviços DEVEM rodar com configuração de produção (sem modo de desenvolvimento), sem IPs fixos obrigatórios e só com redes internas, com duas exceções. A primeira é a borda. A segunda, só quando o usuário pede hosts adicionais, é a porta gRPC da API para os agentes. Essa porta exige certificado de cliente (mTLS) emitido para um ambiente cadastrado e não atende nenhuma outra rota. O socket do engine só é montado no agente e nunca é publicado por rede.
 - **FR-023**: Os arquivos gerados DEVEM ser compatíveis com o deploy hook existente, para que atualizações sem migration continuem possíveis por ele.
+- **FR-043**: Com nginx existente, web e BFF DEVEM escutar só em loopback (`127.0.0.1` ou `::1`) ou numa rede interna compartilhada com o nginx do usuário. Outro endereço é recusado, para que nenhum tráfego externo chegue ao BFF sem passar pela borda.
 
 **Ambiente e agentes**
 
@@ -248,7 +255,7 @@ Depois da instalação, o administrador adiciona outros hosts Linux e, mais tard
 - **SC-008**: A recriação total recusada na segunda confirmação preserva 100% dos dados do banco, das chaves de Data Protection e das identidades de agente.
 - **SC-009**: Um novo host recebe o pacote gerado e aparece conectado no console em até 5 minutos depois de aplicado, sem SQL manual.
 - **SC-010**: Para toda versão alvo, o SQL exportado e aplicado manualmente leva o banco ao mesmo estado (schema e histórico de migrations) que a aplicação feita pelo instalador, conferido por comparação de schema.
-- **SC-011**: Nenhum comando SQL aparece escrito no código do instalador nem no do modo administrativo, conferido por varredura do código. Uma alteração externa num arquivo de migration aparece no plano e no relatório em 100% dos casos, e só é aplicada com a confirmação nomeada.
+- **SC-011**: Nenhum comando SQL aparece escrito no código do instalador nem no do modo administrativo, conferido por varredura do código. Uma alteração externa num arquivo de migration aparece no plano e no relatório em 100% dos casos, e só é aplicada com a confirmação nomeada. Uma alteração aplicada fora do instalador que mude o schema é detectada pela conferência em 100% dos casos de teste: coluna, índice, restrição, função e gatilho.
 
 ## Premissas
 

@@ -30,7 +30,7 @@ se estiverem.
 | `certificates` | lista de Certificado gerenciado | |
 | `environments` | lista de `{environmentId, name, agentFingerprint, packageGeneratedAt?}` | Primeiro ambiente e hosts adicionais. |
 | `journal` | lista de `{runId, step, status, at}` | Só apoia a retomada; o plano é sempre recalculado do observado. |
-| `sqlOverrides` | lista de `{path, purpose, originalSha256, appliedSha256, confirmedBy, confirmedAt, runId}` | Desvios do catálogo SQL confirmados (FR-041); só cresce; é a lista que `verify` aceita. |
+| `sqlOverrides` | lista de `{path, purpose, originalSha256, appliedSha256, acceptedSchemaFingerprint, confirmedBy, confirmedAt, runId}` | Desvios do catálogo SQL confirmados (FR-041); só cresce; é a lista que `verify` aceita. |
 | `lastRun` | `{runId, startedAt, finishedAt, outcome}` | `outcome`: `converged`, `changed`, `prerequisite_failed`, `declined`, `failed`, `paused_for_manual_migration`. |
 
 ## Componente
@@ -71,6 +71,11 @@ Fonte: `backend/libs/Dokpod.ControlPlane.Infrastructure/Sql/manifest.json`
 | `files[].executor` | `ef` \| `psql` \| `admin` | `psql` usa variáveis `:"x"` e `:'x'`; `admin` usa `@x`; nenhum aceita concatenação. |
 | `files[].parameters` | lista de `{name, kind: identifier\|literal\|secret}` | Um `secret` só vem de arquivo, nunca da linha de comando. |
 | `files[].sha256` | hex | Conferido no build e na carga. |
+
+Impressão do schema: `Sql/schema/expected-schema.json` por versão (FR-042), lida por
+`Sql/Installation/checks/schema-fingerprint.sql`. Ela tem `version`, `objects[]` (`kind` em
+`table|column|index|constraint|function|trigger`, `name`, `definitionSha256`) e `sha256` do conjunto, sem partições
+criadas em execução e sem concessões.
 
 Sobreposição: um arquivo com o mesmo `path` no `--sql-dir` substitui o da release, depois da confirmação nomeada, e é
 registrado em `sqlOverrides`.
