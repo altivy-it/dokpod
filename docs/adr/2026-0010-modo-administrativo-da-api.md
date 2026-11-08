@@ -1,11 +1,11 @@
 # ADR 2026-0010: Modo administrativo da imagem da API para migrations e bootstrap
 
-**Status:** proposed
+**Status:** accepted (2026-11-08)
 
 **Data:** 2026-11-08  
 **Responsáveis:** zocatel (responsável pelo produto)  
 **Origem:** IA assistida, tarefa T002 da [spec 033](../../specs/033-instalador-guiado/spec.md), autorizada pelo solicitante em 2026-11-08 ("tudo aprovado, siga com T002 a T005")  
-**Revisor humano:** pendente  
+**Revisor humano:** zocatel; aceite em 2026-11-08, registrado a pedido do solicitante, que declarou na sessão de 2026-11-08: "Aceito os ADRs, siga com T006 a T009".  
 **Relacionado:** [spec 033](../../specs/033-instalador-guiado/spec.md), [plan 033](../../specs/033-instalador-guiado/plan.md) (decisões D-003, D-004, D-009, D-013 e D-015 de [research.md](../../specs/033-instalador-guiado/research.md)), [threat model 033](../../specs/033-instalador-guiado/threat-model.md) (fronteiras B4 e B5, aceito em 2026-11-08), [contrato do modo administrativo](../../specs/033-instalador-guiado/contracts/admin-commands.md), [ADR 2026-0011](2026-0011-instalador-da-release.md)
 
 ## Contexto

@@ -39,7 +39,7 @@ A imagem PostgreSQL inclui pgvector 0.8.6, mas o Dokpod não habilita nem depend
 
 ### Instalador (spec 033)
 
-A imagem `dokpod-installer` ([ADR 2026-0011](adr/2026-0011-instalador-da-release.md), proposto) parte da base de runtime
+A imagem `dokpod-installer` ([ADR 2026-0011](adr/2026-0011-instalador-da-release.md), aceito em 2026-11-08) parte da base de runtime
 já homologada e acrescenta só o que o instalador executa. Os itens abaixo tiveram licença e versão conferidas em
 2026-11-08 (T004 da [spec 033](../specs/033-instalador-guiado/spec.md)).
 

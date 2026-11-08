@@ -1,11 +1,11 @@
 # ADR 2026-0011: Instalador como imagem da release com bootstrap `install.sh`
 
-**Status:** proposed
+**Status:** accepted (2026-11-08)
 
 **Data:** 2026-11-08  
 **Responsáveis:** zocatel (responsável pelo produto)  
 **Origem:** IA assistida, tarefa T003 da [spec 033](../../specs/033-instalador-guiado/spec.md), autorizada pelo solicitante em 2026-11-08 ("tudo aprovado, siga com T002 a T005")  
-**Revisor humano:** pendente  
+**Revisor humano:** zocatel; aceite em 2026-11-08, registrado a pedido do solicitante, que declarou na sessão de 2026-11-08: "Aceito os ADRs, siga com T006 a T009".  
 **Relacionado:** [spec 033](../../specs/033-instalador-guiado/spec.md), [plan 033](../../specs/033-instalador-guiado/plan.md) (decisões D-001, D-002, D-007, D-010, D-014 e D-015 de [research.md](../../specs/033-instalador-guiado/research.md)), [threat model 033](../../specs/033-instalador-guiado/threat-model.md) (aceito em 2026-11-08), [ADR 2026-0002](2026-0002-distribuicao-e-identidade.md), [ADR 2026-0010](2026-0010-modo-administrativo-da-api.md)
 
 ## Contexto

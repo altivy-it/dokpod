@@ -22,7 +22,7 @@ Também atualiza a versão, aplica as migrations sem SDK e recria componentes co
   restrita.
 
 Decisões: [ADR 2026-0010](../../docs/adr/2026-0010-modo-administrativo-da-api.md) e
-[ADR 2026-0011](../../docs/adr/2026-0011-instalador-da-release.md), ambos `proposed`. Contrato da linha de comando:
+[ADR 2026-0011](../../docs/adr/2026-0011-instalador-da-release.md), ambos aceitos em 2026-11-08. Contrato da linha de comando:
 [installer-cli.md](../../specs/033-instalador-guiado/contracts/installer-cli.md).
 
 ## Estrutura
