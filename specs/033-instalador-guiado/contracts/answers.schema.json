@@ -1,0 +1,107 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/altivy-it/dokpod/specs/033-instalador-guiado/contracts/answers.schema.json",
+  "title": "Arquivo de respostas do instalador do Dokpod",
+  "description": "Escolhas da instalação sem segredos. Segredos só por referência a arquivo ou variável (FR-002). Aceito em YAML ou JSON.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "version", "edition", "publicUrl", "engine", "postgres", "keycloak", "edge", "certificates", "operator"],
+  "$defs": {
+    "secretRef": {
+      "description": "Referência a um segredo; o valor nunca aparece neste arquivo.",
+      "oneOf": [
+        { "type": "object", "additionalProperties": false, "required": ["file"], "properties": { "file": { "type": "string", "pattern": "^/" } } },
+        { "type": "object", "additionalProperties": false, "required": ["env"], "properties": { "env": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]*$" } } }
+      ]
+    },
+    "certificateSource": {
+      "oneOf": [
+        { "type": "object", "additionalProperties": false, "required": ["source"], "properties": { "source": { "const": "local-ca" }, "keyAlgorithm": { "enum": ["ecdsa-p256", "rsa-3072"] } } },
+        {
+          "type": "object", "additionalProperties": false, "required": ["source", "certificate", "key"],
+          "properties": {
+            "source": { "const": "organization" },
+            "certificate": { "type": "string", "pattern": "^/" },
+            "chain": { "type": "string", "pattern": "^/" },
+            "key": { "$ref": "#/$defs/secretRef" }
+          }
+        }
+      ]
+    }
+  },
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+    "edition": { "enum": ["ce", "business"] },
+    "license": { "description": "Só na edição Business; importado pelo fluxo da spec 031.", "type": "string", "pattern": "^/" },
+    "publicUrl": { "type": "string", "pattern": "^https://[^/]+(:[0-9]+)?$" },
+    "engine": { "enum": ["docker", "podman-rootless", "podman-rootful"] },
+    "installDir": { "type": "string", "pattern": "^/" },
+    "secretsDir": { "type": "string", "pattern": "^/" },
+    "operator": { "description": "Nome registrado como actorDisplay na auditoria dos comandos administrativos.", "type": "string", "minLength": 1 },
+    "postgres": {
+      "oneOf": [
+        { "type": "object", "additionalProperties": false, "required": ["mode"], "properties": { "mode": { "const": "provision" } } },
+        {
+          "type": "object", "additionalProperties": false, "required": ["mode", "host", "port", "admin"],
+          "properties": {
+            "mode": { "const": "existing-create" },
+            "host": { "type": "string" }, "port": { "type": "integer" },
+            "sslMode": { "enum": ["require", "verify-ca", "verify-full"] },
+            "caCertificate": { "type": "string", "pattern": "^/" },
+            "database": { "type": "string", "default": "dokpod" },
+            "admin": { "type": "object", "additionalProperties": false, "required": ["username", "password"], "properties": { "username": { "type": "string" }, "password": { "$ref": "#/$defs/secretRef" } } }
+          }
+        },
+        {
+          "type": "object", "additionalProperties": false, "required": ["mode", "host", "port", "database", "owner", "runtime"],
+          "properties": {
+            "mode": { "const": "existing-prepared" },
+            "host": { "type": "string" }, "port": { "type": "integer" }, "database": { "type": "string" },
+            "sslMode": { "enum": ["require", "verify-ca", "verify-full"] },
+            "caCertificate": { "type": "string", "pattern": "^/" },
+            "owner": { "type": "object", "additionalProperties": false, "required": ["username", "password"], "properties": { "username": { "type": "string" }, "password": { "$ref": "#/$defs/secretRef" } } },
+            "runtime": { "type": "object", "additionalProperties": false, "required": ["username", "password"], "properties": { "username": { "type": "string" }, "password": { "$ref": "#/$defs/secretRef" } } }
+          }
+        }
+      ]
+    },
+    "keycloak": {
+      "oneOf": [
+        { "type": "object", "additionalProperties": false, "required": ["mode", "initialAdmin"], "properties": { "mode": { "const": "provision" }, "realm": { "type": "string", "default": "dokpod" }, "initialAdmin": { "type": "object", "additionalProperties": false, "required": ["username", "email"], "properties": { "username": { "type": "string" }, "email": { "type": "string" } } } } },
+        {
+          "type": "object", "additionalProperties": false, "required": ["mode", "url", "admin", "administratorUser"],
+          "properties": {
+            "mode": { "const": "existing" },
+            "url": { "type": "string", "pattern": "^https://" },
+            "realm": { "type": "string", "default": "dokpod" },
+            "caCertificate": { "type": "string", "pattern": "^/" },
+            "admin": { "type": "object", "additionalProperties": false, "required": ["username", "password"], "properties": { "username": { "type": "string" }, "password": { "$ref": "#/$defs/secretRef" } } },
+            "administratorUser": { "description": "Usuário existente que recebe as roles do Dokpod (FR-014).", "type": "string" }
+          }
+        }
+      ]
+    },
+    "edge": {
+      "oneOf": [
+        { "type": "object", "additionalProperties": false, "required": ["mode"], "properties": { "mode": { "const": "provision" }, "httpsPort": { "type": "integer", "default": 443 } } },
+        { "type": "object", "additionalProperties": false, "required": ["mode"], "properties": { "mode": { "const": "existing" }, "upstreamHost": { "type": "string", "default": "127.0.0.1" }, "webPort": { "type": "integer" }, "bffPort": { "type": "integer" } } }
+      ]
+    },
+    "agentGrpcPort": { "description": "Porta publicada do gRPC/mTLS para agentes remotos; ausente = só o agente local.", "type": "integer" },
+    "certificates": {
+      "type": "object", "additionalProperties": false, "required": ["edge", "api", "agents"],
+      "properties": {
+        "edge": { "$ref": "#/$defs/certificateSource" },
+        "api": { "$ref": "#/$defs/certificateSource" },
+        "agents": { "type": "object", "additionalProperties": false, "required": ["source"], "properties": { "source": { "const": "local-ca" }, "keyAlgorithm": { "enum": ["ecdsa-p256", "rsa-3072"] } } },
+        "renewWarningDays": { "type": "integer", "minimum": 1, "default": 30 }
+      }
+    },
+    "localEnvironment": {
+      "type": "object", "additionalProperties": false,
+      "properties": { "name": { "type": "string" }, "stage": { "enum": ["production", "staging", "development", "none"] } }
+    },
+    "manualMigrations": { "type": "boolean", "default": false }
+  }
+}

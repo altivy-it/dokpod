@@ -1,0 +1,108 @@
+# Modelo de dados: Instalador guiado do Dokpod
+
+**Spec**: [spec.md](spec.md) · **Pesquisa**: [research.md](research.md)
+
+O instalador não cria tabelas novas no banco do Dokpod. Os comandos administrativos ([contrato](contracts/admin-commands.md))
+usam `dokpod.environments`, `dokpod.agent_identities`, `dokpod.audit_events` e `dokpod."__EFMigrationsHistory"`, que já
+existem. O estado do instalador fica em arquivos no host.
+
+## Layout no host
+
+| Caminho (padrão root / rootless) | Conteúdo | Permissão |
+| --- | --- | --- |
+| `/opt/dokpod` / `~/.local/share/dokpod` (`installDir`) | `compose.yaml`, `dokpod.env` (sem segredos), `edge/`, `deploy.env`, `answers.yaml`, `state/`, `reports/`, `packages/` | `0750` |
+| `/etc/dokpod/secrets` / `~/.config/dokpod/secrets` (`secretsDir`) | Um arquivo por segredo e a pasta `pki/` (chave da CA local e PFX) | `0700`, arquivos `0600` |
+
+`installDir` e `secretsDir` precisam ser diferentes e nenhum pode ficar dentro de um checkout Git. O instalador recusa
+se estiverem.
+
+## Instalação (`state/installation.json`)
+
+| Campo | Tipo | Regra |
+| --- | --- | --- |
+| `schemaVersion` | inteiro | Versão do formato do estado; o instalador migra formatos antigos para a frente. |
+| `installationId` | UUID | Gerado na primeira execução; nunca muda. |
+| `version` | semver | Versão instalada da release. Só aumenta (FR-032). |
+| `edition` | `ce` \| `business` | Trocar de edição é uma mudança confirmada. |
+| `engine` | `docker` \| `podman-rootless` \| `podman-rootful` | Engine do plano de controle e do agente local. |
+| `publicUrl` | URL https | Origem pública da borda. Mudar exige confirmação (caso de borda "nome público muda"). |
+| `components` | lista de Componente | Um por item convergido. |
+| `certificates` | lista de Certificado gerenciado | |
+| `environments` | lista de `{environmentId, name, agentFingerprint, packageGeneratedAt?}` | Primeiro ambiente e hosts adicionais. |
+| `journal` | lista de `{runId, step, status, at}` | Só apoia a retomada; o plano é sempre recalculado do observado. |
+| `lastRun` | `{runId, startedAt, finishedAt, outcome}` | `outcome`: `converged`, `changed`, `prerequisite_failed`, `declined`, `failed`, `paused_for_manual_migration`. |
+
+## Componente
+
+| Campo | Tipo | Regra |
+| --- | --- | --- |
+| `name` | enum | `dokpod-postgres`, `keycloak-postgres`, `keycloak`, `edge`, `web`, `bff`, `api`, `agent`, `realm`, `migrations`, `pki`, `secrets`. |
+| `origin` | `provisioned` \| `existing` | `existing` nunca é removido nem recriado pelo instalador. |
+| `desiredHash` | SHA-256 | Hash da configuração desejada, sem segredos. Hash igual mais imagem igual dá `keep`. |
+| `observed` | objeto | Último estado lido: imagem e digest, health, versão. |
+| `recreatable` | booleano | `false` para `existing`. |
+
+Ações do plano: `create`, `update`, `keep`, `recreate`, `remove`. `remove` de componentes com dados (`dokpod-postgres`,
+`keycloak-postgres`, volumes `dokpod-api-keys` e `dokpod-bff-keys`, identidades) só existe na recriação total com segunda
+confirmação (FR-029).
+
+## Arquivo de respostas (`answers.yaml`)
+
+O esquema completo está em [contracts/answers.schema.json](contracts/answers.schema.json).
+
+- **Segredos**: nenhum campo aceita segredo em texto. Segredos só entram como
+  `{ "file": "<caminho absoluto>" }` ou `{ "env": "<NOME>" }` (FR-002). Esse arquivo ou variável não é copiado; o
+  instalador lê o valor e grava em `secretsDir` o que a instalação precisa manter.
+- **Credenciais administrativas**: as do PostgreSQL e do Keycloak existentes são lidas e descartadas ao fim da execução
+  (FR-008, FR-015).
+- **Respostas da execução guiada**: o modo guiado grava `answers.yaml` em `installDir` para reexecução não interativa.
+
+## Certificado gerenciado
+
+| Campo | Tipo | Regra |
+| --- | --- | --- |
+| `role` | `ca` \| `edge` \| `api` \| `agent:<environmentId>` | |
+| `origin` | `local-ca` \| `organization` | `organization` nunca é reemitido; vencendo, o instalador só avisa. |
+| `subjectAltNames` | lista | Validados contra o uso (D-005). |
+| `notAfter` | instante | Aviso a partir de `renewWarningDays` (padrão 30). |
+| `fingerprintSha256` | hex | Para agentes, é o que vai para `dokpod.agent_identities`. |
+| `secretRef` | caminho relativo a `secretsDir` | Chave privada ou PFX; nunca em `installDir`. |
+
+Transição da CA (FR-030): `active` → `rotating` (bundle com a raiz antiga e a nova em
+`DOKPOD_API_CLIENT_CA_CERTIFICATE_PATH` e na confiança dos agentes) → `active` (nova) após todos os agentes reemitidos e
+conectados, conforme [troca da CA](../../docs/runbooks/troca-da-ca-dos-agentes.md).
+
+## Segredo da instalação
+
+| Nome no `secretsDir` | Consumidor | Gerado quando |
+| --- | --- | --- |
+| `ConnectionStrings__ControlPlane` | API (role `dokpod_runtime`) | Cenário com PostgreSQL provisionado ou existente. |
+| `dokpod-owner-connection` | modo administrativo (role `dokpod_owner`) | Sempre. |
+| `Authentication__Keycloak__ClientSecret` | BFF | Na criação do client `dokpod-bff`. |
+| `keycloak-db-password`, `dokpod-db-password` | instâncias provisionadas | Cenário 1. |
+| `keycloak-bootstrap-admin` | Keycloak provisionado, só no primeiro start | Cenário 1. Removido depois que o administrador nominal existe. |
+| `pki/ca.key`, `pki/*.pfx`, `pki/*.pass` | instalador, API e agentes | Conforme D-005. |
+
+Regra comum: um arquivo existente nunca é sobrescrito sem `recreate` daquele item (FR-028).
+
+## Pacote de host
+
+Arquivo `packages/<environmentId>.tar` com modo `0600` e SHA-256 ao lado. Ele contém:
+- `agent.pfx` e `agent.pass`;
+- `ca.crt`;
+- `agent.env`, com endpoint e `environmentId`;
+- `compose.agent.yaml`;
+- `README.txt`.
+
+Ele não contém nenhum outro arquivo de `secretsDir`. A revogação usa `agent-identities revoke` e invalida o pacote.
+
+## Relatório de execução
+
+Arquivo `reports/<runId>.json`. Ele registra:
+- versão, cenário, engine e o plano completo, com ação por componente;
+- verificações iniciais e seus resultados;
+- migrations pendentes, aplicadas ou exportadas, com hashes;
+- certificados emitidos (fingerprint e validade);
+- resultado e código de saída.
+
+Ele não tem segredos, e o canário do SC-005 inclui este arquivo.
