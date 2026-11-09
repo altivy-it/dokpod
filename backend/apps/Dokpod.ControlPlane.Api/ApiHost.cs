@@ -48,6 +48,7 @@ public static class ApiHost
         ApiHostOptions? options = null)
     {
         var builder = WebApplication.CreateBuilder(args);
+        Configuration.SecretFiles.AddTo(builder.Configuration);
         // URLs com query não vão aos logs: `contains` dos logs sob demanda (spec 011) e demais filtros
         // apareceriam em "Request starting ..." e no log do HttpClient em nível Information.
         builder.Logging.AddFilter("Microsoft.AspNetCore.Hosting.Diagnostics", LogLevel.Warning);
@@ -322,7 +323,7 @@ public static class ApiHost
     {
         var certificatePath = Environment.GetEnvironmentVariable("DOKPOD_API_CERTIFICATE_PATH")
             ?? throw new InvalidOperationException("DOKPOD_API_CERTIFICATE_PATH is required.");
-        var certificatePassword = Environment.GetEnvironmentVariable("DOKPOD_API_CERTIFICATE_PASSWORD");
+        var certificatePassword = Configuration.SecretFiles.Read("DOKPOD_API_CERTIFICATE_PASSWORD");
         var certificate = X509CertificateLoader.LoadPkcs12FromFile(certificatePath, certificatePassword);
         var clientCaPath = Environment.GetEnvironmentVariable("DOKPOD_API_CLIENT_CA_CERTIFICATE_PATH");
         var clientCaCertificates = string.IsNullOrWhiteSpace(clientCaPath)

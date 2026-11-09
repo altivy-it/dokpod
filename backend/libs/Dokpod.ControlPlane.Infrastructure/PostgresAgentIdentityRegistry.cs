@@ -3,7 +3,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Dokpod.ControlPlane.Infrastructure;
 
-public sealed class PostgresAgentIdentityRegistry(ControlPlaneDbContext dbContext) : IAgentIdentityRegistry
+public sealed class PostgresAgentIdentityRegistry(ControlPlaneDbContext dbContext) : IAgentIdentityRegistry, IAgentIdentityEnrollment
 {
     public async ValueTask<AgentIdentity?> FindByFingerprintAsync(
         string certificateFingerprint,
@@ -51,4 +51,26 @@ public sealed class PostgresAgentIdentityRegistry(ControlPlaneDbContext dbContex
         return true;
     }
 
+    /// <summary>Spec 033 (D-004): o mesmo par não muda nada; fingerprint de outro ambiente ou revogado é recusado.</summary>
+    public async Task<AgentIdentityEnrollmentOutcome> RegisterAsync(
+        Guid environmentId,
+        string certificateFingerprint,
+        CancellationToken cancellationToken)
+    {
+        var fingerprint = certificateFingerprint.Trim().ToUpperInvariant();
+        var existing = await dbContext.AgentIdentities
+            .AsNoTracking()
+            .SingleOrDefaultAsync(identity => identity.CertificateFingerprint == fingerprint, cancellationToken)
+            .ConfigureAwait(false);
+        if (existing is not null)
+        {
+            return existing.RevokedAtUtc is not null ? AgentIdentityEnrollmentOutcome.Revoked
+                : existing.EnvironmentId == environmentId ? AgentIdentityEnrollmentOutcome.Unchanged
+                : AgentIdentityEnrollmentOutcome.BoundToAnotherEnvironment;
+        }
+
+        dbContext.AgentIdentities.Add(new AgentIdentityEntity { EnvironmentId = environmentId, CertificateFingerprint = fingerprint });
+        await dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        return AgentIdentityEnrollmentOutcome.Created;
+    }
 }

@@ -5,9 +5,11 @@ namespace Dokpod.ControlPlane.Infrastructure;
 
 public sealed class ControlPlaneDbContextFactory : IDesignTimeDbContextFactory<ControlPlaneDbContext>
 {
-    public ControlPlaneDbContext CreateDbContext(string[] args)
+    public ControlPlaneDbContext CreateDbContext(string[] args) => Create(GetConnectionString(args));
+
+    /// <summary>Contexto com o histórico de migrations no schema do Dokpod; usado pelo EF e pelo modo administrativo (spec 033).</summary>
+    public static ControlPlaneDbContext Create(string connectionString)
     {
-        var connectionString = GetConnectionString(args);
         var options = new DbContextOptionsBuilder<ControlPlaneDbContext>()
             .UseNpgsql(
                 ControlPlaneConnectionString.Normalize(connectionString),

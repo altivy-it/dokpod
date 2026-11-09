@@ -48,7 +48,7 @@ public sealed class InstallationSqlTests : IDisposable
                     ("owner_role", Owner), ("runtime_role", Runtime), ("owner_password_file", ownerFile), ("runtime_password_file", runtimeFile));
                 await RunAsync("Installation/bootstrap/02-create-database.sql", admin.Database!, ("database", Database), ("owner_role", Owner));
                 await CreateTableAsOwnerAsync();
-                await RunAsync("Installation/bootstrap/03-grants.sql", Database, ("database", Database), ("owner_role", Owner), ("runtime_role", Runtime));
+                await RunAsync("Installation/bootstrap/03-grants.sql", Database, ("database", Database), ("runtime_role", Runtime));
             }
 
             var owner = await PrivilegesAsync(Owner);
@@ -64,8 +64,9 @@ public sealed class InstallationSqlTests : IDisposable
             var runtime = await PrivilegesAsync(Runtime);
             Assert.Equal("t", runtime["login"]);
             Assert.Equal("t", runtime["database_connect"]);
-            Assert.Equal("t", runtime["schema_usage"]);
-            Assert.Equal("t", runtime["tables_dml_complete"]);
+            // Os privilégios em tabelas vêm das migrations, concedidos ao grupo dokpod_runtime (T016).
+            Assert.Equal("t", runtime["runtime_group_member"]);
+            Assert.Equal("f", owner["runtime_group_member"]);
             Assert.Equal("f", runtime["schema_create"]);
             Assert.Equal("f", runtime["schema_owner"]);
             Assert.Equal("f", runtime["superuser"]);

@@ -1,7 +1,8 @@
 -- Spec 033 (FR-008, existing-prepared): atributos e privilégios de uma role do Dokpod, para recusar excesso ou falta.
 -- Executor psql (-At -F '|'), conectado ao banco do Dokpod. Parâmetros por -v: role (identificador), database
 -- (identificador). Saída: uma linha por verificação, `verificação|valor` com valor `t` ou `f`. O instalador decide o
--- esperado para a role dona e para a de runtime.
+-- esperado para a role dona e para a de runtime. `runtime_group_member` diz se a role recebe os privilégios que as
+-- migrations concedem ao grupo `dokpod_runtime`.
 \set ON_ERROR_STOP on
 
 SELECT check_name, value
@@ -23,13 +24,8 @@ FROM (
         AND has_schema_privilege(:'role', 'dokpod', 'CREATE')
     UNION ALL SELECT 11, 'schema_owner',
         EXISTS (SELECT 1 FROM pg_namespace n JOIN pg_roles r ON r.oid = n.nspowner WHERE n.nspname = 'dokpod' AND r.rolname = :'role')
-    UNION ALL SELECT 12, 'tables_dml_complete',
-        EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :'role') AND NOT EXISTS (
-            SELECT 1
-            FROM pg_class c
-            JOIN pg_namespace n ON n.oid = c.relnamespace
-            WHERE n.nspname = 'dokpod' AND c.relkind IN ('r', 'p') AND NOT c.relispartition
-              AND NOT (has_table_privilege(:'role', c.oid, 'SELECT') AND has_table_privilege(:'role', c.oid, 'INSERT')
-                   AND has_table_privilege(:'role', c.oid, 'UPDATE') AND has_table_privilege(:'role', c.oid, 'DELETE')))
+    UNION ALL SELECT 12, 'runtime_group_member',
+        EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :'role') AND EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'dokpod_runtime')
+        AND pg_has_role(:'role', 'dokpod_runtime', 'MEMBER')
 ) AS checks
 ORDER BY position;

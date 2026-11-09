@@ -35,6 +35,8 @@ public sealed record AuditEvent
         "environment.suspend",
         "environment.revoke",
         "environment.stage_changed",
+        // Spec 033: identidade de agente registrada pelo modo administrativo (instalador), sem enrollment.
+        "environment.agent_identity_register",
         "container.inspected",
         "container.logs.read",
         "container.logs.stream_started",
@@ -138,7 +140,10 @@ public sealed record AuditEvent
     public string? FailureCode { get; }
     public Guid? CommandId { get; }
 
-    /// <summary>Nome exibível do usuário no momento da ação (spec 017 D-001); nulo para agente, sistema e eventos antigos.</summary>
+    /// <summary>
+    /// Nome exibível de quem agiu (spec 017 D-001): o usuário, ou o operador que executou o instalador num evento de sistema
+    /// (spec 033). Nulo para agente e eventos antigos.
+    /// </summary>
     public string? ActorName { get; private init; }
 
     /// <summary>Recurso afetado (ex.: container) quando a ação não tem comando (spec 011 D-006).</summary>
@@ -215,10 +220,10 @@ public sealed record AuditEvent
         };
     }
 
-    /// <summary>Nome exibível de quem agiu; só para eventos de usuário e sem caracteres de controle.</summary>
+    /// <summary>Nome exibível de quem agiu; para eventos de usuário e de sistema, sem caracteres de controle.</summary>
     public AuditEvent WithActorName(string? actorName)
     {
-        if (ActorKind != AuditActorKind.User || string.IsNullOrWhiteSpace(actorName)) return this;
+        if (ActorKind == AuditActorKind.Agent || string.IsNullOrWhiteSpace(actorName)) return this;
         var normalized = actorName.Trim();
         if (normalized.Any(char.IsControl) || normalized.Length > MaxActorNameLength) return this;
         return this with { ActorName = normalized };

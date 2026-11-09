@@ -27,7 +27,7 @@
           "kind": "secret"
         }
       ],
-      "sha256": "c86e9d48870ff297610158d0df897ca25784cd1833537be2f22f694d238a69d7"
+      "sha256": "ccd9e7f63a9ff642bf495ec5d1512ab9409081f9aaf942081a668248427004b0"
     },
     {
       "path": "Installation/bootstrap/02-create-database.sql",
@@ -55,15 +55,11 @@
           "kind": "identifier"
         },
         {
-          "name": "owner_role",
-          "kind": "identifier"
-        },
-        {
           "name": "runtime_role",
           "kind": "identifier"
         }
       ],
-      "sha256": "a9c0f443aa99313b9cf249698ec8d1f7ff62e28de2a1db4142c858d2784c53dd"
+      "sha256": "0cd9293ba3494d4ef4cfa85693ff1b077d559de739dd78dc4b8deaaceb8fec8e"
     },
     {
       "path": "Installation/checks/role-privileges.sql",
@@ -79,7 +75,7 @@
           "kind": "identifier"
         }
       ],
-      "sha256": "f5f098f609b8da6729034ee45c1530f23a7c5fadac66c853a3a815288d1d2d2c"
+      "sha256": "09b0db18f72b157aff93f479a4cdf8afe4c2c8d3363036a4142ebce26bb393f7"
     },
     {
       "path": "Installation/checks/schema-fingerprint.sql",
@@ -94,6 +90,13 @@
       "executor": "psql",
       "parameters": [],
       "sha256": "31f690508cb701afa56de8bda1f0eef493ff84f75e8ada83250aade4acf18f75"
+    },
+    {
+      "path": "Installation/migrations/session.sql",
+      "purpose": "bootstrap",
+      "executor": "admin",
+      "parameters": [],
+      "sha256": "17e04f7018e8ad8ca41046fc444ce7e52e56e02b1845dde628add87ba4ba0c17"
     },
     {
       "path": "Installation/status/conference-counts.sql",
@@ -472,6 +475,20 @@
       "executor": "ef",
       "parameters": [],
       "sha256": "0890504713549e28f31e02e7581e307e60223df8b9283088e6106b0758646e72"
+    },
+    {
+      "path": "Migrations/Script/202611080001_GrantRuntimeEnvironments/Down/01-GrantRuntimeEnvironments.sql",
+      "purpose": "migration",
+      "executor": "ef",
+      "parameters": [],
+      "sha256": "1957ed5d7fcf5dfdbbbf0cccaf5acb15d99d21151c308dc4c52c829d5c62db71"
+    },
+    {
+      "path": "Migrations/Script/202611080001_GrantRuntimeEnvironments/Up/01-GrantRuntimeEnvironments.sql",
+      "purpose": "migration",
+      "executor": "ef",
+      "parameters": [],
+      "sha256": "5bcf3e0e6b4c9aeae2c296b510d2e9f15929ae11c15b2ff266d9987029d05158"
     }
   ]
 }
