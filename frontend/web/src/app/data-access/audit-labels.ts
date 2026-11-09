@@ -8,6 +8,7 @@ export const AUDIT_ACTION: Record<string, string> = {
   'environment.suspend': 'Host suspenso',
   'environment.revoke': 'Identidade do agente revogada',
   'environment.stage_changed': 'Estágio do host alterado',
+  'environment.agent_identity_register': 'Identidade do agente registrada pelo instalador',
   'container.start': 'Iniciar container',
   'container.stop': 'Parar container',
   'container.restart': 'Reiniciar container',
