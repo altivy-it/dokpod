@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.1](https://github.com/altivy-it/dokpod/compare/v0.7.0...v0.7.1) (2026-11-09)
+
+
+### Corrigido
+
+* **deps:** bump tslib from 2.8.1 to 2.9.1 in /frontend/web in the npm-production group across 1 directory ([#138](https://github.com/altivy-it/dokpod/issues/138)) ([01fe5b0](https://github.com/altivy-it/dokpod/commit/01fe5b0c526742edb420541cdd9a0b4e9fa2e74e))
+
 ## [0.7.0](https://github.com/altivy-it/dokpod/compare/v0.6.0...v0.7.0) (2026-11-08)
 
 
