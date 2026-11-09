@@ -135,7 +135,7 @@ segredos, imagens e renderização). Nenhuma história começa antes desta fase.
 - [X] T007 [P] Arquivos de instalação em `backend/libs/Dokpod.ControlPlane.Infrastructure/Sql/Installation/`, com
   parâmetros nomeados e sem concatenação:
   - `bootstrap/01-create-database.sql`;
-  - `bootstrap/02-create-roles.sql` (`dokpod_owner` e `dokpod_runtime`, sem `SUPERUSER`/`CREATEROLE`; a senha é lida
+  - `bootstrap/02-create-roles.sql` (`dokpod_owner` e a role de runtime, sem `SUPERUSER`/`CREATEROLE`; a senha é lida
     pelo próprio arquivo com `\set` a partir de `/run/secrets`, declarada como parâmetro `secret` no manifesto);
   - `bootstrap/03-grants.sql` (DML e `EXECUTE` a `dokpod_runtime`, mais `ALTER DEFAULT PRIVILEGES` de `dokpod_owner` no
     schema `dokpod` para as tabelas e funções futuras);
@@ -181,7 +181,7 @@ segredos, imagens e renderização). Nenhuma história começa antes desta fase.
 
 ### Modo administrativo da imagem da API
 
-- [ ] T010 (FR-009) Despacho de `admin` em `backend/apps/Dokpod.ControlPlane.Api/Program.cs` e
+- [X] T010 (FR-009) Despacho de `admin` em `backend/apps/Dokpod.ControlPlane.Api/Program.cs` e
   `backend/apps/Dokpod.ControlPlane.Api/Admin/AdminCommandHost.cs`:
   - Com `args[0] == "admin"`, monta só o `DbContext` e os serviços de aplicação necessários, sem Kestrel, gRPC,
     SignalR nem hosted services, e termina com os códigos de [admin-commands.md](contracts/admin-commands.md)
@@ -190,7 +190,10 @@ segredos, imagens e renderização). Nenhuma história começa antes desta fase.
   - Saída JSON em stdout (`--output json`) e mensagens sem segredos em stderr.
   - O instalador executa o container avulso com `--read-only`, sem socket do engine, sem porta publicada, só na rede
     interna do banco e só com os mounts do comando (L5 do threat model).
-- [ ] T011 [P] Testes de `admin migrations` contra PostgreSQL real em
+  Nota (2026-11-08): `Admin/AdminCommandHost.cs` e despacho em `Program.cs`; a conexão vem só de
+  `/run/secrets/ConnectionStrings__ControlPlane`, e o modo garante `search_path` `dokpod` quando a conexão não o define.
+  `ControlPlaneDbContextFactory.Create` passou a ser a fábrica pública do contexto.
+- [X] T011 [P] Testes de `admin migrations` contra PostgreSQL real em
   `backend/tests/Dokpod.ControlPlane.Api.Tests/Admin/AdminMigrationsTests.cs`:
   - banco vazio e banco na penúltima migration;
   - `status` com `applied`, `pending` e `newerThanTarget`;
@@ -201,7 +204,10 @@ segredos, imagens e renderização). Nenhuma história começa antes desta fase.
   - **SC-010**: aplicar o arquivo exportado com `psql -v ON_ERROR_STOP=1` num banco e `apply` noutro dá o mesmo
     `pg_dump --schema-only` e o mesmo `__EFMigrationsHistory`;
   - reaplicar o arquivo falha na chave primária do histórico, sem alteração.
-- [ ] T012 Implementar `backend/apps/Dokpod.ControlPlane.Api/Admin/MigrationsCommands.cs`:
+  Nota (2026-11-08): `AdminMigrationsTests` (11 testes), com um banco novo por teste. O SC-010 é comparado pela
+  impressão do schema e pelo histórico, e não por `pg_dump`: o `pg_dump` 16 do cliente da distribuição recusa servidor
+  17, e a impressão é a mesma comparação do `verify`.
+- [X] T012 Implementar `backend/apps/Dokpod.ControlPlane.Api/Admin/MigrationsCommands.cs`:
   - `status|plan|script|apply|verify` com `IMigrator.GenerateScript(from, to, MigrationsSqlGenerationOptions.Default)`
     por migration, sem `--idempotent` (D-003), com o corpo vindo do catálogo e da raiz sobreposta (T008);
   - `plan` com `overridden` e `originalSha256` por migration, e `script` com uma linha `-- override:` por arquivo
@@ -217,7 +223,12 @@ segredos, imagens e renderização). Nenhuma história começa antes desta fase.
     detectada sem `--script`, e partições criadas em execução não geram diferença.
 
   Depende de T010, T011 e T008.
-- [ ] T013 [P] Ação de auditoria `environment.agent_identity_register` na categoria `environments` de
+  Nota (2026-11-08): o EF não acha migration por ID neste projeto. Ele só reconhece IDs com 14 dígitos de data, e os
+  daqui têm 12, então `GenerateScript(de, até)` e `Migrate(alvo)` falham. O SQL sai de `MigrationScripts`, com o gerador
+  do próprio EF, e o `apply` executa os blocos do plano. O SQL exportado e o `apply` começam por
+  `Installation/migrations/session.sql` (fuso UTC e `search_path`). Sem isso, o `psql` criava as primeiras tabelas em
+  `public` e uma partição colidia. Os blocos têm marcadores `-- dokpod-migration-begin/end`.
+- [X] T013 [P] Ação de auditoria `environment.agent_identity_register` na categoria `environments` de
   `backend/libs/Dokpod.Domain/Auditing/AuditCategories.cs` e em `AuditEvent.cs`. Serviço de aplicação
   `backend/libs/Dokpod.ControlPlane.Application/Agents/AgentIdentityRegistrationService.cs`:
   - o mesmo par ambiente/fingerprint não muda nada;
@@ -225,7 +236,11 @@ segredos, imagens e renderização). Nenhuma história começa antes desta fase.
   - o registro grava pelo `IAgentIdentityRegistry` e audita com ator técnico `installer` e `actorDisplay`.
 
   Testes em `backend/tests/Dokpod.ControlPlane.Application.Tests/Agents/AgentIdentityRegistrationServiceTests.cs`.
-- [ ] T014 [P] Testes de `admin environments register`, `admin agent-identities register|revoke` e
+  Nota (2026-11-08): o registro grava por `IAgentIdentityEnrollment`, interface nova implementada por
+  `PostgresAgentIdentityRegistry`, sem mexer em `IAgentIdentityRegistry` e nos seus dublês. Eventos de sistema passaram
+  a aceitar `ActorName` (operador do instalador), e o console ganhou o rótulo da ação nova. Revogar pelo modo
+  administrativo não derruba a sessão em memória de uma API em execução; fica para a T047.
+- [X] T014 [P] Testes de `admin environments register`, `admin agent-identities register|revoke` e
   `admin licensing import` (imagem Business) contra PostgreSQL real em
   `backend/tests/Dokpod.ControlPlane.Api.Tests/Admin/AdminBootstrapTests.cs`:
   - idempotência (`created:false`);
@@ -233,10 +248,15 @@ segredos, imagens e renderização). Nenhuma história começa antes desta fase.
   - eventos `environment.register` e `environment.agent_identity_register` com ator `installer`;
   - `revoke` pelo mesmo caminho e auditoria do endpoint `.../agent-identity/revoke`;
   - `licensing import` com as validações da spec 031, e ausente na CE (código 2).
-- [ ] T015 Implementar `backend/apps/Dokpod.ControlPlane.Api/Admin/EnvironmentsCommands.cs`,
+  Nota (2026-11-08): `AdminBootstrapTests` (7 testes), com a licença na edição Business por `AdminContext.Edition` e um
+  trust store de teste.
+- [X] T015 Implementar `backend/apps/Dokpod.ControlPlane.Api/Admin/EnvironmentsCommands.cs`,
   `AgentIdentitiesCommands.cs` e `LicensingCommands.cs` (este só na composição Business), reaproveitando os serviços de
   aplicação existentes e o de T013. Depende de T010, T013 e T014.
-- [ ] T016 Qualificar a role `dokpod_runtime` (D-009) em
+  Nota (2026-11-08): `BootstrapCommands.cs` (ambiente e identidade) e `LicensingCommands.cs`. O `environments
+  register` ganhou `--host`. O código de licença compila nas duas edições, como o resto do licenciamento, e recusa em
+  execução na CE.
+- [X] T016 Qualificar a role `dokpod_runtime` (D-009) em
   `backend/tests/Dokpod.ControlPlane.Api.Tests/Admin/RuntimeRolePrivilegesTests.cs`:
   - aplicar as migrations como `dokpod_owner` e conceder a `dokpod_runtime` só DML e `EXECUTE` no schema `dokpod` pelos
     arquivos `Installation/bootstrap/` de T007, sem `SUPERUSER`/`CREATEROLE`/DDL;
@@ -244,7 +264,11 @@ segredos, imagens e renderização). Nenhuma história começa antes desta fase.
     comandos.
 
   Se algo exigir DDL, registrar o desvio em `research.md` (D-009) e conceder o mínimo adicional, com teste.
-- [ ] T017 Segredos por arquivo na API e no BFF (D-006):
+  Nota (2026-11-08): `RuntimeRolePrivilegesTests`. As migrations já têm o grupo `dokpod_runtime` com privilégios finos;
+  o bootstrap cria antes o grupo, põe a role de login nele e não concede DML amplo. As migrations rodam inteiras com a
+  role dona sem privilégio administrativo. Desvio corrigido: o grupo não alcançava `environments` nem
+  `agent_identities`; a migration `202611080001_GrantRuntimeEnvironments` concede o mínimo (D-009).
+- [X] T017 Segredos por arquivo na API e no BFF (D-006):
   - provedor `Microsoft.Extensions.Configuration.KeyPerFile` para `/run/secrets`, registrado só quando o diretório
     existe, em `backend/apps/Dokpod.ControlPlane.Api/ApiHost.cs` e em `backend/apps/Dokpod.Bff/`;
   - versão centralizada em `backend/Directory.Packages.props`, com licença MIT conferida;
@@ -253,6 +277,10 @@ segredos, imagens e renderização). Nenhuma história começa antes desta fase.
   Testes em `backend/tests/Dokpod.ControlPlane.Api.Tests/Configuration/SecretFilesConfigurationTests.cs` e
   `backend/tests/Dokpod.Bff.Tests/SecretFilesConfigurationTests.cs`: arquivo vence, ausência mantém as variáveis
   atuais, nada é logado.
+
+  Nota (2026-11-08): `Configuration/SecretFiles.cs` na API e no BFF; o provedor *key-per-file* já está no framework
+  compartilhado do ASP.NET Core 10, então não houve pacote novo. A senha do PFX também vem de arquivo. O diretório
+  alternativo só vale por `DOKPOD_SECRETS_DIRECTORY`, para testes.
 
 ### Núcleo do instalador
 
@@ -392,7 +420,7 @@ conectado e um administrador que precisa trocar a senha.
 - [ ] T028 [US1] PostgreSQL provisionado em `deploy/installer/src/Postgres.psm1`:
   - duas instâncias `dokpod-postgres` e `keycloak-postgres` (`lzocateli/postgresql:18.4-pgvector0.8.6-bookworm`),
     volumes e credenciais próprios (FR-007);
-  - no `dokpod-postgres`, banco e roles `dokpod_owner` e `dokpod_runtime` pelos arquivos `Installation/bootstrap/`
+  - no `dokpod-postgres`, banco, role dona e role de runtime (membro do grupo `dokpod_runtime`) pelos arquivos `Installation/bootstrap/`
     do catálogo, executados com `psql` em container avulso (T007, T016);
   - conexão do `psql` pelo `PGPASSFILE` num tmpfs montado só nesse container e apagado ao fim, nunca por
     `PGPASSWORD` ou outra variável de ambiente (FR-033). Teste com canário no `docker inspect`;
@@ -468,7 +496,7 @@ conectado e um administrador que precisa trocar a senha.
 - [ ] T035 [US2] `postgres.mode: existing-create` em `deploy/installer/src/Postgres.psm1`:
   - credencial administrativa de `{file}`/`{env}` ou prompt, usada uma vez e descartada (nunca em `secretsDir`);
   - entregue ao container do `psql` só por `PGPASSFILE` em tmpfs, apagado ao fim, como no T028 (FR-033);
-  - criação do banco `dokpod`, de `dokpod_owner` e de `dokpod_runtime` pelos mesmos arquivos de bootstrap do catálogo;
+  - criação do banco `dokpod`, da role dona e da role de runtime (membro do grupo `dokpod_runtime`) pelos mesmos arquivos de bootstrap do catálogo;
   - `sslMode` e `caCertificate` respeitados;
   - versão mínima do servidor conferida (FR-008).
 - [ ] T036 [US2] `postgres.mode: existing-prepared`: validar conexão, versão e privilégios com `checks/server-version.sql`

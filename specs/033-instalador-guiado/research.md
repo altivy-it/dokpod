@@ -81,8 +81,17 @@ avulso da mesma imagem e da mesma versão, com a conexão do *owner* do schema, 
 | `migrations apply` | Aplica as pendentes, uma transação por migration, como o script do EF já faz. |
 | `migrations verify` | Confere histórico e hashes depois de uma aplicação manual. |
 
-O SQL é gerado por `IMigrator.GenerateScript(from, to, MigrationsSqlGenerationOptions.Default)` a partir da última
-migration aplicada. O corpo de cada migration vem dos arquivos do catálogo, com a sobreposição externa quando informada
+O SQL de cada migration sai do gerador de SQL do próprio EF, a partir das operações dela, no formato do script sem
+`--idempotent`: transação própria e linha do histórico (`MigrationScripts`). Não se usa
+`IMigrator.GenerateScript(de, até)` nem `Migrate(alvo)`. O EF só reconhece um ID com 14 dígitos de data
+(`yyyyMMddHHmmss_`), e os IDs deste projeto têm 12, então ele os trata como nome e não os encontra. É por isso que
+`dotnet ef migrations script <de>` falhou ao subir a stack em 2026-11-08. O `apply` executa os mesmos blocos do plano
+confirmado.
+
+O SQL exportado e o `apply` começam pelo `Installation/migrations/session.sql` do catálogo (`SET TIME ZONE 'UTC'` e
+`search_path` `dokpod`), igual à sessão do executor da aplicação. A migration `202609220002` calcula partições pelo fuso
+da sessão, e as migrations anteriores ao isolamento do schema criam as tabelas no `search_path`. Sem isso, o `psql` do
+DBA criava as primeiras tabelas em `public`, e uma partição colidia depois. O corpo de cada migration vem dos arquivos do catálogo, com a sobreposição externa quando informada
 ([D-013](#d-013-catálogo-de-arquivos-sql-e-sobreposição-externa)). O hash de cada migration é o SHA-256 do SQL gerado para ela, gravado no cabeçalho e conferido por
 `verify`.
 
@@ -237,11 +246,26 @@ dependência de módulo sem mudar a fronteira de confiança, que é o mTLS.
 - **Banco e roles já criados pelo DBA**: o instalador valida os privilégios pelos arquivos de verificação do
   catálogo ([D-013](#d-013-catálogo-de-arquivos-sql-e-sobreposição-externa)) e recusa excesso ou falta (FR-008).
 
-**Ponto a validar**: a API ainda não foi qualificada com uma role sem DDL. Funções com `SECURITY DEFINER` já existem
-(`202610130004_RestrictTemporalRetention`, `202610150001_AuditConsole`), mas falta confirmar que a criação antecipada de
-partições e a retenção funcionam com `dokpod_runtime`.
-- **Se funcionar**: o plano segue com as duas roles.
-- **Se não funcionar**: o desvio fica registrado, e `dokpod_runtime` recebe o mínimo adicional, com teste.
+**Resultado da validação (T016, 2026-11-08)**:
+- **Modelo de privilégios existente**: as migrations já têm um modelo. A `202609120001` cria o grupo `dokpod_runtime`
+  (NOLOGIN), e as seguintes concedem a ele privilégios finos e deliberados. Exemplos: auditoria só por função de
+  *append*, `licensing_capacity_anchors` só com `SELECT`, e retenção e partições por funções `SECURITY DEFINER`.
+  - Por isso o bootstrap não concede DML amplo, o que quebraria essas regras. Ele cria antes o grupo `dokpod_runtime`
+    (a role dona não tem `CREATEROLE` para a migration o criar), cria a role de login do runtime como membro do grupo e
+    concede só `CONNECT`.
+  - Os privilégios em tabelas e funções são os das migrations.
+  - O grupo é do cluster inteiro, então várias instalações num mesmo PostgreSQL compartilham o nome.
+- **Migrations sem privilégio administrativo**: as migrations rodam inteiras com a role dona, sem `SUPERUSER`,
+  `CREATEROLE` nem `CREATEDB`.
+- **Lacuna encontrada e corrigida**: o grupo não tinha acesso a `environments` nem a `agent_identities`. Isso não
+  aparecia porque laboratório e CI conectam com uma role administrativa.
+  - A migration `202611080001_GrantRuntimeEnvironments` concede o mínimo usado pelo runtime: `SELECT`, `INSERT` e
+    `UPDATE` em `environments`; `SELECT` e `UPDATE` em `agent_identities`.
+  - O registro de identidade fica com o modo administrativo, que usa a role dona.
+- **Exercício com a role de runtime**: cadastro de ambiente, auditoria, consulta e revogação de identidade, inventário,
+  fila de comandos (tabela particionada) e retenção funcionam.
+- **Recusas confirmadas**: DDL, `DELETE` em `audit_events`, `INSERT` em `agent_identities` e chamada direta da criação
+  de partições.
 
 ## D-010: Imagens, assinatura e host sem internet
 

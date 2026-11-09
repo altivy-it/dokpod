@@ -101,7 +101,7 @@ conectados, conforme [troca da CA](../../docs/runbooks/troca-da-ca-dos-agentes.m
 
 | Nome no `secretsDir` | Consumidor | Gerado quando |
 | --- | --- | --- |
-| `ConnectionStrings__ControlPlane` | API (role `dokpod_runtime`) | Cenário com PostgreSQL provisionado ou existente. |
+| `ConnectionStrings__ControlPlane` | API (role de login do runtime, padrão `dokpod_app`, membro do grupo `dokpod_runtime` das migrations) | Cenário com PostgreSQL provisionado ou existente. |
 | `dokpod-owner-connection` | modo administrativo (role `dokpod_owner`) | Sempre. |
 | `Authentication__Keycloak__ClientSecret` | BFF | Na criação do client `dokpod-bff`. |
 | `keycloak-db-password`, `dokpod-db-password` | instâncias provisionadas | Cenário 1. |

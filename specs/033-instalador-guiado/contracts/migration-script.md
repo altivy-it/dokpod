@@ -16,16 +16,22 @@ dar ao usuário, por exemplo a um DBA, controle sobre o que vai ao banco (revis�
 -- generated-at: 2026-11-15T12:00:00Z
 -- Aplicar com: psql -v ON_ERROR_STOP=1 -f <arquivo>  (cada migration tem a própria transação)
 
+-- (conteúdo de Installation/migrations/session.sql: fuso UTC e search_path dokpod)
+
+-- dokpod-migration-begin: 202611150001_<Nome> sha256=<sha256>
 START TRANSACTION;
--- SQL da migration, exatamente como o EF gera sem --idempotent
+-- SQL da migration, no formato do EF sem --idempotent
 INSERT INTO dokpod."__EFMigrationsHistory" ("MigrationId", "ProductVersion") VALUES ('202611150001_<Nome>', '10.0.0');
 COMMIT;
+-- dokpod-migration-end: 202611150001_<Nome>
 ```
 
 ## Regras
 
-- Há uma linha `-- migration:` por migration pendente, na ordem de aplicação. O `sha256` é o do trecho entre
-  `START TRANSACTION;` e `COMMIT;` daquela migration.
+- Há uma linha `-- migration:` por migration pendente, na ordem de aplicação. O `sha256` é o do bloco entre os
+  marcadores `-- dokpod-migration-begin:` e `-- dokpod-migration-end:` daquela migration, repetido no marcador de
+  início. Num banco vazio, o primeiro bloco também cria o histórico.
+- O arquivo começa pelo SQL de sessão do catálogo (fuso UTC e `search_path` `dokpod`), o mesmo do executor da aplicação.
 - O arquivo não usa blocos `DO` para controle de reexecução. Reaplicar uma migration já aplicada falha na inserção do
   histórico (chave primária) dentro da transação, que é desfeita. Esse é o comportamento seguro esperado.
 - Há uma linha `-- override:` por arquivo do catálogo sobreposto que entrou neste arquivo (FR-041). Sem sobreposição,

@@ -46,8 +46,8 @@ o estado em [data-model.md](data-model.md).
    Repita o cenário nos dois engines (Docker Engine rootless e Podman rootless, SC-002).
 2. **Esperado**:
    - nenhum container de PostgreSQL ou nginx foi criado;
-   - existem `dokpod_owner` e `dokpod_runtime` sem `SUPERUSER`/`CREATEROLE`;
-   - a API conecta com `dokpod_runtime`;
+   - existem `dokpod_owner` e a role de login do runtime (membro do grupo `dokpod_runtime`), sem `SUPERUSER`/`CREATEROLE`;
+   - a API conecta com a role de runtime;
    - a credencial administrativa não está em `installDir` nem em `secretsDir`.
 3. Inclua o `dokpod.conf` gerado no nginx existente e recarregue. **Esperado**: o console funciona, e o site anterior do
    nginx continua igual.

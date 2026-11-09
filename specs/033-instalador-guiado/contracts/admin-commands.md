@@ -23,11 +23,11 @@ docker run --rm --network <rede-interna> \
 | Comando | Saída JSON | Efeito |
 | --- | --- | --- |
 | `status` | `{databaseVersion, targetVersion, applied:[id], pending:[id], newerThanTarget:[id]}` | Nenhum. |
-| `plan` | `{from, to, migrations:[{id, sha256, overridden, originalSha256?, objects:{created:[], altered:[], dropped:[]}}], planHash}` | Nenhum. O resumo de objetos vem de análise do SQL gerado (`CREATE`/`ALTER`/`DROP` de nível superior). |
+| `plan` | `{from, to, migrations:[{id, sha256, overridden, overrides:[{path, originalSha256, appliedSha256}], objects:{created:[], altered:[], dropped:[]}}], planHash, newerThanTarget}` | Nenhum. O resumo de objetos vem de análise do SQL gerado (`CREATE`/`ALTER`/`DROP` de nível superior). |
 | `script --out <arquivo>` | `{path, sha256, planHash}` | Nenhum no banco. Grava o arquivo do [formato](migration-script.md). |
 | `fingerprint` | `{sha256, objects:[{kind, name, definitionSha256}]}` | Nenhum. Impressão do schema real, usada pelo instalador para registrar `accepted_schema_fingerprint` depois de uma aplicação com sobreposição. |
-| `apply --confirm <planHash>` | `{applied:[id], durationMs}` | Aplica as pendentes, uma transação por migration. Recusa se o `planHash` não for o do plano atual, ou se `newerThanTarget` não estiver vazio (código 6). |
-| `verify [--script <arquivo>] [--accepted-fingerprints <arquivo>]` | `{ok, missing:[id], unexpected:[id], schemaDiff:[{kind, name, expected, actual}], fileHashMismatch:[path]}` | Nenhum. (1) Confere os IDs do histórico. (2) Compara a impressão do schema real (`checks/schema-fingerprint.sql`) com `schema/expected-schema.json` ou com uma impressão aceita de `--accepted-fingerprints` (a coluna `accepted_schema_fingerprint` do estado). Diferença não aceita dá código 6. (3) Com `--script`, recalcula os hashes do arquivo entregue e aponta os arquivos alterados (complementar). |
+| `apply --confirm <planHash>` | `{applied:[id], durationMs}` | Executa os blocos do plano confirmado, depois do SQL de sessão do catálogo, uma transação por migration. Recusa se o `planHash` não for o do plano atual, ou se `newerThanTarget` não estiver vazio (código 6). |
+| `verify [--script <arquivo>] [--accepted-fingerprints <arquivo>]` | `{ok, missing:[id], unexpected:[id], schemaSha256, expectedSchemaSha256, schemaAccepted, schemaDiff:[{kind, name, expected, actual}], fileHashMismatch:[id]}` | Nenhum. (1) Confere os IDs do histórico. (2) Compara a impressão do schema real (`checks/schema-fingerprint.sql`) com `schema/expected-schema.json` ou com uma impressão aceita de `--accepted-fingerprints` (a coluna `accepted_schema_fingerprint` do estado). Diferença não aceita dá código 6. (3) Com `--script`, recalcula os hashes do arquivo entregue e aponta os arquivos alterados (complementar). |
 
 O `planHash` é o SHA-256 da lista ordenada de `id:sha256`. Ele liga a confirmação do usuário ao plano que ele viu
 (FR-036).
@@ -35,7 +35,7 @@ O `planHash` é o SHA-256 da lista ordenada de `id:sha256`. Ele liga a confirma�
 ## `admin environments register`
 
 ```text
-admin environments register --id <uuid> --name <nome> --stage <production|staging|development|none> \
+admin environments register --id <uuid> --name <nome> --host <host> --stage <production|staging|development|none> \
   --actor <operador> --reason <texto>
 ```
 
@@ -73,6 +73,6 @@ admin licensing import --file /run/import/license.jws --slot <prd|hml> --actor <
 
 ## Segurança
 
-- O comando exige a conexão de `dokpod_owner`. A API em execução usa `dokpod_runtime` e não tem esse arquivo montado.
+- O comando exige a conexão de `dokpod_owner`. A API em execução usa a role de runtime (membro do grupo `dokpod_runtime`) e não tem esse arquivo montado.
 - Nenhum comando aceita SQL livre nem caminho fora de `/run/secrets` e do diretório de saída montado.
 - A auditoria desses comandos tem a mesma retenção e o mesmo encadeamento dos demais eventos.

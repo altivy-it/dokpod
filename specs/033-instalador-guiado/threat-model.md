@@ -95,7 +95,7 @@ RUNTIME (depois da instalação)
 | Ameaça | Mitigação | Rastro |
 | --- | --- | --- |
 | Modo administrativo acessível pela rede | Despacho antes de montar o host: sem Kestrel, gRPC, SignalR nem hosted services; termina ao fim do comando | D-003, T010 |
-| Runtime com privilégio de dono do schema | A API usa `dokpod_runtime` (DML e `EXECUTE`); só o container avulso do modo administrativo recebe `dokpod-owner-connection` | D-009, T016 |
+| Runtime com privilégio de dono do schema | A API usa uma role de login membro do grupo `dokpod_runtime`, com os privilégios finos das migrations, sem DDL (T016); só o container avulso do modo administrativo recebe `dokpod-owner-connection` | D-009, T016 |
 | Identidade de agente registrada fora do console | Registro auditado (`environment.agent_identity_register`, ator `installer`, operador e justificativa); fingerprint em outro ambiente ou revogado é recusado; quem tem a conexão de *owner* já tem o banco | FR-024, D-004, T013–T015, [R7](#registro-de-riscos-residuais) |
 | SQL livre pelo modo administrativo | Nenhum comando aceita SQL ou caminho fora de `/run/secrets`, `/run/sql-override` e da saída montada; todo SQL vem do catálogo | FR-039, T009, T010 |
 | Migration aplicada sem o usuário ver | `apply` exige o `planHash` do plano mostrado; banco com migration desconhecida dá código 6 | FR-036, FR-010, T012 |
