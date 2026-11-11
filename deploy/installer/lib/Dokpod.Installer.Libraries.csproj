@@ -1,0 +1,23 @@
+<!--
+  Spec 033 (D-014, T004): bibliotecas .NET que o instalador carrega no PowerShell 7.6 (.NET 10). Não há código aqui; o
+  projeto só fixa versões e publica as DLLs (e o SQLite nativo de linux-x64) no estágio de build da imagem.
+  Microsoft.Data.Sqlite 10.0.14 (MIT) traz SQLitePCLRaw.bundle_e_sqlite3 2.1.13 (Apache-2.0); YamlDotNet 18.1.0 (MIT)
+  converte o arquivo de respostas YAML em JSON para a validação pelo esquema.
+-->
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RuntimeIdentifier>linux-x64</RuntimeIdentifier>
+    <SelfContained>false</SelfContained>
+    <OutputType>Library</OutputType>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.14" />
+    <PackageReference Include="YamlDotNet" Version="18.1.0" />
+  </ItemGroup>
+</Project>

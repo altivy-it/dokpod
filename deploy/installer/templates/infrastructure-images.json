@@ -1,0 +1,9 @@
+{
+  "description": "Spec 033 (D-010): imagens de infraestrutura da matriz de docs/distribuicao.md, fixadas pelo digest do índice. Não são assinadas pela identidade do publish.yml do Dokpod; a integridade vem do digest. Atualizar junto com a matriz.",
+  "images": {
+    "postgresql": "docker.io/lzocateli/postgresql:18.4-pgvector0.8.6-bookworm@sha256:10d93543368ebe4d69a473e068cda1a7a8a94e812579d6a29a1b73a851eafab2",
+    "keycloak": "docker.io/lzocateli/keycloak:26.7.0@sha256:0f0aaa3aaa6129a5b4d506ebfc2698d5397b51216d147b4b925f2ab4eb47769b",
+    "nginx": "docker.io/lzocateli/nginx:1.28.0-bookworm-v1@sha256:e40079c76f5ec7741c694ab8a19a07e2122fb527013b64a96ed3be7f61ef27e5",
+    "cosign": "ghcr.io/sigstore/cosign/cosign:v3.1.4@sha256:0f06154836d2de34f887a5c273506d52ca43edaa1d9e53e6510fa78a48f69c2d"
+  }
+}

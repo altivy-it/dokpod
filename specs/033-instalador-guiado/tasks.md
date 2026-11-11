@@ -284,14 +284,15 @@ segredos, imagens e renderização). Nenhuma história começa antes desta fase.
 
 ### Núcleo do instalador
 
-- [ ] T018 [P] Respostas em `deploy/installer/src/Answers.psm1`, com testes em
+- [X] T018 [P] Respostas em `deploy/installer/src/Answers.psm1`, com testes em
   `deploy/installer/tests/Answers.Tests.ps1`:
   - validar YAML/JSON contra `contracts/answers.schema.json` (copiado para `deploy/installer/templates/answers.schema.json`);
   - recusar segredo em texto (só `{file}` ou `{env}`, FR-002);
   - recusar `installDir` igual a `secretsDir`, um dentro do outro ou dentro de checkout Git;
   - modo guiado gravando `answers.yaml` sem segredos;
   - sem TTY e com resposta faltante, código 2.
-- [ ] T019 [P] (FR-044, FR-034) Estado em SQLite, *lock* e relatório em `deploy/installer/src/State.psm1`, com testes
+  Nota (2026-11-11): `Answers.psm1` lê YAML pelo YamlDotNet 18.1.0 e JSON, recusa segredo em texto antes do schema (`Test-Json -SchemaFile`), aplica padrões e valida caminhos; o modo guiado grava `answers.yaml` sem segredos e, sem TTY, resposta faltante dá código 2. Pester em container: `Answers.Tests.ps1` passa; um teste confere o hash da cópia do schema contra o contrato.
+- [X] T019 [P] (FR-044, FR-034) Estado em SQLite, *lock* e relatório em `deploy/installer/src/State.psm1`, com testes
   em `deploy/installer/tests/State.Tests.ps1` e arquivos SQL em `deploy/installer/sql/state/` (D-014):
   - `schema/0001-initial.sql` com as tabelas `installation`, `components`, `certificates`, `environments`,
     `sql_overrides`, `runs`, `run_steps` e `run_lock` de [data-model.md](data-model.md#estado-da-instalação-sqlite),
@@ -311,7 +312,8 @@ segredos, imagens e renderização). Nenhuma história começa antes desta fase.
   - `outcome` em `converged|changed|prerequisite_failed|declined|failed|paused_for_manual_migration`;
   - `reports/<runId>.json` sem segredos (FR-034), gerado a partir do banco;
   - teste de que nenhuma coluna recebe valor canário de segredo.
-- [ ] T020 Motor de plano em `deploy/installer/src/Plan.psm1`, com testes em `deploy/installer/tests/Plan.Tests.ps1`:
+  Nota (2026-11-11): `State.psm1` com 25 arquivos SQL em `sql/state/` (manifest com SHA-256) e acesso só por `Microsoft.Data.Sqlite` 10.0.14. O *lock* usa transação `Serializable` (equivalente a `BEGIN IMMEDIATE`). `State.Tests.ps1` cobre schema só para a frente, `integrity_check`, banco corrompido, *lock* velho, backup, retenção e o canário em todas as colunas.
+- [X] T020 Motor de plano em `deploy/installer/src/Plan.psm1`, com testes em `deploy/installer/tests/Plan.Tests.ps1`:
   - desejado (respostas mais versão) contra observado (inspect do engine, `admin migrations status`, `-DryRun` dos
     scripts do Keycloak, sistema de arquivos);
   - ações `create|update|keep|recreate|remove` com motivo e efeito colateral;
@@ -320,7 +322,8 @@ segredos, imagens e renderização). Nenhuma história começa antes desta fase.
   - componente `existing` nunca recriado (D-007, FR-026, FR-027).
 
   Depende de T019.
-- [ ] T021 [P] Pré-requisitos em `deploy/installer/src/Prerequisites.psm1`, com testes em
+  Nota (2026-11-11): `Plan.psm1` decide pelo rótulo `io.dokpod.installer.config-hash` que `Render.psm1` grava em cada serviço. Container do projeto `dokpod` sem esse rótulo (por exemplo, a stack de `deploy/e2e`) bloqueia com código 3, sem ser tocado. Os observadores de `admin migrations status` e do `-DryRun` do Keycloak entram como `Pending` nas tarefas que executam essas etapas (T029, T030). `Plan.Tests.ps1` passa.
+- [X] T021 [P] Pré-requisitos em `deploy/installer/src/Prerequisites.psm1`, com testes em
   `deploy/installer/tests/Prerequisites.Tests.ps1`. Verificar:
   - engine em modo rootless e versão mínima (Docker ≥ 27 rootless, Podman ≥ 5 rootless) e Compose v2 pela API do
     socket, recusando o modo rootful com código 3 (`SecurityOptions` com `name=rootless` no Docker,
@@ -335,7 +338,8 @@ segredos, imagens e renderização). Nenhuma história começa antes desta fase.
   - `unqualified-search-registries` no Podman.
 
   Qualquer falha dá código 3 sem efeito (FR-003).
-- [ ] T022 [P] (FR-016, FR-017) PKI em `deploy/installer/src/Pki.psm1`, com testes em `deploy/installer/tests/Pki.Tests.ps1`:
+  Nota (2026-11-11): `Prerequisites.psm1` lê engine, versão, rootless e Compose pelo CLI no socket montado, e os fatos do host nas variáveis `DOKPOD_HOST_*` do `install.sh`. Validado contra o Podman 5.7.0 rootless deste host (todas as verificações `ok`). `Prerequisites.Tests.ps1` passa.
+- [X] T022 [P] (FR-016, FR-017) PKI em `deploy/installer/src/Pki.psm1`, com testes em `deploy/installer/tests/Pki.Tests.ps1`:
   - CA local ECDSA P-256 de 10 anos (`CA:true,pathlen:0`);
   - servidor e cliente de 397 dias, EKU `serverAuth` para borda e API e `clientAuth` para agentes;
   - SAN da API `api` mais o nome público quando `agentGrpcPort` é definido;
@@ -344,7 +348,8 @@ segredos, imagens e renderização). Nenhuma história começa antes desta fase.
 
   Validação (FR-017) de certificados gerados e da organização: SAN, EKU, validade, cadeia e par chave/certificado,
   recusando com o motivo. Chave da CA só em `secretsDir/pki/` e nunca montada em serviço (FR-018).
-- [ ] T023 [P] Segredos em `deploy/installer/src/Secrets.psm1`, com testes em `deploy/installer/tests/Secrets.Tests.ps1`:
+  Nota (2026-11-11): a PKI usa as APIs de criptografia do .NET, sem `openssl` (nota em D-005 e em `docs/distribuicao.md`). PFX em AES-256 com 100000 iterações. `Pki.Tests.ps1` passa; `nginx -t` com o certificado gerado passa em T026.
+- [X] T023 [P] Segredos em `deploy/installer/src/Secrets.psm1`, com testes em `deploy/installer/tests/Secrets.Tests.ps1`:
   - geração com entropia do sistema;
   - escrita `0600` em diretório `0700`;
   - falha fechada se o destino existe sem `recreate` daquele item (FR-028);
@@ -352,7 +357,8 @@ segredos, imagens e renderização). Nenhuma história começa antes desta fase.
   - redação de toda saída do instalador por uma lista dos valores carregados na execução (FR-033).
 
   O teste usa valores canário e confere saída, relatório e arquivos gerados.
-- [ ] T024 Imagem `deploy/installer/Dockerfile`, com as versões de T004 fixadas e usuário não root, mais
+  Nota (2026-11-11): `Secrets.psm1` grava com `CreateNew` em temporário e move. Destino existente sem `recreate secret:<nome>` dá código 4. `Secrets.Tests.ps1` confere o canário na saída, no relatório e nos arquivos.
+- [X] T024 Imagem `deploy/installer/Dockerfile`, com as versões de T004 fixadas e usuário não root, mais
   `deploy/installer/install.sh` POSIX:
   - detecta o engine e o socket rootless (`$XDG_RUNTIME_DIR/docker.sock` ou `$XDG_RUNTIME_DIR/podman/podman.sock`) e
     recusa socket fora de `$XDG_RUNTIME_DIR` (D-015);
@@ -368,14 +374,16 @@ segredos, imagens e renderização). Nenhuma história começa antes desta fase.
 
   Os scripts `tools/scripts/configure-keycloak.ps1` e `provision-environment-authorization.ps1` são copiados para a
   imagem no build, sem duplicação. Depende de T004 e T005.
-- [ ] T025 [P] Imagens e assinatura em `deploy/installer/src/Images.psm1`, com testes em
+  Nota (2026-11-11): `install.sh` resolve o socket (inclusive link simbólico) e recusa alvo fora de `$XDG_RUNTIME_DIR`. Recusa imagem alternativa que não seja `localhost/...` e verifica o cosign por digest antes de executar. Monta socket, `installDir`, `secretsDir`, as respostas e os arquivos citados nelas; repassa as variáveis `{env}` só pelo nome. Executa com `--user 0:0` e `--log-driver none`. `InstallSh.Tests.ps1` usa engines falsos e canário; a imagem `dokpod-installer:test` constrói.
+- [X] T025 [P] Imagens e assinatura em `deploy/installer/src/Images.psm1`, com testes em
   `deploy/installer/tests/Images.Tests.ps1`:
   - ler o `release-manifest.json` da versão;
   - usar só `referência@digest`;
   - `cosign verify` com a identidade do `publish.yml` de `docs/release-integrity.md` antes de qualquer `pull` ou uso;
   - modo `--offline` com `docker load` e assinaturas exportadas;
   - assinatura ou manifesto inválido dá código 5 sem efeito (FR-005, FR-006).
-- [ ] T026 [P] (FR-020, FR-022, FR-023) Renderização em `deploy/installer/src/Render.psm1` e templates em `deploy/installer/templates/`, com
+  Nota (2026-11-11): `Images.psm1` aceita só `referência@digest` do manifesto e verifica o cosign v3.1.4 por digest com `--log-driver none`. As imagens de infraestrutura ficam fixadas em `templates/infrastructure-images.json`. `Images.Tests.ps1` passa.
+- [X] T026 [P] (FR-020, FR-022, FR-023) Renderização em `deploy/installer/src/Render.psm1` e templates em `deploy/installer/templates/`, com
   testes em `deploy/installer/tests/Render.Tests.ps1`:
   - `compose.yaml` com `ASPNETCORE_ENVIRONMENT=Production`, sem IP fixo, redes internas e só a borda publicada;
   - `secrets:` montados em `/run/secrets`;
@@ -394,7 +402,8 @@ segredos, imagens e renderização). Nenhuma história começa antes desta fase.
 
   `nginx -t` em container no teste e `docker compose config` sem erro. Teste de que o BFF ignora `X-Forwarded-*` vindos
   de fora da rede confiável.
-- [ ] T027 (FR-001, FR-004, FR-035) CLI em `deploy/installer/src/Dokpod.Installer.ps1`, com testes em `deploy/installer/tests/Cli.Tests.ps1`:
+  Nota (2026-11-11): o `compose.yaml` sai pelo YamlDotNet; os segredos entram só por `secrets:` (o Keycloak os lê com `read -r` no entrypoint). A rede `dokpod-edge` tem sub-rede fixa `10.253.33.0/24`, que é a única rede confiável do BFF com a borda provisionada. `Render.Tests.ps1` roda `docker compose config` e `nginx -t` na imagem fixada pelo socket do Podman. `ForwardedHeadersTrustTests` (Dokpod.Bff.Tests, 3 casos) prova que o BFF ignora `X-Forwarded-*` de fora da rede confiável.
+- [X] T027 (FR-001, FR-004, FR-035) CLI em `deploy/installer/src/Dokpod.Installer.ps1`, com testes em `deploy/installer/tests/Cli.Tests.ps1`:
   - comandos, opções e códigos de saída 0 a 7 e 10 de [installer-cli.md](contracts/installer-cli.md);
   - `--dry-run` e `plan` sem efeitos;
   - `--yes` não confirma remoção de dados nem migrations, que exigem `--confirm-data-removal <lista>` e
@@ -404,6 +413,7 @@ segredos, imagens e renderização). Nenhuma história começa antes desta fase.
   - `--sql-dir` e `--confirm-sql-overrides`, com `--yes` sem confirmar sobreposição.
 
   Depende de T018 a T023, T025 e T026.
+  Nota (2026-11-11): `Cli.psm1` faz a leitura dos argumentos com confirmações nomeadas e executa `help`, `plan`/`--dry-run`, `status` e `sql export`. Os comandos que aplicam mudanças saem com 2 e apontam a tarefa que os entrega. O ponto de entrada lê `$args`, porque com `CmdletBinding` a opção `--out` colide com os parâmetros comuns. `Cli.Tests.ps1` roda `plan` contra o engine real e confere que nada é gravado. Suíte completa em container: 145 testes passam; PSScriptAnalyzer sem erros (avisos ficam para a T057); Gitleaks limpo.
 
 **Checkpoint**: modo administrativo testado contra PostgreSQL real; o instalador gera um plano completo em `--dry-run`
 para qualquer arquivo de respostas válido.

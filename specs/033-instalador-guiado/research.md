@@ -142,6 +142,10 @@ como *owner*, que o runtime não tem.
 
 **Decisão**: `openssl` da imagem do instalador.
 
+Nota (2026-11-11, T022): a implementação usa as APIs de `System.Security.Cryptography` do runtime .NET da imagem
+(`CertificateRequest`, `X509Chain` com `CustomRootTrust`, PKCS#12 AES-256), com os mesmos parâmetros da tabela. A
+imagem não leva `openssl`; o registro de dependências está em `docs/distribuicao.md`.
+
 | Item | Valor |
 | --- | --- |
 | CA local | ECDSA P-256, 10 anos, `basicConstraints=CA:true,pathlen:0`. |

@@ -42,7 +42,8 @@ idempotente.
 **Dependências Principais**:
 - Na imagem do instalador:
   - PowerShell 7.6.9 (MIT), Docker CLI 29.9.2 e Compose v5.6.1 (Apache-2.0), fixados por SHA-256;
-  - `openssl` da distribuição base (Apache-2.0);
+  - PKI pelas APIs de criptografia do runtime .NET da base, sem `openssl` (nota de D-005, T022);
+  - `YamlDotNet` 18.1.0 (MIT), para `answers.yaml` e `compose.yaml`;
   - `Microsoft.Data.Sqlite` (MIT) com `SQLitePCLRaw.bundle_e_sqlite3` (Apache-2.0), para o estado em SQLite
     (SQLite em domínio público);
   - Pester 6.2.0 (Apache-2.0) e PSScriptAnalyzer 1.25.0 (MIT), só no estágio de testes.

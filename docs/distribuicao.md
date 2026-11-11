@@ -51,7 +51,7 @@ já homologada e acrescenta só o que o instalador executa. Os itens abaixo tive
 | PowerShell | 7.6.9 (`powershell-7.6.9-linux-x64.tar.gz`) | MIT | release do `PowerShell/PowerShell`, SHA-256 `1da6d6d6035d651f20e70ddee7c4c15ac6ab8b9fb40ee92240d91263f28a884b`, publicada em 2026-10-25 | linguagem do instalador |
 | Docker CLI | 29.9.2 (binário estático, `download.docker.com`) | Apache-2.0 | `docker/cli`; SHA-256 fixado no Dockerfile (T024) | cliente do engine rootless pelo socket montado |
 | Docker Compose | v5.6.1 (`docker-compose-linux-x86_64`) | Apache-2.0 | release do `docker/compose`, SHA-256 `47737f4236e6d3ccea7291995203f8f018058783b4c3a9469119811a0b5db8c0`, publicada em 2026-10-21 | orquestração nos dois engines rootless (D-002) |
-| OpenSSL | pacote `openssl` do Ubuntu 24.04 (noble) | Apache-2.0 | repositório da distribuição base; apt removido da imagem final | CA local e validação de certificados (D-005) |
+| PKI | `System.Security.Cryptography` do runtime .NET 10 da imagem base | MIT | já homologada com a base | CA local, emissão e validação de certificados (D-005); sem `openssl` na imagem desde a T022 |
 
 **Pacotes .NET carregados pelo PowerShell:**
 
@@ -60,6 +60,7 @@ já homologada e acrescenta só o que o instalador executa. Os itens abaixo tive
 | `Microsoft.Data.Sqlite` | 10.0.14 | MIT | NuGet (Microsoft), publicada em 2026-10-25 | acesso ao estado SQLite (D-014) |
 | `SQLitePCLRaw.bundle_e_sqlite3` | 2.1.13 (dependência de `Microsoft.Data.Sqlite` 10.0.14) | Apache-2.0 | NuGet | SQLite nativo empacotado |
 | SQLite | a do `e_sqlite3` do bundle | domínio público | sqlite.org | formato do estado |
+| `YamlDotNet` | 18.1.0 | MIT | NuGet (`aaubry/YamlDotNet`) | leitura do `answers.yaml` e escrita do `compose.yaml` (T018, T026) |
 
 **Fora da imagem:**
 
@@ -69,6 +70,9 @@ já homologada e acrescenta só o que o instalador executa. Os itens abaixo tive
 | PSScriptAnalyzer | 1.25.0 | MIT | PowerShell Gallery, publicada em 2026-03-20 | análise estática dos módulos; só no estágio de testes |
 | `psql` | da imagem `lzocateli/postgresql:18.4-pgvector0.8.6-bookworm` | ver matriz acima | já homologada | container avulso para bootstrap e verificações do catálogo SQL (D-013); não entra na imagem do instalador |
 | cosign | v3.1.4 (`ghcr.io/sigstore/cosign/cosign`, por digest) | Apache-2.0 | release do `sigstore/cosign`, publicada em 2026-10-20 | verificação de imagens pelo `install.sh` e pelo instalador (D-010) |
+
+As imagens que o instalador provisiona (PostgreSQL, Keycloak e nginx da matriz acima, mais o cosign) ficam fixadas pelo
+digest do índice em `deploy/installer/templates/infrastructure-images.json`, atualizado junto com esta matriz.
 
 A imagem oficial `mcr.microsoft.com/powershell:7.5-ubuntu-24.04` foi considerada e rejeitada: a tag não recebe
 atualização desde janeiro de 2025. A versão 7.6 do PowerShell não tem imagem MCR equivalente.
