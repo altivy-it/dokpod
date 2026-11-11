@@ -50,6 +50,10 @@ temporária.
 .PARAMETER BffBaseUrl
 Origem externa do BFF. Padrão: https://localhost:7443.
 
+.PARAMETER InternalHttp
+Aceita BaseUrl HTTP fora do loopback. Uso exclusivo do instalador (spec 033), que fala com o Keycloak provisionado
+pela rede interna do Compose, num container avulso sem rota para fora; o acesso público continua pela borda HTTPS.
+
 .PARAMETER SkipUser
 Não cria nem atualiza o usuário inicial, mesmo quando DOKPOD_ADMIN_EMAIL estiver definido.
 
@@ -127,6 +131,8 @@ param(
 
     [switch] $SkipUser,
 
+    [switch] $InternalHttp,
+
     [switch] $DryRun,
 
     [Parameter(ValueFromRemainingArguments)]
@@ -155,7 +161,7 @@ if ($Realm -eq 'master') {
     throw 'O realm administrativo master não pode ser gerenciado por este script. Use um realm dedicado.'
 }
 
-if ($baseUri.Scheme -ne 'https' -and -not $baseUri.IsLoopback) {
+if ($baseUri.Scheme -ne 'https' -and -not $baseUri.IsLoopback -and -not $InternalHttp) {
     throw 'BaseUrl deve usar HTTPS fora do ambiente local.'
 }
 

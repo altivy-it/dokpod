@@ -105,8 +105,9 @@ conectados, conforme [troca da CA](../../docs/runbooks/troca-da-ca-dos-agentes.m
 | `dokpod-owner-connection` | modo administrativo (role `dokpod_owner`) | Sempre. |
 | `Authentication__Keycloak__ClientSecret` | BFF | Na criação do client `dokpod-bff`. |
 | `keycloak-db-password`, `dokpod-db-password` | instâncias provisionadas | Cenário 1. |
-| `keycloak-bootstrap-admin` | Keycloak provisionado, só no primeiro start | Cenário 1. Removido depois que o administrador nominal existe. |
-| `initial-admin-password` | entrega ao operador, só sem TTY | Cenário 1, sem TTY. Removido na primeira execução seguinte que confirmar, pela API administrativa do Keycloak, que o usuário não tem mais a ação obrigatória `UPDATE_PASSWORD`. Nunca entra no relatório. |
+| `keycloak-bootstrap-admin` | Keycloak provisionado, só no primeiro start | Cenário 1. Esvaziado (não apagado, porque o compose referencia o arquivo) depois que o administrador nominal existe e a conta `dokpod-bootstrap` sai do `master`. |
+| `keycloak-provisioner-client-secret` | reconciliações seguintes do realm e `provision-environment-authorization.ps1` (`DOKPOD_PROVISIONER_CLIENT_SECRET`) | Cenário 1, na criação do client `dokpod-provisioner`. |
+| `initial-admin-password` | entrega ao operador | Cenário 1. Gravado antes de a senha ser aplicada no Keycloak, para não se perder numa interrupção. Com TTY, o resumo final o exibe uma vez e o remove (T032); sem TTY, fica para o operador. Removido na primeira execução seguinte que confirmar, pela API administrativa do Keycloak, que o usuário não tem mais a ação obrigatória `UPDATE_PASSWORD`. Nunca entra no relatório. |
 | `pki/ca.key`, `pki/*.pfx`, `pki/*.pass` | instalador, API e agentes | Conforme D-005. |
 
 Regra comum: um arquivo existente nunca é sobrescrito sem `recreate` daquele item (FR-028).

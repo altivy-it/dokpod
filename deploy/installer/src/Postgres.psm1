@@ -248,27 +248,7 @@ function New-PsqlBundle {
     }
 
     $files['run.sh'] = $script.ToString()
-    $stream = [System.IO.MemoryStream]::new()
-    $writer = [System.Formats.Tar.TarWriter]::new($stream, [System.Formats.Tar.TarEntryFormat]::Ustar, $true)
-    try {
-        foreach ($directory in 'secrets', 'sql') {
-            $entry = [System.Formats.Tar.UstarTarEntry]::new([System.Formats.Tar.TarEntryType]::Directory, "$directory/")
-            $entry.Mode = [System.IO.UnixFileMode]'UserRead, UserWrite, UserExecute'
-            $writer.WriteEntry($entry)
-        }
-
-        foreach ($name in $files.Keys) {
-            $entry = [System.Formats.Tar.UstarTarEntry]::new([System.Formats.Tar.TarEntryType]::RegularFile, $name)
-            $entry.Mode = [System.IO.UnixFileMode]'UserRead, UserWrite'
-            $entry.DataStream = [System.IO.MemoryStream]::new([System.Text.Encoding]::UTF8.GetBytes($files[$name]))
-            $writer.WriteEntry($entry)
-        }
-    }
-    finally {
-        $writer.Dispose()
-    }
-
-    return , $stream.ToArray()
+    return , (New-InstallerTarBundle -Files $files)
 }
 
 function Invoke-PsqlCatalog {

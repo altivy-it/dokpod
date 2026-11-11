@@ -134,6 +134,7 @@ set -- --rm --interactive --log-driver none --user 0:0 \
     --env=DOCKER_HOST=unix:///run/engine.sock \
     "--env=DOKPOD_HOST_ENGINE_SOCKET=$resolved" \
     "--env=DOKPOD_HOST_ENGINE=$engine" \
+    "--env=DOKPOD_INSTALLER_IMAGE_REF=$image" \
     "--env=DOKPOD_HOST_UNPRIVILEGED_PORT_START=$port_start" \
     "--env=DOKPOD_HOST_LINGER=$linger" \
     "--env=DOKPOD_HOST_LISTENING_PORTS=$listening" \

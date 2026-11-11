@@ -199,6 +199,40 @@ function Invoke-InstallerProcess {
     }
 }
 
+function New-InstallerTarBundle {
+    <#
+    .SYNOPSIS
+    Tar (ustar) em memória com arquivos de texto 0600 e as pastas 0700 dos seus caminhos, para entregar a um container
+    avulso por stdin, extraído num tmpfs que só ele monta (FR-033).
+    #>
+    [CmdletBinding()]
+    [OutputType([byte[]])]
+    param([Parameter(Mandatory)][System.Collections.IDictionary] $Files)
+
+    $stream = [System.IO.MemoryStream]::new()
+    $writer = [System.Formats.Tar.TarWriter]::new($stream, [System.Formats.Tar.TarEntryFormat]::Ustar, $true)
+    try {
+        $directories = @($Files.Keys | ForEach-Object { if ($_ -match '/') { $_.Substring(0, $_.LastIndexOf('/')) } } | Sort-Object -Unique)
+        foreach ($directory in $directories) {
+            $entry = [System.Formats.Tar.UstarTarEntry]::new([System.Formats.Tar.TarEntryType]::Directory, "$directory/")
+            $entry.Mode = [System.IO.UnixFileMode]'UserRead, UserWrite, UserExecute'
+            $writer.WriteEntry($entry)
+        }
+
+        foreach ($name in $Files.Keys) {
+            $entry = [System.Formats.Tar.UstarTarEntry]::new([System.Formats.Tar.TarEntryType]::RegularFile, $name)
+            $entry.Mode = [System.IO.UnixFileMode]'UserRead, UserWrite'
+            $entry.DataStream = [System.IO.MemoryStream]::new([System.Text.Encoding]::UTF8.GetBytes([string] $Files[$name]))
+            $writer.WriteEntry($entry)
+        }
+    }
+    finally {
+        $writer.Dispose()
+    }
+
+    return , $stream.ToArray()
+}
+
 function Test-InteractiveSession {
     [CmdletBinding()]
     [OutputType([bool])]
@@ -209,4 +243,4 @@ function Test-InteractiveSession {
 
 Export-ModuleMember -Function Get-InstallerExitCode, Stop-Installer, Register-InstallerSecret, Clear-InstallerSecrets,
 Protect-InstallerText, Write-InstallerLine, Get-InstallerHome, Import-InstallerLibraries, Get-Sha256Hex, Invoke-InstallerProcess,
-Test-InteractiveSession
+New-InstallerTarBundle, Test-InteractiveSession

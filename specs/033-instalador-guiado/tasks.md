@@ -448,7 +448,7 @@ conectado e um administrador que precisa trocar a senha.
   menor privilégio depois de aplicado e recusa conexão existente de outra role sem sobrescrevê-la. A subida das
   instâncias pelo compose fica com a subida ordenada da T032. 11 testes Pester, inclusive contra PostgreSQL 18.4 real
   no Podman, com o `docker inspect` do container do psql varrido durante a execução sem achar nenhuma senha.
-- [ ] T029 [US1] Keycloak provisionado em `deploy/installer/src/Keycloak.psm1`:
+- [X] T029 [US1] Keycloak provisionado em `deploy/installer/src/Keycloak.psm1`:
   - container na versão homologada (`lzocateli/keycloak:26.7.0`) com banco em `keycloak-postgres` (FR-012);
   - administrador de bootstrap só no primeiro start (`keycloak-bootstrap-admin`);
   - `configure-keycloak.ps1 -Bootstrap` com o realm, o `BffBaseUrl` público e o usuário inicial com senha temporária
@@ -458,6 +458,19 @@ conectado e um administrador que precisa trocar a senha.
     `outcome: failed` e a ação no relatório, nunca `converged`, e a reexecução tenta de novo (L3 do threat model).
 
   Testes em `deploy/installer/tests/Keycloak.Tests.ps1` com um Keycloak real em container.
+  Nota (2026-11-11): `Keycloak.psm1` gera `keycloak-bootstrap-admin`, o client secret do BFF e
+  `keycloak-provisioner-client-secret` (novo no data-model, para as reconciliações sem o `master`). A reconciliação roda
+  em container avulso da imagem do instalador (`Keycloak.Sidecar.ps1`), só em `dokpod_keycloak-data`, com raiz somente
+  leitura, `--cap-drop ALL` e `--log-driver none`. O sidecar, o `configure-keycloak.ps1` e os segredos entram por stdin
+  num tar extraído em tmpfs. O `configure-keycloak.ps1` ganhou `-InternalHttp`, porque recusava HTTP fora do loopback.
+  O usuário inicial é lido antes: ausente recebe a senha temporária, sem senha recebe de novo, e pronto entra com
+  `-SkipUser`, porque o script reaplicaria `requiredActions` vazio e limparia o `UPDATE_PASSWORD` pendente. A senha vai
+  para `initial-admin-password` antes de ser aplicada, e o arquivo sai quando o Keycloak mostra a senha trocada. Com
+  `-Bootstrap`, a conta `dokpod-bootstrap` sai do `master` e o arquivo fica vazio; falha na remoção dá código 1 com a
+  ação, e a reexecução tenta de novo (L3). O `install.sh` repassa `DOKPOD_INSTALLER_IMAGE_REF`. A subida do container
+  pelo compose fica com a T032. 8 testes Pester, 3 contra Keycloak 26.7.0 real (hostname público e HTTP interno como no
+  compose), com o `docker inspect` do container avulso varrido sem achar segredo. Achado: o `configure-keycloak.ps1`
+  também cria os clients de laboratório `dokpod-lab` e `dokpod-authorization-spike` numa instalação de produção.
 - [ ] T030 [US1] Etapa de migrations em `deploy/installer/src/Migrations.psm1`:
   - `admin migrations status` e `plan` pelo container da imagem da API da versão;
   - lista das pendentes com objetos afetados e confirmação ligada ao `planHash` (FR-036);
