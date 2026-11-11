@@ -158,6 +158,47 @@ function Get-Sha256Hex {
     return [System.Convert]::ToHexStringLower($bytes)
 }
 
+function Invoke-InstallerProcess {
+    <#
+    .SYNOPSIS
+    Executa um processo (docker, docker compose) com argumentos separados, sem shell, e devolve código e saídas
+    redigidas. -InputBytes vai pelo stdin, que é o caminho dos segredos para containers avulsos (FR-033).
+    #>
+    [CmdletBinding()]
+    [OutputType([pscustomobject])]
+    param(
+        [Parameter(Mandatory)][string] $FilePath,
+        [string[]] $ArgumentList = @(),
+        [byte[]] $InputBytes
+    )
+
+    $start = [System.Diagnostics.ProcessStartInfo]::new($FilePath)
+    foreach ($argument in $ArgumentList) { $start.ArgumentList.Add($argument) }
+    $start.UseShellExecute = $false
+    $start.RedirectStandardInput = $true
+    $start.RedirectStandardOutput = $true
+    $start.RedirectStandardError = $true
+    $process = [System.Diagnostics.Process]::Start($start)
+    try {
+        $output = $process.StandardOutput.ReadToEndAsync()
+        $errorOutput = $process.StandardError.ReadToEndAsync()
+        if ($InputBytes) {
+            $process.StandardInput.BaseStream.Write($InputBytes, 0, $InputBytes.Length)
+        }
+
+        $process.StandardInput.Close()
+        $process.WaitForExit()
+        return [pscustomobject]@{
+            ExitCode = $process.ExitCode
+            Output   = Protect-InstallerText -Text $output.GetAwaiter().GetResult()
+            Error    = Protect-InstallerText -Text $errorOutput.GetAwaiter().GetResult()
+        }
+    }
+    finally {
+        $process.Dispose()
+    }
+}
+
 function Test-InteractiveSession {
     [CmdletBinding()]
     [OutputType([bool])]
@@ -167,4 +208,5 @@ function Test-InteractiveSession {
 }
 
 Export-ModuleMember -Function Get-InstallerExitCode, Stop-Installer, Register-InstallerSecret, Clear-InstallerSecrets,
-Protect-InstallerText, Write-InstallerLine, Get-InstallerHome, Import-InstallerLibraries, Get-Sha256Hex, Test-InteractiveSession
+Protect-InstallerText, Write-InstallerLine, Get-InstallerHome, Import-InstallerLibraries, Get-Sha256Hex, Invoke-InstallerProcess,
+Test-InteractiveSession

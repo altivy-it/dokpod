@@ -427,7 +427,7 @@ conectado e um administrador que precisa trocar a senha.
 
 **Teste independente**: cenários 1 e 2 do [quickstart](quickstart.md) nos dois engines.
 
-- [ ] T028 [US1] PostgreSQL provisionado em `deploy/installer/src/Postgres.psm1`:
+- [X] T028 [US1] PostgreSQL provisionado em `deploy/installer/src/Postgres.psm1`:
   - duas instâncias `dokpod-postgres` e `keycloak-postgres` (`lzocateli/postgresql:18.4-pgvector0.8.6-bookworm`),
     volumes e credenciais próprios (FR-007);
   - no `dokpod-postgres`, banco, role dona e role de runtime (membro do grupo `dokpod_runtime`) pelos arquivos `Installation/bootstrap/`
@@ -439,6 +439,15 @@ conectado e um administrador que precisa trocar a senha.
     banco (L5 do threat model).
 
   Testes em `deploy/installer/tests/Postgres.Tests.ps1`.
+  Nota (2026-11-11): `Postgres.psm1` gera `dokpod-db-password` e `keycloak-db-password` só quando faltam e executa
+  `server-version`, os três arquivos de `Installation/bootstrap/` e `role-privileges` (role dona e de runtime
+  `dokpod_app`) conferidos pelo SHA-256 do manifesto. Cada parâmetro declarado no manifesto só entra pelo canal do seu
+  tipo: `secret` como arquivo, os demais por `-v`. O `pgpass`, as senhas, o SQL e o roteiro vão por stdin num tar
+  extraído para um tmpfs (`noexec`, `mode=1777`, porque o Podman recusa `uid=` em `--tmpfs`) do container avulso, com
+  `--read-only`, `--cap-drop ALL`, `no-new-privileges`, `--log-driver none` e só a rede do banco. O bootstrap confere o
+  menor privilégio depois de aplicado e recusa conexão existente de outra role sem sobrescrevê-la. A subida das
+  instâncias pelo compose fica com a subida ordenada da T032. 11 testes Pester, inclusive contra PostgreSQL 18.4 real
+  no Podman, com o `docker inspect` do container do psql varrido durante a execução sem achar nenhuma senha.
 - [ ] T029 [US1] Keycloak provisionado em `deploy/installer/src/Keycloak.psm1`:
   - container na versão homologada (`lzocateli/keycloak:26.7.0`) com banco em `keycloak-postgres` (FR-012);
   - administrador de bootstrap só no primeiro start (`keycloak-bootstrap-admin`);
