@@ -471,7 +471,7 @@ conectado e um administrador que precisa trocar a senha.
   pelo compose fica com a T032. 8 testes Pester, 3 contra Keycloak 26.7.0 real (hostname público e HTTP interno como no
   compose), com o `docker inspect` do container avulso varrido sem achar segredo. Achado: o `configure-keycloak.ps1`
   também cria os clients de laboratório `dokpod-lab` e `dokpod-authorization-spike` numa instalação de produção.
-- [ ] T030 [US1] Etapa de migrations em `deploy/installer/src/Migrations.psm1`:
+- [X] T030 [US1] Etapa de migrations em `deploy/installer/src/Migrations.psm1`:
   - `admin migrations status` e `plan` pelo container da imagem da API da versão;
   - lista das pendentes com objetos afetados e confirmação ligada ao `planHash` (FR-036);
   - com `--sql-dir`: conferência do manifesto, cópia para `installDir/sql-override/`, lista de cada arquivo alterado
@@ -491,6 +491,23 @@ conectado e um administrador que precisa trocar a senha.
     model).
 
   Testes em `deploy/installer/tests/Migrations.Tests.ps1`.
+  Nota (2026-11-12): `Invoke-AdminCommand` roda o modo administrativo num container avulso com `--read-only`,
+  `--cap-drop ALL`, `--user 0:0` (o usuário do host no engine rootless, dono dos arquivos de `secretsDir`), só na rede do
+  banco, e com a conexão de `dokpod_owner` montada só para leitura. O `--sql-dir` é conferido antes do plano. A cópia fica em
+  `installDir/sql-override.pendente` até a confirmação e só então passa a `sql-override/`; ela guarda só o manifesto e os
+  arquivos alterados. Uma cópia de outra versão é ignorada com aviso.
+  Decisão nova: `--confirm-backup <banco>` para o backup no modo não interativo, porque a CLI não tinha confirmação
+  nomeada para FR-011. Ela foi acrescentada em `contracts/installer-cli.md`. No modo interativo, o operador digita
+  `aplicar`, cada caminho sobreposto e o nome do banco.
+  Na retomada manual, a impressão observada só é aceita se o `verify --script` não acusar arquivo alterado e o arquivo
+  exportado tiver linhas `-- override:`. A sobreposição de arquivo de bootstrap (`executor psql`) é conferida e registrada,
+  mas a T032 ainda precisa passar o catálogo efetivo ao `Invoke-PostgresBootstrap`. Parar a API e o BFF antes do backup,
+  como pede o runbook, fica com a ordem do `upgrade` (T048).
+  13 testes Pester, 4 contra PostgreSQL 18.4 e a imagem da API desta branch:
+  - banco vazio;
+  - `pg_dump` no banco com dados;
+  - sobreposição aceita e cópia alterada que volta a pedir confirmação;
+  - pausa 10, retomada 6 e retomada `ok`.
 - [ ] T031 [US1] Primeiro ambiente em `deploy/installer/src/Environments.psm1`:
   - `admin environments register` com o nome e estágio de `localEnvironment`;
   - `provision-environment-authorization.ps1` para o grupo `/dokpod/administrators` com os scopes do ambiente;

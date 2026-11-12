@@ -10,7 +10,7 @@ existem. O estado do instalador fica em arquivos no host.
 
 | Caminho (padrão, usuário rootless) | Conteúdo | Permissão |
 | --- | --- | --- |
-| `~/.local/share/dokpod` (`installDir`) | `compose.yaml`, `dokpod.env` (sem segredos), `edge/`, `deploy.env`, `answers.yaml`, `state/` (`installation.db` e `backups/`), `sql-override/` (cópia conferida do último `--sql-dir`, para reexecução e auditoria, não secreta), `reports/`, `packages/` | `0750` |
+| `~/.local/share/dokpod` (`installDir`) | `compose.yaml`, `dokpod.env` (sem segredos), `edge/`, `deploy.env`, `answers.yaml`, `state/` (`installation.db` e `backups/`), `sql-override/` (cópia conferida do último `--sql-dir`, para reexecução e auditoria, não secreta), `migrations/` (SQL exportado por `--manual-migrations` como `<de>-<para>.sql`, com `vazio` para banco novo, e a lista de impressões aceitas passada ao `verify`), `backups/` (`pg_dump` do `dokpod-postgres` provisionado antes de migrations, `0700` com arquivos `0600`, porque contém dados pessoais e auditoria), `reports/`, `packages/` | `0750` |
 | `~/.config/dokpod/secrets` (`secretsDir`) | Um arquivo por segredo e a pasta `pki/` (chave da CA local e PFX) | `0700`, arquivos `0600` |
 
 `installDir` e `secretsDir` precisam ser diferentes e nenhum pode ficar dentro de um checkout Git. O instalador recusa

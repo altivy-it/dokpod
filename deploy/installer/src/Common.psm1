@@ -163,13 +163,15 @@ function Invoke-InstallerProcess {
     .SYNOPSIS
     Executa um processo (docker, docker compose) com argumentos separados, sem shell, e devolve código e saídas
     redigidas. -InputBytes vai pelo stdin, que é o caminho dos segredos para containers avulsos (FR-033).
+    -StandardOutputPath grava o stdout binário num arquivo novo 0600 (pg_dump), e Output fica vazio.
     #>
     [CmdletBinding()]
     [OutputType([pscustomobject])]
     param(
         [Parameter(Mandatory)][string] $FilePath,
         [string[]] $ArgumentList = @(),
-        [byte[]] $InputBytes
+        [byte[]] $InputBytes,
+        [string] $StandardOutputPath
     )
 
     $start = [System.Diagnostics.ProcessStartInfo]::new($FilePath)
@@ -178,9 +180,16 @@ function Invoke-InstallerProcess {
     $start.RedirectStandardInput = $true
     $start.RedirectStandardOutput = $true
     $start.RedirectStandardError = $true
+    $file = $null
+    if ($StandardOutputPath) {
+        $options = [System.IO.FileStreamOptions]@{ Mode = 'CreateNew'; Access = 'Write' }
+        if (-not $IsWindows) { $options.UnixCreateMode = [System.IO.UnixFileMode]'UserRead, UserWrite' }
+        $file = [System.IO.FileStream]::new($StandardOutputPath, $options)
+    }
+
     $process = [System.Diagnostics.Process]::Start($start)
     try {
-        $output = $process.StandardOutput.ReadToEndAsync()
+        $output = if ($file) { $process.StandardOutput.BaseStream.CopyToAsync($file) } else { $process.StandardOutput.ReadToEndAsync() }
         $errorOutput = $process.StandardError.ReadToEndAsync()
         if ($InputBytes) {
             $process.StandardInput.BaseStream.Write($InputBytes, 0, $InputBytes.Length)
@@ -188,14 +197,17 @@ function Invoke-InstallerProcess {
 
         $process.StandardInput.Close()
         $process.WaitForExit()
+        $text = ''
+        if ($file) { [void] $output.GetAwaiter().GetResult() } else { $text = $output.GetAwaiter().GetResult() }
         return [pscustomobject]@{
             ExitCode = $process.ExitCode
-            Output   = Protect-InstallerText -Text $output.GetAwaiter().GetResult()
+            Output   = Protect-InstallerText -Text $text
             Error    = Protect-InstallerText -Text $errorOutput.GetAwaiter().GetResult()
         }
     }
     finally {
         $process.Dispose()
+        if ($file) { $file.Dispose() }
     }
 }
 

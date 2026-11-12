@@ -33,9 +33,10 @@ install.sh [comando] [opções]
 | `--version <X.Y.Z>` | Versão do próprio `install.sh` | Só release publicada; não aceita tag livre. |
 | `--offline <diretório>` | — | Imagens, manifesto e assinaturas exportados ([D-010](../research.md#d-010-imagens-assinatura-e-host-sem-internet)). |
 | `--dry-run` | — | Plano sem efeitos. |
-| `--yes` | — | Confirma o plano normal no modo não interativo. **Não** confirma remoção de dados nem aplicação de migrations; essas exigem `--confirm-data-removal <lista nomeada>` e `--confirm-migrations <hash do plano>`. |
+| `--yes` | — | Confirma o plano normal no modo não interativo. **Não** confirma remoção de dados, aplicação de migrations nem backup; essas exigem `--confirm-data-removal <lista nomeada>`, `--confirm-migrations <hash do plano>` e `--confirm-backup <banco>`. |
 | `--sql-dir <diretório>` | — | Catálogo SQL sobreposto ([D-013](../research.md#d-013-catálogo-de-arquivos-sql-e-sobreposição-externa)). O plano lista cada arquivo alterado com o hash original e o novo. |
 | `--confirm-sql-overrides <lista>` | — | No modo não interativo, confirma exatamente os caminhos alterados. `--yes` não basta (FR-041). |
+| `--confirm-backup <banco>` | — | No modo não interativo, confirma que há backup recente do banco nomeado antes de migrations num banco que já tem dados (FR-011), seguindo `docs/runbooks/backup-restore-e-atualizacao.md`. Com o `dokpod-postgres` provisionado, o instalador faz o `pg_dump` em `installDir/backups/` e a opção não é usada. |
 | `--manual-migrations` | — | Exporta o SQL, pausa com o código 10 e, na retomada, roda `verify` (FR-038). |
 | `--non-interactive` | Automático sem TTY | Proíbe prompts. |
 

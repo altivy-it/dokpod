@@ -11,7 +11,7 @@ foreach ($module in 'Common', 'Answers', 'State', 'Prerequisites', 'Images', 'Re
 
 $script:Commands = 'install', 'plan', 'upgrade', 'migrations', 'sql', 'recreate', 'host', 'certificates', 'status', 'help'
 $script:ValueOptions = 'answers', 'install-dir', 'secrets-dir', 'version', 'offline', 'sql-dir', 'out', 'confirm-data-removal',
-'confirm-migrations', 'confirm-sql-overrides', 'name', 'engine', 'environment', 'reason'
+'confirm-migrations', 'confirm-sql-overrides', 'confirm-backup', 'name', 'engine', 'environment', 'reason'
 $script:FlagOptions = 'dry-run', 'yes', 'manual-migrations', 'non-interactive', 'all', 'help', 'confirm-stale-lock'
 # Tarefa que entrega cada comando que aplica mudanças (specs/033-instalador-guiado/tasks.md).
 $script:Pending = @{ install = 'T028 a T034'; upgrade = 'T048'; migrations = 'T030'; recreate = 'T042 a T044'; host = 'T046 e T047'; certificates = 'T049' }
@@ -68,6 +68,7 @@ function ConvertFrom-InstallerArguments {
         DataRemoval  = @(Split-List $parsed.Options['confirm-data-removal'])
         MigrationsPlanHash = $parsed.Options['confirm-migrations']
         SqlOverrides = @(Split-List $parsed.Options['confirm-sql-overrides'])
+        Backup       = $parsed.Options['confirm-backup']
     }
     if ($parsed.Confirmations.MigrationsPlanHash -and $parsed.Confirmations.MigrationsPlanHash -notmatch '^[0-9a-f]{64}$') {
         Stop-Installer -Code Usage -Message '--confirm-migrations precisa ser o planHash (64 caracteres hexadecimais) mostrado no plano.'
@@ -147,9 +148,9 @@ Comandos:
 
 Opções: --answers <arquivo> (absoluto), --install-dir, --secrets-dir, --version, --offline <pasta>, --dry-run, --yes,
 --confirm-data-removal <lista>, --confirm-migrations <planHash>, --sql-dir <pasta>, --confirm-sql-overrides <lista>,
---manual-migrations, --non-interactive.
+--confirm-backup <banco>, --manual-migrations, --non-interactive.
 
---yes confirma só o plano normal; remoção de dados, migrations e sobreposição de SQL pedem a confirmação nomeada.
+--yes confirma só o plano normal; remoção de dados, migrations, sobreposição de SQL e backup pedem a confirmação nomeada.
 
 Códigos de saída: 0 sucesso; 1 erro na aplicação; 2 uso inválido; 3 pré-requisito; 4 confirmação recusada ou ausente;
 5 assinatura ou manifesto; 6 divergência de migrations; 7 outra execução em andamento; 10 pausado para migration manual.
