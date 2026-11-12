@@ -342,7 +342,7 @@
           "kind": "literal"
         }
       ],
-      "sha256": "1d9b92db8c53042b0b66c380a0877ad30862b4fac1be68990762c48e02e0cfa3"
+      "sha256": "cc97db2f630298aadd02229d71298badb6266e03a211f7836950b684aa4e52c8"
     },
     {
       "path": "queries/runs-expired.sql",

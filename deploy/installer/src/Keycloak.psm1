@@ -105,6 +105,43 @@ function New-InitialAdminPassword {
     return $value
 }
 
+function Invoke-KeycloakSidecar {
+    <#
+    .SYNOPSIS
+    Roda sidecar.ps1 num container avulso da imagem do instalador, só na rede do Keycloak, com raiz somente leitura, sem
+    capabilities, sem log e sem socket do engine. Os arquivos (scripts e input.json com os segredos) entram por stdin num
+    tar extraído para um tmpfs; nada sensível passa por argumento ou variável de ambiente do container (FR-033).
+    .OUTPUTS
+    ExitCode, Error e Result: o JSON da última linha `@@dokpod-result@@`, ou nulo sem ela.
+    #>
+    [CmdletBinding()]
+    [OutputType([pscustomobject])]
+    param(
+        [Parameter(Mandatory)][string] $Image,
+        [Parameter(Mandatory)][string] $Network,
+        [Parameter(Mandatory)][string] $Task,
+        [Parameter(Mandatory)][System.Collections.IDictionary] $Files,
+        [string] $Cli = 'docker'
+    )
+
+    $root = $script:SidecarRoot
+    $arguments = @('run', '--rm', '--interactive', '--log-driver', 'none', '--read-only', '--network', $Network,
+        '--cap-drop', 'ALL', '--security-opt', 'no-new-privileges',
+        '--tmpfs', "$($root):rw,noexec,nosuid,nodev,size=16m,mode=1777", '--tmpfs', '/tmp:rw,noexec,nosuid,nodev,size=64m,mode=1777',
+        '--env', "HOME=$root", '--env', 'POWERSHELL_TELEMETRY_OPTOUT=1', '--env', 'DOTNET_CLI_TELEMETRY_OPTOUT=1',
+        '--label', "io.dokpod.installer.task=$Task", '--name', "dokpod-installer-$Task-$([guid]::NewGuid().ToString('N').Substring(0, 12))",
+        '--entrypoint', 'sh', $Image, '-c',
+        "umask 077 && tar -x -f - -C $root && exec pwsh -NoLogo -NoProfile -NonInteractive -File $root/sidecar.ps1 $root/input.json")
+
+    $process = Invoke-InstallerProcess -FilePath $Cli -ArgumentList $arguments -InputBytes (New-InstallerTarBundle -Files $Files)
+    $line = @($process.Output -split "`n" | Where-Object { $_.StartsWith($script:ResultMarker) }) | Select-Object -Last 1
+    return [pscustomobject]@{
+        ExitCode = $process.ExitCode
+        Error    = $process.Error
+        Result   = if ($line) { $line.Substring($script:ResultMarker.Length) | ConvertFrom-Json } else { $null }
+    }
+}
+
 function Invoke-KeycloakRealm {
     <#
     .SYNOPSIS
@@ -164,28 +201,18 @@ function Invoke-KeycloakRealm {
         'sidecar.ps1'             = [System.IO.File]::ReadAllText((Join-Path $PSScriptRoot 'Keycloak.Sidecar.ps1'))
         'configure-keycloak.ps1'  = [System.IO.File]::ReadAllText((Join-Path $ScriptsRoot 'configure-keycloak.ps1'))
     }
-    $root = $script:SidecarRoot
-    $arguments = @('run', '--rm', '--interactive', '--log-driver', 'none', '--read-only', '--network', $Network,
-        '--cap-drop', 'ALL', '--security-opt', 'no-new-privileges',
-        '--tmpfs', "$($root):rw,noexec,nosuid,nodev,size=16m,mode=1777", '--tmpfs', '/tmp:rw,noexec,nosuid,nodev,size=64m,mode=1777',
-        '--env', "HOME=$root", '--env', 'POWERSHELL_TELEMETRY_OPTOUT=1', '--env', 'DOTNET_CLI_TELEMETRY_OPTOUT=1',
-        '--label', 'io.dokpod.installer.task=keycloak', '--name', "dokpod-installer-keycloak-$([guid]::NewGuid().ToString('N').Substring(0, 12))",
-        '--entrypoint', 'sh', $Image, '-c',
-        "umask 077 && tar -x -f - -C $root && exec pwsh -NoLogo -NoProfile -NonInteractive -File $root/sidecar.ps1 $root/input.json")
-
-    $result = Invoke-InstallerProcess -FilePath $Cli -ArgumentList $arguments -InputBytes (New-InstallerTarBundle -Files $files)
+    $result = Invoke-KeycloakSidecar -Image $Image -Network $Network -Task 'keycloak' -Files $files -Cli $Cli
     if ($result.ExitCode -eq $script:BootstrapRemovalFailed) {
         Stop-Installer -Code Error -Message ("O realm foi configurado, mas o administrador de bootstrap '$($script:BootstrapUsername)' continua no master " +
             "do Keycloak: $($result.Error.Trim()) Ação: reexecute o instalador, que tenta a remoção de novo; enquanto isso, a instalação não converge (L3).")
     }
 
-    $line = @($result.Output -split "`n" | Where-Object { $_.StartsWith($script:ResultMarker) }) | Select-Object -Last 1
-    if ($result.ExitCode -ne 0 -or -not $line) {
+    if ($result.ExitCode -ne 0 -or $null -eq $result.Result) {
         if ($initialCreatedNow) { Remove-Item -LiteralPath (Resolve-SecretPath -SecretsDirectory $secretsDir -Name $script:InitialPasswordSecret) -Force }
         Stop-Installer -Code Error -Message "A configuração do Keycloak falhou (código $($result.ExitCode)): $($result.Error.Trim())"
     }
 
-    $state = $line.Substring($script:ResultMarker.Length) | ConvertFrom-Json
+    $state = $result.Result
     if ($state.bootstrapRemoved) {
         # Vazio, e não apagado: o compose referencia o arquivo, e o entrypoint só cria a conta com ele não vazio.
         [System.IO.File]::WriteAllBytes((Resolve-SecretPath -SecretsDirectory $secretsDir -Name $script:BootstrapSecret), [byte[]] @())
@@ -206,4 +233,4 @@ function Invoke-KeycloakRealm {
     }
 }
 
-Export-ModuleMember -Function Get-KeycloakDefaults, Initialize-KeycloakSecret, New-InitialAdminPassword, Invoke-KeycloakRealm
+Export-ModuleMember -Function Get-KeycloakDefaults, Initialize-KeycloakSecret, New-InitialAdminPassword, Invoke-KeycloakSidecar, Invoke-KeycloakRealm

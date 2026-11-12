@@ -123,6 +123,7 @@ if command -v ss >/dev/null 2>&1; then
     listening=$(ss -Htln 2>/dev/null | awk '{ n = split($4, a, ":"); print a[n] }' | sort -un | paste -sd, - || true)
 fi
 free_bytes=$(df -P -B1 "$install_dir" 2>/dev/null | awk 'NR == 2 { print $4 }' || true)
+host_name=$(uname -n 2>/dev/null || true)
 
 # As opções do container entram antes da imagem e dos argumentos originais, que ficam intactos no fim de "$@".
 set -- "$image" "$@"
@@ -139,6 +140,7 @@ set -- --rm --interactive --log-driver none --user 0:0 \
     "--env=DOKPOD_HOST_LINGER=$linger" \
     "--env=DOKPOD_HOST_LISTENING_PORTS=$listening" \
     "--env=DOKPOD_HOST_FREE_BYTES=$free_bytes" \
+    "--env=DOKPOD_HOST_NAME=$host_name" \
     "--env=HOME=$HOME" \
     "$@"
 if [ -t 0 ] && [ -t 1 ]; then set -- --tty "$@"; fi

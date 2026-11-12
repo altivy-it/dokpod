@@ -508,7 +508,7 @@ conectado e um administrador que precisa trocar a senha.
   - `pg_dump` no banco com dados;
   - sobreposição aceita e cópia alterada que volta a pedir confirmação;
   - pausa 10, retomada 6 e retomada `ok`.
-- [ ] T031 [US1] Primeiro ambiente em `deploy/installer/src/Environments.psm1`:
+- [X] T031 [US1] Primeiro ambiente em `deploy/installer/src/Environments.psm1`:
   - `admin environments register` com o nome e estágio de `localEnvironment`;
   - `provision-environment-authorization.ps1` para o grupo `/dokpod/administrators` com os scopes do ambiente;
   - certificado do agente (T022);
@@ -516,6 +516,28 @@ conectado e um administrador que precisa trocar a senha.
   - serviço `agent` do engine escolhido, com socket só nele (FR-024).
 
   Testes em `deploy/installer/tests/Environments.Tests.ps1`.
+  Nota (2026-11-12): o ambiente local reaproveita o ID do estado; sem ele, recebe um novo. O host é `DOKPOD_HOST_NAME`,
+  que o `install.sh` passou a repassar (`uname -n`), ou o host da `publicUrl`. A CA local não tinha etapa que a gravasse:
+  `Initialize-LocalCertificateAuthority` (em `Pki.psm1`) a carrega de `secretsDir/pki/ca.crt` e `ca.key` ou a cria, e só o
+  certificado sem a chave interrompe. O certificado do agente (`pki/agent-<id>.pfx` e `.pass`) é reaproveitado quando
+  passa na validação contra a CA; inválido, interrompe e aponta `recreate pki:agent:<id>`. O conflito do modo
+  administrativo (código 8) interrompe com o `failureCode` e a ação. A autorização roda num container avulso só na rede
+  do Keycloak, com o client secret do `dokpod-provisioner` no tar do stdin, e concede ao grupo os scopes do `ValidateSet`
+  de `-Scope` do próprio script (fonte única). O script ganhou `-InternalHttp`, como o `configure-keycloak.ps1`. O
+  container avulso do Keycloak virou `Invoke-KeycloakSidecar`, usado pelas duas etapas. `Assert-EngineSocketIsolation`
+  confere no modelo do compose que só o `agent` monta o socket, sem porta e só em `dokpod-internal`; a subida do serviço
+  fica com a T032.
+  Achado corrigido: o agente lia a senha do PFX só da variável de ambiente, mas o compose a entrega em `/run/secrets`.
+  `AgentOptions.ReadSecret` lê o arquivo antes da variável, como a API e o BFF.
+  Achado corrigido: a varredura de histórico da CI (um patch por commit) acusava 29 falsos positivos nos commits da T028
+  à T030: nomes de arquivo de segredo, chamadas como `Read-InstallerSecret` e valores sintéticos dos testes. O
+  `.gitleaks.toml` ganhou padrões ancorados para eles, com casos em `tools/scripts/test-gitleaks.ps1` que confirmam que um
+  literal ao lado dessas chamadas continua bloqueado.
+  Também corrigido: `run-steps-list.sql` ordena por `rowid`, porque duas etapas no mesmo milissegundo saíam em ordem
+  alfabética (teste intermitente de `State.Tests.ps1`).
+  9 testes Pester, 1 contra PostgreSQL 18.4, Keycloak 26.7.0 e as imagens da API e do instalador desta branch: cadastro
+  com os eventos `environment.register` e `environment.agent_identity_register`, recurso com os 17 scopes e a policy do
+  grupo, e reexecução sem mudança.
 - [ ] T032 [US1] (FR-021) Borda provisionada (`dokpod-edge` com `lzocateli/nginx:1.28.0-bookworm-v1`) e subida ordenada em
   `deploy/installer/src/Services.psm1`:
   - `docker compose up --wait` por etapa (bancos, Keycloak, API, BFF e web, borda, agente);

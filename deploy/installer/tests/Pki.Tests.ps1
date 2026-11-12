@@ -3,8 +3,45 @@
 
 BeforeAll {
     Import-Module (Join-Path $PSScriptRoot '../src/Common.psm1') -Force
+    Import-Module (Join-Path $PSScriptRoot '../src/Secrets.psm1') -Force
     Import-Module (Join-Path $PSScriptRoot '../src/Pki.psm1') -Force
     $script:ca = New-LocalCertificateAuthority
+}
+
+Describe 'CA local persistida em secretsDir (T031)' {
+    BeforeEach {
+        $script:dir = Join-Path ([System.IO.Path]::GetTempPath()) "dokpod-033-ca-$([guid]::NewGuid().ToString('N'))"
+    }
+
+    AfterEach {
+        Remove-Item -LiteralPath $script:dir -Recurse -Force -ErrorAction SilentlyContinue
+        Clear-InstallerSecrets
+    }
+
+    It 'cria uma vez com chave 0600 e a reexecução carrega a mesma CA, com a chave' {
+        $first = Initialize-LocalCertificateAuthority -SecretsDirectory $script:dir
+        $first.Created | Should -BeTrue
+        [System.IO.File]::GetUnixFileMode((Join-Path $script:dir 'pki/ca.key')) | Should -Be ([System.IO.UnixFileMode]'UserRead, UserWrite')
+
+        $again = Initialize-LocalCertificateAuthority -SecretsDirectory $script:dir
+        $again.Created | Should -BeFalse
+        $again.Certificate.Thumbprint | Should -Be $first.Certificate.Thumbprint
+        $again.Certificate.HasPrivateKey | Should -BeTrue
+    }
+
+    It 'certificado sem a chave interrompe sem gravar; só a chave (execução interrompida) é substituída' {
+        [void] (Initialize-LocalCertificateAuthority -SecretsDirectory $script:dir)
+        $certificate = [System.IO.File]::ReadAllText((Join-Path $script:dir 'pki/ca.crt'))
+        Remove-Item -LiteralPath (Join-Path $script:dir 'pki/ca.key')
+        { Initialize-LocalCertificateAuthority -SecretsDirectory $script:dir } | Should -Throw '*recreate pki:ca*'
+        [System.IO.File]::ReadAllText((Join-Path $script:dir 'pki/ca.crt')) | Should -Be $certificate
+        Test-Path (Join-Path $script:dir 'pki/ca.key') | Should -BeFalse
+
+        Remove-Item -LiteralPath (Join-Path $script:dir 'pki/ca.crt')
+        [System.IO.File]::WriteAllText((Join-Path $script:dir 'pki/ca.key'), 'sobra')
+        (Initialize-LocalCertificateAuthority -SecretsDirectory $script:dir).Created | Should -BeTrue
+        [System.IO.File]::ReadAllText((Join-Path $script:dir 'pki/ca.key')) | Should -Not -Be 'sobra'
+    }
 }
 
 Describe 'CA local' {

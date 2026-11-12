@@ -7,6 +7,7 @@ em secretsDir/pki.
 #>
 Set-StrictMode -Version Latest
 Import-Module (Join-Path $PSScriptRoot 'Common.psm1')
+Import-Module (Join-Path $PSScriptRoot 'Secrets.psm1')
 
 $script:ServerAuth = '1.3.6.1.5.5.7.3.1'
 $script:ClientAuth = '1.3.6.1.5.5.7.3.2'
@@ -55,6 +56,43 @@ function New-LocalCertificateAuthority {
             [System.Security.Cryptography.X509Certificates.X509KeyUsageFlags]'KeyCertSign, CrlSign', $true))
     $request.CertificateExtensions.Add([System.Security.Cryptography.X509Certificates.X509SubjectKeyIdentifierExtension]::new($request.PublicKey, $false))
     return $request.CreateSelfSigned($NotBefore, $NotBefore.AddYears($script:CaYears))
+}
+
+function Initialize-LocalCertificateAuthority {
+    <#
+    .SYNOPSIS
+    CA local da instalação em secretsDir/pki (ca.crt e ca.key): carrega a existente ou cria uma nova. O certificado sem a
+    chave interrompe sem gravar nada; a troca da CA é `recreate pki:ca`.
+    .OUTPUTS
+    Certificate (com a chave privada) e Created.
+    #>
+    [CmdletBinding()]
+    [OutputType([pscustomobject])]
+    param(
+        [Parameter(Mandatory)][string] $SecretsDirectory,
+        [ValidateSet('ecdsa-p256', 'rsa-3072')][string] $Algorithm = 'ecdsa-p256'
+    )
+
+    $hasCertificate = Test-InstallerSecret -SecretsDirectory $SecretsDirectory -Name 'pki/ca.crt'
+    $hasKey = Test-InstallerSecret -SecretsDirectory $SecretsDirectory -Name 'pki/ca.key'
+    if ($hasCertificate -and $hasKey) {
+        $certificatePem = Read-InstallerSecret -SecretsDirectory $SecretsDirectory -Name 'pki/ca.crt'
+        $keyPem = Read-InstallerSecret -SecretsDirectory $SecretsDirectory -Name 'pki/ca.key'
+        try { $ca = [System.Security.Cryptography.X509Certificates.X509Certificate2]::CreateFromPem($certificatePem, $keyPem) }
+        catch { Stop-Installer -Code Error -Message "pki/ca.crt e pki/ca.key em secretsDir não formam um par válido; use 'recreate pki:ca'." }
+        return [pscustomobject]@{ Certificate = $ca; Created = $false }
+    }
+
+    if ($hasCertificate) {
+        Stop-Installer -Code Error -Message "pki/ca.crt existe sem pki/ca.key em secretsDir; nada foi gravado. Use 'recreate pki:ca'."
+    }
+
+    # A chave vai antes do certificado. Só a chave quer dizer execução interrompida entre as duas gravações: nenhum
+    # certificado foi assinado por ela, então ela é substituída. Só o certificado (acima) quer dizer chave perdida.
+    $ca = New-LocalCertificateAuthority -Algorithm $Algorithm
+    Write-InstallerSecret -SecretsDirectory $SecretsDirectory -Name 'pki/ca.key' -Value (ConvertTo-PrivateKeyPem -Certificate $ca) -Recreate:$hasKey
+    Write-InstallerSecret -SecretsDirectory $SecretsDirectory -Name 'pki/ca.crt' -Value (ConvertTo-CertificatePem -Certificate $ca)
+    return [pscustomobject]@{ Certificate = $ca; Created = $true }
 }
 
 function New-InstallerCertificate {
@@ -260,5 +298,5 @@ function Test-DnsNameMatch {
     return [string]::Equals($Pattern, $Name, [System.StringComparison]::OrdinalIgnoreCase)
 }
 
-Export-ModuleMember -Function New-LocalCertificateAuthority, New-InstallerCertificate, Get-CertificateFingerprint, ConvertTo-CertificatePem,
+Export-ModuleMember -Function New-LocalCertificateAuthority, Initialize-LocalCertificateAuthority, New-InstallerCertificate, Get-CertificateFingerprint, ConvertTo-CertificatePem,
 ConvertTo-PrivateKeyPem, ConvertTo-CertificatePfx, Import-OrganizationCertificate, Test-InstallerCertificate, Get-CertificateDnsNames
