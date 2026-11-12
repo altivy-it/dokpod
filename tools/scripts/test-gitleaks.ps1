@@ -97,6 +97,12 @@ $cases = @(
     @{ Name = 'shell literal default'; Text = New-CredentialAssignment 'secret' ('${DOKPOD_SECRET:-' + $credential + '}'); Rule = $connectionRule }
     @{ Name = 'literal with parenthesis'; Text = New-CredentialAssignment 'Password' ('Ab' + $credential + '(1'); Rule = $connectionRule }
     @{ Name = 'literal with bracket'; Text = New-CredentialAssignment 'Password' ('Ab' + $credential + '[x'); Rule = $connectionRule }
+    @{ Name = 'installer secret read'; Text = New-CredentialAssignment 'password' 'Read-InstallerSecret -SecretsDirectory $SecretsDirectory -Name $passName'; Rule = $null }
+    @{ Name = 'installer secret generator'; Text = New-CredentialAssignment 'password' 'New-InstallerSecret'; Rule = $null }
+    @{ Name = 'property reference'; Text = New-CredentialAssignment 'DOKPOD_PROVISIONER_CLIENT_SECRET' '$secrets.provisionerSecret }'; Rule = $null }
+    @{ Name = 'installer secret file name'; Text = New-CredentialAssignment 'Password' "'dokpod-db-password'"; Rule = $null }
+    @{ Name = 'installer read with literal suffix'; Text = New-CredentialAssignment 'password' ("Read-InstallerSecret -SecretsDirectory `$dir -Name 'x' + '" + $credential + "'"); Rule = $connectionRule }
+    @{ Name = 'property with literal suffix'; Text = New-CredentialAssignment 'Password' ('$secrets.value + "' + $credential + '"'); Rule = $connectionRule }
 )
 
 $reportDirectory = Join-Path ([IO.Path]::GetTempPath()) ([IO.Path]::GetRandomFileName())
