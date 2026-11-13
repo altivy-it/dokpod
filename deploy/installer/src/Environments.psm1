@@ -71,6 +71,29 @@ function Set-CertificateRecord {
     }
 }
 
+function Save-LocalEnvironment {
+    <#
+    .SYNOPSIS
+    Grava no estado o ambiente local e o fingerprint do agente, preservando package_generated_at.
+    .DESCRIPTION
+    O install chama logo depois de emitir o certificado do agente: o ID vai para o compose.yaml e para o banco, e uma
+    execução interrompida depois disso precisa retomar com o mesmo ID, sem outro certificado nem outro cadastro (FR-027).
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] $State,
+        [Parameter(Mandatory)][pscustomobject] $Environment,
+        [Parameter(Mandatory)][string] $Fingerprint
+    )
+
+    $rows = Invoke-StateSql -State $State -Name 'environments-list' -Rows
+    $row = $rows | Where-Object { $_['environment_id'] -eq $Environment.Id } | Select-Object -First 1
+    Invoke-StateSql -State $State -Name 'environment-upsert' -Parameters @{
+        environment_id = $Environment.Id; name = $Environment.Name; engine = $Environment.Engine; agent_fingerprint = $Fingerprint
+        package_generated_at = if ($row) { $row['package_generated_at'] } else { $null }; revoked_at = $null
+    }
+}
+
 function Initialize-AgentCertificate {
     <#
     .SYNOPSIS
@@ -280,12 +303,7 @@ function Invoke-EnvironmentStep {
         -Conflict ("O fingerprint do agente $($environment.Id) já está ligado a outro ambiente ou foi revogado, ou o ambiente já tem " +
             "outra identidade. Use 'recreate pki:agent:$($environment.Id)'.")
 
-    $rows = Invoke-StateSql -State $State -Name 'environments-list' -Rows
-    $row = $rows | Where-Object { $_['environment_id'] -eq $environment.Id } | Select-Object -First 1
-    Invoke-StateSql -State $State -Name 'environment-upsert' -Parameters @{
-        environment_id = $environment.Id; name = $environment.Name; engine = $environment.Engine; agent_fingerprint = $agent.Fingerprint
-        package_generated_at = if ($row) { $row['package_generated_at'] } else { $null }; revoked_at = $null
-    }
+    Save-LocalEnvironment -State $State -Environment $environment -Fingerprint $agent.Fingerprint
 
     return [pscustomobject]@{
         EnvironmentId        = $environment.Id
@@ -298,5 +316,5 @@ function Invoke-EnvironmentStep {
     }
 }
 
-Export-ModuleMember -Function Resolve-LocalEnvironment, Initialize-AgentCertificate, Invoke-EnvironmentAuthorization, Assert-EngineSocketIsolation,
+Export-ModuleMember -Function Resolve-LocalEnvironment, Save-LocalEnvironment, Initialize-AgentCertificate, Invoke-EnvironmentAuthorization, Assert-EngineSocketIsolation,
 Invoke-EnvironmentStep

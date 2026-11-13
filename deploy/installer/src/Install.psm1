@@ -173,8 +173,10 @@ function Invoke-InstallerInstall {
             $edge = Initialize-ServiceCertificate -Answers $Answers -State $state -Role edge -CertificateAuthority $ca
             $api = Initialize-ServiceCertificate -Answers $Answers -State $state -Role api -CertificateAuthority $ca
             [void] (Initialize-DataProtectionCertificate -SecretsDirectory $Answers.secretsDir)
-            [void] (Initialize-AgentCertificate -SecretsDirectory $Answers.secretsDir -EnvironmentId $environment.Id -CertificateAuthority $ca `
-                    -Algorithm $algorithm -RenewWarningDays ([int] $Answers.certificates.renewWarningDays))
+            $agent = Initialize-AgentCertificate -SecretsDirectory $Answers.secretsDir -EnvironmentId $environment.Id -CertificateAuthority $ca `
+                -Algorithm $algorithm -RenewWarningDays ([int] $Answers.certificates.renewWarningDays)
+            # O ID já está no compose.yaml e no certificado: a retomada precisa reencontrá-lo (FR-027).
+            Save-LocalEnvironment -State $state -Environment $environment -Fingerprint $agent.Fingerprint
             [pscustomobject]@{ Ca = $ca; Edge = $edge; Api = $api }
         }
 

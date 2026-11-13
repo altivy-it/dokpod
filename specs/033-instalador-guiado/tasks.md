@@ -591,9 +591,31 @@ conectado e um administrador que precisa trocar a senha.
   - pela borda, `/dokpod/` e o OIDC responderam 200, e `/dokpod/bff/login` respondeu 302 para o Keycloak;
   - a reexecução terminou `converged`, sem recriar nenhum container;
   - tudo levou 147 s.
-- [ ] T033 [US1] Retomada e reexecução: interromper em cada etapa (pki, banco, migrations, realm, ambiente, serviços) e
+- [X] T033 [US1] Retomada e reexecução: interromper em cada etapa (pki, banco, migrations, realm, ambiente, serviços) e
   retomar, com teste em `deploy/installer/tests/Resume.Tests.ps1` usando engine real em container. A reexecução com as
   mesmas respostas deve dar plano todo `keep` e `outcome: converged` em até 2 minutos (SC-003, SC-004).
+
+  Nota (2026-11-12): `Resume.Tests.ps1` (com `DOKPOD_TEST_FULL_INSTALL=1`) interrompe a instalação real por um
+  invólucro do `docker`, que falha uma vez no primeiro comando de cada etapa: o `psql` do banco, `migrations apply`, o
+  container avulso do realm, `agent-identities register` (com o ambiente e a autorização já gravados) e o `up` da
+  aplicação. Na `pki`, a queda entre as duas gravações de um par é simulada: só a chave da borda e só a senha do PFX da
+  API. Também entra a pausa sem `--confirm-migrations` (código 4). Cada interrupção sai com o código do contrato, marca a
+  etapa como `failed` e libera a trava.
+  A retomada converge em 78 s, sem recurso duplicado: um banco `dokpod`, um ambiente, uma identidade, um evento de
+  auditoria por cadastro, um realm, um usuário inicial, um client `dokpod-bff` e nenhum `dokpod-bootstrap`. A reexecução
+  com as mesmas respostas levou 16 s, com o plano todo `keep` (12 componentes) e `outcome: converged`. Os containers, o
+  hash de cada arquivo de `secretsDir`, os fingerprints dos certificados e as contagens dos bancos do Dokpod e do
+  Keycloak ficaram iguais.
+  Achados corrigidos:
+  - o ID do ambiente local só ia para o estado no fim da etapa `environment`. Cada execução interrompida antes gerava
+    outro ID, outro certificado de agente e outro `compose.yaml`; a interrompida depois do cadastro tentava cadastrar
+    outro ambiente com o mesmo nome. `Save-LocalEnvironment` grava o ambiente na `pki`, logo depois do certificado;
+  - um container que termina antes de ler o stdin quebrava a escrita do tar com erro do .NET, sem código do contrato.
+    `Invoke-InstallerProcess` passou a valer o código de saída;
+  - a falha do `up` na subida passou a trazer a última linha do Compose.
+  Achado sem correção: com o mesmo nome e outro ID, `admin environments register` saiu com código 1 ("could not be
+  persisted"), não com o conflito 8 do contrato. Com a correção acima, o instalador não chega mais a isso, mas o modo
+  administrativo merece a correção pelo Bug Fixing.
 - [ ] T034 [US1] (SC-001, SC-002) Validar os cenários 1 e 2 do quickstart em host descartável com Docker Engine rootless e com Podman rootless,
   incluindo a recusa de um engine rootful e de `httpsPort` abaixo do limite do host.
   Medir o tempo (SC-001), entrar pela borda com Playwright (`lzocateli/playwright-e2e`) e registrar as evidências em

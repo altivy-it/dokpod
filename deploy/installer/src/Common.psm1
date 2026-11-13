@@ -191,11 +191,15 @@ function Invoke-InstallerProcess {
     try {
         $output = if ($file) { $process.StandardOutput.BaseStream.CopyToAsync($file) } else { $process.StandardOutput.ReadToEndAsync() }
         $errorOutput = $process.StandardError.ReadToEndAsync()
-        if ($InputBytes) {
-            $process.StandardInput.BaseStream.Write($InputBytes, 0, $InputBytes.Length)
-        }
+        # Um processo que termina antes de ler o stdin (container que não sobe) quebra a escrita; vale o código de saída.
+        try {
+            if ($InputBytes) {
+                $process.StandardInput.BaseStream.Write($InputBytes, 0, $InputBytes.Length)
+            }
 
-        $process.StandardInput.Close()
+            $process.StandardInput.Close()
+        }
+        catch [System.IO.IOException], [System.Management.Automation.MethodInvocationException] { }
         $process.WaitForExit()
         $text = ''
         if ($file) { [void] $output.GetAwaiter().GetResult() } else { $text = $output.GetAwaiter().GetResult() }

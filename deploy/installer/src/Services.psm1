@@ -399,10 +399,11 @@ function Invoke-ServiceStage {
     $health = Get-ServiceHealth -Answers $Answers -Services $Services -Project $Project -Cli $Cli
     $failing = @($health | Where-Object { -not $_.Healthy })
     if ($result.ExitCode -ne 0 -or $failing.Count -gt 0) {
-        $detail = if ($failing.Count -gt 0) {
-            ($failing | ForEach-Object { "$($_.Service) ($($_.State)$(if ($_.Health) { ", $($_.Health)" }))" }) -join ', '
+        $detail = ($failing | ForEach-Object { "$($_.Service) ($($_.State)$(if ($_.Health) { ", $($_.Health)" }))" }) -join ', '
+        if ($result.ExitCode -ne 0 -and $result.Error.Trim()) {
+            $compose = "compose: $(($result.Error.Trim() -split "`n" | Select-Object -Last 1).Trim())"
+            $detail = if ($detail) { "$detail; $compose" } else { $compose }
         }
-        else { ($result.Error.Trim() -split "`n" | Select-Object -Last 1) }
         $logs = ($Services | ForEach-Object { "docker compose -p $Project logs $_" }) -join ' | '
         Stop-Installer -Code Error -Message ("A etapa de serviços '$Stage' não ficou saudável (espera de até $TimeoutSeconds s): $detail. Veja os logs com $logs; " +
             'corrija e reexecute o instalador, que retoma desta etapa.')

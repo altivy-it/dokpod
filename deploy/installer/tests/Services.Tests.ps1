@@ -237,6 +237,14 @@ Describe 'Certificados da organização' {
     }
 }
 
+Describe 'Processo que termina antes de ler o stdin' {
+    It 'devolve o código de saída em vez de quebrar na escrita (container que não sobe)' {
+        $result = Invoke-InstallerProcess -FilePath 'sh' -ArgumentList @('-c', 'echo falhou >&2; exit 3') -InputBytes ([byte[]]::new(8MB))
+        $result.ExitCode | Should -Be 3
+        $result.Error.Trim() | Should -Be 'falhou'
+    }
+}
+
 Describe 'Dono dos segredos montados (D-015)' {
     It 'dá a cada arquivo o UID do serviço que o lê; serviço root não muda o dono; usuários diferentes no mesmo arquivo interrompem' {
         $root = Join-Path ([System.IO.Path]::GetTempPath()) "dokpod-033-svc-$([guid]::NewGuid().ToString('N'))"
@@ -500,6 +508,10 @@ Describe 'Comando install' {
                 $runId = (Invoke-StateSql -State $state -Name 'runs-expired' -Parameters @{ keep = 0 } -Rows)[0]['run_id']
                 $steps = Invoke-StateSql -State $state -Name 'run-steps-list' -Parameters @{ run_id = $runId } -Rows
                 ($steps | ForEach-Object { "$($_['step'])=$($_['status'])" }) | Should -Be @('secrets=done', 'pki=done', 'config=done', 'services:data=failed')
+                # O ambiente já está no estado com o ID do compose.yaml: a retomada não cria outro (FR-027).
+                $environments = Invoke-StateSql -State $state -Name 'environments-list' -Rows
+                $environments.Count | Should -Be 1
+                $environments[0]['environment_id'] | Should -Be $environmentId
                 $run = (Invoke-StateSql -State $state -Name 'run-get' -Parameters @{ run_id = $runId } -Rows)[0]
                 $run['outcome'] | Should -Be 'failed'
                 $report = Get-Content -Raw $run['report_path'] | ConvertFrom-Json
