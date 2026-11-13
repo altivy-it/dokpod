@@ -184,7 +184,8 @@ function Invoke-KeycloakRealm {
     $settings = [ordered]@{
         baseUrl           = $BaseUrl
         realm             = $Answers.keycloak.realm
-        bffBaseUrl        = $Answers.publicUrl.TrimEnd('/')
+        # O BFF responde sob /dokpod na borda: o redirect_uri do client é <publicUrl>/dokpod/signin-oidc.
+        bffBaseUrl        = "$($Answers.publicUrl.TrimEnd('/'))/dokpod"
         initialUsername   = $Answers.keycloak.initialAdmin.username
         initialEmail      = $Answers.keycloak.initialAdmin.email
         bootstrapUsername = $script:BootstrapUsername

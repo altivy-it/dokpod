@@ -98,6 +98,8 @@ Describe 'Container avulso da reconciliação' {
             $inputEntry = Get-TarText -Path (Join-Path $dir 'stdin.tar') -Name 'input.json'
             $inputEntry.Mode | Should -Be ([System.IO.UnixFileMode]'UserRead, UserWrite')
             ($inputEntry.Text | ConvertFrom-Json).secrets.bootstrapPassword | Should -Be $bootstrap
+            # O BFF responde sob /dokpod: é dele que sai o redirect_uri registrado no client (T034).
+            ($inputEntry.Text | ConvertFrom-Json).bffBaseUrl | Should -Be 'https://dokpod.lab.test:18443/dokpod'
             (Get-TarText -Path (Join-Path $dir 'stdin.tar') -Name 'configure-keycloak.ps1').Text | Should -Match 'InternalHttp'
         }
         finally { Remove-Item -LiteralPath $dir -Recurse -Force }
