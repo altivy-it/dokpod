@@ -469,6 +469,7 @@ function Invoke-ProvisionedPostgresBootstrap {
     param(
         [Parameter(Mandatory)][System.Collections.IDictionary] $Answers,
         [Parameter(Mandatory)][string] $Image,
+        [string] $Network = $script:Provisioned.Network,
         [string] $CatalogRoot = (Join-Path (Get-InstallerHome) 'catalog'),
         [string] $Cli = 'docker'
     )
@@ -484,7 +485,7 @@ function Invoke-ProvisionedPostgresBootstrap {
         Password = Read-InstallerSecret -SecretsDirectory $Answers.secretsDir -Name $script:Provisioned.AdminSecret
     }
 
-    return Invoke-PostgresBootstrap -SecretsDirectory $Answers.secretsDir -Image $Image -Network $script:Provisioned.Network -Server $server `
+    return Invoke-PostgresBootstrap -SecretsDirectory $Answers.secretsDir -Image $Image -Network $Network -Server $server `
         -MaintenanceDatabase $script:Provisioned.MaintenanceDb -CatalogRoot $CatalogRoot -Cli $Cli
 }
 

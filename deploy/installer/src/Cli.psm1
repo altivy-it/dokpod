@@ -5,7 +5,7 @@ Linha de comando do instalador (spec 033 T027, FR-001, FR-004, FR-035; contrato 
 dos argumentos, confirmações explícitas e os comandos sem efeito (help, plan, --dry-run, status, sql export).
 #>
 Set-StrictMode -Version Latest
-foreach ($module in 'Common', 'Answers', 'State', 'Prerequisites', 'Images', 'Render', 'Plan') {
+foreach ($module in 'Common', 'Answers', 'State', 'Prerequisites', 'Images', 'Render', 'Plan', 'Install') {
     Import-Module (Join-Path $PSScriptRoot "$module.psm1")
 }
 
@@ -14,7 +14,7 @@ $script:ValueOptions = 'answers', 'install-dir', 'secrets-dir', 'version', 'offl
 'confirm-migrations', 'confirm-sql-overrides', 'confirm-backup', 'name', 'engine', 'environment', 'reason'
 $script:FlagOptions = 'dry-run', 'yes', 'manual-migrations', 'non-interactive', 'all', 'help', 'confirm-stale-lock'
 # Tarefa que entrega cada comando que aplica mudanças (specs/033-instalador-guiado/tasks.md).
-$script:Pending = @{ install = 'T028 a T034'; upgrade = 'T048'; migrations = 'T030'; recreate = 'T042 a T044'; host = 'T046 e T047'; certificates = 'T049' }
+$script:Pending = @{ upgrade = 'T048'; migrations = 'T030'; recreate = 'T042 a T044'; host = 'T046 e T047'; certificates = 'T049' }
 
 function ConvertFrom-InstallerArguments {
     <#
@@ -114,6 +114,8 @@ function Invoke-InstallerCli {
                 if ($parsed.Flags['dry-run'] -and $parsed.Command -in 'install', 'recreate') {
                     return Invoke-InstallerPlanCommand -Parsed $parsed
                 }
+
+                if ($parsed.Command -eq 'install') { return Invoke-InstallerInstallCommand -Parsed $parsed }
 
                 Stop-Installer -Code Usage -Message "O comando '$($parsed.Command)' ainda não aplica mudanças nesta versão (spec 033, $($script:Pending[$parsed.Command])); use --dry-run para ver o plano."
             }
@@ -257,6 +259,41 @@ function Invoke-InstallerPlanCommand {
     finally {
         if ($state) { Close-InstallerState -State $state }
     }
+}
+
+function Invoke-InstallerInstallCommand {
+    <#
+    .SYNOPSIS
+    install: pré-requisitos, manifesto e assinaturas antes de qualquer efeito; depois as etapas de Install.psm1.
+    #>
+    param($Parsed)
+
+    $answers = Get-CliAnswers -Parsed $Parsed
+    if (-not $env:DOKPOD_INSTALLER_IMAGE_REF) {
+        Stop-Installer -Code Usage -Message 'Rode o instalador pelo install.sh, que informa a imagem em execução (DOKPOD_INSTALLER_IMAGE_REF).'
+    }
+
+    $engine = Get-EngineFacts
+    $observed = Get-ObservedServices
+    $ownedPorts = @()
+    if ($observed.Contains('edge')) { $ownedPorts += [int] $answers.edge.httpsPort }
+    if ($observed.Contains('api') -and $answers.Contains('agentGrpcPort') -and $answers.agentGrpcPort) { $ownedPorts += [int] $answers.agentGrpcPort }
+    Write-InstallerLine -Message 'Pré-requisitos:'
+    Assert-InstallerPrerequisites -Results (Test-InstallerPrerequisites -Answers $answers -Engine $engine -HostFacts (Get-HostFacts) -OwnedPorts $ownedPorts)
+
+    $offline = $Parsed.Options['offline']
+    $release = Read-ReleaseManifest -Path (Get-ReleaseManifestPath -Version $answers.version -Offline $offline) -Version $answers.version
+    $images = Select-ReleaseImages -Images $release -Edition $answers.edition
+    if ($offline) { Import-OfflineImages -Directory $offline -Images @($images.Values) }
+    # No pacote offline, as assinaturas de cada imagem (cosign save) ficam em signatures/<nome no manifesto>.
+    foreach ($artifact in @($release.Keys | Where-Object { $release[$_] -in $images.Values })) {
+        $signatures = if ($offline) { Join-Path $offline "signatures/$artifact" } else { $null }
+        Confirm-ImageSignature -Image $release[$artifact] -OfflineDirectory $signatures
+    }
+
+    return Invoke-InstallerInstall -Answers $answers -Images $images -Infrastructure (Get-InfrastructureImages) -InstallerImage $env:DOKPOD_INSTALLER_IMAGE_REF `
+        -Confirmations $Parsed.Confirmations -SqlDirectory $Parsed.Options['sql-dir'] -ManualMigrations:([bool] $Parsed.Flags['manual-migrations']) `
+        -ConfirmStaleLock:([bool] $Parsed.Flags['confirm-stale-lock'])
 }
 
 function Invoke-InstallerStatusCommand {

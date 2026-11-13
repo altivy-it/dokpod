@@ -133,6 +133,32 @@ Describe 'compose.yaml com tudo provisionado' {
         $edge['dokpod.locations'] | Should -Match '\^/\(realms\|resources\)/'
         $edge['dokpod.conf'] | Should -Match 'server_name dokpod.lab.test;'
         $edge['dokpod.conf'] | Should -Match 'listen 8443 ssl;'
+        $edge['dokpod.conf'] | Should -Not -Match 'listen 443'
+    }
+
+    It 'com porta pública diferente de 8443, a borda também escuta nela para o tráfego interno (D-008)' {
+        $edge = New-EdgeConfiguration -Answers (New-Answers @{ publicUrl = 'https://dokpod.lab.test' })
+        $edge['dokpod.conf'] | Should -Match '(?m)^\s+listen 8443 ssl;'
+        $edge['dokpod.conf'] | Should -Match '(?m)^\s+listen 443 ssl;'
+    }
+
+    It 'produção sem HTTP para o Keycloak na API e com o certificado do key ring no BFF (T032)' {
+        $script:model.services['api'].environment.Contains('Authentication__Keycloak__BackchannelAuthority') | Should -BeFalse
+        $script:model.services['bff'].environment['Security__DataProtectionCertificatePath'] | Should -Be '/certs/bff-dataprotection.pfx'
+        $targets = @($script:model.services['bff'].secrets | ForEach-Object { $_.target })
+        $targets | Should -Contain '/certs/bff-dataprotection.pfx'
+        $targets | Should -Contain '/run/secrets/Security__DataProtectionCertificatePassword'
+        $script:yaml | Should -Not -Match 'http://keycloak'
+        $script:model.services['api'].environment['DOKPOD_API_HTTPS_PORT'] | Should -Be '8443'
+        $script:model.services['bff'].environment['Downstream__Api__BaseUrl'] | Should -Be 'https://api:8443'
+        $script:model.services['bff'].environment['SSL_CERT_FILE'] | Should -Be '/certs/ca-bundle.crt'
+        $script:model.services['bff'].environment['AllowedHosts'] | Should -Be 'dokpod.lab.test;localhost'
+    }
+
+    It 'Keycloak e borda têm healthcheck, para a subida ordenada esperar por eles (T032)' {
+        $script:model.services['keycloak'].healthcheck.test -join ' ' | Should -Match '/health/ready'
+        $script:model.services['keycloak'].healthcheck.test -join ' ' | Should -Match '\$\$status'
+        $script:model.services['edge'].healthcheck.test -join ' ' | Should -Match 'nginx-healthz'
     }
 
     It 'dokpod.env não tem segredos' {
@@ -151,8 +177,10 @@ Describe 'nginx -t da borda' {
         }
 
         Import-Module (Join-Path $PSScriptRoot '../src/Pki.psm1') -Force
-        $answers = New-Answers
+        # Porta pública 443: a borda escuta em 8443 e 443.
+        $answers = New-Answers @{ publicUrl = 'https://dokpod.lab.test' }
         $edge = New-EdgeConfiguration -Answers $answers
+        $edge['dokpod.conf'] | Should -Match 'listen 443 ssl;'
         $staging = Join-Path ([System.IO.Path]::GetTempPath()) "dokpod-033-nginx-$([guid]::NewGuid().ToString('N'))"
         New-Item -ItemType Directory -Path (Join-Path $staging 'certs') -Force | Out-Null
         $ca = New-LocalCertificateAuthority

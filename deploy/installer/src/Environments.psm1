@@ -230,6 +230,9 @@ function Invoke-EnvironmentStep {
     Imagem da API da versão (modo administrativo).
     .PARAMETER InstallerImage
     Imagem do instalador em execução (container avulso da autorização).
+    .PARAMETER Environment
+    O ambiente já resolvido por Resolve-LocalEnvironment. O install o resolve antes do compose.yaml, que leva o ID; sem
+    ele, a etapa resolve de novo e, na primeira execução, criaria outro ID.
     .OUTPUTS
     EnvironmentId, EnvironmentCreated, CaCreated, CertificateCreated, IdentityCreated, Fingerprint, AuthorizationChanged.
     #>
@@ -240,6 +243,7 @@ function Invoke-EnvironmentStep {
         [Parameter(Mandatory)] $State,
         [Parameter(Mandatory)][string] $ApiImage,
         [Parameter(Mandatory)][string] $InstallerImage,
+        [pscustomobject] $Environment,
         [string] $Network = $script:AdminNetwork,
         [string] $KeycloakNetwork = (Get-KeycloakDefaults).Network,
         [string] $KeycloakUrl = (Get-KeycloakDefaults).InternalUrl,
@@ -248,7 +252,7 @@ function Invoke-EnvironmentStep {
     )
 
     $secretsDir = $Answers.secretsDir
-    $environment = Resolve-LocalEnvironment -Answers $Answers -State $State
+    $environment = if ($Environment) { $Environment } else { Resolve-LocalEnvironment -Answers $Answers -State $State }
     $algorithm = if ($Answers.certificates.agents.Contains('keyAlgorithm')) { $Answers.certificates.agents.keyAlgorithm } else { 'ecdsa-p256' }
     $ca = Initialize-LocalCertificateAuthority -SecretsDirectory $secretsDir -Algorithm $algorithm
     $certificates = Invoke-StateSql -State $State -Name 'certificates-list' -Rows

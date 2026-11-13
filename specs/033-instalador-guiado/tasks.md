@@ -538,7 +538,7 @@ conectado e um administrador que precisa trocar a senha.
   9 testes Pester, 1 contra PostgreSQL 18.4, Keycloak 26.7.0 e as imagens da API e do instalador desta branch: cadastro
   com os eventos `environment.register` e `environment.agent_identity_register`, recurso com os 17 scopes e a policy do
   grupo, e reexecução sem mudança.
-- [ ] T032 [US1] (FR-021) Borda provisionada (`dokpod-edge` com `lzocateli/nginx:1.28.0-bookworm-v1`) e subida ordenada em
+- [X] T032 [US1] (FR-021) Borda provisionada (`dokpod-edge` com `lzocateli/nginx:1.28.0-bookworm-v1`) e subida ordenada em
   `deploy/installer/src/Services.psm1`:
   - `docker compose up --wait` por etapa (bancos, Keycloak, API, BFF e web, borda, agente);
   - health de cada serviço;
@@ -546,6 +546,51 @@ conectado e um administrador que precisa trocar a senha.
   - resumo final com URL, usuário, caminho do relatório e senha temporária exibida uma vez só em TTY, ou em
     `secretsDir/initial-admin-password` sem TTY, removido na primeira execução seguinte em que o Keycloak mostrar a senha
     já trocada (sem `UPDATE_PASSWORD`), conforme [data-model.md](data-model.md#segredo-da-instalação).
+
+  Nota (2026-11-12): `Services.psm1` sobe as etapas `data`, `identity`, `application`, `edge` e `agent` com
+  `docker compose up --detach --wait` e confere o estado e o health de cada serviço no `compose ps`. Um serviço que não
+  fica saudável interrompe a execução com o nome do serviço e o comando de logs, sem copiar os logs. O Keycloak ganhou
+  healthcheck no compose a cada 5 s, com o teste da imagem, e a borda usa o `/nginx-healthz` da imagem fixada. O comando
+  `install` (`Install.psm1`) ficou ligado na CLI para o cenário 1:
+  - antes de qualquer efeito, confere os pré-requisitos, o manifesto e o cosign;
+  - depois aplica, em ordem: plano confirmado, `secrets`, `pki`, `config`, `services:data`, `database`, `migrations`,
+    `license` (só Business), `services:identity`, `realm`, `environment`, `services:application`, `services:edge`,
+    `services:edge-reload` e `services:agent`;
+  - registra cada etapa no estado só depois de terminar, gera o relatório e mostra o resumo final;
+  - PostgreSQL, Keycloak ou borda existentes param com código 2 e apontam a T035 à T039.
+  Decisões:
+  - os certificados da borda (PEM) e da API (PFX) são gravados aqui, pela CA local ou pela organização, validados
+    contra FR-017 e nunca sobrescritos sem `recreate pki:edge` ou `pki:api`;
+  - o slot da licença é `prd` com `localEnvironment.stage` `production` e `hml` nos demais;
+  - no pacote offline, as assinaturas ficam em `signatures/<nome no manifesto>` (a T051 publica o pacote);
+  - no TTY, a senha temporária aparece uma vez, fora da redação, e o arquivo é apagado.
+  Achados corrigidos, todos levantados pela instalação real:
+  - D-015 já pedia o dono certo nos segredos montados e nenhuma tarefa o aplicava. O Keycloak (uid 1000), a API e o
+    BFF (uid 1654) não liam os arquivos `0600` do root do engine. `Set-ServiceSecretOwner` troca o dono para o UID do
+    serviço antes de cada etapa; serviço root não muda o dono;
+  - fora de Development, a API recusava `BackchannelAuthority` HTTP. Ela passou a usar a Authority pública, que chega
+    à borda pelo alias de rede (D-008);
+  - pelo mesmo D-008, a borda passou a escutar também na porta pública quando ela não é 8443. Antes, o BFF não
+    alcançava a Authority de dentro da rede;
+  - o BFF exige um certificado RSA para o key ring fora de Development. O instalador gera `pki/bff-dataprotection.pfx`;
+  - o BFF recusa downstream HTTP fora de Development, e a API não tinha HTTPS sem mTLS. Por decisão do solicitante
+    (2026-11-12), a API ganhou `DOKPOD_API_HTTPS_PORT` (8443, mesmo certificado, sem certificado de cliente), e o BFF
+    usa `https://api:8443`. O gRPC dos agentes continua só no mTLS;
+  - o BFF só aceitava o host `localhost`. `AllowedHosts` passou a ser o nome público mais `localhost`, que o
+    healthcheck usa;
+  - o nginx guarda o IP dos upstreams. Quando web, BFF ou Keycloak são recriados e a borda não, o instalador a reinicia;
+  - o certificado público da CA era registrado como segredo e barrava `certs/ca.crt` na redação. Os PEM públicos não
+    passam mais pelo registro.
+  Pendente: o catálogo efetivo no bootstrap com `--sql-dir` (nota da T030) continua para a T059. A importação real da
+  licença Business só foi exercitada com engine falso.
+  20 testes Pester em `Services.Tests.ps1`, 1 deles com engine real. `Install.Tests.ps1` (5 testes, com
+  `DOKPOD_TEST_FULL_INSTALL=1`) rodou com Podman rootless, PostgreSQL 18.4, Keycloak 26.7.0, nginx e as imagens desta
+  branch, num projeto compose próprio:
+  - parou com código 4 sem `--confirm-migrations` e retomou com o planHash;
+  - os 8 serviços ficaram saudáveis;
+  - pela borda, `/dokpod/` e o OIDC responderam 200, e `/dokpod/bff/login` respondeu 302 para o Keycloak;
+  - a reexecução terminou `converged`, sem recriar nenhum container;
+  - tudo levou 147 s.
 - [ ] T033 [US1] Retomada e reexecução: interromper em cada etapa (pki, banco, migrations, realm, ambiente, serviços) e
   retomar, com teste em `deploy/installer/tests/Resume.Tests.ps1` usando engine real em container. A reexecução com as
   mesmas respostas deve dar plano todo `keep` e `outcome: converged` em até 2 minutos (SC-003, SC-004).

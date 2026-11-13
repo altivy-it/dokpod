@@ -61,9 +61,36 @@ Describe 'Ponto de entrada' {
     }
 
     It 'comando que aplica mudanças ainda não implementado sai com 2 e aponta --dry-run' {
-        $result = Invoke-Entry @('install', '--answers', '/nao/existe.yaml')
+        $result = Invoke-Entry @('upgrade', '--version', '9.9.9')
         $result.ExitCode | Should -Be 2
         $result.Output | Should -Match 'dry-run'
+    }
+
+    It 'install fora do install.sh sai com 2 antes de qualquer efeito' {
+        $root = Join-Path ([System.IO.Path]::GetTempPath()) "dokpod-033-cli-$([guid]::NewGuid().ToString('N'))"
+        New-Item -ItemType Directory -Path $root | Out-Null
+        $answers = Join-Path $root 'answers.json'
+        [ordered]@{
+            schemaVersion = 1; version = '0.8.0'; edition = 'ce'; publicUrl = 'https://localhost:18443'; engine = 'podman-rootless'; operator = 'Ana'
+            installDir = (Join-Path $root 'install'); secretsDir = (Join-Path $root 'secrets')
+            postgres = @{ mode = 'provision' }
+            keycloak = @{ mode = 'provision'; initialAdmin = @{ username = 'dokpod-admin'; email = 'ana@lab.test' } }
+            edge = @{ mode = 'provision'; httpsPort = 18443 }
+            certificates = @{ edge = @{ source = 'local-ca' }; api = @{ source = 'local-ca' }; agents = @{ source = 'local-ca' } }
+        } | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $answers
+        $previous = $env:DOKPOD_INSTALLER_IMAGE_REF
+        try {
+            Remove-Item env:DOKPOD_INSTALLER_IMAGE_REF -ErrorAction SilentlyContinue
+            $result = Invoke-Entry @('install', '--answers', $answers, '--yes')
+            $result.ExitCode | Should -Be 2
+            $result.Output | Should -Match 'install.sh'
+            Test-Path (Join-Path $root 'install') | Should -BeFalse
+            Test-Path (Join-Path $root 'secrets') | Should -BeFalse
+        }
+        finally {
+            if ($previous) { $env:DOKPOD_INSTALLER_IMAGE_REF = $previous }
+            Remove-Item -LiteralPath $root -Recurse -Force -ErrorAction SilentlyContinue
+        }
     }
 
     It 'status sem instalação sai com 0 e não cria nada' {

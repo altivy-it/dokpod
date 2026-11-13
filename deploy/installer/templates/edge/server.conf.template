@@ -6,6 +6,7 @@ map $http_upgrade $dokpod_connection_upgrade {
 
 server {
     listen 8443 ssl;
+{{INTERNAL_LISTEN}}
     http2 on;
     server_name {{SERVER_NAME}};
 

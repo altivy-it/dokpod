@@ -76,7 +76,8 @@ function Initialize-LocalCertificateAuthority {
     $hasCertificate = Test-InstallerSecret -SecretsDirectory $SecretsDirectory -Name 'pki/ca.crt'
     $hasKey = Test-InstallerSecret -SecretsDirectory $SecretsDirectory -Name 'pki/ca.key'
     if ($hasCertificate -and $hasKey) {
-        $certificatePem = Read-InstallerSecret -SecretsDirectory $SecretsDirectory -Name 'pki/ca.crt'
+        # O certificado é público: lido sem Read-InstallerSecret, que o registraria para redação e barraria certs/ca.crt.
+        $certificatePem = [System.IO.File]::ReadAllText((Resolve-SecretPath -SecretsDirectory $SecretsDirectory -Name 'pki/ca.crt'))
         $keyPem = Read-InstallerSecret -SecretsDirectory $SecretsDirectory -Name 'pki/ca.key'
         try { $ca = [System.Security.Cryptography.X509Certificates.X509Certificate2]::CreateFromPem($certificatePem, $keyPem) }
         catch { Stop-Installer -Code Error -Message "pki/ca.crt e pki/ca.key em secretsDir não formam um par válido; use 'recreate pki:ca'." }
@@ -91,7 +92,7 @@ function Initialize-LocalCertificateAuthority {
     # certificado foi assinado por ela, então ela é substituída. Só o certificado (acima) quer dizer chave perdida.
     $ca = New-LocalCertificateAuthority -Algorithm $Algorithm
     Write-InstallerSecret -SecretsDirectory $SecretsDirectory -Name 'pki/ca.key' -Value (ConvertTo-PrivateKeyPem -Certificate $ca) -Recreate:$hasKey
-    Write-InstallerSecret -SecretsDirectory $SecretsDirectory -Name 'pki/ca.crt' -Value (ConvertTo-CertificatePem -Certificate $ca)
+    Write-InstallerSecret -SecretsDirectory $SecretsDirectory -Name 'pki/ca.crt' -Bytes ([System.Text.Encoding]::UTF8.GetBytes((ConvertTo-CertificatePem -Certificate $ca)))
     return [pscustomobject]@{ Certificate = $ca; Created = $true }
 }
 

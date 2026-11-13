@@ -148,17 +148,27 @@ function New-InstallerComposeModel {
                 (& $mount 'keycloak-bootstrap-admin' 'keycloak-bootstrap-admin' '/run/secrets/keycloak-bootstrap-admin'))
             networks    = @('keycloak-data', 'dokpod-edge')
             depends_on  = [ordered]@{ 'keycloak-postgres' = [ordered]@{ condition = 'service_healthy' } }
+            # O teste da imagem, a cada 5 s em vez de 30 s, para a subida ordenada (T032) não esperar à toa.
+            healthcheck = [ordered]@{
+                # $$ é o $ escapado da interpolação do Compose.
+                test     = @('CMD', 'bash', '-c', ('exec 3<>/dev/tcp/127.0.0.1/9000 && printf ''GET /health/ready HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n'' >&3 && ' +
+                        'read -r status <&3 && [[ "$$status" == *" 200 "* ]]'))
+                interval = '5s'; timeout = '5s'; retries = 6; start_period = '120s'
+            }
         }
     }
 
+    # Sem BackchannelAuthority: fora de Development a API só aceita autoridade HTTPS, e a Authority pública chega à borda
+    # pelo alias do nome público na rede dokpod-edge (D-008), validada pelo bundle de CAs.
     $apiEnvironment = [ordered]@{
         ASPNETCORE_ENVIRONMENT                           = 'Production'
         DOKPOD_API_GRPC_PORT                             = '7443'
         DOKPOD_API_HEALTH_PORT                           = '8080'
+        # REST do BFF em HTTPS na rede interna (o BFF recusa downstream HTTP fora de Development).
+        DOKPOD_API_HTTPS_PORT                            = '8443'
         DOKPOD_API_CERTIFICATE_PATH                      = '/certs/api.pfx'
         DOKPOD_API_CLIENT_CA_CERTIFICATE_PATH            = '/certs/agents-ca.crt'
         Authentication__Keycloak__Authority              = $authority
-        Authentication__Keycloak__BackchannelAuthority   = $(if ($Answers.keycloak.mode -eq 'provision') { "http://keycloak:8080/realms/$($Answers.keycloak.realm)" } else { $authority })
         Authentication__Keycloak__Audience               = 'dokpod-api'
         DataProtection__KeysPath                         = '/var/lib/dokpod-api/keys'
     }
@@ -185,15 +195,21 @@ function New-InstallerComposeModel {
         Authentication__Keycloak__Authority   = $authority
         Authentication__Keycloak__ClientId    = 'dokpod-bff'
         Security__AllowedOrigins__0           = $endpoint.Origin
-        Downstream__Api__BaseUrl              = 'http://api:8080'
+        # O padrão do BFF é só localhost (o healthcheck da imagem); a borda repassa o Host público.
+        AllowedHosts                          = "$($endpoint.Host);localhost"
+        Downstream__Api__BaseUrl              = 'https://api:8443'
     }
     for ($index = 0; $index -lt $trusted.Count; $index++) { $bffEnvironment["Security__TrustedNetworks__$index"] = $trusted[$index] }
     if ($caBundle) { $bffEnvironment['SSL_CERT_FILE'] = $caBundle }
+    # Fora de Development o BFF exige o certificado que protege o key ring (RSA, pelo XML cifrado do Data Protection).
+    $bffEnvironment['Security__DataProtectionCertificatePath'] = '/certs/bff-dataprotection.pfx'
     $bff = [ordered]@{
         image       = $Images.bff
         restart     = 'unless-stopped'
         environment = $bffEnvironment
-        secrets     = @(& $mount 'bff-client-secret' 'Authentication__Keycloak__ClientSecret' '/run/secrets/Authentication__Keycloak__ClientSecret')
+        secrets     = @((& $mount 'bff-client-secret' 'Authentication__Keycloak__ClientSecret' '/run/secrets/Authentication__Keycloak__ClientSecret'),
+            (& $mount 'bff-dataprotection-pfx' 'pki/bff-dataprotection.pfx' '/certs/bff-dataprotection.pfx'),
+            (& $mount 'bff-dataprotection-password' 'pki/bff-dataprotection.pass' '/run/secrets/Security__DataProtectionCertificatePassword'))
         volumes     = @('dokpod-bff-keys:/var/lib/dokpod-bff')
         networks    = @('dokpod-internal', 'dokpod-edge')
         depends_on  = [ordered]@{ api = [ordered]@{ condition = 'service_started' } }
@@ -220,6 +236,8 @@ function New-InstallerComposeModel {
             # O nome público resolve para a borda dentro da rede: API e BFF alcançam a Authority pelo mesmo nome do navegador (D-008).
             networks   = [ordered]@{ 'dokpod-edge' = [ordered]@{ aliases = @($endpoint.Host) } }
             depends_on = $edgeDepends
+            # A imagem não declara healthcheck; o nginx.conf dela serve /nginx-healthz só no loopback.
+            healthcheck = [ordered]@{ test = @('CMD', 'curl', '--fail', '--silent', 'http://127.0.0.1:8081/nginx-healthz'); interval = '5s'; timeout = '3s'; retries = 6 }
         }
     }
 
@@ -262,7 +280,8 @@ function New-InstallerComposeModel {
 function Test-CaBundleNeeded {
     param([System.Collections.IDictionary] $Answers)
 
-    $localCa = $Answers.certificates.edge.source -eq 'local-ca' -or $Answers.keycloak.mode -eq 'provision'
+    # A API com a CA local também precisa do bundle: o BFF a valida em https://api:8443.
+    $localCa = $Answers.certificates.edge.source -eq 'local-ca' -or $Answers.certificates.api.source -eq 'local-ca' -or $Answers.keycloak.mode -eq 'provision'
     $keycloakCa = $Answers.keycloak.mode -eq 'existing' -and $Answers.keycloak.Contains('caCertificate')
     return $localCa -or $keycloakCa
 }
@@ -355,6 +374,12 @@ function New-EdgeConfiguration {
         BFF_UPSTREAM       = $(if ($upstreamHost) { & $format $upstreamHost $Answers.edge.bffPort } else { 'bff:8080' })
         WEB_UPSTREAM       = $(if ($upstreamHost) { & $format $upstreamHost $Answers.edge.webPort } else { 'web:8080' })
         KEYCLOAK_LOCATIONS = ''
+        INTERNAL_LISTEN    = ''
+    }
+    # Na rede dokpod-edge, o nome público resolve para a borda (D-008): API e BFF chegam pela porta pública, que pode
+    # não ser a 8443 publicada no host.
+    if ($endpoint.Port -ne 8443) {
+        $values.INTERNAL_LISTEN = "    # Tráfego interno pela porta pública (API e BFF até a Authority, D-008).`n    listen $($endpoint.Port) ssl;"
     }
     if ($Answers.keycloak.mode -eq 'provision') {
         $values.KEYCLOAK_LOCATIONS = Expand-InstallerTemplate -Name 'edge/keycloak.locations.template' -Values @{ PUBLIC_PORT = $endpoint.Port }
@@ -455,4 +480,4 @@ function Write-InstallerFiles {
 }
 
 Export-ModuleMember -Function Expand-InstallerTemplate, Get-KeycloakAuthority, Get-BffTrustedNetworks, New-InstallerComposeModel, ConvertTo-ComposeYaml,
-Get-ComposeServiceHashes, Set-ComposeConfigHashLabels, New-EdgeConfiguration, New-DeployEnvironment, New-DokpodEnvironmentFile, New-CaBundle, Write-InstallerFiles
+Get-ComposeServiceHashes, Set-ComposeConfigHashLabels, Test-CaBundleNeeded, New-EdgeConfiguration, New-DeployEnvironment, New-DokpodEnvironmentFile, New-CaBundle, Write-InstallerFiles

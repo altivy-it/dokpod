@@ -183,11 +183,14 @@ function Get-ObservedServices {
     #>
     [CmdletBinding()]
     [OutputType([System.Collections.IDictionary])]
-    param([scriptblock] $Cli = { param([string[]] $arguments) $output = & docker @arguments 2>$null; if ($LASTEXITCODE -eq 0) { $output -join "`n" } })
+    param(
+        [scriptblock] $Cli = { param([string[]] $arguments) $output = & docker @arguments 2>$null; if ($LASTEXITCODE -eq 0) { $output -join "`n" } },
+        [string] $Project = 'dokpod'
+    )
 
     $observed = [ordered]@{}
     $foreign = [System.Collections.Generic.List[string]]::new()
-    $json = & $Cli @('ps', '--all', '--filter', 'label=com.docker.compose.project=dokpod', '--format', '{{json .}}')
+    $json = & $Cli @('ps', '--all', '--filter', "label=com.docker.compose.project=$Project", '--format', '{{json .}}')
     foreach ($line in @(($json ?? '') -split "`n" | Where-Object { $_.Trim() })) {
         $container = $line | ConvertFrom-Json -AsHashtable
         $labels = @{}
@@ -211,7 +214,7 @@ function Get-ObservedServices {
     }
 
     if ($foreign.Count -gt 0) {
-        Stop-Installer -Code Prerequisite -Message ("O projeto compose 'dokpod' já tem containers que não são deste instalador: $($foreign -join ', '). " +
+        Stop-Installer -Code Prerequisite -Message ("O projeto compose '$Project' já tem containers que não são deste instalador: $($foreign -join ', '). " +
             'Remova ou renomeie essa stack (por exemplo, a de laboratório em deploy/e2e) antes de instalar; nada foi alterado.')
     }
 
