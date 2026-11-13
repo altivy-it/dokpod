@@ -112,7 +112,7 @@ Os valores sensíveis são injetados por secret provider ou arquivo montado fora
 - `Security:AllowedOrigins`: origens HTTPS exatas do browser;
 - `Security:TrustedProxies` e `Security:TrustedNetworks`: proxies/rede autorizados;
 - `Security:DataProtectionCertificatePath` e `Security:DataProtectionCertificatePassword`: certificado e senha do key ring, obrigatórios fora de Development;
-- `Downstream:Api:BaseUrl`: URL interna da API HTTP; em Development pode usar HTTP conforme a política de rede do ambiente;
+- `Downstream:Api:BaseUrl`: URL interna da API; fora de Development, HTTPS (o endpoint `DOKPOD_API_HTTPS_PORT` da API, `https://api:8443` na instalação do instalador); em Development pode usar HTTP conforme a política de rede do ambiente;
 - `Downstream:Api:MaxRequestContentLengthBytes` e `Downstream:Api:MaxResponseContentLengthBytes`: limites de corpo do relay, inclusive para uploads chunked e respostas sem `Content-Length`;
 - `Bff:TokenRefreshTimeoutSeconds` e `Bff:TokenRefreshMaxResponseContentBufferSize`: limites do refresh;
 - `Downstream:Api:TimeoutSeconds`, `Downstream:Api:MaxRequestContentLengthBytes` e `Downstream:Api:MaxResponseContentLengthBytes`: timeout e limites do relay para a API;

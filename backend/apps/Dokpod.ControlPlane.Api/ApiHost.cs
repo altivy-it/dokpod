@@ -39,7 +39,8 @@ public sealed record ApiHostOptions(
     X509Certificate2 ServerCertificate,
     Func<X509Certificate2, X509Chain?, SslPolicyErrors, bool>? ClientCertificateValidation = null,
     bool LoopbackOnly = false,
-    Action<IServiceCollection>? ConfigureServices = null);
+    Action<IServiceCollection>? ConfigureServices = null,
+    int? HttpsPort = null);
 
 public static class ApiHost
 {
@@ -90,6 +91,22 @@ public static class ApiHost
                     }
                 });
             });
+
+            // Spec 033 T032: a REST do BFF em HTTPS na rede interna, sem certificado de cliente; o mTLS segue só no
+            // gRPC dos agentes, que recusa a conexão sem certificado (client_certificate_required).
+            if (options.HttpsPort is { } httpsPort)
+            {
+                listenGrpc(httpsPort, listenOptions =>
+                {
+                    listenOptions.Protocols = HttpProtocols.Http1AndHttp2;
+                    listenOptions.UseHttps(httpsOptions =>
+                    {
+                        httpsOptions.ServerCertificate = options.ServerCertificate;
+                        httpsOptions.ClientCertificateMode = ClientCertificateMode.NoCertificate;
+                        httpsOptions.SslProtocols = SslProtocols.Tls12 | SslProtocols.Tls13;
+                    });
+                });
+            }
         });
 
         builder.Configuration["Authentication:Keycloak:Authority"] ??= "https://keycloak.invalid/realms/dokpod";
@@ -335,6 +352,9 @@ public static class ApiHost
         var healthPort = int.TryParse(Environment.GetEnvironmentVariable("DOKPOD_API_HEALTH_PORT"), out var configuredHealthPort)
             ? configuredHealthPort
             : 8080;
+        int? httpsPort = int.TryParse(Environment.GetEnvironmentVariable("DOKPOD_API_HTTPS_PORT"), out var configuredHttpsPort)
+            ? configuredHttpsPort
+            : null;
 
         Func<X509Certificate2, X509Chain?, SslPolicyErrors, bool>? clientValidation =
             clientCaCertificates is null
@@ -345,7 +365,8 @@ public static class ApiHost
             port,
             healthPort,
             certificate,
-            clientValidation);
+            clientValidation,
+            HttpsPort: httpsPort);
     }
 
     /// <summary>

@@ -243,6 +243,8 @@ Configuração não secreta pode vir de arquivo montado no Linux ou arquivo prot
 
 O endpoint gRPC do plano de controle exige um certificado de servidor explícito em `DOKPOD_API_CERTIFICATE_PATH`; a senha opcional do PFX vem de `DOKPOD_API_CERTIFICATE_PASSWORD`. Em produção, use certificado emitido pela PKI da organização ou por uma autoridade confiável, montado como arquivo somente leitura. Não gere certificado autoassinado no startup e não dependa do certificado de desenvolvimento do SDK. Em testes automatizados, certificados autoassinados efêmeros e restritos ao processo são aceitáveis. Em laboratório, uma CA local controlada pode emitir os certificados de servidor e agente, desde que sua raiz seja distribuída explicitamente aos participantes e nunca seja desabilitada a validação da cadeia. As raízes aceitas para os agentes ficam em `DOKPOD_API_CLIENT_CA_CERTIFICATE_PATH`; esse arquivo e o `DOKPOD_AGENT_SERVER_CA_CERTIFICATE_PATH` aceitam um bundle PEM com a raiz antiga e a nova durante a [troca da CA](runbooks/troca-da-ca-dos-agentes.md).
 
+Com `DOKPOD_API_HTTPS_PORT`, a API abre mais um endpoint HTTPS com o mesmo certificado e sem certificado de cliente, para o BFF chegar à REST fora de Development (o BFF recusa downstream HTTP nesse caso). O instalador usa a porta `8443`, só na rede interna (`Downstream__Api__BaseUrl=https://api:8443`). O gRPC dos agentes continua só na porta do mTLS: sem certificado de cliente, a sessão é recusada com `client_certificate_required`. Sem a variável, nada muda.
+
 Campos mínimos:
 
 - URL canônica do plano de controle;
