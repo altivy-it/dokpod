@@ -83,6 +83,25 @@ e `dokpod.locations`, valida os dois com `nginx -t` em container e lista no resu
   - Com o Keycloak provisionado, dê ao container do nginx o nome público como alias nessa rede. Assim API e BFF
     alcançam a `Authority` por ele.
 
+### Keycloak existente (`keycloak.mode: existing`, T039 e T040)
+
+- O instalador só cria ou altera o realm do Dokpod (`keycloak.realm`, padrão `dokpod`), nunca o `master` nem outros
+  realms (FR-013).
+- A credencial do `master` (`keycloak.admin`) entra por `{ file }`, `{ env }` ou, sem `password`, pelo prompt do
+  terminal. Ela não é gravada (FR-015).
+  - Antes de alterar qualquer coisa, o instalador confere o acesso administrativo e a versão (série 26). Falta de
+    acesso ou versão anterior dá código 3, sem alteração.
+  - Na reexecução sem a credencial (arquivo apagado ou sem terminal), a reconciliação usa o `dokpod-provisioner` do
+    realm: clients, roles e grupos. A política do realm fica como está.
+- `administratorUser` entra no grupo `/dokpod/administrators` (FR-014). Se ele não existir no realm, é criado com uma
+  senha temporária de troca obrigatória, entregue como a do primeiro administrador do Keycloak provisionado.
+- Com `caCertificate`, a CA privada do Keycloak entra no bundle de `SSL_CERT_FILE` da API e do BFF e no container da
+  reconciliação. Sem o tema `dokpod` no Keycloak, o realm fica com o tema de login atual.
+- Divergências (T040): em cada reexecução, o instalador compara o realm com o contrato
+  (`configure-keycloak.ps1 -Drift`, sem alterar nada) e lista cada item no plano como `realm update`, por exemplo
+  `client dokpod-bff: redirectUris`. A correção só é aplicada depois da confirmação do plano (`--yes` ou `aplicar`).
+  O mesmo vale para o Keycloak provisionado.
+
 Decisões: [ADR 2026-0010](../../docs/adr/2026-0010-modo-administrativo-da-api.md) e
 [ADR 2026-0011](../../docs/adr/2026-0011-instalador-da-release.md), ambos aceitos em 2026-11-08. Contrato da linha de comando:
 [installer-cli.md](../../specs/033-instalador-guiado/contracts/installer-cli.md).

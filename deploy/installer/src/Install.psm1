@@ -22,22 +22,12 @@ Cada etapa services:* dá antes aos segredos montados o dono do usuário do serv
 
 Toda etapa converge na reexecução; uma falha registra a etapa, o relatório e o código, e a próxima execução retoma.
 Com nginx existente (T037), o config valida o dokpod.conf com nginx -t e o resumo lista os passos no nginx do usuário.
-Keycloak existente fica com a tarefa T039.
+Com Keycloak existente (T039), o realm é reconciliado nele com a credencial do master informada na execução, e o plano
+mostra as divergências do realm (T040) antes da confirmação.
 #>
 Set-StrictMode -Version Latest
 foreach ($module in 'Common', 'Secrets', 'State', 'Plan', 'Render', 'Edge', 'Pki', 'Postgres', 'Migrations', 'Keycloak', 'Environments', 'Services') {
     Import-Module (Join-Path $PSScriptRoot "$module.psm1")
-}
-
-function Assert-ProvisionedScenario {
-    param([System.Collections.IDictionary] $Answers)
-
-    $existing = @()
-    if ($Answers.keycloak.mode -ne 'provision') { $existing += "keycloak.mode '$($Answers.keycloak.mode)'" }
-    if ($existing.Count -gt 0) {
-        Stop-Installer -Code Usage -Message ("Esta versão do instalador aplica o Keycloak provisionado; " +
-            "$($existing -join ', ') fica com a tarefa T039 da spec 033. Use 'plan' para ver o plano.")
-    }
 }
 
 function Get-TrustMaterial {
@@ -55,6 +45,7 @@ function Get-TrustMaterial {
     else { $caPem }
     $extra = @($caPem) + @(@($Edge.Chain) + @($Api.Chain) | ForEach-Object { ConvertTo-CertificatePem -Certificate $_ })
     $extra += Get-ExistingPostgresCaPem -Answers $Answers
+    $extra += Get-ExistingKeycloakCaPem -Answers $Answers
     $bundle = if (Test-CaBundleNeeded -Answers $Answers) { New-CaBundle -ExtraPem $extra } else { $null }
     return [pscustomobject]@{ ServerCaPem = $serverCaPem; AgentsCaPem = $caPem; CaBundle = $bundle }
 }
@@ -118,9 +109,9 @@ function Invoke-InstallerInstall {
         [string] $Cli = 'docker'
     )
 
-    Assert-ProvisionedScenario -Answers $Answers
     Assert-ExistingPostgresAnswers -Answers $Answers
     Assert-ExistingEdgeAnswers -Answers $Answers
+    [void] (Get-ExistingKeycloakCaPem -Answers $Answers)
     [void] [System.IO.Directory]::CreateDirectory($Answers.installDir)
     Initialize-SecretsDirectory -Path $Answers.secretsDir
     $dataNetwork = "$($Project)_dokpod-data"
@@ -129,7 +120,10 @@ function Invoke-InstallerInstall {
     $databaseNetwork = if ($Answers.postgres.mode -eq 'provision') { $dataNetwork } else { (Get-PostgresDefaults).ExistingNetwork }
     $database = if ($Answers.postgres.Contains('database') -and $Answers.postgres.database) { [string] $Answers.postgres.database } else { (Get-PostgresDefaults).Database }
     $trustBundle = if ($Answers.postgres.mode -ne 'provision' -and (Test-CaBundleNeeded -Answers $Answers)) { Join-Path $Answers.installDir 'certs/ca-bundle.crt' } else { $null }
-    $keycloakNetwork = "$($Project)_keycloak-data"
+    # Containers avulsos do Keycloak: a rede interna dele no provisionado, a padrão do engine (com saída) no existente.
+    $keycloakExisting = $Answers.keycloak.mode -eq 'existing'
+    $keycloakNetwork = if ($keycloakExisting) { (Get-KeycloakDefaults).ExistingNetwork } else { "$($Project)_keycloak-data" }
+    $keycloakUrl = if ($keycloakExisting) { $Answers.keycloak.url.TrimEnd('/') } else { (Get-KeycloakDefaults).InternalUrl }
     $observed = Get-ObservedServices -Project $Project -Cli { param([string[]] $arguments) $output = & $Cli @arguments 2>$null; if ($LASTEXITCODE -eq 0) { $output -join "`n" } }
     $state = Open-InstallerState -InstallDirectory $Answers.installDir -ExistingInstallationDetected:($observed.Count -gt 0)
     $runId = [guid]::NewGuid().ToString()
@@ -154,6 +148,11 @@ function Invoke-InstallerInstall {
         $observed['pki'].Exists = Test-Path -LiteralPath (Join-Path $Answers.installDir 'certs/ca.crt')
         $components = Invoke-StateSql -State $state -Name 'components-list' -Rows
         foreach ($row in $components) { if ($row['name'] -in 'realm', 'migrations') { $observed[$row['name']].Exists = $true } }
+        # Divergências do realm já configurado (T040): entram no plano e só são corrigidas depois da confirmação.
+        if ($observed['realm'].Exists -and ($keycloakExisting -or ($observed.Contains('keycloak') -and $observed['keycloak'].Running))) {
+            $drift = Get-KeycloakRealmDrift -Answers $Answers -Image $InstallerImage -Network $keycloakNetwork -Cli $Cli
+            if ($drift) { $observed['realm'].Pending = "$(@($drift).Count) divergência(s): $(@($drift) -join '; ')" }
+        }
         $plan = New-InstallerPlan -Desired $desired -Observed $observed
         $converged = Test-InstallerPlanConverged -Plan $plan
         Write-InstallerLine -Message "Plano para o Dokpod $($Answers.version) ($($Answers.edition), $($Answers.engine)):"
@@ -221,10 +220,16 @@ function Invoke-InstallerInstall {
         }
 
         & $runStage 'identity'
-        $realm = Invoke-InstallStep -StepState $state -StepRunId $runId -StepName 'realm' -StepAction { Invoke-KeycloakRealm -Answers $Answers -Image $InstallerImage -Network $keycloakNetwork -Cli $Cli }
+        $realmConfigured = $observed['realm'].Exists
+        $realm = Invoke-InstallStep -StepState $state -StepRunId $runId -StepName 'realm' -StepAction {
+            if ($keycloakExisting) {
+                Invoke-ExistingKeycloakRealm -Answers $Answers -Image $InstallerImage -Network $keycloakNetwork -RealmConfigured $realmConfigured -Interactive $Interactive -Cli $Cli
+            }
+            else { Invoke-KeycloakRealm -Answers $Answers -Image $InstallerImage -Network $keycloakNetwork -Cli $Cli }
+        }
         $registered = Invoke-InstallStep -StepState $state -StepRunId $runId -StepName 'environment' -StepAction {
             Invoke-EnvironmentStep -Answers $Answers -State $state -ApiImage $Images.api -InstallerImage $InstallerImage -Environment $environment `
-                -Network $databaseNetwork -TrustBundle $trustBundle -KeycloakNetwork $keycloakNetwork -Cli $Cli
+                -Network $databaseNetwork -TrustBundle $trustBundle -KeycloakNetwork $keycloakNetwork -KeycloakUrl $keycloakUrl -Cli $Cli
         }
         foreach ($stage in 'application', 'edge') { & $runStage $stage }
         if ($stages | Where-Object Name -eq 'edge') {

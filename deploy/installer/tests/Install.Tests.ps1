@@ -446,3 +446,154 @@ http {
         $after | Should -Be $before
     }
 }
+
+Describe 'Instalação com Keycloak existente (keycloak.mode existing)' {
+    BeforeAll {
+        # O Keycloak do usuário é publicado no host, e containers o alcançam pelo mesmo endereço do PostgreSQL existente.
+        $script:kcEnabled = $script:enabled -and $env:DOKPOD_TEST_EXISTING_PG_HOST
+        if (-not $script:kcEnabled) { return }
+        $script:kcProject = 'dokpod-t039'
+        $suffix = [guid]::NewGuid().ToString('N').Substring(0, 8)
+        $script:kcRoot = Join-Path $env:DOKPOD_TEST_SHARED "t039-$suffix"
+        New-Item -ItemType Directory -Path $script:kcRoot | Out-Null
+        $kcInfra = (Get-Content -Raw (Join-Path $PSScriptRoot '../templates/infrastructure-images.json') | ConvertFrom-Json -AsHashtable).images
+        $kcHost = $env:DOKPOD_TEST_EXISTING_PG_HOST
+        $port = Get-Random -Minimum 27000 -Maximum 28000
+        $script:kcUrl = "https://$($kcHost):$port"
+        $script:kcAdmin = "canario-t039-admin-$suffix"
+
+        $caKey = [System.Security.Cryptography.ECDsa]::Create([System.Security.Cryptography.ECCurve+NamedCurves]::nistP256)
+        $caRequest = [System.Security.Cryptography.X509Certificates.CertificateRequest]::new('CN=dokpod-t039-ca', $caKey, 'SHA256')
+        $caRequest.CertificateExtensions.Add([System.Security.Cryptography.X509Certificates.X509BasicConstraintsExtension]::new($true, $false, 0, $true))
+        $caCert = $caRequest.CreateSelfSigned([datetimeoffset]::UtcNow.AddMinutes(-5), [datetimeoffset]::UtcNow.AddDays(2))
+        $leafKey = [System.Security.Cryptography.ECDsa]::Create([System.Security.Cryptography.ECCurve+NamedCurves]::nistP256)
+        $leafRequest = [System.Security.Cryptography.X509Certificates.CertificateRequest]::new("CN=$kcHost", $leafKey, 'SHA256')
+        $san = [System.Security.Cryptography.X509Certificates.SubjectAlternativeNameBuilder]::new()
+        $address = $null
+        if ([System.Net.IPAddress]::TryParse($kcHost, [ref] $address)) { $san.AddIpAddress($address) } else { $san.AddDnsName($kcHost) }
+        $leafRequest.CertificateExtensions.Add($san.Build())
+        $leaf = $leafRequest.Create($caCert, [datetimeoffset]::UtcNow.AddMinutes(-5), [datetimeoffset]::UtcNow.AddDays(2), [byte[]] (1..8))
+        $script:kcCa = Join-Path $script:kcRoot 'kc-ca.crt'
+        [System.IO.File]::WriteAllText($script:kcCa, $caCert.ExportCertificatePem() + "`n")
+        $certFile = Join-Path $script:kcRoot 'tls.crt'; $keyFile = Join-Path $script:kcRoot 'tls.key'
+        [System.IO.File]::WriteAllText($certFile, $leaf.ExportCertificatePem() + "`n")
+        [System.IO.File]::WriteAllText($keyFile, $leafKey.ExportPkcs8PrivateKeyPem() + "`n")
+        foreach ($file in $certFile, $keyFile) { [System.IO.File]::SetUnixFileMode($file, [System.IO.UnixFileMode]'UserRead, UserWrite, GroupRead, OtherRead') }
+
+        $script:kcServer = "dokpod-t039-kc-$suffix"
+        & docker run --detach --pids-limit 2048 --name $script:kcServer --publish "$($port):8443" --log-driver none `
+            --volume "$($certFile):/certs/tls.crt:ro" --volume "$($keyFile):/certs/tls.key:ro" `
+            --env KC_BOOTSTRAP_ADMIN_USERNAME=admin --env "KC_BOOTSTRAP_ADMIN_PASSWORD=$($script:kcAdmin)" `
+            --env "KC_HOSTNAME=$($script:kcUrl)" --env KC_HTTPS_CERTIFICATE_FILE=/certs/tls.crt --env KC_HTTPS_CERTIFICATE_KEY_FILE=/certs/tls.key `
+            $kcInfra.keycloak start-dev | Out-Null
+        $script:kcadm = {
+            param([string[]] $Arguments)
+            $output = & docker exec $script:kcServer /opt/keycloak/bin/kcadm.sh @Arguments --config /tmp/kcadm.config 2>&1
+            [pscustomobject]@{ ExitCode = $LASTEXITCODE; Output = ($output -join "`n") }
+        }
+        $deadline = [datetime]::UtcNow.AddSeconds(180)
+        do {
+            Start-Sleep -Seconds 2
+            $login = & $script:kcadm @('config', 'credentials', '--server', 'http://localhost:8080', '--realm', 'master', '--user', 'admin', '--password', $script:kcAdmin)
+        } until ($login.ExitCode -eq 0 -or [datetime]::UtcNow -gt $deadline)
+        [void] (& $script:kcadm @('create', 'realms', '-s', 'realm=outro', '-s', 'enabled=true'))
+        $script:kcSnapshot = {
+            $realms = foreach ($name in 'master', 'outro') {
+                $realm = (& $script:kcadm @('get', "realms/$name")).Output | ConvertFrom-Json
+                foreach ($property in @($realm.PSObject.Properties.Name | Where-Object { $_ -match 'Timestamp|notBefore' })) { $realm.PSObject.Properties.Remove($property) }
+                $realm
+            }
+            $users = @(((& $script:kcadm @('get', 'users', '-r', 'master', '--fields', 'username')).Output | ConvertFrom-Json).username) -join ','
+            return ($realms | ConvertTo-Json -Depth 30 -Compress) + "|$users"
+        }
+        $script:kcBefore = & $script:kcSnapshot
+
+        $script:kcCredential = Join-Path $script:kcRoot 'kc-admin'
+        [System.IO.File]::WriteAllText($script:kcCredential, $script:kcAdmin)
+        $script:kcAnswers = [ordered]@{
+            schemaVersion = 1; version = '0.8.0'; edition = 'ce'; publicUrl = 'https://dokpod.lab.test:18456'; engine = 'podman-rootless'; operator = 'Ana'
+            installDir = (Join-Path $script:kcRoot 'install'); secretsDir = (Join-Path $script:kcRoot 'secrets'); manualMigrations = $false
+            postgres = @{ mode = 'provision' }
+            keycloak = [ordered]@{ mode = 'existing'; url = $script:kcUrl; realm = 'dokpod'; caCertificate = $script:kcCa; admin = [ordered]@{ username = 'admin' }; administratorUser = 'ana' }
+            edge = @{ mode = 'provision'; httpsPort = 18456 }
+            certificates = @{ edge = @{ source = 'local-ca' }; api = @{ source = 'local-ca' }; agents = @{ source = 'local-ca' }; renewWarningDays = 30 }
+            localEnvironment = @{ name = 'host-local'; stage = 'production' }
+        }
+        # Chave por índice: o par chave=valor de senha não aparece no texto (T056).
+        $script:kcAnswers.keycloak.admin['password'] = @{ file = $script:kcCredential }
+        $script:kcImages = [ordered]@{ api = $env:DOKPOD_TEST_API_IMAGE; bff = $env:DOKPOD_TEST_BFF_IMAGE; web = $env:DOKPOD_TEST_WEB_IMAGE; agent = $env:DOKPOD_TEST_AGENT_IMAGE }
+        $script:kcInfra = $kcInfra
+        $script:kcConfirmations = @{ Plan = $true }
+        $script:kcInstall = {
+            Invoke-InstallerInstall -Answers $script:kcAnswers -Images $script:kcImages -Infrastructure $script:kcInfra -InstallerImage $env:DOKPOD_INSTALLER_IMAGE_REF `
+                -Confirmations $script:kcConfirmations -Interactive $false -Project $script:kcProject -WaitTimeoutSeconds 420
+        }
+        $declined = try { & $script:kcInstall } catch { $_.Exception }
+        $script:kcConfirmations['MigrationsPlanHash'] = [regex]::Match($declined.Message, '--confirm-migrations ([0-9a-f]{64})').Groups[1].Value
+        $script:kcFirst = & $script:kcInstall
+        $script:kcEdgeCa = Join-Path $script:kcAnswers.installDir 'certs/ca.crt'
+        $script:kcCurl = {
+            param([string] $path, [string[]] $extra = @())
+            & docker run --rm --pids-limit 512 --log-driver none --network "$($script:kcProject)_dokpod-edge" --volume "$($script:kcEdgeCa):/ca.crt:ro" --entrypoint curl $script:kcInfra.nginx `
+                --silent --cacert /ca.crt @extra "https://dokpod.lab.test:18456$path"
+        }
+    }
+
+    AfterAll {
+        if (-not $script:kcEnabled) { return }
+        $label = "label=com.docker.compose.project=$($script:kcProject)"
+        & docker compose --file (Join-Path $script:kcAnswers.installDir 'compose.yaml') --project-name $script:kcProject down --volumes 2>$null | Out-Null
+        @(& docker ps -aq --filter $label) | ForEach-Object { & docker rm -f $_ 2>$null | Out-Null }
+        @(& docker volume ls -q --filter $label) | ForEach-Object { & docker volume rm $_ 2>$null | Out-Null }
+        @(& docker network ls -q --filter $label) | ForEach-Object { & docker network rm $_ 2>$null | Out-Null }
+        & docker rm --force --volumes $script:kcServer 2>$null | Out-Null
+        Remove-Item -LiteralPath $script:kcRoot -Recurse -Force -ErrorAction SilentlyContinue
+    }
+
+    It 'instala sem Keycloak próprio, e o login do BFF vai ao Keycloak do usuário pela TLS da CA privada' {
+        if (-not $script:kcEnabled) { Set-ItResult -Skipped -Because 'DOKPOD_TEST_FULL_INSTALL ou DOKPOD_TEST_EXISTING_PG_HOST não está ativo'; return }
+        $script:kcFirst | Should -Be 0
+        $lines = & docker compose --file (Join-Path $script:kcAnswers.installDir 'compose.yaml') --project-name $script:kcProject ps --all --format json
+        $services = @($lines | Where-Object { $_.Trim() } | ForEach-Object { $_ | ConvertFrom-Json })
+        ($services.Service | Sort-Object) | Should -Be @('agent', 'api', 'bff', 'dokpod-postgres', 'edge', 'web')
+        # O BFF só monta o redirect depois de ler o discovery do Authority: sem confiar na CA privada, seria 500.
+        $location = & $script:kcCurl '/dokpod/bff/login' @('--output', '/dev/null', '--write-out', '%{redirect_url}')
+        $location | Should -Match ('^' + [regex]::Escape("$($script:kcUrl)/realms/dokpod/protocol/openid-connect/auth?"))
+        [uri]::UnescapeDataString($location) | Should -Match 'redirect_uri=https://dokpod\.lab\.test:18456/dokpod/signin-oidc'
+    }
+
+    It 'ana recebe as roles do Dokpod, o master e o outro não mudam, e a credencial do master não fica em lugar nenhum' {
+        if (-not $script:kcEnabled) { Set-ItResult -Skipped -Because 'DOKPOD_TEST_FULL_INSTALL ou DOKPOD_TEST_EXISTING_PG_HOST não está ativo'; return }
+        $user = (& $script:kcadm @('get', 'users', '-r', 'dokpod', '-q', 'username=ana', '-q', 'exact=true')).Output | ConvertFrom-Json
+        ((& $script:kcadm @('get', "users/$($user.id)/groups", '-r', 'dokpod')).Output | ConvertFrom-Json).path | Should -Contain '/dokpod/administrators'
+        & $script:kcSnapshot | Should -Be $script:kcBefore
+        foreach ($directory in $script:kcAnswers.installDir, $script:kcAnswers.secretsDir) {
+            foreach ($file in Get-ChildItem -LiteralPath $directory -Recurse -File) {
+                [System.Text.Encoding]::UTF8.GetString([System.IO.File]::ReadAllBytes($file.FullName)) | Should -Not -Match ([regex]::Escape($script:kcAdmin)) -Because $file.FullName
+            }
+        }
+    }
+
+    It 'redirect URI alterado à mão: o plano mostra a divergência, recusa sem --yes e a corrige com ele (T040)' {
+        if (-not $script:kcEnabled) { Set-ItResult -Skipped -Because 'DOKPOD_TEST_FULL_INSTALL ou DOKPOD_TEST_EXISTING_PG_HOST não está ativo'; return }
+        $bffId = ((& $script:kcadm @('get', 'clients', '-r', 'dokpod', '-q', 'clientId=dokpod-bff', '--fields', 'id')).Output | ConvertFrom-Json).id
+        (& $script:kcadm @('update', "clients/$bffId", '-r', 'dokpod', '-s', 'redirectUris=["https://mudado.lab.test/signin-oidc"]')).ExitCode | Should -Be 0
+        # Reexecução sem a credencial do master: compara e corrige com o dokpod-provisioner.
+        Remove-Item -LiteralPath $script:kcCredential
+
+        $script:kcConfirmations.Remove('Plan')
+        $writer = [System.IO.StringWriter]::new()
+        $previous = [Console]::Out
+        [Console]::SetOut($writer)
+        try { $declined = try { & $script:kcInstall } catch { $_.Exception } }
+        finally { [Console]::SetOut($previous) }
+        $declined.ExitCode | Should -Be (Get-InstallerExitCode -Name Declined)
+        $writer.ToString() | Should -Match 'realm.*update.*client dokpod-bff: redirectUris'
+        ((& $script:kcadm @('get', "clients/$bffId", '-r', 'dokpod')).Output | ConvertFrom-Json).redirectUris | Should -Be @('https://mudado.lab.test/signin-oidc')
+
+        $script:kcConfirmations['Plan'] = $true
+        & $script:kcInstall | Should -Be 0
+        ((& $script:kcadm @('get', "clients/$bffId", '-r', 'dokpod')).Output | ConvertFrom-Json).redirectUris | Should -Be @('https://dokpod.lab.test:18456/dokpod/signin-oidc')
+        & $script:kcSnapshot | Should -Be $script:kcBefore
+    }
+}

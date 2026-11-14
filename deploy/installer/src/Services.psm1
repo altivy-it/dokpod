@@ -543,7 +543,8 @@ function Write-InstallSummary {
     Write-InstallerLine -Message ''
     Write-InstallerLine -Message "Dokpod $($Answers.version) ($($Answers.edition)) instalado."
     Write-InstallerLine -Message "Console: $url"
-    if ($Answers.keycloak.mode -eq 'provision') { Write-InstallerLine -Message "Administrador: $($Answers.keycloak.initialAdmin.username)" }
+    $administrator = if ($Answers.keycloak.mode -eq 'provision') { $Answers.keycloak.initialAdmin.username } else { $Answers.keycloak.administratorUser }
+    Write-InstallerLine -Message "Administrador: $administrator"
     Write-InstallerLine -Message "Relatório: $ReportPath"
 
     $name = (Get-KeycloakDefaults).InitialPasswordSecret

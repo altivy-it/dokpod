@@ -265,4 +265,231 @@ Describe 'Reconciliação contra Keycloak real' {
         $state.InitialPasswordFile | Should -BeNullOrEmpty
         Test-Path (Join-Path $script:dir 'initial-admin-password') | Should -BeFalse
     }
+
+    It 'divergências do realm provisionado: nenhuma depois da reconciliação, e o redirect URI alterado à mão aparece (T040)' {
+        if ($script:skip) {
+            Set-ItResult -Skipped -Because 'sem socket do engine ou sem a imagem do instalador'
+            return
+        }
+
+        Get-KeycloakRealmDrift -Answers $script:answers -Image $script:installerImage -Network $script:network -ScriptsRoot $script:scripts | Should -BeNullOrEmpty
+        Connect-Provisioner
+        $bffId = ((Invoke-Kcadm @('get', 'clients', '-r', 'dokpod', '-q', 'clientId=dokpod-bff', '--fields', 'id')).Output | ConvertFrom-Json).id
+        (Invoke-Kcadm @('update', "clients/$bffId", '-r', 'dokpod', '-s', 'redirectUris=["https://mudado.lab.test/signin-oidc"]')).ExitCode | Should -Be 0
+        Get-KeycloakRealmDrift -Answers $script:answers -Image $script:installerImage -Network $script:network -ScriptsRoot $script:scripts |
+            Should -Be @('client dokpod-bff: redirectUris')
+        [void] (Invoke-KeycloakRealm -Answers $script:answers -Image $script:installerImage -Network $script:network -ScriptsRoot $script:scripts)
+        Get-KeycloakRealmDrift -Answers $script:answers -Image $script:installerImage -Network $script:network -ScriptsRoot $script:scripts | Should -BeNullOrEmpty
+    }
+}
+
+Describe 'Keycloak existente: credencial, CA e códigos (T039)' {
+    BeforeAll {
+        function New-ExistingAnswers {
+            param([string] $SecretsDir)
+            return [ordered]@{
+                secretsDir = $SecretsDir; publicUrl = 'https://dokpod.lab.test:18443'
+                keycloak = [ordered]@{ mode = 'existing'; url = 'https://sso.lab.test:8443'; realm = 'dokpod'; admin = [ordered]@{ username = 'admin' }; administratorUser = 'ana' }
+            }
+        }
+    }
+
+    It 'senha do master de { env }, do prompt, nula na reexecução com o provisioner, ou código 2 sem terminal; nunca em secretsDir' {
+        $dir = New-TestDirectory
+        try {
+            $answers = New-ExistingAnswers $dir
+            Get-ExistingKeycloakAdminCredential -Answers $answers -Interactive $true -AskCredential { 'canario-kc-prompt-033' } | Should -Be 'canario-kc-prompt-033'
+            Get-ExistingKeycloakAdminCredential -Answers $answers -Interactive $false -ProvisionerAvailable $true | Should -BeNullOrEmpty
+            $failure = { Get-ExistingKeycloakAdminCredential -Answers $answers -Interactive $false } | Should -Throw -PassThru
+            $failure.Exception.ExitCode | Should -Be 2
+            $env:DOKPOD_TEST_KC_ADMIN = 'canario-kc-env-033'
+            $answers.keycloak.admin['password'] = @{ env = 'DOKPOD_TEST_KC_ADMIN' }
+            Get-ExistingKeycloakAdminCredential -Answers $answers -Interactive $false | Should -Be 'canario-kc-env-033'
+            Get-ChildItem -LiteralPath $dir | Should -BeNullOrEmpty
+        }
+        finally { Remove-Item Env:DOKPOD_TEST_KC_ADMIN -ErrorAction SilentlyContinue; Remove-Item -LiteralPath $dir -Recurse -Force }
+    }
+
+    It 'no existente gera só os client secrets, recusa CA com chave privada e leva a CA ao container' {
+        $dir = New-TestDirectory
+        try {
+            $answers = New-ExistingAnswers $dir
+            (Initialize-KeycloakSecret -Answers $answers) | Sort-Object | Should -Be @('Authentication__Keycloak__ClientSecret', 'keycloak-provisioner-client-secret')
+            $ca = Join-Path $dir 'ca.pem'
+            [System.IO.File]::WriteAllText($ca, "-----BEGIN CERTIFICATE-----`nAA==`n-----END CERTIFICATE-----`n-----BEGIN PRIVATE KEY-----`nAA==`n-----END PRIVATE KEY-----`n")
+            $answers.keycloak['caCertificate'] = $ca
+            $failure = { Get-ExistingKeycloakCaPem -Answers $answers } | Should -Throw -PassThru
+            $failure.Exception.ExitCode | Should -Be 2
+
+            [System.IO.File]::WriteAllText($ca, "-----BEGIN CERTIFICATE-----`nAA==`n-----END CERTIFICATE-----`n")
+            $fake = New-FakeEngine -Root $dir -Result '{"userStateBefore":"ready","passwordSet":false,"updatePasswordPending":false,"bootstrap":true,"bootstrapRemoved":false}'
+            $answers.keycloak.admin['password'] = @{ env = 'DOKPOD_TEST_KC_ADMIN' }
+            $env:DOKPOD_TEST_KC_ADMIN = 'canario-kc-env-033'
+            [void] (Invoke-ExistingKeycloakRealm -Answers $answers -Image 'img' -Cli $fake -ScriptsRoot $script:scripts)
+            $arguments = Get-Content -Raw (Join-Path $dir 'args.log')
+            $arguments | Should -Match 'export SSL_CERT_FILE='
+            $arguments | Should -Match "`nbridge`n"
+            $arguments | Should -Not -Match 'canario-kc-env-033'
+            (Get-TarText -Path (Join-Path $dir 'stdin.tar') -Name 'ca.crt').Text | Should -Match 'BEGIN CERTIFICATE'
+            # A credencial do master vai só no input.json do tar e não fica em secretsDir.
+            foreach ($file in Get-ChildItem -LiteralPath $dir -File | Where-Object Name -notin 'args.log', 'stdin.tar', 'docker') {
+                [System.IO.File]::ReadAllText($file.FullName) | Should -Not -Match 'canario-kc-env-033' -Because $file.Name
+            }
+        }
+        finally { Remove-Item Env:DOKPOD_TEST_KC_ADMIN -ErrorAction SilentlyContinue; Remove-Item -LiteralPath $dir -Recurse -Force }
+    }
+
+    It 'sem acesso administrativo ou com versão abaixo da homologada, código 3 sem alteração: <Name>' -ForEach @(
+        @{ Name = 'sem acesso'; ExitCode = 21 }, @{ Name = 'versão antiga'; ExitCode = 22 }
+    ) {
+        $dir = New-TestDirectory
+        try {
+            $answers = New-ExistingAnswers $dir
+            $answers.keycloak.admin['password'] = @{ env = 'DOKPOD_TEST_KC_ADMIN' }
+            $env:DOKPOD_TEST_KC_ADMIN = 'canario-kc-env-033'
+            $fake = New-FakeEngine -Root $dir -ExitCode $ExitCode -Result ''
+            $failure = { Invoke-ExistingKeycloakRealm -Answers $answers -Image 'img' -Cli $fake -ScriptsRoot $script:scripts } | Should -Throw -PassThru
+            $failure.Exception.ExitCode | Should -Be 3
+            $failure.Exception.Message | Should -Match 'Nada foi alterado'
+            Test-Path (Join-Path $dir 'initial-admin-password') | Should -BeFalse
+        }
+        finally { Remove-Item Env:DOKPOD_TEST_KC_ADMIN -ErrorAction SilentlyContinue; Remove-Item -LiteralPath $dir -Recurse -Force }
+    }
+}
+
+Describe 'Keycloak existente real com TLS de CA privada (T039, T040, SC-006)' {
+    BeforeAll {
+        $script:skip = -not $env:DOCKER_HOST -or -not $env:DOKPOD_TEST_SHARED -or -not (& docker image ls --quiet $script:installerImage)
+        if ($script:skip) { return }
+
+        $suffix = [guid]::NewGuid().ToString('N').Substring(0, 8)
+        $script:kcNetwork = "dokpod-033-kcx-$suffix"
+        $script:kcServer = "dokpod-033-kcx-$suffix"
+        $script:kcRoot = Join-Path $env:DOKPOD_TEST_SHARED "t039-$suffix"
+        New-Item -ItemType Directory -Path $script:kcRoot | Out-Null
+        $script:adminCredential = "canario-kcx-admin-033-$suffix"
+
+        # CA privada e certificado de sso.lab.test, como o Keycloak de uma organização.
+        $caKey = [System.Security.Cryptography.ECDsa]::Create([System.Security.Cryptography.ECCurve+NamedCurves]::nistP256)
+        $caRequest = [System.Security.Cryptography.X509Certificates.CertificateRequest]::new('CN=dokpod-t039-ca', $caKey, 'SHA256')
+        $caRequest.CertificateExtensions.Add([System.Security.Cryptography.X509Certificates.X509BasicConstraintsExtension]::new($true, $false, 0, $true))
+        $caCert = $caRequest.CreateSelfSigned([datetimeoffset]::UtcNow.AddMinutes(-5), [datetimeoffset]::UtcNow.AddDays(2))
+        $leafKey = [System.Security.Cryptography.ECDsa]::Create([System.Security.Cryptography.ECCurve+NamedCurves]::nistP256)
+        $leafRequest = [System.Security.Cryptography.X509Certificates.CertificateRequest]::new('CN=sso.lab.test', $leafKey, 'SHA256')
+        $san = [System.Security.Cryptography.X509Certificates.SubjectAlternativeNameBuilder]::new(); $san.AddDnsName('sso.lab.test')
+        $leafRequest.CertificateExtensions.Add($san.Build())
+        $leaf = $leafRequest.Create($caCert, [datetimeoffset]::UtcNow.AddMinutes(-5), [datetimeoffset]::UtcNow.AddDays(2), [byte[]] (1..8))
+        $script:caFile = Join-Path $script:kcRoot 'kc-ca.crt'
+        [System.IO.File]::WriteAllText($script:caFile, $caCert.ExportCertificatePem() + "`n")
+        $certFile = Join-Path $script:kcRoot 'tls.crt'; $keyFile = Join-Path $script:kcRoot 'tls.key'
+        [System.IO.File]::WriteAllText($certFile, $leaf.ExportCertificatePem() + "`n")
+        [System.IO.File]::WriteAllText($keyFile, $leafKey.ExportPkcs8PrivateKeyPem() + "`n")
+        foreach ($file in $certFile, $keyFile) { [System.IO.File]::SetUnixFileMode($file, [System.IO.UnixFileMode]'UserRead, UserWrite, GroupRead, OtherRead') }
+
+        & docker network create $script:kcNetwork | Out-Null
+        & docker run --detach --pids-limit 2048 --name $script:kcServer --network $script:kcNetwork --network-alias sso.lab.test --log-driver none `
+            --volume "$($certFile):/certs/tls.crt:ro" --volume "$($keyFile):/certs/tls.key:ro" `
+            --env KC_BOOTSTRAP_ADMIN_USERNAME=admin --env "KC_BOOTSTRAP_ADMIN_PASSWORD=$($script:adminCredential)" `
+            --env KC_HOSTNAME=https://sso.lab.test:8443 --env KC_HTTPS_CERTIFICATE_FILE=/certs/tls.crt --env KC_HTTPS_CERTIFICATE_KEY_FILE=/certs/tls.key `
+            $script:images.keycloak start-dev | Out-Null
+
+        function Invoke-Kcadm {
+            param([string[]] $Arguments)
+            $output = & docker exec $script:kcServer /opt/keycloak/bin/kcadm.sh @Arguments --config /tmp/kcadm.config 2>&1
+            return [pscustomobject]@{ ExitCode = $LASTEXITCODE; Output = ($output -join "`n") }
+        }
+
+        $deadline = [datetime]::UtcNow.AddSeconds(180)
+        do {
+            Start-Sleep -Seconds 2
+            $login = Invoke-Kcadm @('config', 'credentials', '--server', 'http://localhost:8080', '--realm', 'master', '--user', 'admin', '--password', $script:adminCredential)
+        } until ($login.ExitCode -eq 0 -or [datetime]::UtcNow -gt $deadline)
+
+        # Outro sistema no mesmo Keycloak: o realm outro com um usuário. O master e ele não podem mudar (SC-006).
+        [void] (Invoke-Kcadm @('create', 'realms', '-s', 'realm=outro', '-s', 'enabled=true'))
+        [void] (Invoke-Kcadm @('create', 'users', '-r', 'outro', '-s', 'username=beto', '-s', 'enabled=true'))
+        $script:snapshot = {
+            $master = (Invoke-Kcadm @('get', 'realms/master')).Output | ConvertFrom-Json
+            $outro = (Invoke-Kcadm @('get', 'realms/outro')).Output | ConvertFrom-Json
+            $clients = @(((Invoke-Kcadm @('get', 'clients', '-r', 'outro', '--fields', 'clientId')).Output | ConvertFrom-Json).clientId) -join ','
+            $users = @(((Invoke-Kcadm @('get', 'users', '-r', 'master', '--fields', 'username')).Output | ConvertFrom-Json).username) -join ','
+            # O lastModified... muda sozinho; o resto da representação é o que importa.
+            foreach ($realm in $master, $outro) { foreach ($name in @($realm.PSObject.Properties.Name | Where-Object { $_ -match 'Timestamp|notBefore' })) { $realm.PSObject.Properties.Remove($name) } }
+            return (@($master, $outro) | ConvertTo-Json -Depth 30 -Compress) + "|$clients|$users"
+        }
+        $script:before = & $script:snapshot
+        $script:existingSecrets = Join-Path $script:kcRoot 'secrets'
+        New-Item -ItemType Directory -Path $script:existingSecrets | Out-Null
+        $script:credentialFile = Join-Path $script:kcRoot 'kc-admin'
+        [System.IO.File]::WriteAllText($script:credentialFile, $script:adminCredential)
+        $script:existingAnswers = [ordered]@{
+            secretsDir = $script:existingSecrets; publicUrl = 'https://dokpod.lab.test:18443'
+            keycloak = [ordered]@{ mode = 'existing'; url = 'https://sso.lab.test:8443'; realm = 'dokpod'; caCertificate = $script:caFile
+                admin = [ordered]@{ username = 'admin' }; administratorUser = 'ana' }
+        }
+        # Chave por índice: o par chave=valor de senha não aparece no texto (T056).
+        $script:existingAnswers.keycloak.admin['password'] = @{ file = $script:credentialFile }
+        [void] (Initialize-KeycloakSecret -Answers $script:existingAnswers)
+        $script:existingRealm = { param([bool] $configured) Invoke-ExistingKeycloakRealm -Answers $script:existingAnswers -Image $script:installerImage -Network $script:kcNetwork -ScriptsRoot $script:scripts -RealmConfigured $configured -Interactive $false }
+    }
+
+    AfterAll {
+        if ($script:skip) { return }
+        & docker rm --force --volumes $script:kcServer *> $null
+        & docker network rm $script:kcNetwork *> $null
+        Remove-Item -LiteralPath $script:kcRoot -Recurse -Force -ErrorAction SilentlyContinue
+    }
+
+    It 'credencial errada dá código 3 sem criar o realm' {
+        if ($script:skip) { Set-ItResult -Skipped -Because 'sem socket do engine, DOKPOD_TEST_SHARED ou a imagem do instalador'; return }
+        $wrong = Join-Path $script:kcRoot 'kc-admin-errada'
+        [System.IO.File]::WriteAllText($wrong, 'errada-033')
+        $answers = [ordered]@{} + $script:existingAnswers
+        $answers.keycloak = [ordered]@{} + $script:existingAnswers.keycloak
+        $answers.keycloak.admin = [ordered]@{ username = 'admin' }
+        $answers.keycloak.admin['password'] = @{ file = $wrong }
+        $failure = { Invoke-ExistingKeycloakRealm -Answers $answers -Image $script:installerImage -Network $script:kcNetwork -ScriptsRoot $script:scripts -Interactive $false } |
+            Should -Throw -PassThru
+        $failure.Exception.ExitCode | Should -Be 3
+        (Invoke-Kcadm @('get', 'realms/dokpod')).ExitCode | Should -Not -Be 0
+    }
+
+    It 'cria só o realm do Dokpod pela TLS da CA privada, põe ana nos administradores e não muda master nem outro' {
+        if ($script:skip) { Set-ItResult -Skipped -Because 'sem socket do engine, DOKPOD_TEST_SHARED ou a imagem do instalador'; return }
+        $state = & $script:existingRealm $false
+        $state.UserStateBefore | Should -Be 'absent'
+        $state.PasswordSet | Should -BeTrue
+        $state.UpdatePasswordPending | Should -BeTrue
+        $state.Version | Should -Match '^26\.'
+        $state.InitialPasswordFile | Should -Be 'initial-admin-password'
+
+        $user = ((Invoke-Kcadm @('get', 'users', '-r', 'dokpod', '-q', 'username=ana', '-q', 'exact=true')).Output | ConvertFrom-Json)
+        $user.requiredActions | Should -Contain 'UPDATE_PASSWORD'
+        ((Invoke-Kcadm @('get', "users/$($user.id)/groups", '-r', 'dokpod')).Output | ConvertFrom-Json).path | Should -Contain '/dokpod/administrators'
+        $bffId = ((Invoke-Kcadm @('get', 'clients', '-r', 'dokpod', '-q', 'clientId=dokpod-bff', '--fields', 'id')).Output | ConvertFrom-Json).id
+        ((Invoke-Kcadm @('get', "clients/$bffId/client-secret", '-r', 'dokpod')).Output | ConvertFrom-Json).value |
+            Should -Be (Read-InstallerSecret -SecretsDirectory $script:existingSecrets -Name 'Authentication__Keycloak__ClientSecret')
+        & $script:snapshot | Should -Be $script:before
+
+        foreach ($file in Get-ChildItem -LiteralPath $script:existingSecrets -Recurse -File) {
+            [System.IO.File]::ReadAllText($file.FullName) | Should -Not -Match ([regex]::Escape($script:adminCredential)) -Because $file.Name
+        }
+    }
+
+    It 'redirect URI alterado à mão aparece nas divergências e a reexecução sem a credencial do master o corrige (T040)' {
+        if ($script:skip) { Set-ItResult -Skipped -Because 'sem socket do engine, DOKPOD_TEST_SHARED ou a imagem do instalador'; return }
+        Get-KeycloakRealmDrift -Answers $script:existingAnswers -Image $script:installerImage -Network $script:kcNetwork -ScriptsRoot $script:scripts | Should -BeNullOrEmpty
+
+        $bffId = ((Invoke-Kcadm @('get', 'clients', '-r', 'dokpod', '-q', 'clientId=dokpod-bff', '--fields', 'id')).Output | ConvertFrom-Json).id
+        (Invoke-Kcadm @('update', "clients/$bffId", '-r', 'dokpod', '-s', 'redirectUris=["https://mudado.lab.test/signin-oidc"]')).ExitCode | Should -Be 0
+        $drift = Get-KeycloakRealmDrift -Answers $script:existingAnswers -Image $script:installerImage -Network $script:kcNetwork -ScriptsRoot $script:scripts
+        $drift | Should -Contain 'client dokpod-bff: redirectUris'
+
+        Remove-Item -LiteralPath $script:credentialFile
+        $state = & $script:existingRealm $true
+        $state.BootstrapMode | Should -BeFalse
+        ((Invoke-Kcadm @('get', "clients/$bffId", '-r', 'dokpod')).Output | ConvertFrom-Json).redirectUris | Should -Be @('https://dokpod.lab.test:18443/dokpod/signin-oidc')
+        Get-KeycloakRealmDrift -Answers $script:existingAnswers -Image $script:installerImage -Network $script:kcNetwork -ScriptsRoot $script:scripts | Should -BeNullOrEmpty
+        & $script:snapshot | Should -Be $script:before
+    }
 }

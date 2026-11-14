@@ -338,11 +338,11 @@
               "pattern": "^/"
             },
             "admin": {
+              "description": "Administrador do realm master, usado só nesta execução e nunca gravado (FR-015). Sem password, o instalador pergunta no terminal; na reexecução sem ele, reconcilia com o dokpod-provisioner.",
               "type": "object",
               "additionalProperties": false,
               "required": [
-                "username",
-                "password"
+                "username"
               ],
               "properties": {
                 "username": {

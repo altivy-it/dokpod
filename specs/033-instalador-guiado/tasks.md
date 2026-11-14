@@ -723,7 +723,7 @@ conectado e um administrador que precisa trocar a senha.
 
 **Teste independente**: cenário 4 do quickstart, com export de `master` e `outro` antes e depois.
 
-- [ ] T039 [US3] `keycloak.mode: existing` em `deploy/installer/src/Keycloak.psm1`:
+- [X] T039 [US3] `keycloak.mode: existing` em `deploy/installer/src/Keycloak.psm1`:
   - verificar versão e acesso administrativo antes de alterar;
   - credencial administrativa transitória (FR-015);
   - `caCertificate` para TLS do Keycloak;
@@ -731,9 +731,37 @@ conectado e um administrador que precisa trocar a senha.
   - atribuir as roles do Dokpod e o grupo `/dokpod/administrators` a `administratorUser` (FR-014).
 
   Recusa com código 3 sem alteração quando a versão está abaixo da homologada ou falta acesso.
-- [ ] T040 [US3] Divergências do realm: usar o `-DryRun` dos scripts para listar no plano cada item a corrigir e aplicar
+  - **Feito em 2026-11-14** (`Invoke-ExistingKeycloakRealm` em `Keycloak.psm1` e o modo `existing` de
+    `Keycloak.Sidecar.ps1`). A credencial do `master` vem de `{ file }`, `{ env }` ou do prompt. Ela só entra no tar do
+    container avulso e não fica em `secretsDir`. Antes de qualquer alteração, o instalador confere o token do `master`
+    e `/admin/serverinfo`: falta de acesso ou versão fora da série 26 dá código 3.
+  - A reconciliação usa `configure-keycloak.ps1 -Bootstrap -SkipUser`. `administratorUser` entra em
+    `/dokpod/administrators`. Se não existe no realm, ele é criado com a senha temporária de `initial-admin-password`
+    e troca obrigatória.
+  - Na reexecução sem a credencial, que pode ter sido apagada, a reconciliação usa o `dokpod-provisioner`. A CA de
+    `caCertificate` entra no bundle da API e do BFF e no container avulso (`SSL_CERT_FILE`). O `-LoginTheme` vazio
+    mantém o tema atual quando o Keycloak não tem o tema `dokpod`. A autorização do ambiente também passa a funcionar
+    com o Keycloak existente.
+  - **Testes**: `Keycloak.Tests.ps1` (17) com Keycloak 26.7 real em TLS de CA privada: credencial errada recusada
+    com código 3 e sem realm, só o realm do Dokpod criado, `master` e `outro` iguais. `Install.Tests.ps1` fez a
+    instalação completa no Podman 5.7 rootless (3/3): o login do BFF foi ao Keycloak do usuário pela CA privada, o
+    `administratorUser` ficou nos administradores e a credencial não ficou em nenhum arquivo.
+
+- [X] T040 [US3] Divergências do realm: usar o `-DryRun` dos scripts para listar no plano cada item a corrigir e aplicar
   só após confirmação, preservando usuários, sessões e customizações fora do contrato. Testes em
   `deploy/installer/tests/Keycloak.Tests.ps1` com Keycloak real, incluindo redirect URI alterado à mão.
+  - **Feito em 2026-11-14**. O `-DryRun` do `configure-keycloak.ps1` não acessa a rede e continua assim. Para listar
+    as divergências entrou o `-Drift`, que compara o realm com o contrato sem alterar nada e emite linhas
+    `Divergência: <item>`. Ele confere clients (com o segredo, só pelo nome), scope de audience, recurso e scopes
+    UMA, roles, grupos e mapeamentos e, com `-Bootstrap`, a política do realm e as roles do `dokpod-provisioner`.
+    Usuários, sessões e o que está fora do contrato não entram.
+  - A cada reexecução, `Get-KeycloakRealmDrift` põe a lista no plano (`realm update`, com cada item). A correção só é
+    aplicada depois da confirmação do plano, no provisionado e no existente.
+  - **Testes**: `Keycloak.Tests.ps1`: redirect URI do `dokpod-bff` alterado à mão aparece como
+    `client dokpod-bff: redirectUris`, a reconciliação o corrige e a lista volta vazia, no provisionado e no
+    existente. `Install.Tests.ps1`: sem `--yes` a execução para com código 4, com a divergência no plano e nada
+    corrigido; com `--yes` o redirect volta ao contrato.
+
 - [ ] T041 [US3] Validar o cenário 4 do quickstart com Docker Engine rootless e com Podman rootless (SC-002): os exports de
   `master` e `outro` iguais antes e depois (SC-006), registrado em `validation.md`.
 

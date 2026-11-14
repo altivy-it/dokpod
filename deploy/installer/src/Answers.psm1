@@ -328,6 +328,12 @@ function Request-InstallerAnswers {
                 email    = (& $ask 'keycloak.initialAdmin.email' 'E-mail do primeiro administrador' $null $null)
             }
         }
+        else {
+            # A senha administrativa não entra nas respostas: é pedida na execução e descartada (FR-015).
+            $answers.keycloak['url'] = & $ask 'keycloak.url' 'URL do Keycloak existente (https://...)' $null $null
+            $answers.keycloak['admin'] = @{ username = (& $ask 'keycloak.admin.username' 'Administrador do realm master (usado só nesta execução)' 'admin' $null) }
+            $answers.keycloak['administratorUser'] = & $ask 'keycloak.administratorUser' 'Usuário que recebe as roles do Dokpod' $null $null
+        }
     }
 
     if (-not $answers.Contains('edge')) {

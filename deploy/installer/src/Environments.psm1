@@ -187,10 +187,6 @@ function Invoke-EnvironmentAuthorization {
         [string] $Cli = 'docker'
     )
 
-    if ($Answers.keycloak.mode -ne 'provision') {
-        Stop-Installer -Code Error -Message "keycloak.mode '$($Answers.keycloak.mode)' ainda não é suportado na autorização do ambiente (T039)."
-    }
-
     $defaults = Get-KeycloakDefaults
     $settings = [ordered]@{
         baseUrl       = $BaseUrl
@@ -205,7 +201,7 @@ function Invoke-EnvironmentAuthorization {
         'sidecar.ps1'                            = [System.IO.File]::ReadAllText((Join-Path $PSScriptRoot 'Environments.Sidecar.ps1'))
         'provision-environment-authorization.ps1' = [System.IO.File]::ReadAllText((Join-Path $ScriptsRoot 'provision-environment-authorization.ps1'))
     }
-    $result = Invoke-KeycloakSidecar -Image $Image -Network $Network -Task 'environment-authorization' -Files $files -Cli $Cli
+    $result = Invoke-KeycloakSidecar -Image $Image -Network $Network -Task 'environment-authorization' -Files $files -CaPem (Get-ExistingKeycloakCaPem -Answers $Answers) -Cli $Cli
     if ($result.ExitCode -ne 0 -or $null -eq $result.Result) {
         Stop-Installer -Code Error -Message "A autorização do ambiente $EnvironmentId no Keycloak falhou (código $($result.ExitCode)): $($result.Error.Trim())"
     }

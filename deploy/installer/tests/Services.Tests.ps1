@@ -452,14 +452,19 @@ Describe 'Comando install' {
         $script:infra = (Get-Content -Raw (Join-Path $PSScriptRoot '../templates/infrastructure-images.json') | ConvertFrom-Json -AsHashtable).images
     }
 
-    It 'Keycloak existente fica para a história 3 (código 2, sem efeito)' {
+    It 'Keycloak existente com caCertificate que tem chave privada é recusado antes de qualquer efeito (código 2)' {
         $root = Join-Path ([System.IO.Path]::GetTempPath()) "dokpod-033-svc-$([guid]::NewGuid().ToString('N'))"
-        $answers = New-TestAnswers -Root $root -Override @{ keycloak = @{ mode = 'existing'; url = 'https://sso.lab.test'; realm = 'dokpod' } }
-        $failure = { Invoke-InstallerInstall -Answers $answers -Images $script:images -Infrastructure $script:infra -InstallerImage 'i' -Interactive $false } |
-            Should -Throw -PassThru
-        $failure.Exception.ExitCode | Should -Be 2
-        $failure.Exception.Message | Should -Match "keycloak.mode 'existing'.*T039"
-        Test-Path $root | Should -BeFalse
+        $ca = Join-Path ([System.IO.Path]::GetTempPath()) "dokpod-033-kc-ca-$([guid]::NewGuid().ToString('N')).pem"
+        [System.IO.File]::WriteAllText($ca, "-----BEGIN CERTIFICATE-----`nAA==`n-----END CERTIFICATE-----`n-----BEGIN PRIVATE KEY-----`nAA==`n-----END PRIVATE KEY-----`n")
+        try {
+            $answers = New-TestAnswers -Root $root -Override @{ keycloak = @{ mode = 'existing'; url = 'https://sso.lab.test'; realm = 'dokpod'; caCertificate = $ca; admin = @{ username = 'admin' }; administratorUser = 'ana' } }
+            $failure = { Invoke-InstallerInstall -Answers $answers -Images $script:images -Infrastructure $script:infra -InstallerImage 'i' -Interactive $false } |
+                Should -Throw -PassThru
+            $failure.Exception.ExitCode | Should -Be 2
+            $failure.Exception.Message | Should -Match 'keycloak.caCertificate'
+            Test-Path $root | Should -BeFalse
+        }
+        finally { Remove-Item -LiteralPath $ca -Force }
     }
 
     It 'PostgreSQL existing-create com host de loopback é recusado antes de qualquer efeito (código 2)' {
