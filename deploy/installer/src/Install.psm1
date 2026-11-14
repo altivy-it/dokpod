@@ -26,7 +26,7 @@ Com Keycloak existente (T039), o realm é reconciliado nele com a credencial do 
 mostra as divergências do realm (T040) antes da confirmação.
 #>
 Set-StrictMode -Version Latest
-foreach ($module in 'Common', 'Secrets', 'State', 'Plan', 'Render', 'Edge', 'Pki', 'Postgres', 'Migrations', 'Keycloak', 'Environments', 'Services') {
+foreach ($module in 'Common', 'Secrets', 'State', 'Plan', 'Render', 'Edge', 'Pki', 'Postgres', 'Migrations', 'Keycloak', 'Environments', 'Services', 'Recreate', 'Hosts') {
     Import-Module (Join-Path $PSScriptRoot "$module.psm1")
 }
 
@@ -38,7 +38,8 @@ function Get-TrustMaterial {
     #>
     param([System.Collections.IDictionary] $Answers, $Ca, $Edge, $Api)
 
-    $caPem = ConvertTo-CertificatePem -Certificate $Ca
+    # Na troca da CA (T044), a raiz antiga fica junto com a nova até todos os agentes voltarem com o certificado novo.
+    $caPem = (ConvertTo-CertificatePem -Certificate $Ca) + "$(Get-PreviousCaPem -SecretsDirectory $Answers.secretsDir)"
     $serverCaPem = if ($Api.Origin -eq 'organization' -and $Api.Chain.Count -gt 0) {
         ($Api.Chain | ForEach-Object { ConvertTo-CertificatePem -Certificate $_ }) -join ''
     }
@@ -88,9 +89,18 @@ function Invoke-InstallerInstall {
     A imagem do instalador em execução, usada nos containers avulsos do Keycloak.
     .PARAMETER Confirmations
     As confirmações da linha de comando (Cli.psm1): Plan (--yes), MigrationsPlanHash, SqlOverrides e Backup.
+    .PARAMETER Recreate
+    Itens de `recreate` (T042, Recreate.psm1): o plano mostra a recriação com o efeito colateral, e os arquivos pedidos só
+    são invalidados depois da confirmação; as etapas normais os reemitem e recriam os serviços que os usam.
+    .PARAMETER RecreateAll
+    `recreate --all` (T043): recria todos os serviços provisionados e preserva os dados, salvo com a segunda
+    confirmação nomeada (Confirmations.DataRemoval exata, ou digitada no terminal depois da confirmação normal).
     #>
     [CmdletBinding()]
     [OutputType([int])]
+    # As etapas leem SqlDirectory e ManualMigrations pelo escopo dinâmico dos scriptblocks de Invoke-InstallStep.
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSReviewUnusedParameter', 'SqlDirectory', Justification = 'Lido nos scriptblocks das etapas.')]
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSReviewUnusedParameter', 'ManualMigrations', Justification = 'Lido nos scriptblocks das etapas.')]
     param(
         [Parameter(Mandatory)][System.Collections.IDictionary] $Answers,
         [Parameter(Mandatory)][System.Collections.IDictionary] $Images,
@@ -101,6 +111,10 @@ function Invoke-InstallerInstall {
         [string] $SqlDirectory,
         [switch] $ManualMigrations,
         [switch] $ConfirmStaleLock,
+        [string[]] $Recreate = @(),
+        [switch] $RecreateAll,
+        # recreate pki:ca (T044): uma rodada da troca da CA; Invoke-InstallerCaRotation encadeia as duas fases.
+        [switch] $RotateCa,
         [int] $WaitTimeoutSeconds = 300,
         # Só para testes num host que já tem outro projeto compose 'dokpod'; as redes internas seguem o nome.
         [string] $Project = 'dokpod',
@@ -134,7 +148,8 @@ function Invoke-InstallerInstall {
         Enter-InstallerRunLock -State $state -RunId $runId -ContainerName $containerName -ConfirmStaleRelease:$ConfirmStaleLock `
             -ContainerExists { param($name) $null = & $Cli inspect --format '{{.Id}}' $name 2>$null; $LASTEXITCODE -eq 0 }
         $locked = $true
-        [void] (Start-InstallerRun -State $state -Command 'install' -RunId $runId)
+        $command = if ($Recreate.Count -gt 0 -or $RecreateAll -or $RotateCa) { 'recreate' } else { 'install' }
+        [void] (Start-InstallerRun -State $state -Command $command -RunId $runId)
 
         $environment = Resolve-LocalEnvironment -Answers $Answers -State $state
         $edgeTrusted = Get-EdgeTrustedNetworks -Answers $Answers -Cli $Cli
@@ -153,12 +168,61 @@ function Invoke-InstallerInstall {
             $drift = Get-KeycloakRealmDrift -Answers $Answers -Image $InstallerImage -Network $keycloakNetwork -Cli $Cli
             if ($drift) { $observed['realm'].Pending = "$(@($drift).Count) divergência(s): $(@($drift) -join '; ')" }
         }
-        $plan = New-InstallerPlan -Desired $desired -Observed $observed
+        $target = $null
+        $removeData = $false
+        if (($Recreate.Count -gt 0 -or $RecreateAll -or $RotateCa) -and @($components).Count -eq 0) {
+            Stop-Installer -Code Usage -Message "Não há instalação em $($Answers.installDir) para recriar; use 'install'."
+        }
+        if ($RecreateAll -and $Confirmations.Contains('DataRemoval') -and @($Confirmations.DataRemoval).Count -gt 0) {
+            $removeData = Resolve-DataRemoval -Answers $Answers -Confirmed @($Confirmations.DataRemoval) -Interactive $false
+        }
+        if ($Recreate.Count -gt 0) {
+            if (@($components).Count -eq 0) {
+                Stop-Installer -Code Usage -Message "Não há instalação em $($Answers.installDir) para recriar; use 'install'."
+            }
+
+            $target = Resolve-RecreateTarget -Answers $Answers -Items $Recreate -Services @($model.services.Keys) -Desired $desired -LocalEnvironmentId $environment.Id
+        }
+        if ($RotateCa) { $target = Start-CaRotation -Answers $Answers -State $state -LocalEnvironmentId $environment.Id -WhatIf }
+        $plan = New-InstallerPlan -Desired $desired -Observed $observed -Recreate $(if ($target) { $target.Components } else { @() }) -RecreateAll:$RecreateAll `
+            -ConfirmDataRemoval $(if ($removeData) { Get-DataRemovalItem -Answers $Answers } else { @() })
         $converged = Test-InstallerPlanConverged -Plan $plan
         Write-InstallerLine -Message "Plano para o Dokpod $($Answers.version) ($($Answers.edition), $($Answers.engine)):"
         Write-InstallerLine -Message (Format-InstallerPlan -Plan $plan)
         Write-InstallerLine -Message ''
         Confirm-InstallPlan -Plan $plan -Confirmations $Confirmations -Interactive $Interactive -Prompt $Prompt
+        if ($RotateCa) { $target = Start-CaRotation -Answers $Answers -State $state -LocalEnvironmentId $environment.Id }
+        if ($target) {
+            $removed = Invoke-RecreateInvalidation -Answers $Answers -Target $target
+            Write-InstallerLine -Message "Recriação: $(@($target.Items) -join ', ')$(if ($removed.Count) { " (reemitidos: $($removed -join ', '))" })."
+        }
+        $forceRecreate = if ($target) { @($target.Services) } else { @() }
+        $revokeIdentity = $target -and $environment.Id -in @($target.Agents)
+        if ($RecreateAll) {
+            # A segunda confirmação vem depois da normal; sem ela, os dados ficam (FR-029, SC-008).
+            if (-not $removeData -and $Interactive) { $removeData = Resolve-DataRemoval -Answers $Answers -Interactive $true -Prompt $Prompt }
+            $data = @('dokpod-postgres', 'keycloak-postgres')
+            if ($removeData) {
+                $volumes = Remove-InstallationData -Answers $Answers -Model $model -Project $Project -Cli $Cli
+                $dataItems = Get-DataRemovalItem -Answers $Answers
+                Write-InstallerLine -Message "Recriação total com os dados removidos: $($dataItems -join ', ') (volumes: $($volumes -join ', '))."
+                # Com o PostgreSQL do usuário, as identidades saem por revogação, e o agente local ganha certificado novo.
+                if ($Answers.postgres.mode -ne 'provision') {
+                    [void] (Invoke-RecreateInvalidation -Answers $Answers -Target ([pscustomobject]@{ Files = @("pki/agent-$($environment.Id).pfx", "pki/agent-$($environment.Id).pass") }))
+                    $revokeIdentity = $true
+                }
+                $environmentRows = Invoke-StateSql -State $state -Name 'environments-list' -Rows
+                $remote = @($environmentRows | Where-Object { $_['environment_id'] -ne $environment.Id -and -not $_['revoked_at'] })
+                if ($remote.Count -gt 0) {
+                    Write-InstallerLine -ToStandardError -Message "Aviso: os hosts remotos ($(@($remote | ForEach-Object { $_['name'] }) -join ', ') precisam de pacote novo ('host add'); a identidade deles saiu com os dados."
+                }
+                $data = @()
+            }
+            else {
+                Write-InstallerLine -Message 'Recriação total com os dados preservados: banco, login, key rings e identidades dos agentes ficam como estão.'
+            }
+            $forceRecreate = @($model.services.Keys | Where-Object { $_ -notin $data })
+        }
 
         $stages = Get-ServiceStage -Model $model
         $runStage = { param([string] $stageName)
@@ -166,7 +230,8 @@ function Invoke-InstallerInstall {
             if ($stage) {
                 [void] (Invoke-InstallStep -StepState $state -StepRunId $runId -StepName "services:$stageName" -StepAction {
                         [void] (Set-ServiceSecretOwner -Model $model -Services $stage.Services -Cli $Cli)
-                        Invoke-ServiceStage -Answers $Answers -Stage $stageName -Services $stage.Services -TimeoutSeconds $WaitTimeoutSeconds -Project $Project -Cli $Cli
+                        Invoke-ServiceStage -Answers $Answers -Stage $stageName -Services $stage.Services -TimeoutSeconds $WaitTimeoutSeconds -Project $Project -Cli $Cli `
+                            -ForceRecreate @($forceRecreate | Where-Object { $_ -in $stage.Services })
                     })
             }
         }
@@ -229,7 +294,8 @@ function Invoke-InstallerInstall {
         }
         $registered = Invoke-InstallStep -StepState $state -StepRunId $runId -StepName 'environment' -StepAction {
             Invoke-EnvironmentStep -Answers $Answers -State $state -ApiImage $Images.api -InstallerImage $InstallerImage -Environment $environment `
-                -Network $databaseNetwork -TrustBundle $trustBundle -KeycloakNetwork $keycloakNetwork -KeycloakUrl $keycloakUrl -Cli $Cli
+                -Network $databaseNetwork -TrustBundle $trustBundle -KeycloakNetwork $keycloakNetwork -KeycloakUrl $keycloakUrl -Cli $Cli `
+                -RevokeIdentity:$revokeIdentity
         }
         foreach ($stage in 'application', 'edge') { & $runStage $stage }
         if ($stages | Where-Object Name -eq 'edge') {
@@ -238,6 +304,11 @@ function Invoke-InstallerInstall {
                 })
         }
         & $runStage 'agent'
+        if ($RotateCa) {
+            $script:CaRotationCompleted = Complete-CaRotation -Answers $Answers -State $state -LocalEnvironmentId $environment.Id -TimeoutSeconds $WaitTimeoutSeconds -Connection {
+                Get-AgentConnection -Answers $Answers -EnvironmentId $environment.Id -Image $Infrastructure.postgresql -Network $databaseNetwork -Cli $Cli
+            }
+        }
 
         foreach ($component in $desired) {
             Invoke-StateSql -State $state -Name 'component-upsert' -Parameters @{
@@ -258,6 +329,8 @@ function Invoke-InstallerInstall {
         [void] (Backup-InstallerState -State $state -RunId $runId)
         Invoke-InstallerStateRetention -State $state
 
+        # Certificados perto de vencer (FR-019): CA, borda, API e cada agente, com a ação sugerida.
+        Write-CertificateWarning -Status (Get-InstallerCertificateStatus -Answers $Answers -State $state)
         $next = @()
         if ($license -and -not $license.Imported) { $next += $license.Next }
         $next += Get-ExistingEdgeSteps -Answers $Answers
@@ -292,4 +365,131 @@ function Invoke-InstallerInstall {
     }
 }
 
-Export-ModuleMember -Function Invoke-InstallerInstall
+function Invoke-InstallerCaRotation {
+    <#
+    .SYNOPSIS
+    `recreate pki:ca` (T044, FR-030): primeira rodada com as duas raízes, a CA nova e o agente local reemitido; quando
+    ele reconecta e nenhum host remoto está pendente, a segunda rodada regrava a confiança só com a raiz nova e recria
+    API, BFF e agente. Com hosts pendentes, a troca fica em `rotating` até um novo `recreate pki:ca`.
+    #>
+    [CmdletBinding()]
+    [OutputType([int])]
+    param([Parameter(Mandatory)][hashtable] $Parameters)
+
+    $script:CaRotationCompleted = $false
+    $code = Invoke-InstallerInstall @Parameters -RotateCa
+    if ($code -ne 0 -or -not $script:CaRotationCompleted) { return $code }
+
+    Write-InstallerLine -Message 'Troca da CA: os agentes voltaram com o certificado novo; a raiz antiga sai da confiança.'
+    return Invoke-InstallerInstall @Parameters -Recreate @('service:api', 'service:bff', 'service:agent')
+}
+
+function Invoke-InstallerHostCommand {
+    <#
+    .SYNOPSIS
+    `host add` e `host revoke` (T046, T047) numa instalação existente: o lock do estado, as redes e a confiança iguais
+    às do install, e o registro da execução.
+    #>
+    [CmdletBinding()]
+    [OutputType([int])]
+    param(
+        [Parameter(Mandatory)][System.Collections.IDictionary] $Answers,
+        [Parameter(Mandatory)][ValidateSet('add', 'revoke')][string] $Action,
+        [Parameter(Mandatory)][System.Collections.IDictionary] $Images,
+        [Parameter(Mandatory)][string] $InstallerImage,
+        [string] $Name,
+        [string] $Engine = 'podman',
+        [string] $EnvironmentId,
+        [string] $Reason,
+        [string] $Project = 'dokpod',
+        [bool] $Interactive = (Test-InteractiveSession),
+        [string] $Cli = 'docker'
+    )
+
+    if (-not (Test-Path -LiteralPath (Join-Path $Answers.installDir 'state'))) {
+        Stop-Installer -Code Usage -Message "Não há instalação em $($Answers.installDir); rode 'install' antes de 'host $Action'."
+    }
+
+    $state = Open-InstallerState -InstallDirectory $Answers.installDir
+    $runId = [guid]::NewGuid().ToString()
+    $locked = $false
+    try {
+        $containerName = if ($env:HOSTNAME) { $env:HOSTNAME } else { "dokpod-installer-$PID" }
+        Enter-InstallerRunLock -State $state -RunId $runId -ContainerName $containerName `
+            -ContainerExists { param($name) $null = & $Cli inspect --format '{{.Id}}' $name 2>$null; $LASTEXITCODE -eq 0 }
+        $locked = $true
+        [void] (Start-InstallerRun -State $state -Command "host $Action" -RunId $runId)
+        $network = if ($Answers.postgres.mode -eq 'provision') { "$($Project)_dokpod-data" } else { (Get-PostgresDefaults).ExistingNetwork }
+        $trustBundle = if ($Answers.postgres.mode -ne 'provision' -and (Test-CaBundleNeeded -Answers $Answers)) { Join-Path $Answers.installDir 'certs/ca-bundle.crt' } else { $null }
+        if ($Action -eq 'add') {
+            $existing = $Answers.keycloak.mode -eq 'existing'
+            [void] (Invoke-InstallerHostAdd -Answers $Answers -State $state -Name $Name -Engine $Engine -ApiImage $Images.api -AgentImage $Images.agent `
+                    -InstallerImage $InstallerImage -Network $network -TrustBundle $trustBundle -Interactive $Interactive -Cli $Cli `
+                    -KeycloakNetwork $(if ($existing) { (Get-KeycloakDefaults).ExistingNetwork } else { "$($Project)_keycloak-data" }) `
+                    -KeycloakUrl $(if ($existing) { $Answers.keycloak.url.TrimEnd('/') } else { (Get-KeycloakDefaults).InternalUrl }))
+        }
+        else {
+            [void] (Invoke-InstallerHostRevoke -Answers $Answers -State $state -EnvironmentId $EnvironmentId -Reason $Reason -ApiImage $Images.api `
+                    -Network $network -TrustBundle $trustBundle -Cli $Cli)
+        }
+
+        Complete-InstallerRun -State $state -RunId $runId -Outcome 'changed' -ExitCode 0 -ReportPath $null
+        return 0
+    }
+    catch {
+        $code = if ($_.Exception.PSObject.Properties['ExitCode']) { $_.Exception.ExitCode } else { 1 }
+        if ($locked) { Complete-InstallerRun -State $state -RunId $runId -Outcome 'failed' -ExitCode $code -ReportPath $null }
+        throw
+    }
+    finally {
+        if ($locked) { Exit-InstallerRunLock -State $state -RunId $runId }
+        Close-InstallerState -State $state
+    }
+}
+
+function Invoke-InstallerMigrationsCommand {
+    <#
+    .SYNOPSIS
+    `migrations status | plan | export --out <arquivo> | verify` (FR-036 a FR-038): repassa ao modo administrativo da
+    imagem da API da versão das respostas (ou de --version), com a conexão da role dona. Nenhum altera o banco.
+    .DESCRIPTION
+    O export grava em installDir/migrations, a pasta que o container do instalador e o do modo administrativo enxergam;
+    com --out, o arquivo é copiado para lá também.
+    .OUTPUTS
+    O código do modo administrativo (0, ou 6 quando verify acha divergência).
+    #>
+    [CmdletBinding()]
+    [OutputType([int])]
+    param(
+        [Parameter(Mandatory)][System.Collections.IDictionary] $Answers,
+        [Parameter(Mandatory)][ValidateSet('status', 'plan', 'export', 'verify')][string] $Action,
+        [Parameter(Mandatory)][System.Collections.IDictionary] $Images,
+        [string] $Out,
+        [string] $Project = 'dokpod',
+        [string] $Cli = 'docker'
+    )
+
+    $network = if ($Answers.postgres.mode -eq 'provision') { "$($Project)_dokpod-data" } else { (Get-PostgresDefaults).ExistingNetwork }
+    $trustBundle = if ($Answers.postgres.mode -ne 'provision' -and (Test-CaBundleNeeded -Answers $Answers)) { Join-Path $Answers.installDir 'certs/ca-bundle.crt' } else { $null }
+    $admin = @{ Image = $Images.api; Network = $network; SecretsDirectory = $Answers.secretsDir; TrustBundle = $trustBundle; Cli = $Cli }
+    if ($Action -ne 'export') {
+        $result = Invoke-AdminCommand @admin -Arguments @('migrations', $Action)
+        Write-InstallerLine -Message ($result.Data | ConvertTo-Json -Depth 8)
+        return $result.ExitCode
+    }
+
+    $work = Join-Path $Answers.installDir 'migrations'
+    [void] [System.IO.Directory]::CreateDirectory($work)
+    $name = "export-$([DateTimeOffset]::UtcNow.ToString('yyyyMMddHHmmss')).sql"
+    $result = Invoke-AdminCommand @admin -Arguments @('migrations', 'script', '--out', "/run/dokpod-migrations/$name") -WorkDirectory $work -WritableWork
+    $path = Join-Path $work $name
+    if ($Out) {
+        Copy-Item -LiteralPath $path -Destination $Out -Force
+        $path = $Out
+    }
+
+    Write-InstallerLine -Message "SQL das migrations pendentes em $path (sha256 $($result.Data.sha256), planHash $($result.Data.planHash)). Nada foi aplicado."
+    return $result.ExitCode
+}
+
+Export-ModuleMember -Function Invoke-InstallerInstall, Invoke-InstallerCaRotation, Invoke-InstallerHostCommand, Invoke-InstallerMigrationsCommand

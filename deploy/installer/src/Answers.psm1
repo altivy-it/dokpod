@@ -259,6 +259,7 @@ function Request-InstallerAnswers {
     #>
     [CmdletBinding()]
     [OutputType([System.Collections.IDictionary])]
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSReviewUnusedParameter', 'Prompt', Justification = 'Chamado dentro do scriptblock $ask.')]
     param(
         [System.Collections.IDictionary] $Partial = [ordered]@{},
         [scriptblock] $Prompt = { param($question, $default) Read-Host -Prompt $(if ($default) { "$question [$default]" } else { $question }) }

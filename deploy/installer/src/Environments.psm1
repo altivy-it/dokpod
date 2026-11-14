@@ -49,7 +49,8 @@ function Resolve-LocalEnvironment {
     $engine = ([string] $Answers.engine).Replace('-rootless', '')
     # -Rows devolve o array como um objeto só no pipeline: atribuído antes de filtrar.
     $rows = Invoke-StateSql -State $State -Name 'environments-list' -Rows
-    $known = $rows | Where-Object { $_['engine'] -in 'docker', 'podman' -and -not $_['revoked_at'] } | Select-Object -First 1
+    # Os hosts remotos (host add) sempre têm pacote; o local nunca.
+    $known = $rows | Where-Object { $_['engine'] -in 'docker', 'podman' -and -not $_['revoked_at'] -and -not $_['package_generated_at'] } | Select-Object -First 1
     $hostName = if ($env:DOKPOD_HOST_NAME) { $env:DOKPOD_HOST_NAME } else { ([Uri] $Answers.publicUrl).Host }
     return [pscustomobject]@{
         Id     = if ($known) { [string] $known['environment_id'] } else { [guid]::NewGuid().ToString() }
@@ -268,6 +269,8 @@ function Invoke-EnvironmentStep {
         [string] $KeycloakNetwork = (Get-KeycloakDefaults).Network,
         [string] $KeycloakUrl = (Get-KeycloakDefaults).InternalUrl,
         [string] $ScriptsRoot = (Join-Path (Get-InstallerHome) 'keycloak'),
+        # recreate pki:agent:<id> (T042): a identidade antiga é revogada antes do registro do certificado novo.
+        [switch] $RevokeIdentity,
         [string] $Cli = 'docker'
     )
 
@@ -294,6 +297,12 @@ function Invoke-EnvironmentStep {
     $authorization = Invoke-EnvironmentAuthorization -Answers $Answers -EnvironmentId $environment.Id -Image $InstallerImage `
         -Network $KeycloakNetwork -BaseUrl $KeycloakUrl -ScriptsRoot $ScriptsRoot -Cli $Cli
 
+    if ($RevokeIdentity) {
+        [void] (Invoke-EnvironmentAdmin -Image $ApiImage -Network $Network -SecretsDirectory $secretsDir -TrustBundle $TrustBundle -Cli $Cli -Arguments @(
+                'agent-identities', 'revoke', '--environment', $environment.Id, '--actor', $operator, '--reason', 'recreate pki:agent') `
+                -Conflict "A identidade antiga do agente $($environment.Id) não foi revogada.")
+    }
+
     $identity = Invoke-EnvironmentAdmin -Image $ApiImage -Network $Network -SecretsDirectory $secretsDir -TrustBundle $TrustBundle -Cli $Cli -Arguments @(
         'agent-identities', 'register', '--environment', $environment.Id, '--fingerprint', $agent.Fingerprint,
         '--actor', $operator, '--reason', $script:Reason) `
@@ -314,4 +323,4 @@ function Invoke-EnvironmentStep {
 }
 
 Export-ModuleMember -Function Resolve-LocalEnvironment, Save-LocalEnvironment, Initialize-AgentCertificate, Invoke-EnvironmentAuthorization, Assert-EngineSocketIsolation,
-Invoke-EnvironmentStep
+Invoke-EnvironmentStep, Invoke-EnvironmentAdmin

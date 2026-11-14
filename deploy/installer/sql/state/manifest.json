@@ -64,7 +64,7 @@
       "purpose": "query",
       "executor": "sqlite",
       "parameters": [],
-      "sha256": "9c3247f229401ef04a78ce738296d7b4b3e18d3853a771dbf120f20219e88ddd"
+      "sha256": "71f4a8a90eb714716fbc8e9c5d098715396e882e66c07af673966bc5a64eda1f"
     },
     {
       "path": "queries/component-upsert.sql",

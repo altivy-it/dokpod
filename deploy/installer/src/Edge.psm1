@@ -129,7 +129,7 @@ function Test-EdgeConfiguration {
         "server { listen 8443; server_name $serverName; include /dokpod/dokpod.locations; } }"
     $hosts = @()
     foreach ($alias in 'dokpod-web', 'dokpod-bff', 'dokpod-keycloak') { $hosts += '--add-host', "$($alias):127.0.0.1" }
-    $arguments = @('run', '--rm', '--network', 'none', '--label', $script:CheckLabel) + (Get-ContainerLimitArguments) + $hosts + @(
+    $arguments = @('run', '--rm', '--log-driver', 'none', '--network', 'none', '--label', $script:CheckLabel) + (Get-ContainerLimitArguments) + $hosts + @(
         '--read-only', '--tmpfs', '/tmp:rw,size=4m', '--volume', "$($edgeDirectory):/dokpod:ro", '--entrypoint', 'sh', $Image,
         '-c', "printf '%s' '$config' > /tmp/check.conf && exec nginx -t -c /tmp/check.conf")
     $result = Invoke-InstallerProcess -FilePath $Cli -ArgumentList $arguments

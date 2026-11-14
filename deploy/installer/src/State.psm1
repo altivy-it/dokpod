@@ -209,7 +209,7 @@ function Enter-InstallerRunLock {
         [Parameter(Mandatory)] $State,
         [Parameter(Mandatory)][string] $RunId,
         [Parameter(Mandatory)][string] $ContainerName,
-        [scriptblock] $ContainerExists = { param($name) $false },
+        [scriptblock] $ContainerExists = { $false },
         [switch] $ConfirmStaleRelease
     )
 
@@ -333,7 +333,8 @@ function Set-InstallationRecord {
     )
 
     $existing = Get-InstallationRecord -State $State
-    if ($existing -and [version] $Version -lt [version] $existing.version) {
+    # Só o X.Y.Z: a pré-release (-rc.N) não muda a ordem entre versões finais diferentes.
+    if ($existing -and [version] ($Version -replace '-.*$', '') -lt [version] ($existing.version -replace '-.*$', '')) {
         Stop-Installer -Code Usage -Message "A versão instalada é $($existing.version); $Version é anterior. Use o procedimento de rollback (docs/runbooks/deploy-e-rollback.md)."
     }
 

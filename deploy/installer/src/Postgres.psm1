@@ -783,7 +783,43 @@ function Invoke-PreparedPostgresBootstrap {
     return [pscustomobject]@{ ServerVersion = $version; Database = $database; OwnerRole = $owner.Username; RuntimeRole = $runtime.Username; ConnectionsWritten = $written }
 }
 
+function Get-AgentConnection {
+    <#
+    .SYNOPSIS
+    Se o agente do ambiente está conectado e desde quando (Installation/status/agent-connection.sql), lido com a role
+    dona. Usado pela troca da CA (T044) para só tirar a raiz antiga depois da reconexão com o certificado novo.
+    .OUTPUTS
+    Connected e SessionStartedAt (DateTimeOffset), ou $null quando o agente nunca conectou.
+    #>
+    [CmdletBinding()]
+    [OutputType([pscustomobject])]
+    param(
+        [Parameter(Mandatory)][System.Collections.IDictionary] $Answers,
+        [Parameter(Mandatory)][string] $EnvironmentId,
+        [Parameter(Mandatory)][string] $Image,
+        [Parameter(Mandatory)][string] $Network,
+        [string] $CatalogRoot = (Join-Path (Get-InstallerHome) 'catalog'),
+        [string] $Cli = 'docker'
+    )
+
+    $parsed = [guid]::Empty
+    if (-not [guid]::TryParse($EnvironmentId, [ref] $parsed)) { Stop-Installer -Code Usage -Message "Ambiente inválido: $EnvironmentId." }
+    $owner = Read-PostgresConnection -SecretsDirectory $Answers.secretsDir -Name $script:OwnerConnection
+    if (-not $owner) { Stop-Installer -Code Error -Message "Sem a conexão $($script:OwnerConnection) em secretsDir." }
+    $server = if ($Answers.postgres.mode -eq 'provision') {
+        [ordered]@{ Host = $owner.Host; Port = $owner.Port; Username = $owner.Username; Password = $owner.Password }
+    }
+    else { New-ExistingPostgresServer -Answers $Answers -Username $owner.Username -Password $owner.Password }
+
+    $output = Invoke-PsqlCatalog -Image $Image -Network $Network -Server $server -CatalogRoot $CatalogRoot -Cli $Cli -Steps @(
+        @{ Path = 'Installation/status/agent-connection.sql'; Database = $owner.Database; Variables = [ordered]@{ environment_id = $EnvironmentId } })
+    $line = @($output[0] -split "`n" | Where-Object { $_ }) | Select-Object -First 1
+    if (-not $line) { return $null }
+    $connected, $started = $line -split '\|', 2
+    return [pscustomobject]@{ Connected = $connected -eq 't'; SessionStartedAt = [DateTimeOffset]::FromUnixTimeSeconds([long] $started) }
+}
+
 Export-ModuleMember -Function Get-PostgresDefaults, Initialize-PostgresSecrets, ConvertTo-PostgresConnectionString, Read-PostgresConnection,
 Get-CatalogSqlFile, Invoke-PsqlCatalog, Get-PostgresServerVersion, Get-PostgresRolePrivilege, Assert-PostgresRole, Invoke-PostgresBootstrap,
 Invoke-ProvisionedPostgresBootstrap, Assert-ExistingPostgresAnswers, Get-ExistingPostgresCaPem, Get-ExistingPostgresAdminServer, Invoke-ExistingPostgresBootstrap,
-Invoke-PreparedPostgresBootstrap
+Invoke-PreparedPostgresBootstrap, Get-AgentConnection

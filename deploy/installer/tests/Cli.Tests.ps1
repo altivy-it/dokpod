@@ -60,10 +60,12 @@ Describe 'Ponto de entrada' {
         (Invoke-Entry @('plan', '--desconhecida')).ExitCode | Should -Be 2
     }
 
-    It 'comando que aplica mudanças ainda não implementado sai com 2 e aponta --dry-run' {
-        $result = Invoke-Entry @('upgrade', '--version', '9.9.9')
-        $result.ExitCode | Should -Be 2
-        $result.Output | Should -Match 'dry-run'
+    It 'subcomando desconhecido de migrations, host ou certificates sai com 2 e diz o uso' {
+        foreach ($arguments in @(@('migrations', 'apagar'), @('host', 'listar'), @('certificates', 'renovar'))) {
+            $result = Invoke-Entry $arguments
+            $result.ExitCode | Should -Be 2 -Because ($arguments -join ' ')
+            $result.Output | Should -Match 'Use ' -Because ($arguments -join ' ')
+        }
     }
 
     It 'install fora do install.sh sai com 2 antes de qualquer efeito' {

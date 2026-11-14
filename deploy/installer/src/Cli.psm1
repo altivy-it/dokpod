@@ -5,7 +5,7 @@ Linha de comando do instalador (spec 033 T027, FR-001, FR-004, FR-035; contrato 
 dos argumentos, confirmações explícitas e os comandos sem efeito (help, plan, --dry-run, status, sql export).
 #>
 Set-StrictMode -Version Latest
-foreach ($module in 'Common', 'Answers', 'State', 'Prerequisites', 'Images', 'Render', 'Edge', 'Plan', 'Install') {
+foreach ($module in 'Common', 'Answers', 'State', 'Prerequisites', 'Images', 'Render', 'Edge', 'Plan', 'Recreate', 'Upgrade', 'Install') {
     Import-Module (Join-Path $PSScriptRoot "$module.psm1")
 }
 
@@ -14,7 +14,7 @@ $script:ValueOptions = 'answers', 'install-dir', 'secrets-dir', 'version', 'offl
 'confirm-migrations', 'confirm-sql-overrides', 'confirm-backup', 'name', 'engine', 'environment', 'reason'
 $script:FlagOptions = 'dry-run', 'yes', 'manual-migrations', 'non-interactive', 'all', 'help', 'confirm-stale-lock'
 # Tarefa que entrega cada comando que aplica mudanças (specs/033-instalador-guiado/tasks.md).
-$script:Pending = @{ upgrade = 'T048'; migrations = 'T030'; recreate = 'T042 a T044'; host = 'T046 e T047'; certificates = 'T049' }
+$script:Pending = @{}
 
 function ConvertFrom-InstallerArguments {
     <#
@@ -116,6 +116,28 @@ function Invoke-InstallerCli {
                 }
 
                 if ($parsed.Command -eq 'install') { return Invoke-InstallerInstallCommand -Parsed $parsed }
+                # recreate <item>: o mesmo fluxo do install, com os itens invalidados depois da confirmação (T042).
+                if ($parsed.Command -eq 'recreate' -and -not $parsed.Flags['all'] -and @($parsed.Positional) -notcontains 'pki:ca') {
+                    return Invoke-InstallerInstallCommand -Parsed $parsed -Recreate @($parsed.Positional)
+                }
+                if ($parsed.Command -eq 'host') { return Invoke-InstallerHostCliCommand -Parsed $parsed }
+                if ($parsed.Command -eq 'certificates') { return Invoke-InstallerCertificatesCommand -Parsed $parsed }
+                if ($parsed.Command -eq 'upgrade') { return Invoke-InstallerUpgradeCommand -Parsed $parsed }
+                if ($parsed.Command -eq 'migrations') {
+                    $action = @($parsed.Positional) | Select-Object -First 1
+                    if ($action -notin 'status', 'plan', 'export', 'verify') { Stop-Installer -Code Usage -Message 'Use migrations status | plan | export --out <arquivo> | verify.' }
+                    $answers = Get-CliAnswers -Parsed $parsed
+                    $release = Read-ReleaseManifest -Path (Get-ReleaseManifestPath -Version $answers.version -Offline $parsed.Options['offline']) -Version $answers.version
+                    return Invoke-InstallerMigrationsCommand -Answers $answers -Action $action -Images (Select-ReleaseImages -Images $release -Edition $answers.edition) -Out $parsed.Options['out']
+                }
+                if ($parsed.Command -eq 'recreate' -and @($parsed.Positional) -contains 'pki:ca') {
+                    if (@($parsed.Positional).Count -gt 1 -or $parsed.Flags['all']) { Stop-Installer -Code Usage -Message 'recreate pki:ca vai sozinho, sem outros itens nem --all.' }
+                    return Invoke-InstallerInstallCommand -Parsed $parsed -RotateCa
+                }
+                if ($parsed.Command -eq 'recreate' -and $parsed.Flags['all']) {
+                    if (@($parsed.Positional).Count -gt 0) { Stop-Installer -Code Usage -Message 'recreate --all não aceita itens; use um ou outro.' }
+                    return Invoke-InstallerInstallCommand -Parsed $parsed -RecreateAll
+                }
 
                 Stop-Installer -Code Usage -Message "O comando '$($parsed.Command)' ainda não aplica mudanças nesta versão (spec 033, $($script:Pending[$parsed.Command])); use --dry-run para ver o plano."
             }
@@ -234,7 +256,9 @@ function Invoke-InstallerPlanCommand {
 
         $release = Read-ReleaseManifest -Path (Get-ReleaseManifestPath -Version $answers.version -Offline $Parsed.Options['offline']) -Version $answers.version
         $images = Select-ReleaseImages -Images $release -Edition $answers.edition
-        $environmentId = if ($state) { (Invoke-StateSql -State $state -Name 'environments-list' -Rows | Select-Object -First 1)?.environment_id } else { $null }
+        $environmentRows = if ($state) { Invoke-StateSql -State $state -Name 'environments-list' -Rows } else { @() }
+        # O ambiente local é o que não tem pacote (os hosts remotos sempre têm).
+        $environmentId = @($environmentRows | Where-Object { -not $_['package_generated_at'] -and -not $_['revoked_at'] } | ForEach-Object { $_['environment_id'] }) | Select-Object -First 1
         Assert-ExistingEdgeAnswers -Answers $answers
         $infrastructure = Get-InfrastructureImages
         $model = New-InstallerComposeModel -Answers $answers -Images $images -Infrastructure $infrastructure `
@@ -254,9 +278,18 @@ function Invoke-InstallerPlanCommand {
             }
         }
 
-        $recreate = if ($Parsed.Command -eq 'recreate') { @($Parsed.Positional | ForEach-Object { ($_ -split '[:,]')[0] } | Select-Object -Unique) } else { @() }
+        $recreate = @()
+        if ($Parsed.Command -eq 'recreate' -and -not $Parsed.Flags['all'] -and @($Parsed.Positional) -notcontains 'pki:ca') {
+            $recreate = (Resolve-RecreateTarget -Answers $answers -Items @($Parsed.Positional) -Services @($model.services.Keys) -Desired $desired `
+                    -LocalEnvironmentId ($environmentId ?? '00000000-0000-0000-0000-000000000000')).Components
+        }
+        $dataRemoval = @()
+        if ($Parsed.Flags['all'] -and @($Parsed.Confirmations.DataRemoval).Count -gt 0 -and
+            (Resolve-DataRemoval -Answers $answers -Confirmed @($Parsed.Confirmations.DataRemoval) -Interactive $false)) {
+            $dataRemoval = Get-DataRemovalItem -Answers $answers
+        }
         $plan = New-InstallerPlan -Desired $desired -Observed $observed -Recreate $recreate -RecreateAll:([bool] $Parsed.Flags['all']) `
-            -ConfirmDataRemoval $Parsed.Confirmations.DataRemoval
+            -ConfirmDataRemoval $dataRemoval
         Write-InstallerLine -Message ''
         Write-InstallerLine -Message "Plano para o Dokpod $($answers.version) ($($answers.edition), $($answers.engine)):"
         Write-InstallerLine -Message (Format-InstallerPlan -Plan $plan)
@@ -274,7 +307,7 @@ function Invoke-InstallerInstallCommand {
     .SYNOPSIS
     install: pré-requisitos, manifesto e assinaturas antes de qualquer efeito; depois as etapas de Install.psm1.
     #>
-    param($Parsed)
+    param($Parsed, [string[]] $Recreate = @(), [switch] $RecreateAll, [switch] $RotateCa)
 
     $answers = Get-CliAnswers -Parsed $Parsed
     if (-not $env:DOKPOD_INSTALLER_IMAGE_REF) {
@@ -299,9 +332,90 @@ function Invoke-InstallerInstallCommand {
         Confirm-ImageSignature -Image $release[$artifact] -OfflineDirectory $signatures
     }
 
-    return Invoke-InstallerInstall -Answers $answers -Images $images -Infrastructure (Get-InfrastructureImages) -InstallerImage $env:DOKPOD_INSTALLER_IMAGE_REF `
-        -Confirmations $Parsed.Confirmations -SqlDirectory $Parsed.Options['sql-dir'] -ManualMigrations:([bool] $Parsed.Flags['manual-migrations']) `
-        -ConfirmStaleLock:([bool] $Parsed.Flags['confirm-stale-lock'])
+    $parameters = @{
+        Answers = $answers; Images = $images; Infrastructure = (Get-InfrastructureImages); InstallerImage = $env:DOKPOD_INSTALLER_IMAGE_REF
+        Confirmations = $Parsed.Confirmations; SqlDirectory = $Parsed.Options['sql-dir']; ManualMigrations = [bool] $Parsed.Flags['manual-migrations']
+        ConfirmStaleLock = [bool] $Parsed.Flags['confirm-stale-lock']
+    }
+    if ($RotateCa) { return Invoke-InstallerCaRotation -Parameters $parameters }
+    return Invoke-InstallerInstall @parameters -Recreate $Recreate -RecreateAll:$RecreateAll
+}
+
+function Invoke-InstallerHostCliCommand {
+    <#
+    .SYNOPSIS
+    host add --name <nome> [--engine docker|podman|windows] e host revoke --environment <id> --reason <texto> (T046, T047).
+    #>
+    param($Parsed)
+
+    $action = @($Parsed.Positional) | Select-Object -First 1
+    if ($action -notin 'add', 'revoke') { Stop-Installer -Code Usage -Message "Use 'host add --name <nome>' ou 'host revoke --environment <id> --reason <texto>'." }
+    if ($action -eq 'add' -and -not $Parsed.Options['name']) { Stop-Installer -Code Usage -Message 'host add exige --name <nome>.' }
+    if ($action -eq 'revoke' -and (-not $Parsed.Options['environment'] -or -not $Parsed.Options['reason'])) {
+        Stop-Installer -Code Usage -Message 'host revoke exige --environment <id> e --reason <texto>.'
+    }
+    $engine = if ($Parsed.Options['engine']) { $Parsed.Options['engine'] } else { 'podman' }
+    if ($engine -notin 'docker', 'podman', 'windows') { Stop-Installer -Code Usage -Message "--engine aceita docker, podman ou windows (Docker e Podman só rootless)." }
+    if (-not $env:DOKPOD_INSTALLER_IMAGE_REF) {
+        Stop-Installer -Code Usage -Message 'Rode o instalador pelo install.sh, que informa a imagem em execução (DOKPOD_INSTALLER_IMAGE_REF).'
+    }
+
+    $answers = Get-CliAnswers -Parsed $Parsed
+    $release = Read-ReleaseManifest -Path (Get-ReleaseManifestPath -Version $answers.version -Offline $Parsed.Options['offline']) -Version $answers.version
+    $images = Select-ReleaseImages -Images $release -Edition $answers.edition
+    return Invoke-InstallerHostCommand -Answers $answers -Action $action -Images $images -InstallerImage $env:DOKPOD_INSTALLER_IMAGE_REF `
+        -Name $Parsed.Options['name'] -Engine $engine -EnvironmentId $Parsed.Options['environment'] -Reason $Parsed.Options['reason']
+}
+
+function Invoke-InstallerUpgradeCommand {
+    <#
+    .SYNOPSIS
+    upgrade --version <X.Y.Z> (T048, FR-032): só para versão maior; depois o fluxo do install com a versão nova e a
+    conferência do rótulo de versão de cada serviço do Dokpod.
+    #>
+    param($Parsed)
+
+    if (-not $Parsed.Options['version']) { Stop-Installer -Code Usage -Message 'upgrade exige --version <X.Y.Z>.' }
+    $answers = Get-CliAnswers -Parsed $Parsed
+    $state = Get-StateIfPresent -InstallDirectory $answers.installDir
+    if (-not $state) { Stop-Installer -Code Usage -Message "Não há instalação em $($answers.installDir) para atualizar; use 'install'." }
+    try { $installed = (Get-InstallationRecord -State $state).version }
+    finally { Close-InstallerState -State $state }
+    Assert-UpgradeVersion -Installed $installed -Target $answers.version
+
+    $code = Invoke-InstallerInstallCommand -Parsed $Parsed
+    if ($code -ne 0) { return $code }
+    $found = Assert-ServiceImageVersion -Version $answers.version -Project 'dokpod'
+    Write-InstallerLine -Message "Atualizado da $installed para a $($answers.version): $(@($found.Keys | ForEach-Object { "$_ $($found[$_])" }) -join ', ')."
+    return 0
+}
+
+function Invoke-InstallerCertificatesCommand {
+    <#
+    .SYNOPSIS
+    certificates check (T049, FR-019): validade de cada certificado e a ação sugerida, sem efeitos. Sai com 0 mesmo com
+    aviso; o aviso também aparece em cada reexecução do install.
+    #>
+    param($Parsed)
+
+    if (@($Parsed.Positional) -notcontains 'check') { Stop-Installer -Code Usage -Message "Use 'certificates check'." }
+    $answers = Get-CliAnswers -Parsed $Parsed
+    $state = Get-StateIfPresent -InstallDirectory $answers.installDir
+    if (-not $state) {
+        Write-InstallerLine -Message "Nenhuma instalação do Dokpod em $($answers.installDir)."
+        return 0
+    }
+
+    try {
+        $status = Get-InstallerCertificateStatus -Answers $answers -State $state
+        Write-InstallerLine -Message ('{0,-46} {1,-13} {2,-11} {3,6}  {4}' -f 'Certificado', 'Origem', 'Vence em', 'Dias', 'Ação')
+        foreach ($item in $status) {
+            Write-InstallerLine -Message ('{0,-46} {1,-13} {2,-11} {3,6}  {4}' -f $item.Role, $item.Origin, $item.NotAfter.ToString('yyyy-MM-dd'), $item.DaysLeft, $(if ($item.Action) { $item.Action } else { 'ok' }))
+        }
+        Write-CertificateWarning -Status $status
+        return 0
+    }
+    finally { Close-InstallerState -State $state }
 }
 
 function Invoke-InstallerStatusCommand {
@@ -316,7 +430,9 @@ function Invoke-InstallerStatusCommand {
 
     try {
         $installation = Get-InstallationRecord -State $state
-        Write-InstallerLine -Message "Dokpod $($installation?.version) ($($installation?.edition), $($installation?.engine)) em $($installation?.public_url)"
+        if ($installation) {
+            Write-InstallerLine -Message "Dokpod $($installation.version) ($($installation.edition), $($installation.engine)) em $($installation.public_url)"
+        }
         $observed = Get-ObservedServices
         foreach ($row in (Invoke-StateSql -State $state -Name 'components-list' -Rows)) {
             $seen = if ($observed.Contains($row.name)) { $observed[$row.name] } else { $null }

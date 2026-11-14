@@ -397,11 +397,20 @@ function Invoke-ServiceStage {
         [Parameter(Mandatory)][string[]] $Services,
         [int] $TimeoutSeconds = $script:WaitTimeoutSeconds,
         [string] $Project = $script:Project,
+        # recreate (T042): estes serviços da etapa são recriados mesmo sem mudança no compose.yaml (certificado ou
+        # segredo novo não mudam o hash da configuração).
+        [string[]] $ForceRecreate = @(),
         [string] $Cli = 'docker'
     )
 
     $arguments = @(Get-ComposeArguments -Answers $Answers -Project $Project) + @('up', '--detach', '--wait', '--wait-timeout', [string] $TimeoutSeconds) + $Services
     $result = Invoke-InstallerProcess -FilePath $Cli -ArgumentList $arguments
+    $ForceRecreate = @($ForceRecreate | Where-Object { $_ })
+    if ($result.ExitCode -eq 0 -and $ForceRecreate.Count -gt 0) {
+        $arguments = @(Get-ComposeArguments -Answers $Answers -Project $Project) + @('up', '--detach', '--wait', '--wait-timeout', [string] $TimeoutSeconds,
+            '--force-recreate', '--no-deps') + $ForceRecreate
+        $result = Invoke-InstallerProcess -FilePath $Cli -ArgumentList $arguments
+    }
     $health = Get-ServiceHealth -Answers $Answers -Services $Services -Project $Project -Cli $Cli
     $failing = @($health | Where-Object { -not $_.Healthy })
     if ($result.ExitCode -ne 0 -or $failing.Count -gt 0) {

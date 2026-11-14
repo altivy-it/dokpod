@@ -445,6 +445,27 @@ Describe 'Etapa de migrations contra PostgreSQL e a imagem da API reais' {
         $tampered.Message | Should -Match ([regex]::Escape($script:firstUp))
     }
 
+    It 'alteração manual sem registro (<Kind>) é detectada pela impressão do schema no verify, com código 6 (FR-042)' -ForEach @(
+        @{ Kind = 'coluna'; Change = 'ALTER TABLE dokpod.environments ADD COLUMN t059_extra integer'; Undo = 'ALTER TABLE dokpod.environments DROP COLUMN t059_extra' }
+        @{ Kind = 'índice'; Change = 'CREATE INDEX ix_t059 ON dokpod.environments (name)'; Undo = 'DROP INDEX dokpod.ix_t059' }
+        @{ Kind = 'restrição'; Change = "ALTER TABLE dokpod.environments ADD CONSTRAINT ck_t059 CHECK (name <> '')"; Undo = 'ALTER TABLE dokpod.environments DROP CONSTRAINT ck_t059' }
+        @{ Kind = 'função'; Change = 'CREATE FUNCTION dokpod.t059() RETURNS integer LANGUAGE sql AS $$ SELECT 1 $$'; Undo = 'DROP FUNCTION dokpod.t059()' }
+        @{ Kind = 'gatilho'; Change = 'CREATE FUNCTION dokpod.t059_trg() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RETURN NEW; END $$; CREATE TRIGGER t059 BEFORE INSERT ON dokpod.environments FOR EACH ROW EXECUTE FUNCTION dokpod.t059_trg()'; Undo = 'DROP TRIGGER t059 ON dokpod.environments; DROP FUNCTION dokpod.t059_trg()' }
+    ) {
+        if ($script:skip) { Set-ItResult -Skipped -Because 'engine, DOKPOD_TEST_SHARED ou DOKPOD_TEST_API_IMAGE ausentes'; return }
+
+        $preview = Invoke-Step $script:base @{ Confirmations = @{} }
+        $hash = [regex]::Match($preview.Message, '--confirm-migrations ([0-9a-f]{64})').Groups[1].Value
+        (Invoke-Step $script:base @{ Confirmations = @{ MigrationsPlanHash = $hash } }).Code | Should -Be 0
+        $common = @{ Image = $script:api; Network = $script:network; SecretsDirectory = $script:install.Answers.secretsDir }
+        (Invoke-AdminCommand @common -Arguments @('migrations', 'verify')).ExitCode | Should -Be 0
+
+        (Invoke-OwnerPsql -Install $script:install -Sql "$Change;").ExitCode | Should -Be 0
+        (Invoke-AdminCommand @common -Arguments @('migrations', 'verify')).ExitCode | Should -Be 6
+        (Invoke-OwnerPsql -Install $script:install -Sql "$Undo;").ExitCode | Should -Be 0
+        (Invoke-AdminCommand @common -Arguments @('migrations', 'verify')).ExitCode | Should -Be 0
+    }
+
     It 'migration manual: exporta e pausa com 10, a retomada sem aplicar dá 6, e depois de aplicar confere (FR-037, FR-038)' {
         if ($script:skip) { Set-ItResult -Skipped -Because 'engine, DOKPOD_TEST_SHARED ou DOKPOD_TEST_API_IMAGE ausentes'; return }
 

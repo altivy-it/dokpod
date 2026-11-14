@@ -780,15 +780,21 @@ conectado e um administrador que precisa trocar a senha.
   - componentes `existing` recusados (FR-029).
 
   Testes em `deploy/installer/tests/Recreate.Tests.ps1`.
+  - **Estado**: Implementado em 2026-11-14 (`Recreate.psm1`; `Invoke-InstallerInstall -Recreate`). `Recreate.Tests.ps1` passa. Na instalação completa (Podman 5.7), `pki:edge`, `service:web` e `pki:agent:<id>` passaram antes da falha de DNS do host. Falta a rodada limpa de ponta a ponta: o `aardvark-dns` do host de desenvolvimento parou de resolver nomes (ver o relatório da sessão).
+
 - [ ] T043 [US4] `recreate --all`:
   - confirmação normal e depois a segunda confirmação nomeando `dokpod-postgres`, `keycloak-postgres`,
     `dokpod-api-keys`, `dokpod-bff-keys` e as identidades;
   - sem ela, recria todo o resto e preserva os dados;
   - não interativo só com `--confirm-data-removal <lista>` exata (SC-008).
+  - **Estado**: Implementado em 2026-11-14 (`Resolve-DataRemoval`, `Remove-InstallationData`; plano com migrations e realm recriados só com o banco removido). Testes unitários passam. Na instalação completa, a recriação total sem a segunda confirmação passou, com as contagens de auditoria e identidades iguais, e a lista inexata foi recusada com código 2. Falta a rodada com a remoção confirmada, bloqueada pelo DNS do host.
+
 - [ ] T044 [US4] `recreate pki:ca` pelo procedimento de `docs/runbooks/troca-da-ca-dos-agentes.md`: estado
   `active → rotating → active`, bundle com as raízes antiga e nova em `DOKPOD_API_CLIENT_CA_CERTIFICATE_PATH` e na
   confiança dos agentes, reemissão e novo `agent-identities register` de cada agente, e remoção da raiz antiga só depois
   de todos conectados (FR-030).
+  - **Estado**: Implementado em 2026-11-14 (`Start-CaRotation`, `Complete-CaRotation`, `Invoke-InstallerCaRotation`; `Installation/status/agent-connection.sql` no catálogo). Falta a validação de ponta a ponta, escrita em `Install.Tests.ps1` e bloqueada pelo DNS do host.
+
 - [ ] T045 [US4] Validar o cenário 6 do quickstart (contagens de `dokpod.audit_events` e `dokpod.agent_identities` iguais
   depois da recusa) e registrar em `validation.md`.
 
@@ -815,8 +821,12 @@ conectado e um administrador que precisa trocar a senha.
     threat model).
 
   Exige `agentGrpcPort`, a única porta publicada além da borda, só com mTLS (FR-022). Testes em `deploy/installer/tests/Hosts.Tests.ps1` conferindo o conteúdo do pacote.
+  - **Estado**: Implementado em 2026-11-14 (`Hosts.psm1`: pacote cifrado no formato do `openssl enc`, frase fora do pacote, `package_generated_at`). `Hosts.Tests.ps1` (5) passa, inclusive a abertura do pacote com o `openssl` real. Falta o agente do pacote conectando de ponta a ponta, escrito em `Install.Tests.ps1` e bloqueado pelo DNS do host.
+
 - [ ] T047 [US5] `host revoke --environment --reason` por `admin agent-identities revoke`, com o pacote marcado como
   revogado no estado.
+  - **Estado**: Implementado em 2026-11-14 (`Invoke-InstallerHostRevoke`, `host revoke` na CLI). Falta a validação de ponta a ponta, junto da T046.
+
 - [ ] T048 [US5] `upgrade --version` em `deploy/installer/src/Upgrade.psm1`:
   - recusar versão igual ou menor com referência a `docs/runbooks/deploy-e-rollback.md` e
     `docs/runbooks/backup-restore-e-atualizacao.md`;
@@ -828,8 +838,12 @@ conectado e um administrador que precisa trocar a senha.
   - confirmar `org.opencontainers.image.version` de cada serviço (FR-032).
 
   Testes em `deploy/installer/tests/Upgrade.Tests.ps1`.
-- [ ] T049 [US5] `certificates check` e aviso de vencimento a partir de `renewWarningDays` (padrão 30) na reexecução,
+  - **Estado**: Implementado em 2026-11-14 (`Upgrade.psm1`: só para versão maior, rótulo OCI de cada serviço; o resto é o fluxo do install). `Upgrade.Tests.ps1` passa. A atualização entre duas versões fica para a T050.
+
+- [X] T049 [US5] `certificates check` e aviso de vencimento a partir de `renewWarningDays` (padrão 30) na reexecução,
   oferecendo `recreate pki:<item>` para certificados `local-ca`, e só aviso para `organization` (FR-019).
+  - **Estado**: Feito em 2026-11-14 (`Get-InstallerCertificateStatus`, `certificates check`, aviso no fim de cada install). Teste em `Recreate.Tests.ps1`.
+
 - [ ] T050 [US5] Validar os cenários 5 e 8 do quickstart com duas versões consecutivas com migration (candidatas da
   release), o segundo host Podman e uma imagem adulterada no `--offline` (código 5), e registrar em `validation.md`
   (SC-007, SC-009).
@@ -844,24 +858,40 @@ conectado e um administrador que precisa trocar a senha.
     modo que o asset seja atestado e assinado como os demais;
   - asset `dokpod-sql-<versão>.tar.gz` com o catálogo e o `manifest.json`, atestado como os demais (FR-040);
   - entrada correspondente no `release-manifest.json`.
-- [ ] T052 [P] Smoke test da imagem do instalador no CI (`.github/workflows/ci.yml`): `--help`, `plan --dry-run` com
+  - **Estado**: Implementado em 2026-11-14: `dokpod-installer` na lista de imagens; `build-assets` depende das imagens e grava `install.sh` com a referência e o digest publicados, mais `dokpod-sql-<versão>.tar.gz`; os dois são atestados pelo `gw-github-assets`. Validado por actionlint. A publicação não foi executada (exige pedido explícito).
+
+- [X] T052 [P] Smoke test da imagem do instalador no CI (`.github/workflows/ci.yml`): `--help`, `plan --dry-run` com
   arquivo de respostas de exemplo e Pester completo dentro da imagem.
+  - **Estado**: Feito em 2026-11-14: job `installer` no `ci.yml` (Pester na imagem de testes, PSScriptAnalyzer, `--help` e `plan` com `deploy/installer/examples/answers.yaml` saindo com 3). Reproduzido localmente com o Podman: 277 testes, analisador sem achados, `plan` com código 3 e "nada foi alterado".
+
 - [ ] T053 Canário de segredos (SC-005) em `deploy/installer/tests/SecretCanary.Tests.ps1` e no cenário 7 do quickstart.
   Procurar cada valor em saída, `reports/*.json`, `installDir`, `docker inspect`, `ps -ef` durante a execução, logs dos
   containers e journal do host (`journalctl --user`, L7 do threat model), e confirmar zero ocorrências.
-- [ ] T054 [P] Runbook `docs/runbooks/instalacao.md`: os três cenários, o arquivo de respostas, migrations manuais
+  - **Estado**: Implementado em 2026-11-14 (`SecretCanary.Tests.ps1`; `--log-driver none` também no `nginx -t`). A execução ficou bloqueada pelo DNS do host.
+
+- [X] T054 [P] Runbook `docs/runbooks/instalacao.md`: os três cenários, o arquivo de respostas, migrations manuais
   revisadas por DBA, recriação, pacote de host, atualização, desinstalação e o que é preservado.
-- [ ] T055 [P] Atualizar `docs/distribuicao.md` (caminho de instalação e imagem do instalador), `docs/seguranca.md`
+  - **Estado**: Feito em 2026-11-14: `docs/runbooks/instalacao.md`.
+
+- [X] T055 [P] Atualizar `docs/distribuicao.md` (caminho de instalação e imagem do instalador), `docs/seguranca.md`
   (instalador, modo administrativo e credenciais transitórias), `README.md` (link do runbook) e `deploy/e2e/README.md`
   (a stack de laboratório continua, com link para o instalador).
-- [ ] T056 Varredura Gitleaks com `.gitleaks.toml` nos arquivos novos e alterados. Nunca escrever pares chave=valor de
+  - **Estado**: Feito em 2026-11-14: `docs/distribuicao.md`, `docs/seguranca.md`, `README.md` e `deploy/e2e/README.md`. Também `migrations status|plan|export|verify` na CLI, que o runbook e o cenário 5 usam.
+
+- [X] T056 Varredura Gitleaks com `.gitleaks.toml` nos arquivos novos e alterados. Nunca escrever pares chave=valor de
   senha nem em exemplos.
+  - **Estado**: Feito em 2026-11-14: Gitleaks com `.gitleaks.toml` limpo no diff de cada commit.
+
 - [ ] T057 Formatação, análise estática e testes amplos: `dotnet format --verify-no-changes` nos projetos alterados,
   suíte .NET completa, Pester completo e `PSScriptAnalyzer` (T004) sem avisos nos módulos de
   `deploy/installer/src/`.
-- [ ] T058 Revisão de segurança e privacidade das superfícies de T001 contra o implementado, em
+  - **Estado**: Parcial em 2026-11-14: Pester sem engine (278), PSScriptAnalyzer sem achados com `deploy/installer/PSScriptAnalyzerSettings.psd1` (exclusões justificadas, como a T004 pediu), `dotnet format --verify-no-changes` no projeto de testes alterado. A suíte .NET completa fica com o CI.
+
+- [X] T058 Revisão de segurança e privacidade das superfícies de T001 contra o implementado, em
   `specs/033-instalador-guiado/threat-model.md`, com achados e correções. Inclui o SQL sobreposto e o banco de estado
   SQLite.
+  - **Estado**: Feito em 2026-11-14: seção "Revisão do implementado (T058)" no `threat-model.md`, com 12 achados e o risco residual R8, pendente de revisão humana.
+
 - [ ] T059 Validar o cenário 9 do quickstart (catálogo SQL sobreposto) e registrar em `validation.md` (FR-039 a
   FR-041, SC-011):
   - `sql export` e alteração de um arquivo de migration pendente;
@@ -872,6 +902,8 @@ conectado e um administrador que precisa trocar a senha.
   - `verify` aceitando a impressão registrada;
   - alteração manual sem registro (coluna, índice, restrição, função, gatilho) detectada pela impressão do schema,
     com código 6 (FR-042).
+  - **Estado**: Parcial em 2026-11-14: teste novo em `Migrations.Tests.ps1` para o FR-042 (coluna, índice, restrição, função e gatilho sem registro dão código 6 no `verify`). A execução e o registro em `validation.md` ficaram bloqueados pelo DNS do host.
+
 - [ ] T060 Fechar `specs/033-instalador-guiado/validation.md`: os nove cenários do quickstart, o ambiente, os resultados,
   os `NOT RUN` com motivo e o estado das tarefas.
 

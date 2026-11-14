@@ -16,6 +16,7 @@ $script:SideEffects = @{
     'keycloak-postgres' = 'o login fica indisponível durante a troca'
     'keycloak'          = 'o login fica indisponível por alguns segundos'
     'edge'              = 'o console fica indisponível por alguns segundos'
+    'web'               = 'o console fica indisponível por alguns segundos'
     'bff'               = 'as sessões abertas no console precisam entrar de novo'
     'api'               = 'os agentes reconectam'
     'agent'             = 'o host local fica sem agente por alguns segundos'
@@ -119,6 +120,14 @@ function Resolve-ComponentAction {
 
     if (-not $Seen.Exists) {
         return 'create', 'ainda não existe'
+    }
+
+    # Na recriação total, certificados e segredos ficam (cada um tem recreate pki:<papel> e secret:<nome>); migrations e
+    # realm só voltam do zero com o banco deles removido pela segunda confirmação.
+    if ($RecreateAll -and $Component.Name -in $script:Logical) {
+        $source = @{ migrations = 'dokpod-postgres'; realm = 'keycloak-postgres' }[$Component.Name]
+        if ($source -and $source -in $ConfirmDataRemoval) { return 'recreate', "o banco $source é removido e recriado vazio" }
+        return 'keep', 'preservado na recriação total; use recreate pki:<papel> ou secret:<nome> para trocar'
     }
 
     if ($WantsRecreate) {

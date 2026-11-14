@@ -199,7 +199,10 @@ function Invoke-InstallerProcess {
 
             $process.StandardInput.Close()
         }
-        catch [System.IO.IOException], [System.Management.Automation.MethodInvocationException] { }
+        catch [System.IO.IOException], [System.Management.Automation.MethodInvocationException] {
+            # O processo saiu antes de ler todo o stdin; o código de saída, logo abaixo, diz o resultado.
+            $null = $_
+        }
         $process.WaitForExit()
         $text = ''
         if ($file) { [void] $output.GetAwaiter().GetResult() } else { $text = $output.GetAwaiter().GetResult() }
@@ -218,8 +221,8 @@ function Invoke-InstallerProcess {
 function New-InstallerTarBundle {
     <#
     .SYNOPSIS
-    Tar (ustar) em memória com arquivos de texto 0600 e as pastas 0700 dos seus caminhos, para entregar a um container
-    avulso por stdin, extraído num tmpfs que só ele monta (FR-033).
+    Tar (ustar) em memória com arquivos 0600 (texto ou bytes) e as pastas 0700 dos seus caminhos, para entregar a um
+    container avulso por stdin, extraído num tmpfs que só ele monta (FR-033), ou para o pacote de um host (FR-025).
     #>
     [CmdletBinding()]
     [OutputType([byte[]])]
@@ -238,7 +241,9 @@ function New-InstallerTarBundle {
         foreach ($name in $Files.Keys) {
             $entry = [System.Formats.Tar.UstarTarEntry]::new([System.Formats.Tar.TarEntryType]::RegularFile, $name)
             $entry.Mode = [System.IO.UnixFileMode]'UserRead, UserWrite'
-            $entry.DataStream = [System.IO.MemoryStream]::new([System.Text.Encoding]::UTF8.GetBytes([string] $Files[$name]))
+            # Texto em UTF-8; bytes (um PFX, um arquivo cifrado) como estão.
+            $content = if ($Files[$name] -is [byte[]]) { $Files[$name] } else { [System.Text.Encoding]::UTF8.GetBytes([string] $Files[$name]) }
+            $entry.DataStream = [System.IO.MemoryStream]::new($content)
             $writer.WriteEntry($entry)
         }
     }

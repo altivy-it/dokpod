@@ -597,3 +597,303 @@ Describe 'Instalação com Keycloak existente (keycloak.mode existing)' {
         & $script:kcSnapshot | Should -Be $script:kcBefore
     }
 }
+
+# Spec 033 T042 (FR-029): recriação por item numa instalação completa. Só o item pedido muda.
+Describe 'Recriação por item (recreate)' {
+    BeforeAll {
+        $script:recreateEnabled = $script:enabled
+        if (-not $script:recreateEnabled) { return }
+        $script:rcProject = 'dokpod-t042'
+        $script:rcRoot = Join-Path $env:DOKPOD_TEST_SHARED "t042-$([guid]::NewGuid().ToString('N').Substring(0, 8))"
+        $script:rcInfra = (Get-Content -Raw (Join-Path $PSScriptRoot '../templates/infrastructure-images.json') | ConvertFrom-Json -AsHashtable).images
+        $script:rcImages = [ordered]@{ api = $env:DOKPOD_TEST_API_IMAGE; bff = $env:DOKPOD_TEST_BFF_IMAGE; web = $env:DOKPOD_TEST_WEB_IMAGE; agent = $env:DOKPOD_TEST_AGENT_IMAGE }
+        $script:rcAnswers = [ordered]@{
+            schemaVersion = 1; version = '0.8.0'; edition = 'ce'; publicUrl = 'https://dokpod.lab.test:18457'; engine = 'podman-rootless'; operator = 'Ana'
+            installDir = (Join-Path $script:rcRoot 'install'); secretsDir = (Join-Path $script:rcRoot 'secrets'); manualMigrations = $false
+            postgres = @{ mode = 'provision' }
+            keycloak = @{ mode = 'provision'; realm = 'dokpod'; initialAdmin = @{ username = 'dokpod-admin'; email = 'ana@lab.test' } }
+            edge = @{ mode = 'provision'; httpsPort = 18457 }
+            certificates = @{ edge = @{ source = 'local-ca' }; api = @{ source = 'local-ca' }; agents = @{ source = 'local-ca' }; renewWarningDays = 30 }
+            localEnvironment = @{ name = 'host-local'; stage = 'production' }
+        }
+        $script:rcConfirmations = @{ Plan = $true }
+        $script:rcRun = {
+            param([string[]] $Recreate = @(), [switch] $All)
+            Invoke-InstallerInstall -Answers $script:rcAnswers -Images $script:rcImages -Infrastructure $script:rcInfra -InstallerImage $env:DOKPOD_INSTALLER_IMAGE_REF `
+                -Confirmations $script:rcConfirmations -Interactive $false -Project $script:rcProject -WaitTimeoutSeconds 420 -Recreate $Recreate -RecreateAll:$All
+        }
+        $declined = try { & $script:rcRun } catch { $_.Exception }
+        $script:rcConfirmations['MigrationsPlanHash'] = [regex]::Match($declined.Message, '--confirm-migrations ([0-9a-f]{64})').Groups[1].Value
+        $script:rcFirst = & $script:rcRun
+
+        $script:rcContainers = {
+            $map = [ordered]@{}
+            foreach ($line in @(& docker ps --filter "label=com.docker.compose.project=$($script:rcProject)" --format '{{.Label "com.docker.compose.service"}}={{.ID}}')) {
+                $name, $id = $line -split '=', 2
+                $map[$name] = $id
+            }
+            return $map
+        }
+        $script:rcChanged = {
+            param($before, $after)
+            return @($after.Keys | Where-Object { $before[$_] -ne $after[$_] } | Sort-Object)
+        }
+        $script:rcSql = {
+            param([string] $sql)
+            (& docker exec "$($script:rcProject)-dokpod-postgres-1" psql -At -U dokpod_admin -d dokpod -c $sql) -join "`n"
+        }
+        $script:rcCurl = {
+            param([string] $path, [string[]] $extra = @())
+            $ca = Join-Path $script:rcAnswers.installDir 'certs/ca.crt'
+            & docker run --rm --pids-limit 512 --log-driver none --network "$($script:rcProject)_dokpod-edge" --volume "$($ca):/ca.crt:ro" --entrypoint curl $script:rcInfra.nginx `
+                --silent --cacert /ca.crt @extra "https://dokpod.lab.test:18457$path"
+        }
+    }
+
+    AfterAll {
+        if (-not $script:recreateEnabled) { return }
+        $label = "label=com.docker.compose.project=$($script:rcProject)"
+        & docker compose --file (Join-Path $script:rcAnswers.installDir 'compose.yaml') --project-name $script:rcProject down --volumes 2>$null | Out-Null
+        @(& docker ps -aq --filter $label) | ForEach-Object { & docker rm -f $_ 2>$null | Out-Null }
+        @(& docker volume ls -q --filter $label) | ForEach-Object { & docker volume rm $_ 2>$null | Out-Null }
+        @(& docker network ls -q --filter $label) | ForEach-Object { & docker network rm $_ 2>$null | Out-Null }
+        Remove-Item -LiteralPath $script:rcRoot -Recurse -Force -ErrorAction SilentlyContinue
+    }
+
+    It 'recreate pki:edge troca só o certificado da borda e o container edge' {
+        if (-not $script:recreateEnabled) { Set-ItResult -Skipped -Because 'DOKPOD_TEST_FULL_INSTALL não está ativo'; return }
+        $script:rcFirst | Should -Be 0
+        $certificate = { [System.Security.Cryptography.X509Certificates.X509Certificate2]::CreateFromPem([System.IO.File]::ReadAllText((Join-Path $script:rcAnswers.secretsDir 'pki/edge.crt'))).Thumbprint }
+        $edgeBefore = & $certificate
+        $apiBefore = [System.IO.File]::ReadAllBytes((Join-Path $script:rcAnswers.secretsDir 'pki/api.pfx'))
+        $before = & $script:rcContainers
+        & $script:rcRun @('pki:edge') | Should -Be 0
+        $after = & $script:rcContainers
+        & $script:rcChanged $before $after | Should -Be @('edge')
+        & $certificate | Should -Not -Be $edgeBefore
+        [System.IO.File]::ReadAllBytes((Join-Path $script:rcAnswers.secretsDir 'pki/api.pfx')) | Should -Be $apiBefore
+        & $script:rcCurl '/dokpod/' @('--output', '/dev/null', '--write-out', '%{http_code}') | Should -Be '200'
+    }
+
+    It 'recreate service:web recria só o web, e a borda volta a encaminhar para ele' {
+        if (-not $script:recreateEnabled) { Set-ItResult -Skipped -Because 'DOKPOD_TEST_FULL_INSTALL não está ativo'; return }
+        $before = & $script:rcContainers
+        & $script:rcRun @('service:web') | Should -Be 0
+        $after = & $script:rcContainers
+        # A borda guarda o IP dos upstreams: é reiniciada (mesmo container) quando um deles é recriado.
+        & $script:rcChanged $before $after | Should -Be @('web')
+        & $script:rcCurl '/dokpod/' @('--output', '/dev/null', '--write-out', '%{http_code}') | Should -Be '200'
+    }
+
+    It 'recreate secret:Authentication__Keycloak__ClientSecret troca o segredo no realm e no BFF, e o login continua' {
+        if (-not $script:recreateEnabled) { Set-ItResult -Skipped -Because 'DOKPOD_TEST_FULL_INSTALL não está ativo'; return }
+        $secretBefore = Read-InstallerSecret -SecretsDirectory $script:rcAnswers.secretsDir -Name 'Authentication__Keycloak__ClientSecret'
+        $before = & $script:rcContainers
+        & $script:rcRun @('secret:Authentication__Keycloak__ClientSecret') | Should -Be 0
+        $after = & $script:rcContainers
+        & $script:rcChanged $before $after | Should -Be @('bff')
+        Read-InstallerSecret -SecretsDirectory $script:rcAnswers.secretsDir -Name 'Authentication__Keycloak__ClientSecret' | Should -Not -Be $secretBefore
+        & $script:rcCurl '/dokpod/bff/login' @('--output', '/dev/null', '--write-out', '%{http_code}') | Should -Match '^30[23]$'
+    }
+
+    It 'recreate pki:agent:<id> reemite o agente, revoga a identidade antiga e registra a nova' {
+        if (-not $script:recreateEnabled) { Set-ItResult -Skipped -Because 'DOKPOD_TEST_FULL_INSTALL não está ativo'; return }
+        $state = Open-InstallerState -InstallDirectory $script:rcAnswers.installDir
+        try { $environment = (Invoke-StateSql -State $state -Name 'environments-list' -Rows)[0] }
+        finally { Close-InstallerState -State $state }
+        $id = $environment['environment_id']
+        $old = $environment['agent_fingerprint']
+        $before = & $script:rcContainers
+        & $script:rcRun @("pki:agent:$id") | Should -Be 0
+        $after = & $script:rcContainers
+        & $script:rcChanged $before $after | Should -Be @('agent')
+        $state = Open-InstallerState -InstallDirectory $script:rcAnswers.installDir
+        try { $new = (Invoke-StateSql -State $state -Name 'environments-list' -Rows)[0]['agent_fingerprint'] }
+        finally { Close-InstallerState -State $state }
+        $new | Should -Not -Be $old
+        $rows = & $script:rcSql "SELECT upper(certificate_fingerprint) || ':' || (revoked_at_utc IS NOT NULL) FROM dokpod.agent_identities WHERE environment_id = '$id' ORDER BY 1"
+        $rows | Should -Match ([regex]::Escape("$($old.ToUpperInvariant()):true"))
+        $rows | Should -Match ([regex]::Escape("$($new.ToUpperInvariant()):false"))
+    }
+
+    It 'componente do usuário e item desconhecido são recusados com código 2, sem mudar nada' {
+        if (-not $script:recreateEnabled) { Set-ItResult -Skipped -Because 'DOKPOD_TEST_FULL_INSTALL não está ativo'; return }
+        $before = & $script:rcContainers
+        $failure = try { & $script:rcRun @('secret:dokpod-db-password') } catch { $_.Exception }
+        $failure.ExitCode | Should -Be 2
+        @((& $script:rcContainers).Values) -join ',' | Should -Be (@($before.Values) -join ',')
+    }
+    It 'recreate --all sem a segunda confirmação recria os serviços e preserva banco, login, key rings e identidades (SC-008)' {
+        if (-not $script:recreateEnabled) { Set-ItResult -Skipped -Because 'DOKPOD_TEST_FULL_INSTALL não está ativo'; return }
+        $counts = { & $script:rcSql "SELECT (SELECT count(*) FROM dokpod.audit_events) || ',' || (SELECT count(*) FROM dokpod.agent_identities)" }
+        $countsBefore = & $counts
+        $before = & $script:rcContainers
+        & $script:rcRun -All | Should -Be 0
+        $after = & $script:rcContainers
+        & $script:rcChanged $before $after | Should -Be @('agent', 'api', 'bff', 'edge', 'keycloak', 'web')
+        & $counts | Should -Be $countsBefore
+        & $script:rcCurl '/dokpod/bff/login' @('--output', '/dev/null', '--write-out', '%{http_code}') | Should -Match '^30[23]$'
+    }
+
+    It 'lista de dados diferente da exata dá código 2 sem efeito; com a exata, os dados saem e a instalação volta do zero' {
+        if (-not $script:recreateEnabled) { Set-ItResult -Skipped -Because 'DOKPOD_TEST_FULL_INSTALL não está ativo'; return }
+        $before = & $script:rcContainers
+        $script:rcConfirmations['DataRemoval'] = @('dokpod-postgres')
+        $failure = try { & $script:rcRun -All } catch { $_.Exception }
+        $failure.ExitCode | Should -Be 2
+        @((& $script:rcContainers).Values) -join ',' | Should -Be (@($before.Values) -join ',')
+
+        $auditBefore = [int] (& $script:rcSql 'SELECT count(*) FROM dokpod.audit_events')
+        $script:rcConfirmations['DataRemoval'] = @('dokpod-postgres', 'keycloak-postgres', 'dokpod-api-keys', 'dokpod-bff-keys', 'agent-identities')
+        # O banco volta vazio: as migrations pedem de novo a confirmação do planHash (FR-036), e a retomada é um install.
+        $paused = try { & $script:rcRun -All } catch { $_.Exception }
+        $script:rcConfirmations.Remove('DataRemoval')
+        $paused.ExitCode | Should -Be 4
+        $script:rcConfirmations['MigrationsPlanHash'] = [regex]::Match($paused.Message, '--confirm-migrations ([0-9a-f]{64})').Groups[1].Value
+        & $script:rcRun | Should -Be 0
+
+        [int] (& $script:rcSql 'SELECT count(*) FROM dokpod.audit_events') | Should -BeLessThan $auditBefore
+        $after = & $script:rcContainers
+        & $script:rcChanged $before $after | Should -Be @('agent', 'api', 'bff', 'dokpod-postgres', 'edge', 'keycloak', 'keycloak-postgres', 'web')
+        # O realm saiu com o banco do Keycloak: o primeiro administrador volta com senha temporária nova, e o bootstrap sai.
+        Test-InstallerSecret -SecretsDirectory $script:rcAnswers.secretsDir -Name 'initial-admin-password' | Should -BeTrue
+        [System.IO.File]::ReadAllText((Join-Path $script:rcAnswers.secretsDir 'keycloak-bootstrap-admin')) | Should -BeNullOrEmpty
+        & $script:rcCurl '/dokpod/bff/login' @('--output', '/dev/null', '--write-out', '%{http_code}') | Should -Match '^30[23]$'
+    }
+    It 'recreate pki:ca passa pelas duas raízes, reemite API, borda e agente, espera a reconexão e termina só com a raiz nova (T044)' {
+        if (-not $script:recreateEnabled) { Set-ItResult -Skipped -Because 'DOKPOD_TEST_FULL_INSTALL não está ativo'; return }
+        $read = { param([string] $path) [System.Security.Cryptography.X509Certificates.X509Certificate2]::CreateFromPem([System.IO.File]::ReadAllText($path)) }
+        $oldCa = (& $read (Join-Path $script:rcAnswers.secretsDir 'pki/ca.crt')).Thumbprint
+        $parameters = @{
+            Answers = $script:rcAnswers; Images = $script:rcImages; Infrastructure = $script:rcInfra; InstallerImage = $env:DOKPOD_INSTALLER_IMAGE_REF
+            Confirmations = $script:rcConfirmations; Interactive = $false; Project = $script:rcProject; WaitTimeoutSeconds = 420
+        }
+        Invoke-InstallerCaRotation -Parameters $parameters | Should -Be 0
+
+        $newCa = & $read (Join-Path $script:rcAnswers.secretsDir 'pki/ca.crt')
+        $newCa.Thumbprint | Should -Not -Be $oldCa
+        Test-InstallerSecret -SecretsDirectory $script:rcAnswers.secretsDir -Name 'pki/ca-previous.crt' | Should -BeFalse
+        foreach ($file in 'certs/agents-ca.crt', 'certs/ca.crt') {
+            $pem = [System.IO.File]::ReadAllText((Join-Path $script:rcAnswers.installDir $file))
+            ([regex]::Matches($pem, 'BEGIN CERTIFICATE')).Count | Should -Be 1 -Because $file
+            (& $read (Join-Path $script:rcAnswers.installDir $file)).Thumbprint | Should -Be $newCa.Thumbprint -Because $file
+        }
+        (& $read (Join-Path $script:rcAnswers.secretsDir 'pki/edge.crt')).Issuer | Should -Be $newCa.Subject
+        $state = Open-InstallerState -InstallDirectory $script:rcAnswers.installDir
+        try {
+            (Invoke-StateSql -State $state -Name 'certificates-list' -Rows | Where-Object { $_['role'] -eq 'ca' })['ca_state'] | Should -Be 'active'
+            $environment = (Invoke-StateSql -State $state -Name 'environments-list' -Rows)[0]
+        }
+        finally { Close-InstallerState -State $state }
+        $active = & $script:rcSql "SELECT upper(certificate_fingerprint) FROM dokpod.agent_identities WHERE environment_id = '$($environment['environment_id'])' AND revoked_at_utc IS NULL"
+        $active | Should -Be $environment['agent_fingerprint'].ToUpperInvariant()
+        & $script:rcSql "SELECT connected FROM dokpod.agent_connections WHERE environment_id = '$($environment['environment_id'])'" | Should -Be 't'
+        & $script:rcCurl '/dokpod/' @('--output', '/dev/null', '--write-out', '%{http_code}') | Should -Be '200'
+    }
+}
+
+# Spec 033 T046 e T047 (FR-025, FR-022): host remoto pelo pacote, com o agente no mesmo engine num projeto próprio, e a
+# revogação. Só no Podman: o agente chega ao gRPC publicado pelo host-gateway.
+Describe 'Host remoto (host add e host revoke)' {
+    BeforeAll {
+        $script:hostEnabled = $script:enabled -and $env:DOKPOD_HOST_ENGINE -eq 'podman'
+        if (-not $script:hostEnabled) { return }
+        $script:hoProject = 'dokpod-t046'
+        $script:hoRoot = Join-Path $env:DOKPOD_TEST_SHARED "t046-$([guid]::NewGuid().ToString('N').Substring(0, 8))"
+        $script:hoInfra = (Get-Content -Raw (Join-Path $PSScriptRoot '../templates/infrastructure-images.json') | ConvertFrom-Json -AsHashtable).images
+        $script:hoImages = [ordered]@{ api = $env:DOKPOD_TEST_API_IMAGE; bff = $env:DOKPOD_TEST_BFF_IMAGE; web = $env:DOKPOD_TEST_WEB_IMAGE; agent = $env:DOKPOD_TEST_AGENT_IMAGE }
+        $script:hoAnswers = [ordered]@{
+            schemaVersion = 1; version = '0.8.0'; edition = 'ce'; publicUrl = 'https://dokpod.lab.test:18458'; engine = 'podman-rootless'; operator = 'Ana'
+            installDir = (Join-Path $script:hoRoot 'install'); secretsDir = (Join-Path $script:hoRoot 'secrets'); manualMigrations = $false; agentGrpcPort = 17458
+            postgres = @{ mode = 'provision' }
+            keycloak = @{ mode = 'provision'; realm = 'dokpod'; initialAdmin = @{ username = 'dokpod-admin'; email = 'ana@lab.test' } }
+            edge = @{ mode = 'provision'; httpsPort = 18458 }
+            certificates = @{ edge = @{ source = 'local-ca' }; api = @{ source = 'local-ca' }; agents = @{ source = 'local-ca' }; renewWarningDays = 30 }
+            localEnvironment = @{ name = 'host-local'; stage = 'production' }
+        }
+        $confirmations = @{ Plan = $true }
+        $run = { Invoke-InstallerInstall -Answers $script:hoAnswers -Images $script:hoImages -Infrastructure $script:hoInfra -InstallerImage $env:DOKPOD_INSTALLER_IMAGE_REF `
+                -Confirmations $confirmations -Interactive $false -Project $script:hoProject -WaitTimeoutSeconds 420 }
+        $declined = try { & $run } catch { $_.Exception }
+        $confirmations['MigrationsPlanHash'] = [regex]::Match($declined.Message, '--confirm-migrations ([0-9a-f]{64})').Groups[1].Value
+        $script:hoFirst = & $run
+        $script:hoSql = { param([string] $sql) (& docker exec "$($script:hoProject)-dokpod-postgres-1" psql -At -U dokpod_admin -d dokpod -c $sql) -join "`n" }
+        $script:hoAgentDir = Join-Path $script:hoRoot 'host-b'
+        $script:hoAgentProject = 'dokpod-t046-host-b'
+    }
+
+    AfterAll {
+        if (-not $script:hostEnabled) { return }
+        foreach ($project in $script:hoAgentProject, $script:hoProject) {
+            $label = "label=com.docker.compose.project=$project"
+            @(& docker ps -aq --filter $label) | ForEach-Object { & docker rm -f $_ 2>$null | Out-Null }
+            @(& docker volume ls -q --filter $label) | ForEach-Object { & docker volume rm $_ 2>$null | Out-Null }
+            @(& docker network ls -q --filter $label) | ForEach-Object { & docker network rm $_ 2>$null | Out-Null }
+        }
+        Remove-Item -LiteralPath $script:hoRoot -Recurse -Force -ErrorAction SilentlyContinue
+    }
+
+    It 'host add gera o pacote 0600 cifrado, sem outro segredo, e o agente do pacote conecta em até 5 minutos' {
+        if (-not $script:hostEnabled) { Set-ItResult -Skipped -Because 'DOKPOD_TEST_FULL_INSTALL ou o engine Podman não está ativo'; return }
+        $script:hoFirst | Should -Be 0
+        Invoke-InstallerHostCommand -Answers $script:hoAnswers -Action add -Name 'host-b' -Engine podman -Images $script:hoImages `
+            -InstallerImage $env:DOKPOD_INSTALLER_IMAGE_REF -Project $script:hoProject -Interactive $false | Should -Be 0
+
+        $state = Open-InstallerState -InstallDirectory $script:hoAnswers.installDir
+        try { $rows = Invoke-StateSql -State $state -Name 'environments-list' -Rows }
+        finally { Close-InstallerState -State $state }
+        $row = $rows | Where-Object { $_['name'] -eq 'host-b' }
+        $script:hoId = $row['environment_id']
+        $row['package_generated_at'] | Should -Not -BeNullOrEmpty
+        $package = Join-Path $script:hoAnswers.installDir "packages/$($script:hoId).tar"
+        [System.IO.File]::GetUnixFileMode($package) | Should -Be ([System.IO.UnixFileMode]'UserRead, UserWrite')
+
+        # Abre como o README manda: o tar de fora, o SHA-256 e a cifra com a frase entregue à parte.
+        $outer = [ordered]@{}
+        $reader = [System.Formats.Tar.TarReader]::new([System.IO.File]::OpenRead($package))
+        try { while ($null -ne ($entry = $reader.GetNextEntry())) { $buffer = [System.IO.MemoryStream]::new(); $entry.DataStream.CopyTo($buffer); $outer[$entry.Name] = $buffer.ToArray() } }
+        finally { $reader.Dispose() }
+        @($outer.Keys) | Should -Be @('README.txt', 'agent.tar.enc', 'agent.tar.enc.sha256')
+        [System.Text.Encoding]::UTF8.GetString($outer['agent.tar.enc.sha256']) | Should -Match ([System.Convert]::ToHexStringLower([System.Security.Cryptography.SHA256]::HashData($outer['agent.tar.enc'])))
+        $passphrase = Read-InstallerSecret -SecretsDirectory $script:hoAnswers.secretsDir -Name "packages/$($script:hoId).passphrase"
+        $inner = Unprotect-HostPackage -Bytes $outer['agent.tar.enc'] -Passphrase $passphrase
+        New-Item -ItemType Directory -Path $script:hoAgentDir | Out-Null
+        $reader = [System.Formats.Tar.TarReader]::new([System.IO.MemoryStream]::new($inner))
+        try { while ($null -ne ($entry = $reader.GetNextEntry())) { $entry.ExtractToFile((Join-Path $script:hoAgentDir $entry.Name), $false) } }
+        finally { $reader.Dispose() }
+        (Get-ChildItem -LiteralPath $script:hoAgentDir).Name | Sort-Object | Should -Be @('README.txt', 'agent.env', 'agent.pass', 'agent.pfx', 'ca.crt', 'compose.agent.yaml')
+        foreach ($name in 'ca.key', 'Authentication__Keycloak__ClientSecret', 'dokpod-db-password') {
+            $value = [System.IO.File]::ReadAllText((Resolve-SecretPath -SecretsDirectory $script:hoAnswers.secretsDir -Name $(if ($name -eq 'ca.key') { 'pki/ca.key' } else { $name })))
+            foreach ($file in Get-ChildItem -LiteralPath $script:hoAgentDir) { [System.IO.File]::ReadAllText($file.FullName) | Should -Not -Match ([regex]::Escape($value.Trim())) }
+        }
+
+        # O agente do "host b": o mesmo engine, outro projeto; o nome público aponta para o host, onde a API publica o gRPC.
+        [System.IO.File]::WriteAllText((Join-Path $script:hoAgentDir 'override.yaml'), "services:`n  agent:`n    extra_hosts:`n      - dokpod.lab.test:host-gateway`n")
+        $env:DOKPOD_ENGINE_SOCKET = $env:DOKPOD_HOST_ENGINE_SOCKET
+        try {
+            & docker compose --project-directory $script:hoAgentDir -f (Join-Path $script:hoAgentDir 'compose.agent.yaml') -f (Join-Path $script:hoAgentDir 'override.yaml') `
+                --project-name $script:hoAgentProject up --detach 2>&1 | Out-Null
+            $LASTEXITCODE | Should -Be 0
+        }
+        finally { Remove-Item Env:DOKPOD_ENGINE_SOCKET }
+        $deadline = [datetime]::UtcNow.AddMinutes(5)
+        do { Start-Sleep -Seconds 5; $connected = & $script:hoSql "SELECT connected FROM dokpod.agent_connections WHERE environment_id = '$($script:hoId)'" }
+        until ($connected -eq 't' -or [datetime]::UtcNow -gt $deadline)
+        $connected | Should -Be 't'
+    }
+
+    It 'host revoke derruba a sessão, registra a auditoria e marca o pacote como revogado' {
+        if (-not $script:hostEnabled) { Set-ItResult -Skipped -Because 'DOKPOD_TEST_FULL_INSTALL ou o engine Podman não está ativo'; return }
+        Invoke-InstallerHostCommand -Answers $script:hoAnswers -Action revoke -EnvironmentId $script:hoId -Reason 'teste 033' -Images $script:hoImages `
+            -InstallerImage $env:DOKPOD_INSTALLER_IMAGE_REF -Project $script:hoProject -Interactive $false | Should -Be 0
+        $deadline = [datetime]::UtcNow.AddMinutes(2)
+        do { Start-Sleep -Seconds 3; $connected = & $script:hoSql "SELECT connected FROM dokpod.agent_connections WHERE environment_id = '$($script:hoId)'" }
+        until ($connected -eq 'f' -or [datetime]::UtcNow -gt $deadline)
+        $connected | Should -Be 'f'
+        & $script:hoSql "SELECT count(*) FROM dokpod.audit_events WHERE action = 'environment.revoke' AND environment_id = '$($script:hoId)'" | Should -Not -Be '0'
+        $state = Open-InstallerState -InstallDirectory $script:hoAnswers.installDir
+        try { $rows = Invoke-StateSql -State $state -Name 'environments-list' -Rows }
+        finally { Close-InstallerState -State $state }
+        ($rows | Where-Object { $_['environment_id'] -eq $script:hoId })['revoked_at'] | Should -Not -BeNullOrEmpty
+    }
+}
