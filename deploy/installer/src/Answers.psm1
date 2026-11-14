@@ -290,7 +290,16 @@ function Request-InstallerAnswers {
     if (-not $answers.Contains('publicUrl')) { $answers['publicUrl'] = & $ask 'publicUrl' 'URL pública (https://nome[:porta])' $null $null }
     if (-not $answers.Contains('engine')) { $answers['engine'] = & $ask 'engine' 'Engine (docker-rootless ou podman-rootless)' $null @('docker-rootless', 'podman-rootless') }
     if (-not $answers.Contains('operator')) { $answers['operator'] = & $ask 'operator' 'Seu nome, para a auditoria' $null $null }
-    if (-not $answers.Contains('postgres')) { $answers['postgres'] = @{ mode = (& $ask 'postgres.mode' 'PostgreSQL (provision, existing-create ou existing-prepared)' 'provision' @('provision', 'existing-create', 'existing-prepared')) } }
+    if (-not $answers.Contains('postgres')) {
+        $answers['postgres'] = @{ mode = (& $ask 'postgres.mode' 'PostgreSQL (provision, existing-create ou existing-prepared)' 'provision' @('provision', 'existing-create', 'existing-prepared')) }
+        if ($answers.postgres.mode -eq 'existing-create') {
+            # A senha administrativa não entra nas respostas: é pedida na execução e descartada (FR-008).
+            $answers.postgres['host'] = & $ask 'postgres.host' 'Nome ou IP do PostgreSQL, como os containers o alcançam' $null $null
+            $answers.postgres['port'] = [int] (& $ask 'postgres.port' 'Porta do PostgreSQL' '5432' $null)
+            $answers.postgres['sslMode'] = & $ask 'postgres.sslMode' 'TLS do PostgreSQL (require, verify-ca ou verify-full)' 'verify-full' @('require', 'verify-ca', 'verify-full')
+            $answers.postgres['admin'] = @{ username = (& $ask 'postgres.admin.username' 'Usuário administrativo do PostgreSQL (usado só para criar o banco e as roles)' 'postgres' $null) }
+        }
+    }
     if (-not $answers.Contains('keycloak')) {
         $mode = & $ask 'keycloak.mode' 'Keycloak (provision ou existing)' 'provision' @('provision', 'existing')
         $answers['keycloak'] = @{ mode = $mode }

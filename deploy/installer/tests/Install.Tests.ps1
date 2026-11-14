@@ -122,3 +122,116 @@ Describe 'Instalação completa do cenário 1' {
         finally { Close-InstallerState -State $state }
     }
 }
+
+# Spec 033 T035 (FR-008, D-009): o mesmo cenário com postgres.mode existing-create, contra um PostgreSQL de fora do
+# projeto, publicado no host, com TLS de CA privada (verify-full) e um administrador sem SUPERUSER. Exige também
+# DOKPOD_TEST_EXISTING_PG_HOST: o endereço pelo qual os containers alcançam uma porta publicada no host
+# (host.containers.internal no Podman rootless; o IP do host na rede no Docker rootless).
+Describe 'Instalação com PostgreSQL existente (existing-create)' {
+    BeforeAll {
+        $script:existingEnabled = $script:enabled -and $env:DOKPOD_TEST_EXISTING_PG_HOST
+        if (-not $script:existingEnabled) { return }
+        $script:existingProject = 'dokpod-t035'
+        $suffix = [guid]::NewGuid().ToString('N').Substring(0, 8)
+        $script:root = Join-Path $env:DOKPOD_TEST_SHARED "t035-$suffix"
+        New-Item -ItemType Directory -Path $script:root | Out-Null
+        $script:infra = (Get-Content -Raw (Join-Path $PSScriptRoot '../templates/infrastructure-images.json') | ConvertFrom-Json -AsHashtable).images
+        $pgHost = $env:DOKPOD_TEST_EXISTING_PG_HOST
+        $address = $null
+        $san = if ([System.Net.IPAddress]::TryParse($pgHost, [ref] $address)) { "IP:$pgHost" } else { "DNS:$pgHost" }
+        $script:pgServer = "dokpod-t035-pg-$suffix"
+        $script:pgPort = Get-Random -Minimum 25000 -Maximum 26000
+        $script:superPassword = "canario-t035-super-$suffix"
+        $script:dbaPassword = "canario-t035-dba-$suffix"
+        $tls = 'set -e; cd /tmp; ' +
+            'openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:P-256 -nodes -days 2 -subj /CN=dokpod-t035-ca -keyout ca.key -out ca.crt 2>/dev/null; ' +
+            "openssl req -newkey ec -pkeyopt ec_paramgen_curve:P-256 -nodes -subj /CN=postgres -addext subjectAltName=$san -keyout server.key -out server.csr 2>/dev/null; " +
+            'openssl x509 -req -in server.csr -CA ca.crt -CAkey ca.key -CAcreateserial -days 2 -copy_extensions copy -out server.crt 2>/dev/null; ' +
+            'chown postgres server.key server.crt; chmod 600 server.key; ' +
+            'exec docker-entrypoint.sh postgres -c ssl=on -c ssl_cert_file=/tmp/server.crt -c ssl_key_file=/tmp/server.key'
+        & docker run --detach --pids-limit 512 --name $script:pgServer --publish "$($script:pgPort):5432" --log-driver none `
+            --env POSTGRES_USER=postgres --env POSTGRES_DB=postgres --env "POSTGRES_PASSWORD=$($script:superPassword)" --entrypoint sh $script:infra.postgresql -c $tls | Out-Null
+        $deadline = [datetime]::UtcNow.AddSeconds(90)
+        do {
+            Start-Sleep -Milliseconds 500
+            & docker exec $script:pgServer pg_isready -h 127.0.0.1 -U postgres -d postgres *> $null
+        } until ($LASTEXITCODE -eq 0 -or [datetime]::UtcNow -gt $deadline)
+        & docker exec $script:pgServer psql -v ON_ERROR_STOP=1 -q -U postgres -d postgres -c "CREATE ROLE dba LOGIN CREATEROLE CREATEDB PASSWORD '$($script:dbaPassword)'" | Out-Null
+        $script:caFile = Join-Path $script:root 'postgres-ca.crt'
+        [System.IO.File]::WriteAllText($script:caFile, ((& docker exec $script:pgServer cat /tmp/ca.crt) -join "`n") + "`n")
+        $script:passwordFile = Join-Path $script:root 'pg-admin-password'
+        [System.IO.File]::WriteAllText($script:passwordFile, $script:dbaPassword)
+
+        $script:existingAnswers = [ordered]@{
+            schemaVersion = 1; version = '0.8.0'; edition = 'ce'; publicUrl = 'https://dokpod.lab.test:18453'; engine = 'podman-rootless'; operator = 'Ana'
+            installDir = (Join-Path $script:root 'install'); secretsDir = (Join-Path $script:root 'secrets'); manualMigrations = $false
+            postgres = [ordered]@{ mode = 'existing-create'; host = $pgHost; port = $script:pgPort; sslMode = 'verify-full'; caCertificate = $script:caFile
+                admin = [ordered]@{ username = 'dba' } }
+            keycloak = @{ mode = 'provision'; realm = 'dokpod'; initialAdmin = @{ username = 'dokpod-admin'; email = 'ana@lab.test' } }
+            edge = @{ mode = 'provision'; httpsPort = 18453 }
+            certificates = @{ edge = @{ source = 'local-ca' }; api = @{ source = 'local-ca' }; agents = @{ source = 'local-ca' }; renewWarningDays = 30 }
+            localEnvironment = @{ name = 'host-local'; stage = 'production' }
+        }
+        # Chave por índice: o par chave=valor de senha não aparece no texto (T056).
+        $script:existingAnswers.postgres.admin['password'] = @{ file = $script:passwordFile }
+        $images = [ordered]@{ api = $env:DOKPOD_TEST_API_IMAGE; bff = $env:DOKPOD_TEST_BFF_IMAGE; web = $env:DOKPOD_TEST_WEB_IMAGE; agent = $env:DOKPOD_TEST_AGENT_IMAGE }
+        $script:existingConfirmations = @{ Plan = $true }
+        $script:existingInstall = {
+            Invoke-InstallerInstall -Answers $script:existingAnswers -Images $images -Infrastructure $script:infra -InstallerImage $env:DOKPOD_INSTALLER_IMAGE_REF `
+                -Confirmations $script:existingConfirmations -Interactive $false -Project $script:existingProject -WaitTimeoutSeconds 420
+        }
+        $declined = try { & $script:existingInstall } catch { $_.Exception }
+        $script:existingConfirmations['MigrationsPlanHash'] = [regex]::Match($declined.Message, '--confirm-migrations ([0-9a-f]{64})').Groups[1].Value
+        $script:existingFirst = & $script:existingInstall
+    }
+
+    AfterAll {
+        if (-not $script:existingEnabled) { return }
+        $label = "label=com.docker.compose.project=$($script:existingProject)"
+        & docker compose --file (Join-Path $script:existingAnswers.installDir 'compose.yaml') --project-name $script:existingProject down --volumes 2>$null | Out-Null
+        @(& docker ps -aq --filter $label) | ForEach-Object { & docker rm -f $_ 2>$null | Out-Null }
+        @(& docker volume ls -q --filter $label) | ForEach-Object { & docker volume rm $_ 2>$null | Out-Null }
+        @(& docker network ls -q --filter $label) | ForEach-Object { & docker network rm $_ 2>$null | Out-Null }
+        & docker rm --force --volumes $script:pgServer 2>$null | Out-Null
+        Remove-Item -LiteralPath $script:root -Recurse -Force -ErrorAction SilentlyContinue
+    }
+
+    It 'instala sem dokpod-postgres, com todos os serviços saudáveis' {
+        if (-not $script:existingEnabled) { Set-ItResult -Skipped -Because 'DOKPOD_TEST_FULL_INSTALL ou DOKPOD_TEST_EXISTING_PG_HOST não está ativo'; return }
+        $script:existingFirst | Should -Be 0
+        $lines = & docker compose --file (Join-Path $script:existingAnswers.installDir 'compose.yaml') --project-name $script:existingProject ps --all --format json
+        $services = @($lines | Where-Object { $_.Trim() } | ForEach-Object { $_ | ConvertFrom-Json })
+        ($services.Service | Sort-Object) | Should -Be @('agent', 'api', 'bff', 'edge', 'keycloak', 'keycloak-postgres', 'web')
+        foreach ($service in $services) {
+            "$($service.Service)=$($service.State)" | Should -Be "$($service.Service)=running"
+            if ($service.Health) { "$($service.Service)=$($service.Health)" | Should -Be "$($service.Service)=healthy" }
+        }
+    }
+
+    It 'a API conecta com a role de runtime por TLS, e as roles do Dokpod não têm privilégio administrativo' {
+        if (-not $script:existingEnabled) { Set-ItResult -Skipped -Because 'DOKPOD_TEST_FULL_INSTALL ou DOKPOD_TEST_EXISTING_PG_HOST não está ativo'; return }
+        $sessions = (& docker exec $script:pgServer psql -At -U postgres -d postgres -c "SELECT DISTINCT usename || ':' || ssl FROM pg_stat_activity JOIN pg_stat_ssl USING (pid) WHERE datname = 'dokpod'") -join ','
+        $sessions | Should -Match 'dokpod_app:t'
+        $roles = (& docker exec $script:pgServer psql -At -U postgres -d postgres -c "SELECT string_agg(rolname || ':' || (rolsuper OR rolcreaterole OR rolcreatedb OR rolreplication OR rolbypassrls), ',' ORDER BY rolname) FROM pg_roles WHERE rolname LIKE 'dokpod%'") -join ''
+        $roles | Should -Be 'dokpod_app:false,dokpod_owner:false,dokpod_runtime:false'
+    }
+
+    It 'a credencial administrativa não fica em installDir nem em secretsDir' {
+        if (-not $script:existingEnabled) { Set-ItResult -Skipped -Because 'DOKPOD_TEST_FULL_INSTALL ou DOKPOD_TEST_EXISTING_PG_HOST não está ativo'; return }
+        foreach ($directory in $script:existingAnswers.installDir, $script:existingAnswers.secretsDir) {
+            foreach ($file in Get-ChildItem -LiteralPath $directory -Recurse -File) {
+                $bytes = [System.IO.File]::ReadAllBytes($file.FullName)
+                [System.Text.Encoding]::UTF8.GetString($bytes) | Should -Not -Match ([regex]::Escape($script:dbaPassword)) -Because $file.FullName
+            }
+        }
+    }
+
+    It 'a reexecução sem a credencial administrativa termina convergida, sem recriar serviços' {
+        if (-not $script:existingEnabled) { Set-ItResult -Skipped -Because 'DOKPOD_TEST_FULL_INSTALL ou DOKPOD_TEST_EXISTING_PG_HOST não está ativo'; return }
+        Remove-Item -LiteralPath $script:passwordFile
+        $before = & docker ps --filter "label=com.docker.compose.project=$($script:existingProject)" --format '{{.ID}}' | Sort-Object
+        & $script:existingInstall | Should -Be 0
+        $after = & docker ps --filter "label=com.docker.compose.project=$($script:existingProject)" --format '{{.ID}}' | Sort-Object
+        $after | Should -Be $before
+    }
+}

@@ -643,12 +643,31 @@ conectado e um administrador que precisa trocar a senha.
 
 **Teste independente**: cenário 3 do quickstart.
 
-- [ ] T035 [US2] `postgres.mode: existing-create` em `deploy/installer/src/Postgres.psm1`:
+- [X] T035 [US2] `postgres.mode: existing-create` em `deploy/installer/src/Postgres.psm1`:
   - credencial administrativa de `{file}`/`{env}` ou prompt, usada uma vez e descartada (nunca em `secretsDir`);
   - entregue ao container do `psql` só por `PGPASSFILE` em tmpfs, apagado ao fim, como no T028 (FR-033);
   - criação do banco `dokpod`, da role dona e da role de runtime (membro do grupo `dokpod_runtime`) pelos mesmos arquivos de bootstrap do catálogo;
   - `sslMode` e `caCertificate` respeitados;
   - versão mínima do servidor conferida (FR-008).
+
+  Nota (2026-11-14): `Invoke-ExistingPostgresBootstrap` em `Postgres.psm1`, ligado à etapa `database` do `install`.
+  - **Credencial**: `postgres.admin.password` ficou opcional no esquema; sem ela, o instalador pergunta no terminal e,
+    sem terminal, sai com código 2. A credencial não vai para `secretsDir`, estado ou relatório. Na reexecução, com as
+    duas conexões já gravadas, a credencial não é pedida: a role dona confere versão e privilégios.
+  - **Host**: loopback é recusado com código 2, porque dentro do container é o próprio container. No Podman rootless,
+    um PostgreSQL no host só responde por `host.containers.internal`; o IP do host e o gateway da rede não respondem.
+  - **TLS**: `PGSSLMODE` e a CA no tar do `psql` (ou `PGSSLROOTCERT=system`); `SSL Mode` na connection string; a CA no
+    bundle de `SSL_CERT_FILE` da API e dos containers do modo administrativo (`-TrustBundle`).
+  - **Rede**: a `dokpod-data` deixa de ser `internal` sem PostgreSQL provisionado, e `psql` e modo administrativo usam
+    a rede padrão do engine.
+  - **Achado no catálogo**: o bootstrap só funcionava com `SUPERUSER`. `01-create-roles.sql` agora só retira os
+    atributos que a role tem. `02-create-database.sql` e `03-grants.sql` (este agora no banco de manutenção, com
+    `owner_role`) põem a credencial em `dokpod_owner` só durante o arquivo e a tiram no fim.
+  - **Testes**: `Postgres.Tests.ps1` (23) com PostgreSQL 18 real, TLS de CA privada, administrador `CREATEROLE
+    CREATEDB` e um banco alheio igual antes e depois (SC-006). `Install.Tests.ps1` com `DOKPOD_TEST_EXISTING_PG_HOST`
+    fez uma instalação completa no Podman 5.7 rootless (4/4): sem `dokpod-postgres`, a API conectada como
+    `dokpod_app` com `ssl = t`, a credencial em nenhum arquivo, e a reexecução sem ela convergida. Docker rootless e
+    o cenário 3 inteiro ficam com a T038.
 - [ ] T036 [US2] `postgres.mode: existing-prepared`: validar conexão, versão e privilégios com `checks/server-version.sql`
   e `checks/role-privileges.sql` do catálogo (sem `rolsuper`, sem `rolcreaterole`, `CONNECT` e `USAGE` presentes), e recusar com código 3 dizendo o
   privilégio em excesso ou em falta. Testes em `deploy/installer/tests/Postgres.Tests.ps1` com PostgreSQL real.

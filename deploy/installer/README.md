@@ -21,6 +21,19 @@ Também atualiza a versão, aplica as migrations sem SDK e recria componentes co
 - O estado da instalação fica em SQLite, sem segredos. Os segredos ficam só no destino de segredos, com permissão
   restrita.
 
+### PostgreSQL existente (`postgres.mode: existing-create`, T035)
+
+- A credencial administrativa entra por `{ file }`, `{ env }` ou, sem `password` nas respostas, pelo prompt do
+  terminal. Ela só cria o banco, a role dona e a role de runtime e não é gravada em `secretsDir`, no estado nem no
+  relatório. A reexecução não a pede: confere versão e privilégios com a própria role dona.
+- Não precisa de `SUPERUSER`: basta `CREATEROLE` e `CREATEDB`, como em PostgreSQL gerenciado. Durante o bootstrap, a
+  credencial entra em `dokpod_owner` só pelo tempo de criar o banco e conceder o `CONNECT`, e sai em seguida.
+- `postgres.host` é o endereço pelo qual os **containers** alcançam o servidor. `localhost` e `127.0.0.1` são recusados
+  (código 2). Com o PostgreSQL no próprio host, use `host.containers.internal` no Podman rootless e o IP do host na rede
+  no Docker rootless.
+- `sslMode` vale para o `psql` do instalador e para a API. Com `verify-ca` ou `verify-full`, a CA de `caCertificate`
+  entra no bundle de `SSL_CERT_FILE`; sem ela, valem as raízes do sistema.
+
 Decisões: [ADR 2026-0010](../../docs/adr/2026-0010-modo-administrativo-da-api.md) e
 [ADR 2026-0011](../../docs/adr/2026-0011-instalador-da-release.md), ambos aceitos em 2026-11-08. Contrato da linha de comando:
 [installer-cli.md](../../specs/033-instalador-guiado/contracts/installer-cli.md).

@@ -176,7 +176,7 @@ Describe 'Catálogo e canal dos parâmetros' {
             $server = @{ Host = 'db'; Port = 5432; Username = 'admin'; Password = 'senha-do-admin-033' }
             $steps = @(
                 @{ Path = 'Installation/checks/server-version.sql'; Database = 'postgres' }
-                @{ Path = 'Installation/bootstrap/03-grants.sql'; Database = 'dokpod'; Variables = @{ database = 'dokpod'; runtime_role = 'r' } })
+                @{ Path = 'Installation/bootstrap/03-grants.sql'; Database = 'postgres'; Variables = @{ database = 'dokpod'; owner_role = 'o'; runtime_role = 'r' } })
             { Invoke-PsqlCatalog -Image 'img' -Network 'n' -Server $server -CatalogRoot $script:catalog -Cli $fake -Steps $steps } |
                 Should -Throw '*03-grants.sql*'
         }
@@ -295,6 +295,205 @@ Describe 'Bootstrap contra PostgreSQL real' {
             { Invoke-PostgresBootstrap -SecretsDirectory $dir -Image $script:image -Network $script:network -Server $server -CatalogRoot $script:catalog } |
                 Should -Throw '*recreate secret:ConnectionStrings__ControlPlane*'
             (Read-PostgresConnection -SecretsDirectory $dir -Name 'ConnectionStrings__ControlPlane').Username | Should -Be 'outra'
+        }
+        finally { Remove-Item -LiteralPath $dir -Recurse -Force }
+    }
+}
+
+Describe 'PostgreSQL existente (existing-create): respostas, credencial e TLS' {
+    BeforeAll {
+        function New-ExistingAnswers {
+            param([string] $Dir, [System.Collections.IDictionary] $Override = @{})
+            $section = [ordered]@{ mode = 'existing-create'; host = 'db.lab.test'; port = 5432; admin = [ordered]@{ username = 'dba' } }
+            foreach ($key in $Override.Keys) { $section[$key] = $Override[$key] }
+            return [ordered]@{ secretsDir = $Dir; installDir = $Dir; postgres = $section; keycloak = @{ mode = 'provision' } }
+        }
+    }
+
+    It 'recusa host de loopback com código 2: <Address>' -ForEach @(
+        @{ Address = 'localhost' }, @{ Address = '127.0.0.1' }, @{ Address = '127.0.1.1' }, @{ Address = '::1' }, @{ Address = '[::1]' }, @{ Address = '0.0.0.0' }, @{ Address = 'db.localhost' }
+    ) {
+        $answers = New-ExistingAnswers -Dir '/tmp' -Override @{ host = $Address }
+        try { Assert-ExistingPostgresAnswers -Answers $answers; throw 'deveria falhar' }
+        catch {
+            $_.Exception.ExitCode | Should -Be 2
+            $_.Exception.Message | Should -Match 'alcançam o PostgreSQL'
+        }
+    }
+
+    It 'aceita nome ou IP de rede e recusa caCertificate com chave privada' {
+        $root = New-TestDirectory
+        try {
+            { Assert-ExistingPostgresAnswers -Answers (New-ExistingAnswers -Dir $root -Override @{ host = '172.17.0.1' }) } | Should -Not -Throw
+            $ca = Join-Path $root 'ca.pem'
+            [System.IO.File]::WriteAllText($ca, "-----BEGIN CERTIFICATE-----`nAAAA`n-----END CERTIFICATE-----`n-----BEGIN PRIVATE KEY-----`nBBBB`n-----END PRIVATE KEY-----`n")
+            try { Assert-ExistingPostgresAnswers -Answers (New-ExistingAnswers -Dir $root -Override @{ caCertificate = $ca }); throw 'deveria falhar' }
+            catch { $_.Exception.ExitCode | Should -Be 2 }
+        }
+        finally { Remove-Item -LiteralPath $root -Recurse -Force }
+    }
+
+    It 'senha administrativa de { env }, do prompt no terminal, ou código 2 sem terminal; nunca em secretsDir' {
+        $root = New-TestDirectory
+        try {
+            $env:DOKPOD_TEST_PG_ADMIN = 'canario-admin-env-033'
+            $withEnv = New-ExistingAnswers -Dir $root
+            $withEnv.postgres.admin['password'] = @{ env = 'DOKPOD_TEST_PG_ADMIN' }
+            (Get-ExistingPostgresAdminServer -Answers $withEnv -Interactive $false).Password | Should -Be 'canario-admin-env-033'
+            (Protect-InstallerText -Text 'x canario-admin-env-033') | Should -Not -Match 'canario' -Because 'a senha fica registrada para redação'
+
+            $prompted = Get-ExistingPostgresAdminServer -Answers (New-ExistingAnswers -Dir $root) -Interactive $true -AskCredential { param($message) $message | Should -Match 'não é gravada'; 'canario-admin-prompt-033' }
+            $prompted.Password | Should -Be 'canario-admin-prompt-033'
+
+            try { Get-ExistingPostgresAdminServer -Answers (New-ExistingAnswers -Dir $root) -Interactive $false; throw 'deveria falhar' }
+            catch { $_.Exception.ExitCode | Should -Be 2 }
+            @(Get-ChildItem -LiteralPath $root -Recurse -File).Count | Should -Be 0
+        }
+        finally {
+            Remove-Item Env:DOKPOD_TEST_PG_ADMIN -ErrorAction SilentlyContinue
+            Remove-Item -LiteralPath $root -Recurse -Force
+        }
+    }
+
+    It 'sslMode chega ao psql (PGSSLMODE e a CA no tar) e à connection string do Npgsql' {
+        $root = New-TestDirectory
+        try {
+            $fake = New-FakeEngine -Root $root
+            $pem = "-----BEGIN CERTIFICATE-----`nAAAA`n-----END CERTIFICATE-----`n"
+            $server = [ordered]@{ Host = 'db'; Port = 5432; Username = 'dba'; Password = 'senha-qualquer'; SslMode = 'verify-full'; CaCertificate = $pem }
+            [void] (Invoke-PsqlCatalog -Image 'img' -Network 'bridge' -Server $server -CatalogRoot $script:catalog -Cli $fake -Steps @(
+                    @{ Path = 'Installation/checks/server-version.sql'; Database = 'postgres' }))
+            $entries = Get-TarEntries -Path (Join-Path $root 'stdin.tar')
+            $entries['run.sh'].Text | Should -Match 'export PGSSLMODE=verify-full'
+            $entries['run.sh'].Text | Should -Match 'export PGSSLROOTCERT=/run/dokpod-psql/ca.crt'
+            $entries['ca.crt'].Text | Should -Be $pem
+
+            $server.Remove('CaCertificate')
+            [void] (Invoke-PsqlCatalog -Image 'img' -Network 'bridge' -Server $server -CatalogRoot $script:catalog -Cli $fake -Steps @(
+                    @{ Path = 'Installation/checks/server-version.sql'; Database = 'postgres' }))
+            (Get-TarEntries -Path (Join-Path $root 'stdin.tar'))['run.sh'].Text | Should -Match 'export PGSSLROOTCERT=system'
+
+            $connection = ConvertTo-PostgresConnectionString -Server 'db' -Port 5432 -Database 'dokpod' -Username 'u' -Password 'p' -SslMode 'verify-ca'
+            $connection | Should -Match 'SSL Mode=VerifyCA'
+            ConvertTo-PostgresConnectionString -Server 'db' -Port 5432 -Database 'dokpod' -Username 'u' -Password 'p' | Should -Not -Match 'SSL'
+        }
+        finally { Remove-Item -LiteralPath $root -Recurse -Force }
+    }
+}
+
+Describe 'existing-create contra PostgreSQL real com TLS e administrador sem superusuário' {
+    BeforeAll {
+        $script:skip = -not $env:DOCKER_HOST
+        if ($script:skip) { return }
+
+        $suffix = [guid]::NewGuid().ToString('N').Substring(0, 8)
+        $script:existingNetwork = "dokpod-033-pgx-$suffix"
+        $script:existingServer = "dokpod-033-pgx-$suffix"
+        $script:superPassword = "canario-pgx-super-033-$suffix"
+        $script:dbaPassword = "canario-pgx-dba-033-$suffix"
+        $script:existingHost = 'db.existing.test'
+        # O servidor gera CA e certificado na partida: TLS com CA privada, como num PostgreSQL da organização.
+        $tls = 'set -e; cd /tmp; ' +
+            'openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:P-256 -nodes -days 2 -subj /CN=dokpod-test-ca -keyout ca.key -out ca.crt 2>/dev/null; ' +
+            "openssl req -newkey ec -pkeyopt ec_paramgen_curve:P-256 -nodes -subj /CN=$($script:existingHost) -addext subjectAltName=DNS:$($script:existingHost) -keyout server.key -out server.csr 2>/dev/null; " +
+            'openssl x509 -req -in server.csr -CA ca.crt -CAkey ca.key -CAcreateserial -days 2 -copy_extensions copy -out server.crt 2>/dev/null; ' +
+            'chown postgres server.key server.crt; chmod 600 server.key; ' +
+            'exec docker-entrypoint.sh postgres -c ssl=on -c ssl_cert_file=/tmp/server.crt -c ssl_key_file=/tmp/server.key'
+        & docker network create $script:existingNetwork | Out-Null
+        & docker run --detach --pids-limit 512 --name $script:existingServer --network $script:existingNetwork --network-alias $script:existingHost --log-driver none `
+            --env POSTGRES_USER=postgres --env POSTGRES_DB=postgres --env "POSTGRES_PASSWORD=$($script:superPassword)" --entrypoint sh $script:image -c $tls | Out-Null
+        $deadline = [datetime]::UtcNow.AddSeconds(90)
+        do {
+            Start-Sleep -Milliseconds 500
+            & docker exec $script:existingServer pg_isready -h 127.0.0.1 -U postgres -d postgres *> $null
+        } until ($LASTEXITCODE -eq 0 -or [datetime]::UtcNow -gt $deadline)
+
+        # Administrador como num PostgreSQL gerenciado (sem SUPERUSER), e um banco e uma role de outro sistema (SC-006).
+        & docker exec $script:existingServer psql -v ON_ERROR_STOP=1 -q -U postgres -d postgres `
+            -c "CREATE ROLE dba LOGIN CREATEROLE CREATEDB PASSWORD '$($script:dbaPassword)'" -c "CREATE ROLE outra LOGIN PASSWORD 'x'" -c 'CREATE DATABASE outro OWNER outra' | Out-Null
+        $script:caPem = (& docker exec $script:existingServer cat /tmp/ca.crt) -join "`n"
+        $script:inventory = {
+            (& docker exec $script:existingServer psql -At -U postgres -d postgres -c "SELECT string_agg(datname || ':' || pg_get_userbyid(datdba), ',' ORDER BY datname) FROM pg_database WHERE datname NOT LIKE 'dokpod%'; SELECT string_agg(rolname || ':' || rolsuper || rolcreaterole || rolcreatedb, ',' ORDER BY rolname) FROM pg_roles WHERE rolname NOT LIKE 'dokpod%' AND rolname NOT LIKE 'pg\_%';") -join "`n"
+        }
+        $script:before = & $script:inventory
+    }
+
+    AfterAll {
+        if ($script:skip) { return }
+        & docker rm --force --volumes $script:existingServer *> $null
+        & docker network rm $script:existingNetwork *> $null
+    }
+
+    It 'cria banco e roles com o dba, valida a cadeia TLS, não grava a credencial e reexecuta sem ela' {
+        if ($script:skip) {
+            Set-ItResult -Skipped -Because 'o socket do engine não foi montado'
+            return
+        }
+
+        $dir = New-TestDirectory
+        try {
+            $caFile = Join-Path $dir 'postgres-ca.crt'
+            [System.IO.File]::WriteAllText($caFile, $script:caPem)
+            $passwordFile = Join-Path $dir 'pg-admin-password'
+            [System.IO.File]::WriteAllText($passwordFile, $script:dbaPassword)
+            $secrets = Join-Path $dir 'secrets'
+            New-Item -ItemType Directory -Path $secrets | Out-Null
+            $answers = [ordered]@{
+                secretsDir = $secrets; installDir = $dir; keycloak = @{ mode = 'provision' }
+                postgres = [ordered]@{ mode = 'existing-create'; host = $script:existingHost; port = 5432; sslMode = 'verify-full'; caCertificate = $caFile
+                    admin = [ordered]@{ username = 'dba' } }
+            }
+            # Chave por índice: o par chave=valor de senha não aparece no texto (T056).
+            $answers.postgres.admin['password'] = @{ file = $passwordFile }
+            $common = @{ Image = $script:image; Network = $script:existingNetwork; CatalogRoot = $script:catalog; Interactive = $false }
+
+            $first = Invoke-ExistingPostgresBootstrap -Answers $answers @common
+            $first.ServerVersion | Should -BeGreaterOrEqual 180000
+            $first.ConnectionsWritten | Should -Be @('dokpod-owner-connection', 'ConnectionStrings__ControlPlane')
+            $runtimeText = [System.IO.File]::ReadAllText((Join-Path $secrets 'ConnectionStrings__ControlPlane'))
+            $runtimeText | Should -Match "Host=$([regex]::Escape($script:existingHost))"
+            $runtimeText | Should -Match 'SSL Mode=VerifyFull'
+            $runtime = Read-PostgresConnection -SecretsDirectory $secrets -Name 'ConnectionStrings__ControlPlane'
+            $runtime.Username | Should -Be 'dokpod_app'
+
+            # A credencial administrativa não fica em lugar nenhum da instalação.
+            foreach ($file in Get-ChildItem -LiteralPath $dir -Recurse -File | Where-Object FullName -ne $passwordFile) {
+                [System.IO.File]::ReadAllText($file.FullName) | Should -Not -Match ([regex]::Escape($script:dbaPassword)) -Because $file.FullName
+            }
+
+            # Sem a CA, verify-full recusa: a cadeia é validada de fato.
+            $noCa = [ordered]@{} + $answers; $noCa.postgres = [ordered]@{} + $answers.postgres; $noCa.postgres.Remove('caCertificate')
+            $server = Get-ExistingPostgresAdminServer -Answers $noCa -Interactive $false
+            { Get-PostgresServerVersion -Image $script:image -Network $script:existingNetwork -Server $server -CatalogRoot $script:catalog } | Should -Throw '*server-version.sql*'
+
+            # Reexecução sem a credencial administrativa (arquivo apagado, sem terminal): só confere com a role dona.
+            Remove-Item -LiteralPath $passwordFile
+            $second = Invoke-ExistingPostgresBootstrap -Answers $answers @common
+            $second.ConnectionsWritten.Count | Should -Be 0
+            $second.OwnerRole | Should -Be 'dokpod_owner'
+            (Read-PostgresConnection -SecretsDirectory $secrets -Name 'ConnectionStrings__ControlPlane').Password | Should -Be $runtime.Password
+
+            # Nada fora do Dokpod mudou no servidor (SC-006).
+            & $script:inventory | Should -Be $script:before
+        }
+        finally { Remove-Item -LiteralPath $dir -Recurse -Force -ErrorAction SilentlyContinue }
+    }
+
+    It 'conexões de outro servidor em secretsDir são recusadas, sem sobrescrever' {
+        if ($script:skip) {
+            Set-ItResult -Skipped -Because 'o socket do engine não foi montado'
+            return
+        }
+
+        $dir = New-TestDirectory
+        try {
+            foreach ($name in 'dokpod-owner-connection', 'ConnectionStrings__ControlPlane') {
+                Write-InstallerSecret -SecretsDirectory $dir -Name $name -Value (ConvertTo-PostgresConnectionString -Server 'outro.lab.test' -Port 5432 -Database 'dokpod' -Username 'dokpod_owner' -Password 'senha-033')
+            }
+            $answers = [ordered]@{ secretsDir = $dir; installDir = $dir; keycloak = @{ mode = 'provision' }
+                postgres = [ordered]@{ mode = 'existing-create'; host = $script:existingHost; port = 5432; admin = [ordered]@{ username = 'dba' } } }
+            { Invoke-ExistingPostgresBootstrap -Answers $answers -Image $script:image -Network $script:existingNetwork -CatalogRoot $script:catalog -Interactive $false } |
+                Should -Throw '*outro.lab.test*recreate secret:dokpod-owner-connection*'
         }
         finally { Remove-Item -LiteralPath $dir -Recurse -Force }
     }

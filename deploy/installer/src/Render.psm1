@@ -265,7 +265,8 @@ function New-InstallerComposeModel {
 
     $networks = [ordered]@{
         'dokpod-internal' = [ordered]@{ internal = $true }
-        'dokpod-data'     = [ordered]@{ internal = $true }
+        # Com PostgreSQL existente, a API sai por esta rede até o servidor; só o provisionado fica isolado.
+        'dokpod-data'     = [ordered]@{ internal = $Answers.postgres.mode -eq 'provision' }
         'dokpod-edge'     = [ordered]@{ ipam = [ordered]@{ config = @([ordered]@{ subnet = $script:EdgeSubnet }) } }
     }
     if ($Answers.keycloak.mode -eq 'provision') { $networks['keycloak-data'] = [ordered]@{ internal = $true } }
@@ -283,7 +284,8 @@ function Test-CaBundleNeeded {
     # A API com a CA local também precisa do bundle: o BFF a valida em https://api:8443.
     $localCa = $Answers.certificates.edge.source -eq 'local-ca' -or $Answers.certificates.api.source -eq 'local-ca' -or $Answers.keycloak.mode -eq 'provision'
     $keycloakCa = $Answers.keycloak.mode -eq 'existing' -and $Answers.keycloak.Contains('caCertificate')
-    return $localCa -or $keycloakCa
+    $postgresCa = $Answers.postgres.mode -ne 'provision' -and $Answers.postgres.Contains('caCertificate')
+    return $localCa -or $keycloakCa -or $postgresCa
 }
 
 function ConvertTo-ComposeYaml {
@@ -423,7 +425,7 @@ function New-DokpodEnvironmentFile {
 function New-CaBundle {
     <#
     .SYNOPSIS
-    Raízes do sistema mais as CAs da instalação (local e a do Keycloak existente), para SSL_CERT_FILE da API e do BFF.
+    Raízes do sistema mais as CAs da instalação (local e as do Keycloak e do PostgreSQL existentes), para SSL_CERT_FILE da API e do BFF.
     #>
     [CmdletBinding()]
     [OutputType([string])]

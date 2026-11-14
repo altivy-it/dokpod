@@ -34,6 +34,10 @@ $script:MinimumServerVersion = 170000
 $script:PsqlUser = '999:999'
 $script:PsqlRoot = '/run/dokpod-psql'
 $script:StepMarker = '--dokpod-psql-step--'
+# sslMode das respostas → libpq (psql) e Npgsql (API e modo administrativo).
+$script:SslModes = [ordered]@{ 'require' = 'Require'; 'verify-ca' = 'VerifyCA'; 'verify-full' = 'VerifyFull' }
+# Containers avulsos com PostgreSQL existente: a rede padrão do engine, que tem saída (a dokpod-data só existe no compose).
+$script:ExistingNetwork = 'bridge'
 
 function Get-PostgresDefaults {
     <#
@@ -51,6 +55,7 @@ function Get-PostgresDefaults {
         OwnerConnection   = $script:OwnerConnection
         RuntimeConnection = $script:RuntimeConnection
         Provisioned       = $script:Provisioned
+        ExistingNetwork   = $script:ExistingNetwork
     }
 }
 
@@ -93,7 +98,9 @@ function ConvertTo-PostgresConnectionString {
         [Parameter(Mandatory)][int] $Port,
         [Parameter(Mandatory)][string] $Database,
         [Parameter(Mandatory)][string] $Username,
-        [Parameter(Mandatory)][string] $Password
+        [Parameter(Mandatory)][string] $Password,
+        # require, verify-ca ou verify-full; a cadeia é validada pelas raízes de SSL_CERT_FILE (o bundle da instalação).
+        [ValidateSet('', 'require', 'verify-ca', 'verify-full')][string] $SslMode = ''
     )
 
     $builder = [System.Data.Common.DbConnectionStringBuilder]::new()
@@ -102,6 +109,7 @@ function ConvertTo-PostgresConnectionString {
     $builder['Database'] = $Database
     $builder['Username'] = $Username
     $builder['Password'] = $Password
+    if ($SslMode) { $builder['SSL Mode'] = $script:SslModes[$SslMode] }
     return $builder.get_ConnectionString()
 }
 
@@ -204,6 +212,16 @@ function New-PsqlBundle {
     [void] $script.AppendLine("trap 'rm -rf $($script:PsqlRoot)/pgpass $($script:PsqlRoot)/secrets' EXIT")
     [void] $script.AppendLine("export PGPASSFILE=$($script:PsqlRoot)/pgpass PGCONNECT_TIMEOUT=10")
     [void] $script.AppendLine('unset PGPASSWORD')
+    if ($Server.Contains('SslMode') -and $Server.SslMode) {
+        [void] $script.AppendLine("export PGSSLMODE=$($Server.SslMode)")
+        if ($Server.Contains('CaCertificate') -and $Server.CaCertificate) {
+            $files['ca.crt'] = $Server.CaCertificate
+            [void] $script.AppendLine("export PGSSLROOTCERT=$($script:PsqlRoot)/ca.crt")
+        }
+        elseif ($Server.SslMode -ne 'require') {
+            [void] $script.AppendLine('export PGSSLROOTCERT=system')
+        }
+    }
 
     $index = 0
     foreach ($step in $Steps) {
@@ -409,6 +427,7 @@ function Invoke-PostgresBootstrap {
     )
 
     $common = @{ Image = $Image; Network = $Network; Server = $Server; CatalogRoot = $CatalogRoot; Cli = $Cli }
+    $sslMode = if ($Server.Contains('SslMode')) { [string] $Server.SslMode } else { '' }
     $version = Get-PostgresServerVersion @common -MaintenanceDatabase $MaintenanceDatabase
 
     $connections = [ordered]@{}
@@ -438,19 +457,26 @@ function Invoke-PostgresBootstrap {
                 Variables = [ordered]@{ database = $Database; owner_role = $OwnerRole }
             }
             @{
-                Path = 'Installation/bootstrap/03-grants.sql'; Database = $Database
-                Variables = [ordered]@{ database = $Database; runtime_role = $RuntimeRole }
+                Path = 'Installation/bootstrap/03-grants.sql'; Database = $MaintenanceDatabase
+                Variables = [ordered]@{ database = $Database; owner_role = $OwnerRole; runtime_role = $RuntimeRole }
             }))
 
-    $ownerChecks = Get-PostgresRolePrivilege @common -Database $Database -Role $OwnerRole
-    $runtimeChecks = Get-PostgresRolePrivilege @common -Database $Database -Role $RuntimeRole
+    # A conferência roda no banco do Dokpod com a própria role dona: um administrador sem SUPERUSER não conecta mais
+    # nele, e o catálogo de roles e os privilégios de schema são legíveis por qualquer role.
+    $asOwner = [ordered]@{} + $Server
+    $asOwner.Username = $OwnerRole
+    $asOwner.Password = $owner.Password
+    $checking = @{} + $common
+    $checking.Server = $asOwner
+    $ownerChecks = Get-PostgresRolePrivilege @checking -Database $Database -Role $OwnerRole
+    $runtimeChecks = Get-PostgresRolePrivilege @checking -Database $Database -Role $RuntimeRole
     Assert-PostgresRole -Owner $ownerChecks -Runtime $runtimeChecks
 
     $written = @()
     foreach ($name in $connections.Keys) {
         $item = $connections[$name]
         if (-not $item.Exists) {
-            $value = ConvertTo-PostgresConnectionString -Server $ApplicationHost -Port $ApplicationPort -Database $Database -Username $item.Role -Password $item.Password
+            $value = ConvertTo-PostgresConnectionString -Server $ApplicationHost -Port $ApplicationPort -Database $Database -Username $item.Role -Password $item.Password -SslMode $sslMode
             Write-InstallerSecret -SecretsDirectory $SecretsDirectory -Name $name -Value $value
             $written += $name
         }
@@ -489,6 +515,155 @@ function Invoke-ProvisionedPostgresBootstrap {
         -MaintenanceDatabase $script:Provisioned.MaintenanceDb -CatalogRoot $CatalogRoot -Cli $Cli
 }
 
+function Assert-ExistingPostgresAnswers {
+    <#
+    .SYNOPSIS
+    Confere o PostgreSQL existente antes de qualquer efeito: o host precisa ser alcançável pelos containers (loopback
+    aponta para o próprio container) e a CA informada precisa ser um certificado PEM.
+    #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][System.Collections.IDictionary] $Answers)
+
+    $postgres = $Answers.postgres
+    if ($postgres.mode -eq 'provision') { return }
+
+    $hostName = ([string] $postgres.host).Trim('[', ']')
+    $address = $null
+    $loopback = $hostName -eq 'localhost' -or $hostName.EndsWith('.localhost') -or
+        ([System.Net.IPAddress]::TryParse($hostName, [ref] $address) -and ([System.Net.IPAddress]::IsLoopback($address) -or $address.Equals([System.Net.IPAddress]::Any)))
+    if ($loopback) {
+        Stop-Installer -Code Usage -Message ("postgres.host '$hostName' é o loopback, que dentro do container da API é o próprio container. " +
+            'Informe o nome ou o IP pelo qual os containers alcançam o PostgreSQL: o do servidor na rede ou, com ele no próprio host, ' +
+            'host.containers.internal no Podman rootless e o IP do host na rede no Docker rootless.')
+    }
+
+    $null = Get-ExistingPostgresCaPem -Answers $Answers
+}
+
+function Get-ExistingPostgresCaPem {
+    <#
+    .SYNOPSIS
+    O PEM de postgres.caCertificate (público, vai para o bundle de SSL_CERT_FILE), ou $null quando não foi informado.
+    #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param([Parameter(Mandatory)][System.Collections.IDictionary] $Answers)
+
+    $postgres = $Answers.postgres
+    if ($postgres.mode -eq 'provision' -or -not $postgres.Contains('caCertificate')) { return $null }
+
+    $path = [string] $postgres.caCertificate
+    if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
+        Stop-Installer -Code Usage -Message "O arquivo de postgres.caCertificate não existe: $path."
+    }
+
+    $pem = [System.IO.File]::ReadAllText($path)
+    if ($pem -notmatch '-----BEGIN CERTIFICATE-----' -or $pem -match 'PRIVATE KEY-----') {
+        Stop-Installer -Code Usage -Message "postgres.caCertificate ($path) precisa ter só certificados PEM."
+    }
+
+    return $pem.TrimEnd() + "`n"
+}
+
+function Get-ExistingPostgresAdminServer {
+    <#
+    .SYNOPSIS
+    Conexão administrativa do PostgreSQL existente: a senha vem de { file }/{ env } ou do prompt, fica só em memória
+    e nunca é gravada em secretsDir, no estado ou no relatório (FR-008, FR-015).
+    #>
+    [CmdletBinding()]
+    [OutputType([System.Collections.IDictionary])]
+    param(
+        [Parameter(Mandatory)][System.Collections.IDictionary] $Answers,
+        [bool] $Interactive = (Test-InteractiveSession),
+        [scriptblock] $AskCredential = { param($message) Read-Host -Prompt $message -MaskInput }
+    )
+
+    $postgres = $Answers.postgres
+    $admin = $postgres.admin
+    $adminCredential = if ($admin.Contains('password')) {
+        Read-SecretReference -Reference $admin.password -Purpose "postgres.admin ($($admin.username))"
+    }
+    elseif ($Interactive) {
+        [string] (& $AskCredential "Senha de $($admin.username) no PostgreSQL $($postgres.host) (usada só nesta execução, não é gravada)")
+    }
+    else {
+        Stop-Installer -Code Usage -Message 'Sem terminal, postgres.admin.password precisa vir como { file } ou { env } no arquivo de respostas.'
+    }
+
+    if ([string]::IsNullOrEmpty($adminCredential)) {
+        Stop-Installer -Code Usage -Message "A senha de $($admin.username) no PostgreSQL está vazia."
+    }
+
+    Register-InstallerSecret -Value $adminCredential
+    return New-ExistingPostgresServer -Answers $Answers -Username $admin.username -Password $adminCredential
+}
+
+function New-ExistingPostgresServer {
+    param([System.Collections.IDictionary] $Answers, [string] $Username, [string] $Password)
+
+    $postgres = $Answers.postgres
+    $server = [ordered]@{ Host = [string] $postgres.host; Port = [int] $postgres.port; Username = $Username; Password = $Password }
+    if ($postgres.Contains('sslMode')) { $server['SslMode'] = [string] $postgres.sslMode }
+    $ca = Get-ExistingPostgresCaPem -Answers $Answers
+    if ($ca) { $server['CaCertificate'] = $ca }
+    return $server
+}
+
+function Invoke-ExistingPostgresBootstrap {
+    <#
+    .SYNOPSIS
+    postgres.mode existing-create (T035, FR-008, D-009): banco, role dona e role de runtime num PostgreSQL existente
+    pelos mesmos arquivos de bootstrap do catálogo, com a credencial administrativa usada uma vez e descartada.
+    .DESCRIPTION
+    Com as duas conexões já em secretsDir (reexecução ou retomada depois do bootstrap), não pede a credencial
+    administrativa: confere versão e menor privilégio com a própria role dona e devolve sem mudar nada.
+    #>
+    [CmdletBinding()]
+    [OutputType([pscustomobject])]
+    param(
+        [Parameter(Mandatory)][System.Collections.IDictionary] $Answers,
+        [Parameter(Mandatory)][string] $Image,
+        [string] $Network = $script:ExistingNetwork,
+        [bool] $Interactive = (Test-InteractiveSession),
+        [scriptblock] $AskCredential = { param($message) Read-Host -Prompt $message -MaskInput },
+        [string] $CatalogRoot = (Join-Path (Get-InstallerHome) 'catalog'),
+        [string] $Cli = 'docker'
+    )
+
+    $postgres = $Answers.postgres
+    if ($postgres.mode -ne 'existing-create') {
+        Stop-Installer -Code Error -Message "postgres.mode '$($postgres.mode)' não é o existing-create."
+    }
+
+    Assert-ExistingPostgresAnswers -Answers $Answers
+    $database = if ($postgres.Contains('database') -and $postgres.database) { [string] $postgres.database } else { $script:Database }
+    $owner = Read-PostgresConnection -SecretsDirectory $Answers.secretsDir -Name $script:OwnerConnection
+    $runtime = Read-PostgresConnection -SecretsDirectory $Answers.secretsDir -Name $script:RuntimeConnection
+    if ($owner -and $runtime) {
+        if ($owner.Host -ne $postgres.host -or $owner.Port -ne [int] $postgres.port -or $owner.Database -ne $database) {
+            Stop-Installer -Code Error -Message ("As conexões em secretsDir apontam para $($owner.Host):$($owner.Port)/$($owner.Database), não para " +
+                "$($postgres.host):$($postgres.port)/$database; recrie com 'recreate secret:$($script:OwnerConnection)'.")
+        }
+
+        $server = New-ExistingPostgresServer -Answers $Answers -Username $owner.Username -Password $owner.Password
+        $common = @{ Image = $Image; Network = $Network; Server = $server; CatalogRoot = $CatalogRoot; Cli = $Cli }
+        $version = Get-PostgresServerVersion @common -MaintenanceDatabase $database
+        Assert-PostgresRole -Owner (Get-PostgresRolePrivilege @common -Database $database -Role $owner.Username) `
+            -Runtime (Get-PostgresRolePrivilege @common -Database $database -Role $runtime.Username)
+        return [pscustomobject]@{ ServerVersion = $version; Database = $database; OwnerRole = $owner.Username; RuntimeRole = $runtime.Username; ConnectionsWritten = @() }
+    }
+
+    $server = Get-ExistingPostgresAdminServer -Answers $Answers -Interactive $Interactive -AskCredential $AskCredential
+    try {
+        return Invoke-PostgresBootstrap -SecretsDirectory $Answers.secretsDir -Image $Image -Network $Network -Server $server `
+            -MaintenanceDatabase $script:Provisioned.MaintenanceDb -Database $database -CatalogRoot $CatalogRoot -Cli $Cli
+    }
+    finally {
+        $server.Password = $null
+    }
+}
+
 Export-ModuleMember -Function Get-PostgresDefaults, Initialize-PostgresSecrets, ConvertTo-PostgresConnectionString, Read-PostgresConnection,
 Get-CatalogSqlFile, Invoke-PsqlCatalog, Get-PostgresServerVersion, Get-PostgresRolePrivilege, Assert-PostgresRole, Invoke-PostgresBootstrap,
-Invoke-ProvisionedPostgresBootstrap
+Invoke-ProvisionedPostgresBootstrap, Assert-ExistingPostgresAnswers, Get-ExistingPostgresCaPem, Get-ExistingPostgresAdminServer, Invoke-ExistingPostgresBootstrap

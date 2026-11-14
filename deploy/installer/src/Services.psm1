@@ -482,6 +482,7 @@ function Invoke-LicenseImport {
         [Parameter(Mandatory)][System.Collections.IDictionary] $Answers,
         [Parameter(Mandatory)][string] $Image,
         [string] $Network = $script:AdminNetwork,
+        [string] $TrustBundle,
         [string] $Cli = 'docker'
     )
 
@@ -503,7 +504,7 @@ function Invoke-LicenseImport {
     [void] [System.IO.Directory]::CreateDirectory($work)
     try {
         Copy-Item -LiteralPath $Answers.license -Destination (Join-Path $work 'license.jws')
-        $result = Invoke-AdminCommand -Image $Image -Network $Network -SecretsDirectory $Answers.secretsDir -WorkDirectory $work -Cli $Cli -Arguments @(
+        $result = Invoke-AdminCommand -Image $Image -Network $Network -SecretsDirectory $Answers.secretsDir -WorkDirectory $work -TrustBundle $TrustBundle -Cli $Cli -Arguments @(
             'licensing', 'import', '--file', "$($script:AdminWorkTarget)/license.jws", '--slot', $slot,
             '--actor', [string] $Answers.operator, '--reason', 'instalação: licença da edição Business')
         if ($result.ExitCode -ne 0) {

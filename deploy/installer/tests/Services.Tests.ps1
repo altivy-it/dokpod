@@ -452,13 +452,23 @@ Describe 'Comando install' {
         $script:infra = (Get-Content -Raw (Join-Path $PSScriptRoot '../templates/infrastructure-images.json') | ConvertFrom-Json -AsHashtable).images
     }
 
-    It 'PostgreSQL, Keycloak ou borda existentes ficam para as histórias 2 e 3 (código 2, sem efeito)' {
+    It 'PostgreSQL existing-prepared, Keycloak ou borda existentes ficam para as histórias 2 e 3 (código 2, sem efeito)' {
         $root = Join-Path ([System.IO.Path]::GetTempPath()) "dokpod-033-svc-$([guid]::NewGuid().ToString('N'))"
         $answers = New-TestAnswers -Root $root -Override @{ edge = @{ mode = 'existing'; upstreamHost = '127.0.0.1' } }
         $failure = { Invoke-InstallerInstall -Answers $answers -Images $script:images -Infrastructure $script:infra -InstallerImage 'i' -Interactive $false } |
             Should -Throw -PassThru
         $failure.Exception.ExitCode | Should -Be 2
-        $failure.Exception.Message | Should -Match "edge.mode 'existing'.*T035 a T039"
+        $failure.Exception.Message | Should -Match "edge.mode 'existing'.*T036 a T039"
+        Test-Path $root | Should -BeFalse
+    }
+
+    It 'PostgreSQL existing-create com host de loopback é recusado antes de qualquer efeito (código 2)' {
+        $root = Join-Path ([System.IO.Path]::GetTempPath()) "dokpod-033-svc-$([guid]::NewGuid().ToString('N'))"
+        $answers = New-TestAnswers -Root $root -Override @{ postgres = @{ mode = 'existing-create'; host = '127.0.0.1'; port = 5432; admin = @{ username = 'dba' } } }
+        $failure = { Invoke-InstallerInstall -Answers $answers -Images $script:images -Infrastructure $script:infra -InstallerImage 'i' -Interactive $false } |
+            Should -Throw -PassThru
+        $failure.Exception.ExitCode | Should -Be 2
+        $failure.Exception.Message | Should -Match 'loopback'
         Test-Path $root | Should -BeFalse
     }
 

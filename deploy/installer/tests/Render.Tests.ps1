@@ -235,6 +235,28 @@ Describe 'Infraestrutura existente' {
         (Test-ComposeConfig -Answers $answers -Model $model).ExitCode | Should -Be 0
     }
 
+    It 'com PostgreSQL existing-create a API sai pela dokpod-data até o servidor, sem dokpod-postgres, e confia na CA dele' {
+        $provisioned = New-Model (New-Answers)
+        $provisioned.networks['dokpod-data'].internal | Should -BeTrue
+
+        $answers = New-Answers @{
+            postgres = @{ mode = 'existing-create'; host = 'db.lab.test'; port = 5432; sslMode = 'verify-full'; caCertificate = '/tmp/pg-ca.pem'; admin = @{ username = 'dba' } }
+            certificates = @{ edge = @{ source = 'organization' }; api = @{ source = 'organization' }; agents = @{ source = 'local-ca' }; renewWarningDays = 30 }
+            keycloak = @{ mode = 'existing'; url = 'https://sso.lab.test'; realm = 'dokpod' }
+        }
+        $model = New-Model $answers
+        $model.services.Keys | Should -Not -Contain 'dokpod-postgres'
+        $model.volumes.Keys | Should -Not -Contain 'dokpod-postgres-data'
+        $model.services.api.Contains('depends_on') | Should -BeFalse
+        $model.services.api.networks.Keys | Should -Contain 'dokpod-data'
+        $model.networks['dokpod-data'].internal | Should -BeFalse
+        # Só a CA do PostgreSQL já exige o bundle de SSL_CERT_FILE, que o Npgsql usa para validar a cadeia.
+        Test-CaBundleNeeded -Answers $answers | Should -BeTrue
+        $model.services.api.environment.SSL_CERT_FILE | Should -Be '/certs/ca-bundle.crt'
+        $answers.postgres.Remove('caCertificate')
+        Test-CaBundleNeeded -Answers $answers | Should -BeFalse
+    }
+
     It 'recusa rede confiável maior que a rede interna (L1)' {
         InModuleScope Render { { Assert-TrustedNetworks -Networks '10.0.0.0/8' } | Should -Throw -ExpectedMessage '*maior que a rede interna*' }
     }

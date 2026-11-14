@@ -19,6 +19,7 @@ Import-Module (Join-Path $PSScriptRoot 'State.psm1')
 
 $script:OwnerConnection = 'dokpod-owner-connection'
 $script:AdminConnectionTarget = '/run/secrets/ConnectionStrings__ControlPlane'
+$script:TrustBundleTarget = '/certs/ca-bundle.crt'
 $script:OverrideTarget = '/run/sql-override'
 $script:WorkTarget = '/run/dokpod-migrations'
 $script:ProvisionedNetwork = 'dokpod_dokpod-data'
@@ -49,6 +50,8 @@ function Invoke-AdminCommand {
         [string] $OverrideDirectory,
         [string] $WorkDirectory,
         [switch] $WritableWork,
+        # Bundle de raízes (certs/ca-bundle.crt) para o Npgsql validar o TLS de um PostgreSQL existente com CA privada.
+        [string] $TrustBundle,
         [string] $Cli = 'docker'
     )
 
@@ -64,6 +67,7 @@ function Invoke-AdminCommand {
         '--label', 'io.dokpod.installer.task=admin', '--name', "dokpod-installer-admin-$([guid]::NewGuid().ToString('N').Substring(0, 12))",
         '--mount', "type=bind,src=$connection,dst=$($script:AdminConnectionTarget),ro")
     if ($env:DOKPOD_HOST_ENGINE -eq 'podman') { $run += '--security-opt', 'label=disable' }
+    if ($TrustBundle) { $run += '--mount', "type=bind,src=$TrustBundle,dst=$($script:TrustBundleTarget),ro", '--env', "SSL_CERT_FILE=$($script:TrustBundleTarget)" }
     if ($OverrideDirectory) { $run += '--mount', "type=bind,src=$OverrideDirectory,dst=$($script:OverrideTarget),ro" }
     if ($WorkDirectory) {
         $mode = if ($WritableWork) { '' } else { ',ro' }
@@ -451,6 +455,7 @@ function Invoke-MigrationStep {
         [switch] $ManualMigrations,
         [string] $Database = 'dokpod',
         [string] $PostgresContainer,
+        [string] $TrustBundle,
         [string] $CatalogRoot = (Join-Path (Get-InstallerHome) 'catalog'),
         [string] $Cli = 'docker',
         [bool] $Interactive = (Test-InteractiveSession),
@@ -464,7 +469,7 @@ function Invoke-MigrationStep {
     [void] [System.IO.Directory]::CreateDirectory($work)
     $override = Resolve-SqlOverride -InstallDirectory $installDir -SqlDirectory $SqlDirectory -CatalogRoot $CatalogRoot
     try {
-        $admin = @{ Image = $Image; Network = $Network; SecretsDirectory = $Answers.secretsDir; OverrideDirectory = $override.Directory; Cli = $Cli }
+        $admin = @{ Image = $Image; Network = $Network; SecretsDirectory = $Answers.secretsDir; OverrideDirectory = $override.Directory; TrustBundle = $TrustBundle; Cli = $Cli }
         if ($override.Staging -and $override.Changes.Count -eq 0) { $admin.OverrideDirectory = $null }
 
         $status = (Invoke-AdminCommand @admin -Arguments @('migrations', 'status')).Data

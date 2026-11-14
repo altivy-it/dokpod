@@ -156,9 +156,9 @@ function Initialize-AgentCertificate {
 }
 
 function Invoke-EnvironmentAdmin {
-    param([string] $Image, [string] $Network, [string] $SecretsDirectory, [string[]] $Arguments, [string] $Conflict, [string] $Cli)
+    param([string] $Image, [string] $Network, [string] $SecretsDirectory, [string[]] $Arguments, [string] $Conflict, [string] $TrustBundle, [string] $Cli)
 
-    $result = Invoke-AdminCommand -Image $Image -Network $Network -SecretsDirectory $SecretsDirectory -Arguments $Arguments -Cli $Cli
+    $result = Invoke-AdminCommand -Image $Image -Network $Network -SecretsDirectory $SecretsDirectory -Arguments $Arguments -TrustBundle $TrustBundle -Cli $Cli
     if ($result.ExitCode -ne 0) {
         $code = if ($result.Data -and $result.Data['failureCode']) { " ($($result.Data['failureCode']))" } else { '' }
         Stop-Installer -Code Error -Message "$Conflict$code Nada foi alterado no banco."
@@ -268,6 +268,7 @@ function Invoke-EnvironmentStep {
         [Parameter(Mandatory)][string] $InstallerImage,
         [pscustomobject] $Environment,
         [string] $Network = $script:AdminNetwork,
+        [string] $TrustBundle,
         [string] $KeycloakNetwork = (Get-KeycloakDefaults).Network,
         [string] $KeycloakUrl = (Get-KeycloakDefaults).InternalUrl,
         [string] $ScriptsRoot = (Join-Path (Get-InstallerHome) 'keycloak'),
@@ -288,7 +289,7 @@ function Invoke-EnvironmentStep {
     Set-CertificateRecord -State $State -Role "agent:$($environment.Id)" -Certificate $agent.Certificate -SecretRef "pki/agent-$($environment.Id).pfx"
 
     $operator = [string] $Answers.operator
-    $registered = Invoke-EnvironmentAdmin -Image $ApiImage -Network $Network -SecretsDirectory $secretsDir -Cli $Cli -Arguments @(
+    $registered = Invoke-EnvironmentAdmin -Image $ApiImage -Network $Network -SecretsDirectory $secretsDir -TrustBundle $TrustBundle -Cli $Cli -Arguments @(
         'environments', 'register', '--id', $environment.Id, '--name', $environment.Name, '--host', $environment.Host,
         '--stage', $environment.Stage, '--actor', $operator, '--reason', $script:Reason) `
         -Conflict ("O ambiente $($environment.Id) já está no banco com outro nome, host ou estágio. Volte localEnvironment ao valor " +
@@ -297,7 +298,7 @@ function Invoke-EnvironmentStep {
     $authorization = Invoke-EnvironmentAuthorization -Answers $Answers -EnvironmentId $environment.Id -Image $InstallerImage `
         -Network $KeycloakNetwork -BaseUrl $KeycloakUrl -ScriptsRoot $ScriptsRoot -Cli $Cli
 
-    $identity = Invoke-EnvironmentAdmin -Image $ApiImage -Network $Network -SecretsDirectory $secretsDir -Cli $Cli -Arguments @(
+    $identity = Invoke-EnvironmentAdmin -Image $ApiImage -Network $Network -SecretsDirectory $secretsDir -TrustBundle $TrustBundle -Cli $Cli -Arguments @(
         'agent-identities', 'register', '--environment', $environment.Id, '--fingerprint', $agent.Fingerprint,
         '--actor', $operator, '--reason', $script:Reason) `
         -Conflict ("O fingerprint do agente $($environment.Id) já está ligado a outro ambiente ou foi revogado, ou o ambiente já tem " +

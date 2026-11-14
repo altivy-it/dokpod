@@ -191,9 +191,9 @@
             "admin": {
               "type": "object",
               "additionalProperties": false,
+              "description": "Sem password, o instalador pede a senha no terminal; ela nunca é gravada.",
               "required": [
-                "username",
-                "password"
+                "username"
               ],
               "properties": {
                 "username": {

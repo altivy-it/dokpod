@@ -9,8 +9,8 @@ Ordem das etapas, cada uma registrada no estado só depois de terminar (FR-027):
 1. secrets: senhas dos bancos e segredos do Keycloak que faltam;
 2. pki: CA local, certificados da borda, da API e do agente do ambiente local, e o do key ring do BFF;
 3. config: compose.yaml, dokpod.env, deploy.env, borda e CAs em installDir, com o socket do engine só no agente;
-4. services:data: dokpod-postgres e keycloak-postgres;
-5. database: banco, roles e conexões pelo catálogo SQL;
+4. services:data: dokpod-postgres e keycloak-postgres (só os provisionados);
+5. database: banco, roles e conexões pelo catálogo SQL, no provisionado ou no PostgreSQL existente (existing-create, T035);
 6. migrations: pelo modo administrativo da API, com as confirmações de FR-011, FR-036 e FR-041;
 7. license: só na edição Business (FR-031);
 8. services:identity e realm: Keycloak e a reconciliação do realm;
@@ -21,7 +21,7 @@ Ordem das etapas, cada uma registrada no estado só depois de terminar (FR-027):
 Cada etapa services:* dá antes aos segredos montados o dono do usuário do serviço que os lê (D-015).
 
 Toda etapa converge na reexecução; uma falha registra a etapa, o relatório e o código, e a próxima execução retoma.
-PostgreSQL, nginx ou Keycloak existentes ficam com as tarefas das histórias 2 e 3 (T035 a T039).
+PostgreSQL existing-prepared, nginx e Keycloak existentes ficam com as tarefas das histórias 2 e 3 (T036 a T039).
 #>
 Set-StrictMode -Version Latest
 foreach ($module in 'Common', 'Secrets', 'State', 'Plan', 'Render', 'Pki', 'Postgres', 'Migrations', 'Keycloak', 'Environments', 'Services') {
@@ -32,19 +32,20 @@ function Assert-ProvisionedScenario {
     param([System.Collections.IDictionary] $Answers)
 
     $existing = @()
-    if ($Answers.postgres.mode -ne 'provision') { $existing += "postgres.mode '$($Answers.postgres.mode)'" }
+    if ($Answers.postgres.mode -notin 'provision', 'existing-create') { $existing += "postgres.mode '$($Answers.postgres.mode)'" }
     if ($Answers.keycloak.mode -ne 'provision') { $existing += "keycloak.mode '$($Answers.keycloak.mode)'" }
     if ($Answers.edge.mode -ne 'provision') { $existing += "edge.mode '$($Answers.edge.mode)'" }
     if ($existing.Count -gt 0) {
-        Stop-Installer -Code Usage -Message ("Esta versão do instalador só aplica a instalação com PostgreSQL, Keycloak e borda provisionados; " +
-            "$($existing -join ', ') fica com as tarefas T035 a T039 da spec 033. Use 'plan' para ver o plano.")
+        Stop-Installer -Code Usage -Message ("Esta versão do instalador aplica Keycloak e borda provisionados, com PostgreSQL provisionado ou existing-create; " +
+            "$($existing -join ', ') fica com as tarefas T036 a T039 da spec 033. Use 'plan' para ver o plano.")
     }
 }
 
 function Get-TrustMaterial {
     <#
     O que cada serviço confia: certs/ca.crt valida a API no agente (CA local ou raízes da organização), certs/agents-ca.crt
-    valida os agentes na API (sempre a CA local) e o bundle de SSL_CERT_FILE da API e do BFF soma as CAs da instalação.
+    valida os agentes na API (sempre a CA local) e o bundle de SSL_CERT_FILE da API e do BFF soma as CAs da instalação,
+    inclusive a do PostgreSQL existente (o Npgsql valida a cadeia pelas raízes do sistema).
     #>
     param([System.Collections.IDictionary] $Answers, $Ca, $Edge, $Api)
 
@@ -54,6 +55,7 @@ function Get-TrustMaterial {
     }
     else { $caPem }
     $extra = @($caPem) + @(@($Edge.Chain) + @($Api.Chain) | ForEach-Object { ConvertTo-CertificatePem -Certificate $_ })
+    $extra += Get-ExistingPostgresCaPem -Answers $Answers
     $bundle = if (Test-CaBundleNeeded -Answers $Answers) { New-CaBundle -ExtraPem $extra } else { $null }
     return [pscustomobject]@{ ServerCaPem = $serverCaPem; AgentsCaPem = $caPem; CaBundle = $bundle }
 }
@@ -118,9 +120,15 @@ function Invoke-InstallerInstall {
     )
 
     Assert-ProvisionedScenario -Answers $Answers
+    Assert-ExistingPostgresAnswers -Answers $Answers
     [void] [System.IO.Directory]::CreateDirectory($Answers.installDir)
     Initialize-SecretsDirectory -Path $Answers.secretsDir
     $dataNetwork = "$($Project)_dokpod-data"
+    # Os containers avulsos que falam com o banco (psql e modo administrativo) usam a rede do banco: a interna do
+    # projeto no provisionado, a padrão do engine (com saída) no existente.
+    $databaseNetwork = if ($Answers.postgres.mode -eq 'provision') { $dataNetwork } else { (Get-PostgresDefaults).ExistingNetwork }
+    $database = if ($Answers.postgres.Contains('database') -and $Answers.postgres.database) { [string] $Answers.postgres.database } else { (Get-PostgresDefaults).Database }
+    $trustBundle = if ($Answers.postgres.mode -ne 'provision' -and (Test-CaBundleNeeded -Answers $Answers)) { Join-Path $Answers.installDir 'certs/ca-bundle.crt' } else { $null }
     $keycloakNetwork = "$($Project)_keycloak-data"
     $observed = Get-ObservedServices -Project $Project -Cli { param([string[]] $arguments) $output = & $Cli @arguments 2>$null; if ($LASTEXITCODE -eq 0) { $output -join "`n" } }
     $state = Open-InstallerState -InstallDirectory $Answers.installDir -ExistingInstallationDetected:($observed.Count -gt 0)
@@ -188,24 +196,29 @@ function Invoke-InstallerInstall {
 
         & $runStage 'data'
         Invoke-InstallStep -StepState $state -StepRunId $runId -StepName 'database' -StepAction {
-            [void] (Invoke-ProvisionedPostgresBootstrap -Answers $Answers -Image $Infrastructure.postgresql -Network $dataNetwork -Cli $Cli)
+            if ($Answers.postgres.mode -eq 'provision') {
+                [void] (Invoke-ProvisionedPostgresBootstrap -Answers $Answers -Image $Infrastructure.postgresql -Network $dataNetwork -Cli $Cli)
+            }
+            else {
+                [void] (Invoke-ExistingPostgresBootstrap -Answers $Answers -Image $Infrastructure.postgresql -Network $databaseNetwork -Interactive $Interactive -Cli $Cli)
+            }
         }
 
         $migrations = Invoke-InstallStep -StepState $state -StepRunId $runId -StepName 'migrations' -StepAction {
-            Invoke-MigrationStep -Answers $Answers -State $state -RunId $runId -Image $Images.api -Network $dataNetwork -Confirmations $Confirmations `
+            Invoke-MigrationStep -Answers $Answers -State $state -RunId $runId -Image $Images.api -Network $databaseNetwork -Database $database -TrustBundle $trustBundle -Confirmations $Confirmations `
                 -SqlDirectory $SqlDirectory -ManualMigrations:($ManualMigrations -or [bool] $Answers.manualMigrations) -Interactive $Interactive -Prompt $Prompt -Cli $Cli
         }
 
         $license = $null
         if ($Answers.edition -eq 'business') {
-            $license = Invoke-InstallStep -StepState $state -StepRunId $runId -StepName 'license' -StepAction { Invoke-LicenseImport -Answers $Answers -Image $Images.api -Network $dataNetwork -Cli $Cli }
+            $license = Invoke-InstallStep -StepState $state -StepRunId $runId -StepName 'license' -StepAction { Invoke-LicenseImport -Answers $Answers -Image $Images.api -Network $databaseNetwork -TrustBundle $trustBundle -Cli $Cli }
         }
 
         & $runStage 'identity'
         $realm = Invoke-InstallStep -StepState $state -StepRunId $runId -StepName 'realm' -StepAction { Invoke-KeycloakRealm -Answers $Answers -Image $InstallerImage -Network $keycloakNetwork -Cli $Cli }
         $registered = Invoke-InstallStep -StepState $state -StepRunId $runId -StepName 'environment' -StepAction {
             Invoke-EnvironmentStep -Answers $Answers -State $state -ApiImage $Images.api -InstallerImage $InstallerImage -Environment $environment `
-                -Network $dataNetwork -KeycloakNetwork $keycloakNetwork -Cli $Cli
+                -Network $databaseNetwork -TrustBundle $trustBundle -KeycloakNetwork $keycloakNetwork -Cli $Cli
         }
         foreach ($stage in 'application', 'edge') { & $runStage $stage }
         if ($stages | Where-Object Name -eq 'edge') {
