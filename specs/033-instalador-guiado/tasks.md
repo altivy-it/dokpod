@@ -668,9 +668,23 @@ conectado e um administrador que precisa trocar a senha.
     fez uma instalação completa no Podman 5.7 rootless (4/4): sem `dokpod-postgres`, a API conectada como
     `dokpod_app` com `ssl = t`, a credencial em nenhum arquivo, e a reexecução sem ela convergida. Docker rootless e
     o cenário 3 inteiro ficam com a T038.
-- [ ] T036 [US2] `postgres.mode: existing-prepared`: validar conexão, versão e privilégios com `checks/server-version.sql`
+- [X] T036 [US2] `postgres.mode: existing-prepared`: validar conexão, versão e privilégios com `checks/server-version.sql`
   e `checks/role-privileges.sql` do catálogo (sem `rolsuper`, sem `rolcreaterole`, `CONNECT` e `USAGE` presentes), e recusar com código 3 dizendo o
   privilégio em excesso ou em falta. Testes em `deploy/installer/tests/Postgres.Tests.ps1` com PostgreSQL real.
+  - **Feito em 2026-11-14** (`Invoke-PreparedPostgresBootstrap` em `Postgres.psm1`). Com a role dona, sem credencial
+    administrativa, o instalador confere a versão e os privilégios das duas roles. Depois confere que a de runtime
+    conecta com a senha das respostas. Falta, excesso ou role que não conecta dá código 3 com o privilégio na
+    mensagem (`com SUPERUSER`, `sem CONNECT no banco <banco>` e afins). Conexões já gravadas diferentes das respostas
+    param a execução com `recreate secret:<nome>`, sem sobrescrever.
+  - **`USAGE`**: antes das migrations o schema `dokpod` não existe, então não há `USAGE` a conferir. A dona precisa
+    poder criá-lo (`CREATE` no banco) ou já ser dona dele. A de runtime recebe `USAGE` pelas migrations, por meio do
+    grupo `dokpod_runtime`, do qual precisa ser membro.
+  - **Catálogo**: `role-privileges.sql` ganhou `schema_exists` e `database_create`. A de runtime também é recusada
+    com `CREATE` no banco.
+  - **Testes**: `Postgres.Tests.ps1` (30) com PostgreSQL real: banco preparado aceito, sem nada criado no servidor;
+    dona `SUPERUSER`, runtime sem `CONNECT` e senha errada recusados com código 3. `Install.Tests.ps1` fez uma
+    instalação completa no Podman 5.7 rootless (2/2): schema `dokpod` da role dona, API como role de runtime com
+    TLS `require`, nenhuma role nova no servidor, reexecução convergida. `Answers.Tests.ps1` cobre o modo guiado.
 - [ ] T037 [US2] (FR-021, FR-043) `edge.mode: existing` em `deploy/installer/src/Edge.psm1`:
   - gerar `installDir/edge/dokpod.conf` com `upstreamHost`, `webPort` e `bffPort`;
   - publicar web e BFF só em `upstreamHost`, aceitando apenas `127.0.0.1`, `::1` ou `{network}` (rede interna

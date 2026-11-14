@@ -299,6 +299,20 @@ function Request-InstallerAnswers {
             $answers.postgres['sslMode'] = & $ask 'postgres.sslMode' 'TLS do PostgreSQL (require, verify-ca ou verify-full)' 'verify-full' @('require', 'verify-ca', 'verify-full')
             $answers.postgres['admin'] = @{ username = (& $ask 'postgres.admin.username' 'Usuário administrativo do PostgreSQL (usado só para criar o banco e as roles)' 'postgres' $null) }
         }
+        elseif ($answers.postgres.mode -eq 'existing-prepared') {
+            # Banco e roles preparados pelo usuário: as senhas entram como arquivo, nunca no arquivo de respostas.
+            $answers.postgres['host'] = & $ask 'postgres.host' 'Nome ou IP do PostgreSQL, como os containers o alcançam' $null $null
+            $answers.postgres['port'] = [int] (& $ask 'postgres.port' 'Porta do PostgreSQL' '5432' $null)
+            $answers.postgres['sslMode'] = & $ask 'postgres.sslMode' 'TLS do PostgreSQL (require, verify-ca ou verify-full)' 'verify-full' @('require', 'verify-ca', 'verify-full')
+            $answers.postgres['database'] = & $ask 'postgres.database' 'Banco do Dokpod, já criado' 'dokpod' $null
+            foreach ($key in 'owner', 'runtime') {
+                $label = if ($key -eq 'owner') { 'Role dona do banco (aplica as migrations)' } else { 'Role de runtime (membro de dokpod_runtime)' }
+                $username = & $ask "postgres.$key.username" $label $null $null
+                $file = & $ask "postgres.$key.password" "Caminho absoluto do arquivo com a senha de $username" $null $null
+                $answers.postgres[$key] = [ordered]@{ username = $username }
+                $answers.postgres[$key]['password'] = @{ file = $file }
+            }
+        }
     }
     if (-not $answers.Contains('keycloak')) {
         $mode = & $ask 'keycloak.mode' 'Keycloak (provision ou existing)' 'provision' @('provision', 'existing')

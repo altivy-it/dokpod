@@ -189,7 +189,37 @@ Describe 'Catálogo e canal dos parâmetros' {
         $owner = [ordered]@{} + $ok; $owner.schema_owner = $true; $owner.schema_create = $true
         { Assert-PostgresRole -Owner $owner -Runtime $ok } | Should -Not -Throw
         $bad = [ordered]@{} + $ok; $bad.createrole = $true; $bad.schema_create = $true
-        { Assert-PostgresRole -Owner $owner -Runtime $bad } | Should -Throw '*createrole*criar objetos*'
+        { Assert-PostgresRole -Owner $owner -Runtime $bad } | Should -Throw '*CREATEROLE*CREATE no schema dokpod*'
+    }
+
+    It 'banco preparado: sem o schema basta CREATE no banco para a dona; excesso e falta dão código 3 com o privilégio (T036)' {
+        $ok = [ordered]@{ exists = $true; login = $true; superuser = $false; createrole = $false; createdb = $false; replication = $false; bypassrls = $false
+            database_connect = $true; schema_usage = $false; schema_create = $false; schema_owner = $false; runtime_group_member = $true
+            schema_exists = $false; database_create = $false }
+        $owner = [ordered]@{} + $ok; $owner.database_create = $true; $owner.runtime_group_member = $false
+        $prepared = @{ OwnerRole = 'p_owner'; RuntimeRole = 'p_app'; Database = 'pdb'; Code = 'Prerequisite'; AllowMissingSchema = $true }
+        { Assert-PostgresRole -Owner $owner -Runtime $ok @prepared } | Should -Not -Throw
+
+        $cases = @(
+            @{ Role = 'Owner'; Key = 'superuser'; Value = $true; Expected = '*dona p_owner com SUPERUSER*' }
+            @{ Role = 'Owner'; Key = 'database_create'; Value = $false; Expected = '*dona p_owner sem CREATE no banco pdb*' }
+            @{ Role = 'Owner'; Key = 'schema_exists'; Value = $true; Expected = '*dona p_owner não é dona do schema dokpod*' }
+            @{ Role = 'Runtime'; Key = 'database_connect'; Value = $false; Expected = '*runtime p_app sem CONNECT no banco pdb*' }
+            @{ Role = 'Runtime'; Key = 'runtime_group_member'; Value = $false; Expected = '*runtime p_app fora do grupo dokpod_runtime*' }
+            @{ Role = 'Runtime'; Key = 'database_create'; Value = $true; Expected = '*runtime p_app com CREATE no banco pdb*' }
+            @{ Role = 'Runtime'; Key = 'exists'; Value = $false; Expected = '*runtime p_app não existe*' }
+        )
+        foreach ($case in $cases) {
+            $checks = @{ Owner = [ordered]@{} + $owner; Runtime = [ordered]@{} + $ok }
+            $checks[$case.Role][$case.Key] = $case.Value
+            $failure = { Assert-PostgresRole -Owner $checks.Owner -Runtime $checks.Runtime @prepared } | Should -Throw -PassThru
+            $failure.Exception.ExitCode | Should -Be 3 -Because $case.Key
+            $failure.Exception.Message | Should -BeLike $case.Expected
+        }
+
+        # Depois do bootstrap do próprio instalador, a falta do schema não é aceita e o código é o de erro.
+        $failure = { Assert-PostgresRole -Owner $owner -Runtime $ok } | Should -Throw -PassThru
+        $failure.Exception.ExitCode | Should -Be 1
     }
 }
 
@@ -496,5 +526,137 @@ Describe 'existing-create contra PostgreSQL real com TLS e administrador sem sup
                 Should -Throw '*outro.lab.test*recreate secret:dokpod-owner-connection*'
         }
         finally { Remove-Item -LiteralPath $dir -Recurse -Force }
+    }
+}
+
+Describe 'existing-prepared contra PostgreSQL real' {
+    BeforeAll {
+        $script:skip = -not $env:DOCKER_HOST
+        if ($script:skip) { return }
+
+        $suffix = [guid]::NewGuid().ToString('N').Substring(0, 8)
+        $script:preparedNetwork = "dokpod-033-pgp-$suffix"
+        $script:preparedServer = "dokpod-033-pgp-$suffix"
+        $script:preparedHost = 'db.prepared.test'
+        $script:credentials = @{}
+        foreach ($role in 'p_owner', 'p_app', 'p_super', 'p_noconn') { $script:credentials[$role] = "canario-pgp-$role-033-$suffix" }
+        & docker network create $script:preparedNetwork | Out-Null
+        & docker run --detach --pids-limit 512 --name $script:preparedServer --network $script:preparedNetwork --network-alias $script:preparedHost --log-driver none `
+            --env POSTGRES_USER=postgres --env POSTGRES_DB=postgres --env "POSTGRES_PASSWORD=super-$suffix" $script:image | Out-Null
+        $deadline = [datetime]::UtcNow.AddSeconds(90)
+        do {
+            Start-Sleep -Milliseconds 500
+            & docker exec $script:preparedServer pg_isready -h 127.0.0.1 -U postgres -d postgres *> $null
+        } until ($LASTEXITCODE -eq 0 -or [datetime]::UtcNow -gt $deadline)
+
+        # O que o usuário prepara (README): o grupo dokpod_runtime, a dona do banco e a role de runtime só com CONNECT.
+        $c = $script:credentials
+        & docker exec $script:preparedServer psql -v ON_ERROR_STOP=1 -q -U postgres -d postgres `
+            -c 'CREATE ROLE dokpod_runtime NOLOGIN' `
+            -c "CREATE ROLE p_owner LOGIN PASSWORD '$($c.p_owner)'" -c "CREATE ROLE p_app LOGIN PASSWORD '$($c.p_app)' IN ROLE dokpod_runtime" `
+            -c "CREATE ROLE p_super LOGIN SUPERUSER PASSWORD '$($c.p_super)'" -c "CREATE ROLE p_noconn LOGIN PASSWORD '$($c.p_noconn)' IN ROLE dokpod_runtime" `
+            -c 'CREATE DATABASE pdb OWNER p_owner' -c 'REVOKE CONNECT ON DATABASE pdb FROM PUBLIC' -c 'GRANT CONNECT ON DATABASE pdb TO p_app' | Out-Null
+
+        function New-PreparedAnswers {
+            param([string] $Directory, [string] $Owner = 'p_owner', [string] $Runtime = 'p_app', [string] $RuntimeCredential)
+            $answers = [ordered]@{ secretsDir = (Join-Path $Directory 'secrets'); installDir = $Directory; keycloak = @{ mode = 'provision' }
+                postgres = [ordered]@{ mode = 'existing-prepared'; host = $script:preparedHost; port = 5432; database = 'pdb'
+                    owner = [ordered]@{ username = $Owner }; runtime = [ordered]@{ username = $Runtime } } }
+            [void] [System.IO.Directory]::CreateDirectory($answers.secretsDir)
+            foreach ($item in @(@{ Key = 'owner'; Role = $Owner; Value = $script:credentials[$Owner] }, @{ Key = 'runtime'; Role = $Runtime; Value = $(if ($RuntimeCredential) { $RuntimeCredential } else { $script:credentials[$Runtime] }) })) {
+                $file = Join-Path $Directory "$($item.Key)-credential"
+                [System.IO.File]::WriteAllText($file, $item.Value)
+                # Chave por índice: o par chave=valor de senha não aparece no texto (T056).
+                $answers.postgres[$item.Key]['password'] = @{ file = $file }
+            }
+            return $answers
+        }
+
+        $script:prepare = { param($answers) Invoke-PreparedPostgresBootstrap -Answers $answers -Image $script:image -Network $script:preparedNetwork -CatalogRoot $script:catalog }
+    }
+
+    AfterAll {
+        if ($script:skip) { return }
+        & docker rm --force --volumes $script:preparedServer *> $null
+        & docker network rm $script:preparedNetwork *> $null
+    }
+
+    It 'aceita o banco preparado, grava as conexões e reexecuta sem mudar nada' {
+        if ($script:skip) {
+            Set-ItResult -Skipped -Because 'o socket do engine não foi montado'
+            return
+        }
+
+        $dir = New-TestDirectory
+        try {
+            $answers = New-PreparedAnswers -Directory $dir
+            $first = & $script:prepare $answers
+            $first.ServerVersion | Should -BeGreaterOrEqual 170000
+            $first.ConnectionsWritten | Should -Be @('dokpod-owner-connection', 'ConnectionStrings__ControlPlane')
+            $owner = Read-PostgresConnection -SecretsDirectory $answers.secretsDir -Name 'dokpod-owner-connection'
+            $owner.Username | Should -Be 'p_owner'
+            $owner.Database | Should -Be 'pdb'
+            $owner.Host | Should -Be $script:preparedHost
+            (Read-PostgresConnection -SecretsDirectory $answers.secretsDir -Name 'ConnectionStrings__ControlPlane').Username | Should -Be 'p_app'
+
+            (& $script:prepare $answers).ConnectionsWritten.Count | Should -Be 0
+
+            # Nada foi criado no servidor: o schema fica para as migrations, com a role dona.
+            (& docker exec $script:preparedServer psql -At -U postgres -d pdb -c "SELECT count(*) FROM pg_namespace WHERE nspname = 'dokpod'") | Should -Be '0'
+        }
+        finally { Remove-Item -LiteralPath $dir -Recurse -Force -ErrorAction SilentlyContinue }
+    }
+
+    It 'recusa com código 3 e o privilégio: <Because>' -ForEach @(
+        @{ Owner = 'p_super'; Runtime = 'p_app'; Expected = '*dona p_super com SUPERUSER*'; Because = 'dona SUPERUSER' }
+        @{ Owner = 'p_owner'; Runtime = 'p_noconn'; Expected = '*runtime p_noconn sem CONNECT no banco pdb*'; Because = 'runtime sem CONNECT' }
+        @{ Owner = 'p_owner'; Runtime = 'p_app'; Credential = 'errada-033'; Expected = '*role de runtime (p_app) não conecta ao banco pdb*'; Because = 'senha errada da runtime' }
+    ) {
+        if ($script:skip) {
+            Set-ItResult -Skipped -Because 'o socket do engine não foi montado'
+            return
+        }
+
+        $dir = New-TestDirectory
+        try {
+            $answers = New-PreparedAnswers -Directory $dir -Owner $Owner -Runtime $Runtime -RuntimeCredential $Credential
+            $failure = { & $script:prepare $answers } | Should -Throw -PassThru
+            $failure.Exception.ExitCode | Should -Be 3
+            $failure.Exception.Message | Should -BeLike $Expected
+            Get-ChildItem -LiteralPath $answers.secretsDir | Should -BeNullOrEmpty
+        }
+        finally { Remove-Item -LiteralPath $dir -Recurse -Force -ErrorAction SilentlyContinue }
+    }
+
+    It 'conexão gravada diferente das respostas é recusada, sem sobrescrever' {
+        if ($script:skip) {
+            Set-ItResult -Skipped -Because 'o socket do engine não foi montado'
+            return
+        }
+
+        $dir = New-TestDirectory
+        try {
+            $answers = New-PreparedAnswers -Directory $dir
+            $previous = ConvertTo-PostgresConnectionString -Server $script:preparedHost -Port 5432 -Database 'pdb' -Username 'p_owner' -Password 'anterior-033'
+            Write-InstallerSecret -SecretsDirectory $answers.secretsDir -Name 'dokpod-owner-connection' -Value $previous
+            { & $script:prepare $answers } | Should -Throw '*recreate secret:dokpod-owner-connection*'
+            [System.IO.File]::ReadAllText((Join-Path $answers.secretsDir 'dokpod-owner-connection')) | Should -Be $previous
+        }
+        finally { Remove-Item -LiteralPath $dir -Recurse -Force -ErrorAction SilentlyContinue }
+    }
+
+    It 'owner e runtime iguais são recusados com código 2' {
+        if ($script:skip) {
+            Set-ItResult -Skipped -Because 'o socket do engine não foi montado'
+            return
+        }
+
+        $dir = New-TestDirectory
+        try {
+            $answers = New-PreparedAnswers -Directory $dir -Runtime 'p_owner'
+            $failure = { & $script:prepare $answers } | Should -Throw -PassThru
+            $failure.Exception.ExitCode | Should -Be 2
+        }
+        finally { Remove-Item -LiteralPath $dir -Recurse -Force -ErrorAction SilentlyContinue }
     }
 }

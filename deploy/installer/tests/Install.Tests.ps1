@@ -235,3 +235,99 @@ Describe 'Instalação com PostgreSQL existente (existing-create)' {
         $after | Should -Be $before
     }
 }
+
+Describe 'Instalação com PostgreSQL existente (existing-prepared)' {
+    BeforeAll {
+        $script:preparedEnabled = $script:enabled -and $env:DOKPOD_TEST_EXISTING_PG_HOST
+        if (-not $script:preparedEnabled) { return }
+        $script:preparedProject = 'dokpod-t036'
+        $suffix = [guid]::NewGuid().ToString('N').Substring(0, 8)
+        $script:preparedRoot = Join-Path $env:DOKPOD_TEST_SHARED "t036-$suffix"
+        New-Item -ItemType Directory -Path $script:preparedRoot | Out-Null
+        $infra = (Get-Content -Raw (Join-Path $PSScriptRoot '../templates/infrastructure-images.json') | ConvertFrom-Json -AsHashtable).images
+        $script:preparedServer = "dokpod-t036-pg-$suffix"
+        $port = Get-Random -Minimum 26000 -Maximum 27000
+        # TLS com certificado autoassinado e sslMode require: cifra sem validar a cadeia, o caminho sem caCertificate.
+        $tls = 'set -e; cd /tmp; ' +
+            'openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:P-256 -nodes -days 2 -subj /CN=postgres -keyout server.key -out server.crt 2>/dev/null; ' +
+            'chown postgres server.key server.crt; chmod 600 server.key; ' +
+            'exec docker-entrypoint.sh postgres -c ssl=on -c ssl_cert_file=/tmp/server.crt -c ssl_key_file=/tmp/server.key'
+        & docker run --detach --pids-limit 512 --name $script:preparedServer --publish "$($port):5432" --log-driver none `
+            --env POSTGRES_USER=postgres --env POSTGRES_DB=postgres --env "POSTGRES_PASSWORD=canario-t036-super-$suffix" --entrypoint sh $infra.postgresql -c $tls | Out-Null
+        $deadline = [datetime]::UtcNow.AddSeconds(90)
+        do {
+            Start-Sleep -Milliseconds 500
+            & docker exec $script:preparedServer pg_isready -h 127.0.0.1 -U postgres -d postgres *> $null
+        } until ($LASTEXITCODE -eq 0 -or [datetime]::UtcNow -gt $deadline)
+
+        # O que o usuário prepara (README): grupo dokpod_runtime, dona do banco e role de runtime só com CONNECT.
+        $credentials = @{ owner = "canario-t036-owner-$suffix"; runtime = "canario-t036-app-$suffix" }
+        & docker exec $script:preparedServer psql -v ON_ERROR_STOP=1 -q -U postgres -d postgres -c 'CREATE ROLE dokpod_runtime NOLOGIN' `
+            -c "CREATE ROLE prep_owner LOGIN PASSWORD '$($credentials.owner)'" -c "CREATE ROLE prep_app LOGIN PASSWORD '$($credentials.runtime)' IN ROLE dokpod_runtime" `
+            -c 'CREATE DATABASE dokpod_prep OWNER prep_owner' -c 'REVOKE CONNECT ON DATABASE dokpod_prep FROM PUBLIC' -c 'GRANT CONNECT ON DATABASE dokpod_prep TO prep_app' | Out-Null
+
+        $script:preparedAnswers = [ordered]@{
+            schemaVersion = 1; version = '0.8.0'; edition = 'ce'; publicUrl = 'https://dokpod.lab.test:18454'; engine = 'podman-rootless'; operator = 'Ana'
+            installDir = (Join-Path $script:preparedRoot 'install'); secretsDir = (Join-Path $script:preparedRoot 'secrets'); manualMigrations = $false
+            postgres = [ordered]@{ mode = 'existing-prepared'; host = $env:DOKPOD_TEST_EXISTING_PG_HOST; port = $port; sslMode = 'require'; database = 'dokpod_prep'
+                owner = [ordered]@{ username = 'prep_owner' }; runtime = [ordered]@{ username = 'prep_app' } }
+            keycloak = @{ mode = 'provision'; realm = 'dokpod'; initialAdmin = @{ username = 'dokpod-admin'; email = 'ana@lab.test' } }
+            edge = @{ mode = 'provision'; httpsPort = 18454 }
+            certificates = @{ edge = @{ source = 'local-ca' }; api = @{ source = 'local-ca' }; agents = @{ source = 'local-ca' }; renewWarningDays = 30 }
+            localEnvironment = @{ name = 'host-local'; stage = 'production' }
+        }
+        foreach ($key in 'owner', 'runtime') {
+            $file = Join-Path $script:preparedRoot "pg-$key-credential"
+            [System.IO.File]::WriteAllText($file, $credentials[$key])
+            # Chave por índice: o par chave=valor de senha não aparece no texto (T056).
+            $script:preparedAnswers.postgres[$key]['password'] = @{ file = $file }
+        }
+        $images = [ordered]@{ api = $env:DOKPOD_TEST_API_IMAGE; bff = $env:DOKPOD_TEST_BFF_IMAGE; web = $env:DOKPOD_TEST_WEB_IMAGE; agent = $env:DOKPOD_TEST_AGENT_IMAGE }
+        $script:preparedConfirmations = @{ Plan = $true }
+        $script:preparedInstall = {
+            Invoke-InstallerInstall -Answers $script:preparedAnswers -Images $images -Infrastructure $infra -InstallerImage $env:DOKPOD_INSTALLER_IMAGE_REF `
+                -Confirmations $script:preparedConfirmations -Interactive $false -Project $script:preparedProject -WaitTimeoutSeconds 420
+        }
+        $declined = try { & $script:preparedInstall } catch { $_.Exception }
+        $script:preparedConfirmations['MigrationsPlanHash'] = [regex]::Match($declined.Message, '--confirm-migrations ([0-9a-f]{64})').Groups[1].Value
+        $script:preparedFirst = & $script:preparedInstall
+    }
+
+    AfterAll {
+        if (-not $script:preparedEnabled) { return }
+        $label = "label=com.docker.compose.project=$($script:preparedProject)"
+        & docker compose --file (Join-Path $script:preparedAnswers.installDir 'compose.yaml') --project-name $script:preparedProject down --volumes 2>$null | Out-Null
+        @(& docker ps -aq --filter $label) | ForEach-Object { & docker rm -f $_ 2>$null | Out-Null }
+        @(& docker volume ls -q --filter $label) | ForEach-Object { & docker volume rm $_ 2>$null | Out-Null }
+        @(& docker network ls -q --filter $label) | ForEach-Object { & docker network rm $_ 2>$null | Out-Null }
+        & docker rm --force --volumes $script:preparedServer 2>$null | Out-Null
+        Remove-Item -LiteralPath $script:preparedRoot -Recurse -Force -ErrorAction SilentlyContinue
+    }
+
+    It 'instala no banco preparado, com as migrations pela role dona e a API pela de runtime' {
+        if (-not $script:preparedEnabled) { Set-ItResult -Skipped -Because 'DOKPOD_TEST_FULL_INSTALL ou DOKPOD_TEST_EXISTING_PG_HOST não está ativo'; return }
+        $script:preparedFirst | Should -Be 0
+        $lines = & docker compose --file (Join-Path $script:preparedAnswers.installDir 'compose.yaml') --project-name $script:preparedProject ps --all --format json
+        $services = @($lines | Where-Object { $_.Trim() } | ForEach-Object { $_ | ConvertFrom-Json })
+        ($services.Service | Sort-Object) | Should -Be @('agent', 'api', 'bff', 'edge', 'keycloak', 'keycloak-postgres', 'web')
+        foreach ($service in $services) {
+            "$($service.Service)=$($service.State)" | Should -Be "$($service.Service)=running"
+            if ($service.Health) { "$($service.Service)=$($service.Health)" | Should -Be "$($service.Service)=healthy" }
+        }
+
+        (& docker exec $script:preparedServer psql -At -U postgres -d dokpod_prep -c "SELECT pg_get_userbyid(nspowner) FROM pg_namespace WHERE nspname = 'dokpod'") | Should -Be 'prep_owner'
+        $sessions = (& docker exec $script:preparedServer psql -At -U postgres -d postgres -c "SELECT DISTINCT usename || ':' || ssl FROM pg_stat_activity JOIN pg_stat_ssl USING (pid) WHERE datname = 'dokpod_prep'") -join ','
+        $sessions | Should -Match 'prep_app:t'
+        # Nenhuma role nova no servidor: o instalador não teve credencial administrativa.
+        (& docker exec $script:preparedServer psql -At -U postgres -d postgres -c "SELECT string_agg(rolname, ',' ORDER BY rolname) FROM pg_roles WHERE rolname NOT LIKE 'pg\_%'") |
+            Should -Be 'dokpod_runtime,postgres,prep_app,prep_owner'
+    }
+
+    It 'a reexecução termina convergida, sem recriar serviços' {
+        if (-not $script:preparedEnabled) { Set-ItResult -Skipped -Because 'DOKPOD_TEST_FULL_INSTALL ou DOKPOD_TEST_EXISTING_PG_HOST não está ativo'; return }
+        $before = & docker ps --filter "label=com.docker.compose.project=$($script:preparedProject)" --format '{{.ID}}' | Sort-Object
+        & $script:preparedInstall | Should -Be 0
+        $after = & docker ps --filter "label=com.docker.compose.project=$($script:preparedProject)" --format '{{.ID}}' | Sort-Object
+        $after | Should -Be $before
+    }
+}

@@ -133,6 +133,29 @@ certificates:
         (Read-InstallerAnswers -Path $path).publicUrl | Should -Be 'https://dokpod.lab.test'
     }
 
+    It 'modo guiado com existing-prepared pede host, banco, roles e o arquivo de cada senha, nunca a senha (T036)' {
+        Mock -ModuleName Answers Test-InteractiveSession { $true }
+        $replies = [ordered]@{
+            'PostgreSQL (provision' = 'existing-prepared'; 'Nome ou IP do PostgreSQL' = 'db.lab.test'; 'Banco do Dokpod' = 'dokpod_prep'
+            'Role dona' = 'prep_owner'; 'Role de runtime' = 'prep_app'; 'senha de prep_owner' = '/run/s/owner'; 'senha de prep_app' = '/run/s/app'
+        }
+        $prompt = { param($question, $default) foreach ($key in $replies.Keys) { if ($question.Contains($key)) { return $replies[$key] } }; return $default }.GetNewClosure()
+        $partial = [ordered]@{ version = '0.8.0'; edition = 'ce'; publicUrl = 'https://dokpod.lab.test'; engine = 'podman-rootless'; operator = 'Ana'
+            keycloak = @{ mode = 'provision'; realm = 'dokpod'; initialAdmin = @{ username = 'dokpod-admin'; email = 'ana@lab.test' } }; edge = @{ mode = 'provision' } }
+
+        $postgres = (Request-InstallerAnswers -Partial $partial -Prompt $prompt).postgres
+
+        $postgres.mode | Should -Be 'existing-prepared'
+        $postgres.host | Should -Be 'db.lab.test'
+        $postgres.port | Should -Be 5432
+        $postgres.sslMode | Should -Be 'verify-full'
+        $postgres.database | Should -Be 'dokpod_prep'
+        $postgres.owner.username | Should -Be 'prep_owner'
+        $postgres.owner['password'].file | Should -Be '/run/s/owner'
+        $postgres.runtime.username | Should -Be 'prep_app'
+        $postgres.runtime['password'].file | Should -Be '/run/s/app'
+    }
+
     It 'sem terminal, resposta obrigatória faltando dá código 2 com a lista' {
         $env:DOKPOD_NON_INTERACTIVE = '1'
         try {

@@ -34,6 +34,31 @@ Também atualiza a versão, aplica as migrations sem SDK e recria componentes co
 - `sslMode` vale para o `psql` do instalador e para a API. Com `verify-ca` ou `verify-full`, a CA de `caCertificate`
   entra no bundle de `SSL_CERT_FILE`; sem ela, valem as raízes do sistema.
 
+### PostgreSQL preparado (`postgres.mode: existing-prepared`, T036)
+
+O instalador não recebe credencial administrativa: usa o banco e as roles que você preparou e só confere. Prepare
+assim (os nomes das roles e do banco são livres):
+
+```sql
+CREATE ROLE dokpod_runtime NOLOGIN;            -- o grupo que recebe os privilégios das migrations
+CREATE ROLE dokpod_owner LOGIN PASSWORD '...';
+CREATE ROLE dokpod_app LOGIN PASSWORD '...' IN ROLE dokpod_runtime;
+CREATE DATABASE dokpod OWNER dokpod_owner;
+REVOKE CONNECT ON DATABASE dokpod FROM PUBLIC;
+GRANT CONNECT ON DATABASE dokpod TO dokpod_app;
+```
+
+- `postgres.owner` aplica as migrations e cria o schema `dokpod`. Se o schema já existir, ele precisa ser dessa role.
+  `postgres.runtime` é a role da API. As duas senhas entram como `{ file }` ou `{ env }`.
+- Com a role dona, o instalador confere a versão (`checks/server-version.sql`) e os privilégios das duas roles
+  (`checks/role-privileges.sql`). Também confere que a de runtime conecta com a senha informada. Falta ou excesso
+  dá código 3 e a mensagem diz o quê:
+  - nenhuma das duas pode ter `SUPERUSER`, `CREATEROLE`, `CREATEDB`, `REPLICATION` nem `BYPASSRLS`;
+  - as duas precisam de `LOGIN` e `CONNECT`;
+  - a de runtime precisa estar em `dokpod_runtime` e não pode ter `CREATE` no banco nem no schema.
+- Nada é criado nem alterado no servidor antes das migrations. As conexões gravadas em `secretsDir` nunca são
+  sobrescritas: se forem diferentes das respostas, a execução para e indica `recreate secret:<nome>`.
+
 Decisões: [ADR 2026-0010](../../docs/adr/2026-0010-modo-administrativo-da-api.md) e
 [ADR 2026-0011](../../docs/adr/2026-0011-instalador-da-release.md), ambos aceitos em 2026-11-08. Contrato da linha de comando:
 [installer-cli.md](../../specs/033-instalador-guiado/contracts/installer-cli.md).

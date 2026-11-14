@@ -10,7 +10,7 @@ Ordem das etapas, cada uma registrada no estado só depois de terminar (FR-027):
 2. pki: CA local, certificados da borda, da API e do agente do ambiente local, e o do key ring do BFF;
 3. config: compose.yaml, dokpod.env, deploy.env, borda e CAs em installDir, com o socket do engine só no agente;
 4. services:data: dokpod-postgres e keycloak-postgres (só os provisionados);
-5. database: banco, roles e conexões pelo catálogo SQL, no provisionado ou no PostgreSQL existente (existing-create, T035);
+5. database: banco, roles e conexões pelo catálogo SQL, no provisionado ou no PostgreSQL existente (existing-create, T035, ou existing-prepared, T036);
 6. migrations: pelo modo administrativo da API, com as confirmações de FR-011, FR-036 e FR-041;
 7. license: só na edição Business (FR-031);
 8. services:identity e realm: Keycloak e a reconciliação do realm;
@@ -21,7 +21,7 @@ Ordem das etapas, cada uma registrada no estado só depois de terminar (FR-027):
 Cada etapa services:* dá antes aos segredos montados o dono do usuário do serviço que os lê (D-015).
 
 Toda etapa converge na reexecução; uma falha registra a etapa, o relatório e o código, e a próxima execução retoma.
-PostgreSQL existing-prepared, nginx e Keycloak existentes ficam com as tarefas das histórias 2 e 3 (T036 a T039).
+nginx e Keycloak existentes ficam com as tarefas das histórias 2 e 3 (T037 a T039).
 #>
 Set-StrictMode -Version Latest
 foreach ($module in 'Common', 'Secrets', 'State', 'Plan', 'Render', 'Pki', 'Postgres', 'Migrations', 'Keycloak', 'Environments', 'Services') {
@@ -32,12 +32,11 @@ function Assert-ProvisionedScenario {
     param([System.Collections.IDictionary] $Answers)
 
     $existing = @()
-    if ($Answers.postgres.mode -notin 'provision', 'existing-create') { $existing += "postgres.mode '$($Answers.postgres.mode)'" }
     if ($Answers.keycloak.mode -ne 'provision') { $existing += "keycloak.mode '$($Answers.keycloak.mode)'" }
     if ($Answers.edge.mode -ne 'provision') { $existing += "edge.mode '$($Answers.edge.mode)'" }
     if ($existing.Count -gt 0) {
-        Stop-Installer -Code Usage -Message ("Esta versão do instalador aplica Keycloak e borda provisionados, com PostgreSQL provisionado ou existing-create; " +
-            "$($existing -join ', ') fica com as tarefas T036 a T039 da spec 033. Use 'plan' para ver o plano.")
+        Stop-Installer -Code Usage -Message ("Esta versão do instalador aplica Keycloak e borda provisionados, com PostgreSQL provisionado ou existente; " +
+            "$($existing -join ', ') fica com as tarefas T037 a T039 da spec 033. Use 'plan' para ver o plano.")
     }
 }
 
@@ -198,6 +197,9 @@ function Invoke-InstallerInstall {
         Invoke-InstallStep -StepState $state -StepRunId $runId -StepName 'database' -StepAction {
             if ($Answers.postgres.mode -eq 'provision') {
                 [void] (Invoke-ProvisionedPostgresBootstrap -Answers $Answers -Image $Infrastructure.postgresql -Network $dataNetwork -Cli $Cli)
+            }
+            elseif ($Answers.postgres.mode -eq 'existing-prepared') {
+                [void] (Invoke-PreparedPostgresBootstrap -Answers $Answers -Image $Infrastructure.postgresql -Network $databaseNetwork -Cli $Cli)
             }
             else {
                 [void] (Invoke-ExistingPostgresBootstrap -Answers $Answers -Image $Infrastructure.postgresql -Network $databaseNetwork -Interactive $Interactive -Cli $Cli)

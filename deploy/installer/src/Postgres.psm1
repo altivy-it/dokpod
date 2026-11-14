@@ -369,30 +369,50 @@ function Assert-PostgresRole {
     <#
     .SYNOPSIS
     Confere o menor privilégio (D-009): nenhuma role com atributo administrativo; a dona é dona do schema; a de runtime
-    conecta, está no grupo dokpod_runtime e não cria objetos no schema.
+    conecta, está no grupo dokpod_runtime e não cria objetos no schema nem no banco.
+    .PARAMETER Code
+    Error depois de um bootstrap do próprio instalador; Prerequisite para roles preparadas pelo usuário (existing-prepared).
+    .PARAMETER AllowMissingSchema
+    Banco preparado antes das migrations: sem o schema dokpod, basta a role dona poder criá-lo (CREATE no banco).
     #>
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)][System.Collections.IDictionary] $Owner,
-        [Parameter(Mandatory)][System.Collections.IDictionary] $Runtime
+        [Parameter(Mandatory)][System.Collections.IDictionary] $Runtime,
+        [string] $OwnerRole = $script:OwnerRole,
+        [string] $RuntimeRole = $script:RuntimeRole,
+        [string] $Database = $script:Database,
+        [ValidateSet('Error', 'Prerequisite')][string] $Code = 'Error',
+        [switch] $AllowMissingSchema
     )
 
+    $missing = [ordered]@{ exists = 'não existe'; login = 'sem LOGIN'; database_connect = "sem CONNECT no banco $Database" }
+    $excess = [ordered]@{ superuser = 'com SUPERUSER'; createrole = 'com CREATEROLE'; createdb = 'com CREATEDB'; replication = 'com REPLICATION'; bypassrls = 'com BYPASSRLS' }
     $problems = @()
-    foreach ($pair in @(@{ Name = 'dona'; Checks = $Owner }, @{ Name = 'de runtime'; Checks = $Runtime })) {
-        foreach ($check in 'exists', 'login', 'database_connect') {
-            if (-not $pair.Checks[$check]) { $problems += "role $($pair.Name) sem $check" }
+    foreach ($pair in @(@{ Name = "dona $OwnerRole"; Checks = $Owner }, @{ Name = "de runtime $RuntimeRole"; Checks = $Runtime })) {
+        if (-not $pair.Checks['exists']) { $problems += "role $($pair.Name) não existe"; continue }
+        foreach ($check in 'login', 'database_connect') {
+            if (-not $pair.Checks[$check]) { $problems += "role $($pair.Name) $($missing[$check])" }
         }
 
-        foreach ($check in 'superuser', 'createrole', 'createdb', 'replication', 'bypassrls') {
-            if ($pair.Checks[$check]) { $problems += "role $($pair.Name) com $check" }
+        foreach ($check in $excess.Keys) {
+            if ($pair.Checks[$check]) { $problems += "role $($pair.Name) $($excess[$check])" }
         }
     }
 
-    if (-not $Owner['schema_owner']) { $problems += 'role dona não é dona do schema dokpod' }
-    if (-not $Runtime['runtime_group_member']) { $problems += 'role de runtime fora do grupo dokpod_runtime' }
-    if ($Runtime['schema_create'] -or $Runtime['schema_owner']) { $problems += 'role de runtime pode criar objetos no schema dokpod' }
+    if ($Owner['exists'] -and -not $Owner['schema_owner']) {
+        if (-not ($AllowMissingSchema -and -not $Owner['schema_exists'])) { $problems += "role dona $OwnerRole não é dona do schema dokpod" }
+        elseif (-not $Owner['database_create']) { $problems += "role dona $OwnerRole sem CREATE no banco $Database (para criar o schema dokpod)" }
+    }
+
+    if ($Runtime['exists']) {
+        if (-not $Runtime['runtime_group_member']) { $problems += "role de runtime $RuntimeRole fora do grupo dokpod_runtime" }
+        if ($Runtime['schema_create'] -or $Runtime['schema_owner']) { $problems += "role de runtime $RuntimeRole com CREATE no schema dokpod" }
+        if ($Runtime['database_create']) { $problems += "role de runtime $RuntimeRole com CREATE no banco $Database" }
+    }
+
     if ($problems) {
-        Stop-Installer -Code Error -Message "As roles do Dokpod não ficaram com o menor privilégio: $($problems -join '; ')."
+        Stop-Installer -Code $Code -Message "As roles do Dokpod não têm o menor privilégio: $($problems -join '; ')."
     }
 }
 
@@ -470,7 +490,7 @@ function Invoke-PostgresBootstrap {
     $checking.Server = $asOwner
     $ownerChecks = Get-PostgresRolePrivilege @checking -Database $Database -Role $OwnerRole
     $runtimeChecks = Get-PostgresRolePrivilege @checking -Database $Database -Role $RuntimeRole
-    Assert-PostgresRole -Owner $ownerChecks -Runtime $runtimeChecks
+    Assert-PostgresRole -Owner $ownerChecks -Runtime $runtimeChecks -OwnerRole $OwnerRole -RuntimeRole $RuntimeRole -Database $Database
 
     $written = @()
     foreach ($name in $connections.Keys) {
@@ -650,7 +670,7 @@ function Invoke-ExistingPostgresBootstrap {
         $common = @{ Image = $Image; Network = $Network; Server = $server; CatalogRoot = $CatalogRoot; Cli = $Cli }
         $version = Get-PostgresServerVersion @common -MaintenanceDatabase $database
         Assert-PostgresRole -Owner (Get-PostgresRolePrivilege @common -Database $database -Role $owner.Username) `
-            -Runtime (Get-PostgresRolePrivilege @common -Database $database -Role $runtime.Username)
+            -Runtime (Get-PostgresRolePrivilege @common -Database $database -Role $runtime.Username) -OwnerRole $owner.Username -RuntimeRole $runtime.Username -Database $database
         return [pscustomobject]@{ ServerVersion = $version; Database = $database; OwnerRole = $owner.Username; RuntimeRole = $runtime.Username; ConnectionsWritten = @() }
     }
 
@@ -664,6 +684,106 @@ function Invoke-ExistingPostgresBootstrap {
     }
 }
 
+function Invoke-PreparedPostgresBootstrap {
+    <#
+    .SYNOPSIS
+    postgres.mode existing-prepared (T036, FR-008, D-009): banco e roles preparados pelo usuário. Sem credencial
+    administrativa, confere conexão, versão e menor privilégio com Installation/checks e grava as conexões.
+    .DESCRIPTION
+    Tudo com a role dona, no banco do Dokpod: a versão (server-version.sql) e os privilégios das duas roles
+    (role-privileges.sql). A de runtime também precisa conectar com a senha informada. Excesso ou falta de privilégio,
+    e uma role que não conecta, dão código 3 com o que falta ou sobra; nada é alterado no servidor.
+    As conexões já gravadas em secretsDir nunca são sobrescritas (FR-028): diferentes das respostas, a execução para.
+    #>
+    [CmdletBinding()]
+    [OutputType([pscustomobject])]
+    param(
+        [Parameter(Mandatory)][System.Collections.IDictionary] $Answers,
+        [Parameter(Mandatory)][string] $Image,
+        [string] $Network = $script:ExistingNetwork,
+        [string] $CatalogRoot = (Join-Path (Get-InstallerHome) 'catalog'),
+        [string] $Cli = 'docker'
+    )
+
+    $postgres = $Answers.postgres
+    if ($postgres.mode -ne 'existing-prepared') {
+        Stop-Installer -Code Error -Message "postgres.mode '$($postgres.mode)' não é o existing-prepared."
+    }
+
+    Assert-ExistingPostgresAnswers -Answers $Answers
+    $database = [string] $postgres.database
+    $roles = [ordered]@{}
+    foreach ($item in @(@{ Name = $script:OwnerConnection; Key = 'owner' }, @{ Name = $script:RuntimeConnection; Key = 'runtime' })) {
+        $section = $postgres[$item.Key]
+        $credential = Read-SecretReference -Reference $section.password -Purpose "postgres.$($item.Key) ($($section.username))"
+        if ([string]::IsNullOrEmpty($credential)) {
+            Stop-Installer -Code Usage -Message "A senha de postgres.$($item.Key) ($($section.username)) está vazia."
+        }
+
+        Register-InstallerSecret -Value $credential
+        $roles[$item.Name] = [pscustomobject]@{ Name = $item.Name; Username = [string] $section.username; Password = $credential }
+    }
+
+    $owner = $roles[$script:OwnerConnection]
+    $runtime = $roles[$script:RuntimeConnection]
+    if ($owner.Username -eq $runtime.Username) {
+        Stop-Installer -Code Usage -Message "postgres.owner e postgres.runtime precisam ser roles diferentes ($($owner.Username)): a de runtime não pode ter DDL (D-009)."
+    }
+
+    $existing = [ordered]@{}
+    foreach ($item in $roles.Values) {
+        $saved = Read-PostgresConnection -SecretsDirectory $Answers.secretsDir -Name $item.Name
+        if ($saved -and ($saved.Host -ne $postgres.host -or $saved.Port -ne [int] $postgres.port -or $saved.Database -ne $database -or
+                $saved.Username -ne $item.Username -or $saved.Password -ne $item.Password)) {
+            Stop-Installer -Code Error -Message ("A conexão '$($item.Name)' em secretsDir não é a das respostas ($($item.Username) em " +
+                "$($postgres.host):$($postgres.port)/$database); recrie com 'recreate secret:$($item.Name)'.")
+        }
+
+        $existing[$item.Name] = [bool] $saved
+    }
+
+    $asOwner = New-ExistingPostgresServer -Answers $Answers -Username $owner.Username -Password $owner.Password
+    $asRuntime = New-ExistingPostgresServer -Answers $Answers -Username $runtime.Username -Password $runtime.Password
+    $common = @{ Image = $Image; Network = $Network; CatalogRoot = $CatalogRoot; Cli = $Cli }
+    $connect = {
+        param($Server, [string] $Label)
+        try { return Get-PostgresServerVersion @common -Server $Server -MaintenanceDatabase $database }
+        catch {
+            if ($_.Exception.PSObject.Properties['ExitCode'] -and $_.Exception.ExitCode -eq (Get-InstallerExitCode -Name Error)) {
+                Stop-Installer -Code Prerequisite -Message "A role $Label ($($Server.Username)) não conecta ao banco $database em $($postgres.host):$($postgres.port): $($_.Exception.Message)"
+            }
+
+            throw
+        }
+    }
+
+    try {
+        $version = & $connect $asOwner 'dona'
+        $ownerChecks = Get-PostgresRolePrivilege @common -Server $asOwner -Database $database -Role $owner.Username
+        $runtimeChecks = Get-PostgresRolePrivilege @common -Server $asOwner -Database $database -Role $runtime.Username
+        Assert-PostgresRole -Owner $ownerChecks -Runtime $runtimeChecks -OwnerRole $owner.Username -RuntimeRole $runtime.Username -Database $database `
+            -Code Prerequisite -AllowMissingSchema
+        [void] (& $connect $asRuntime 'de runtime')
+    }
+    finally {
+        $asOwner.Password = $null
+        $asRuntime.Password = $null
+    }
+
+    $sslMode = if ($postgres.Contains('sslMode')) { [string] $postgres.sslMode } else { '' }
+    $written = @()
+    foreach ($item in $roles.Values) {
+        if (-not $existing[$item.Name]) {
+            $value = ConvertTo-PostgresConnectionString -Server $postgres.host -Port ([int] $postgres.port) -Database $database -Username $item.Username -Password $item.Password -SslMode $sslMode
+            Write-InstallerSecret -SecretsDirectory $Answers.secretsDir -Name $item.Name -Value $value
+            $written += $item.Name
+        }
+    }
+
+    return [pscustomobject]@{ ServerVersion = $version; Database = $database; OwnerRole = $owner.Username; RuntimeRole = $runtime.Username; ConnectionsWritten = $written }
+}
+
 Export-ModuleMember -Function Get-PostgresDefaults, Initialize-PostgresSecrets, ConvertTo-PostgresConnectionString, Read-PostgresConnection,
 Get-CatalogSqlFile, Invoke-PsqlCatalog, Get-PostgresServerVersion, Get-PostgresRolePrivilege, Assert-PostgresRole, Invoke-PostgresBootstrap,
-Invoke-ProvisionedPostgresBootstrap, Assert-ExistingPostgresAnswers, Get-ExistingPostgresCaPem, Get-ExistingPostgresAdminServer, Invoke-ExistingPostgresBootstrap
+Invoke-ProvisionedPostgresBootstrap, Assert-ExistingPostgresAnswers, Get-ExistingPostgresCaPem, Get-ExistingPostgresAdminServer, Invoke-ExistingPostgresBootstrap,
+Invoke-PreparedPostgresBootstrap
