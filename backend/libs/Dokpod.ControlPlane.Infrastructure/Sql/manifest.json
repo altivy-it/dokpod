@@ -27,7 +27,7 @@
           "kind": "secret"
         }
       ],
-      "sha256": "ccd9e7f63a9ff642bf495ec5d1512ab9409081f9aaf942081a668248427004b0"
+      "sha256": "1d9a984e3849f96242b4a726b13e24d4238565d9e55b57937cf99e49428ec1bb"
     },
     {
       "path": "Installation/bootstrap/02-create-database.sql",
@@ -43,7 +43,7 @@
           "kind": "identifier"
         }
       ],
-      "sha256": "bba9e5c4109414c567907f6bd2393872bac541e6d12e5e50de08551c963a6685"
+      "sha256": "13380195bb610ec6ffed08e05ebc126977d13524a2fcf5e4fb2b916392ab72e5"
     },
     {
       "path": "Installation/bootstrap/03-grants.sql",
@@ -55,11 +55,15 @@
           "kind": "identifier"
         },
         {
+          "name": "owner_role",
+          "kind": "identifier"
+        },
+        {
           "name": "runtime_role",
           "kind": "identifier"
         }
       ],
-      "sha256": "0cd9293ba3494d4ef4cfa85693ff1b077d559de739dd78dc4b8deaaceb8fec8e"
+      "sha256": "d1ccb430e873a86d6f73b70fb6197229ec8a57614331c9cbbc8f75e708a35f91"
     },
     {
       "path": "Installation/checks/role-privileges.sql",

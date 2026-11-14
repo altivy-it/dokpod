@@ -48,7 +48,7 @@ public sealed class InstallationSqlTests : IDisposable
                     ("owner_role", Owner), ("runtime_role", Runtime), ("owner_password_file", ownerFile), ("runtime_password_file", runtimeFile));
                 await RunAsync("Installation/bootstrap/02-create-database.sql", admin.Database!, ("database", Database), ("owner_role", Owner));
                 await CreateTableAsOwnerAsync();
-                await RunAsync("Installation/bootstrap/03-grants.sql", Database, ("database", Database), ("runtime_role", Runtime));
+                await RunAsync("Installation/bootstrap/03-grants.sql", admin.Database!, ("database", Database), ("owner_role", Owner), ("runtime_role", Runtime));
             }
 
             var owner = await PrivilegesAsync(Owner);

@@ -61,7 +61,7 @@ public sealed class RuntimeRolePrivilegesTests : IAsyncDisposable
             await AdminCommandHost.RunAsync(["migrations", "apply", "--confirm", planHash], context with { Error = errors }, Ct) == AdminExitCodes.Success,
             errors.ToString());
         Assert.Equal(AdminExitCodes.Success, await AdminCommandHost.RunAsync(["migrations", "verify"], context, Ct));
-        await PsqlAsync("Installation/bootstrap/03-grants.sql", Database, ("database", Database), ("runtime_role", Runtime));
+        await PsqlAsync("Installation/bootstrap/03-grants.sql", admin.Database!, ("database", Database), ("owner_role", Owner), ("runtime_role", Runtime));
 
         await using var runtime = ControlPlaneDbContextFactory.Create(Connection(Runtime, RuntimeCanary));
         var environmentId = Guid.NewGuid();

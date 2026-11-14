@@ -25,10 +25,20 @@ SELECT format('CREATE ROLE %I', :'runtime_role')
 WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :'runtime_role')
 \gexec
 
-SELECT format('ALTER ROLE %I LOGIN NOSUPERUSER NOCREATEROLE NOCREATEDB NOREPLICATION NOBYPASSRLS PASSWORD %L', :'owner_role', :'owner_password')
+SELECT format('ALTER ROLE %I LOGIN PASSWORD %L', :'owner_role', :'owner_password')
 \gexec
 
-SELECT format('ALTER ROLE %I LOGIN NOSUPERUSER NOCREATEROLE NOCREATEDB NOREPLICATION NOBYPASSRLS PASSWORD %L', :'runtime_role', :'runtime_password')
+SELECT format('ALTER ROLE %I LOGIN PASSWORD %L', :'runtime_role', :'runtime_password')
+\gexec
+
+-- Só os atributos que a role tem: citar SUPERUSER, REPLICATION ou BYPASSRLS num ALTER ROLE, mesmo para retirar, exige
+-- o próprio atributo, e um administrador sem SUPERUSER (CREATEROLE e CREATEDB, como em PostgreSQL gerenciado) falharia.
+SELECT format('ALTER ROLE %I%s%s%s%s%s', rolname,
+    CASE WHEN rolsuper THEN ' NOSUPERUSER' ELSE '' END, CASE WHEN rolcreaterole THEN ' NOCREATEROLE' ELSE '' END,
+    CASE WHEN rolcreatedb THEN ' NOCREATEDB' ELSE '' END, CASE WHEN rolreplication THEN ' NOREPLICATION' ELSE '' END,
+    CASE WHEN rolbypassrls THEN ' NOBYPASSRLS' ELSE '' END)
+FROM pg_roles
+WHERE rolname IN (:'owner_role', :'runtime_role') AND (rolsuper OR rolcreaterole OR rolcreatedb OR rolreplication OR rolbypassrls)
 \gexec
 
 SELECT format('GRANT dokpod_runtime TO %I', :'runtime_role')
