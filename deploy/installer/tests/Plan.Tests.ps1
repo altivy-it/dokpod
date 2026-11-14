@@ -165,3 +165,62 @@ Describe 'Plano' {
         try { Get-ObservedServices -Cli $cli } catch { $_.Exception.ExitCode | Should -Be 3 }
     }
 }
+
+Describe 'Combinações de PostgreSQL e nginx existentes (T038)' {
+    BeforeAll {
+        Import-Module (Join-Path $PSScriptRoot '../src/Render.psm1') -Force
+        $script:comboImages = [ordered]@{ api = 'a@sha256:1'; bff = 'b@sha256:2'; web = 'w@sha256:3'; agent = 'g@sha256:4' }
+        $script:comboInfra = [ordered]@{ postgresql = 'p@sha256:5'; keycloak = 'k@sha256:6'; nginx = 'n@sha256:7'; cosign = 'c@sha256:8' }
+
+        function New-ComboPlan {
+            param([string] $Postgres, [string] $Edge)
+            $answers = [ordered]@{
+                schemaVersion = 1; version = '0.8.0'; edition = 'ce'; publicUrl = 'https://dokpod.lab.test'; engine = 'podman-rootless'; operator = 'Ana'
+                installDir = '/srv/dokpod'; secretsDir = '/srv/dokpod-secrets'; manualMigrations = $false
+                postgres = switch ($Postgres) {
+                    'provision' { @{ mode = 'provision' } }
+                    'existing-create' { @{ mode = 'existing-create'; host = 'db.lab.test'; port = 5432; admin = @{ username = 'dba' } } }
+                    'existing-prepared' { @{ mode = 'existing-prepared'; host = 'db.lab.test'; port = 5432; database = 'dokpod'; owner = @{ username = 'o' }; runtime = @{ username = 'r' } } }
+                }
+                keycloak = @{ mode = 'provision'; realm = 'dokpod'; initialAdmin = @{ username = 'dokpod-admin'; email = 'ana@lab.test' } }
+                edge = if ($Edge -eq 'existing') { [ordered]@{ mode = 'existing'; upstreamHost = '127.0.0.1'; webPort = 18080; bffPort = 18081; keycloakPort = 18082 } } else { @{ mode = 'provision'; httpsPort = 8443 } }
+                certificates = @{ edge = @{ source = 'local-ca' }; api = @{ source = 'local-ca' }; agents = @{ source = 'local-ca' }; renewWarningDays = 30 }
+                localEnvironment = @{ name = 'host-local'; stage = 'production' }
+            }
+            $model = New-InstallerComposeModel -Answers $answers -Images $script:comboImages -Infrastructure $script:comboInfra -EngineSocket '/run/user/1000/podman/podman.sock' `
+                -LocalEnvironmentId '7d6c1f0e-2b44-4a55-9c3f-1b2a3c4d5e6f'
+            $desired = Get-DesiredComponents -Answers $answers -ServiceHashes (Set-ComposeConfigHashLabels -Model $model)
+            return [pscustomobject]@{ Model = $model; Desired = $desired; First = (New-InstallerPlan -Desired $desired -Observed @{}); Again = (New-InstallerPlan -Desired $desired -Observed (New-Converged $desired)) }
+        }
+    }
+
+    It '<Name>: só os componentes do usuário ficam como existing, o resto é criado, e a reexecução converge' -ForEach @(
+        @{ Name = 'só PostgreSQL existente (existing-create)'; Postgres = 'existing-create'; Edge = 'provision'; Existing = @('dokpod-postgres') }
+        @{ Name = 'só PostgreSQL existente (existing-prepared)'; Postgres = 'existing-prepared'; Edge = 'provision'; Existing = @('dokpod-postgres') }
+        @{ Name = 'só nginx existente'; Postgres = 'provision'; Edge = 'existing'; Existing = @('edge') }
+        @{ Name = 'PostgreSQL e nginx existentes'; Postgres = 'existing-create'; Edge = 'existing'; Existing = @('dokpod-postgres', 'edge') }
+    ) {
+        $combo = New-ComboPlan -Postgres $Postgres -Edge $Edge
+
+        @($combo.Desired | Where-Object Origin -eq 'existing').Name | Sort-Object | Should -Be ($Existing | Sort-Object)
+        foreach ($name in $Existing) {
+            $combo.Model.services.Keys | Should -Not -Contain $name
+            $step = $combo.First | Where-Object Component -eq $name
+            $step.Action | Should -Be 'keep'
+            $step.Reason | Should -Match 'nunca recriado nem removido'
+        }
+        @($combo.First | Where-Object { $_.Origin -eq 'provisioned' -and $_.Action -ne 'create' }).Count | Should -Be 0
+        Test-InstallerPlanConverged -Plan $combo.Again | Should -BeTrue
+    }
+
+    It 'só o nginx existente muda o que web e BFF publicam; só o PostgreSQL existente tira o isolamento da dokpod-data' {
+        $edge = (New-ComboPlan -Postgres 'provision' -Edge 'existing').Model
+        $postgres = (New-ComboPlan -Postgres 'existing-create' -Edge 'provision').Model
+
+        $edge.services.bff.ports[0].host_ip | Should -Be '127.0.0.1'
+        $edge.networks['dokpod-data'].internal | Should -BeTrue
+        $postgres.services.bff.Contains('ports') | Should -BeFalse
+        $postgres.services.edge.ports[0].published | Should -Be '8443'
+        $postgres.networks['dokpod-data'].internal | Should -BeFalse
+    }
+}
