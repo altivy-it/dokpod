@@ -12,7 +12,8 @@ BeforeAll {
         $cases = ($Versions.Keys | ForEach-Object { "  *service=$_*) echo id-$_ ;;" }) -join "`n"
         $labels = ($Versions.Keys | ForEach-Object { "  *img-$_*) echo '$($Versions[$_])' ;;" }) -join "`n"
         $fake = Join-Path $Root 'docker'
-        [System.IO.File]::WriteAllText($fake, @"
+        # O checkout dos .ps1 é CRLF: sem a troca, o shebang vira "#!/bin/sh\r".
+        [System.IO.File]::WriteAllText($fake, (@"
 #!/bin/sh
 case "`$1" in
   ps) case "`$*" in
@@ -23,7 +24,7 @@ $cases
 $labels
   esac ;;
 esac
-"@)
+"@).Replace("`r`n", "`n"))
         [System.IO.File]::SetUnixFileMode($fake, [System.IO.UnixFileMode]'UserRead, UserWrite, UserExecute')
         return $fake
     }

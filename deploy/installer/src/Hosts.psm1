@@ -156,6 +156,8 @@ Agente do Dokpod para o ambiente $EnvironmentId ($Engine).
 3. O host aparece conectado no console em até 5 minutos. Ele conecta em $endpoint, com mTLS.
 4. Se o pacote vazou ou o host saiu de uso: install.sh host revoke --environment $EnvironmentId --reason <motivo>.
 "@
+    # O checkout dos .psm1 é CRLF (.gitattributes): os here-strings herdam isso, e o host de destino é Linux.
+    foreach ($key in @($files.Keys)) { if ($files[$key] -is [string]) { $files[$key] = $files[$key].Replace("`r`n", "`n") } }
     return $files
 }
 
@@ -235,7 +237,7 @@ Confira e abra no host de destino (a frase foi entregue à parte, nunca vem no p
   openssl enc -d -aes-256-cbc -pbkdf2 -iter $($script:Iterations) -md sha256 -in agent.tar.enc -out agent.tar
   mkdir dokpod-agent && tar -xf agent.tar -C dokpod-agent && chmod 700 dokpod-agent
 Depois siga dokpod-agent/README.txt.
-"@
+"@.Replace("`r`n", "`n")
             'agent.tar.enc'         = $encrypted
             'agent.tar.enc.sha256'  = "$hash  agent.tar.enc`n"
         })
