@@ -11,6 +11,9 @@ por estar em outro namespace de rede, vêm do install.sh em variáveis DOKPOD_HO
   DOKPOD_HOST_LISTENING_PORTS           portas TCP em uso, separadas por vírgula
   DOKPOD_HOST_FREE_BYTES                espaço livre na pasta de instalação
   DOKPOD_HOST_PORT_DRIVER               driver de portas do Docker rootless, quando conhecido
+  DOKPOD_HOST_PUBLIC_NAME e DOKPOD_HOST_PUBLIC_ADDRESSES
+                                        o nome público das respostas e os endereços dele no host (getent),
+                                        porque o Docker não copia o /etc/hosts do host para o container
 Fato ausente vira aviso, nunca aprovação silenciosa.
 #>
 Set-StrictMode -Version Latest
@@ -82,6 +85,8 @@ function Get-HostFacts {
         ListeningPorts        = $ports
         FreeBytes             = if ($env:DOKPOD_HOST_FREE_BYTES) { [long] $env:DOKPOD_HOST_FREE_BYTES } else { $null }
         PortDriver            = $env:DOKPOD_HOST_PORT_DRIVER
+        PublicName            = $env:DOKPOD_HOST_PUBLIC_NAME
+        PublicAddresses       = if ($env:DOKPOD_HOST_PUBLIC_ADDRESSES) { @($env:DOKPOD_HOST_PUBLIC_ADDRESSES -split ',' | Where-Object { $_ }) } else { $null }
     }
 }
 
@@ -168,8 +173,10 @@ function Test-InstallerPrerequisites {
     }
 
     $publicHost = ([uri] $Answers.publicUrl).Host
+    $hostView = $HostFacts.PSObject.Properties['PublicName'] -and $HostFacts.PublicName -eq $publicHost -and $HostFacts.PublicAddresses
     try {
-        $addresses = @(& $Resolve $publicHost)
+        # A resolução do host vale mais que a do container: é o host (e o navegador) que chega à borda.
+        $addresses = @(if ($hostView) { $HostFacts.PublicAddresses } else { & $Resolve $publicHost })
         if ($addresses.Count -eq 0) { throw 'sem endereço' }
         & $add 'dns' 'ok' "$publicHost resolve para $($addresses -join ', ')."
     }

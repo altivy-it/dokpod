@@ -153,3 +153,22 @@ Describe 'Host' {
         }
     }
 }
+
+Describe 'Nome público resolvido no host' {
+    BeforeAll { $script:engine = Get-EngineFacts -Cli (New-Cli) }
+
+    It 'usa os endereços que o install.sh resolveu no host, mesmo sem resolução no container (Docker)' {
+        $facts = [pscustomobject]@{ UnprivilegedPortStart = 1024; Linger = 'yes'; ListeningPorts = @(22); FreeBytes = 50GB; PortDriver = $null
+            PublicName = 'dokpod.lab.test'; PublicAddresses = @('127.0.1.1') }
+        $results = Test-InstallerPrerequisites -Answers (New-Answers) -Engine $script:engine -HostFacts $facts -Resolve { param($name) throw 'nx' }
+        Get-Status $results 'dns' | Should -Be 'ok'
+        ($results | Where-Object Check -eq 'dns').Message | Should -Match '127\.0\.1\.1'
+    }
+
+    It 'com outro nome no fato do host, resolve no container' {
+        $facts = [pscustomobject]@{ UnprivilegedPortStart = 1024; Linger = 'yes'; ListeningPorts = @(22); FreeBytes = 50GB; PortDriver = $null
+            PublicName = 'outro.lab.test'; PublicAddresses = @('10.0.0.1') }
+        Get-Status (Test-InstallerPrerequisites -Answers (New-Answers) -Engine $script:engine -HostFacts $facts -Resolve { param($name) throw 'nx' }) 'dns' |
+            Should -Be 'failed'
+    }
+}

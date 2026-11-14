@@ -88,19 +88,23 @@ Na VM, as imagens de infraestrutura vêm do registro pelo digest de `templates/i
 ### Resultados na VPS (2026-11-14)
 
 Host: VPS `hostinger-staging` (Ubuntu 26.04.1 LTS x86-64, 8 vCPU, 31 GiB), que já roda outras stacks no Podman do
-usuário `brazildevops`. Para ter hosts limpos sem tocar nelas, a validação usou usuários descartáveis com engine
-próprio: `dokpodp` (Podman 6.1.3 rootless, netavark, pasta) e `dokpodd` (Docker rootless, pendente). A linha
-`127.0.1.1 dokpod.lab.test` ficou no `/etc/hosts` só durante a validação.
+usuário `brazildevops`. Para ter hosts limpos sem tocar nelas, a validação usou dois usuários descartáveis, cada um com
+engine próprio: `dokpodp` (Podman 6.1.3 rootless, netavark, pasta) e `dokpodd` (Docker Engine 29.9.3 rootless, pelo
+`get.docker.com/rootless`, com o perfil AppArmor do `rootlesskit` que o Ubuntu 26.04 exige). Durante a validação, o
+`/etc/hosts` teve a linha `127.0.1.1 dokpod.lab.test`. No fim, usuários, engines, perfil AppArmor e a linha foram
+removidos, e as stacks do `brazildevops` seguiram de pé.
 
-| Verificação | Docker rootless | Podman rootless |
+| Verificação | Docker 29.9.3 rootless | Podman 6.1.3 rootless |
 | --- | --- | --- |
-| `install.sh plan` com `httpsPort: 443` (`ip_unprivileged_port_start` 1024) | pendente | código 3, com as três saídas e "nada foi alterado" |
-| `install.sh plan` com DNS e porta corretos | pendente | pré-requisitos ok; código 5 por falta do manifesto da v0.8.0 (sem RC, esperado) |
-| Engine rootful (socket `/run/podman/podman.sock`, `--user 0:0`) | pendente | código 3: "O podman está em modo rootful… (D-015)" |
-| `Install.Tests.ps1` | pendente | 5/5 |
-| `Resume.Tests.ps1` | pendente | 4/4; retomada em 84 s, reexecução em 22 s, `converged` e nada alterado |
-| Primeiro acesso com Playwright | pendente | 1 passed (4,5 s): troca da senha e console com 1 host Podman 6.1.3 e 8 containers |
-| Tempo até o login (SC-001), com as imagens já baixadas | pendente | instalação em 146 s e login em 4,5 s (limite: 20 min) |
+| `install.sh plan` com `httpsPort: 443` (`ip_unprivileged_port_start` 1024) | código 3, com as três saídas | código 3, com as três saídas |
+| `install.sh plan` com DNS e porta corretos | pré-requisitos ok; código 5 por falta do manifesto (sem RC, esperado) | idem |
+| Aviso de IP de origem | aviso: driver de portas `builtin` troca o IP do cliente | ok (pasta) |
+| Engine rootful | não executado: a VPS não tem Docker rootful e não foi instalado um | código 3: "O podman está em modo rootful… (D-015)" |
+| `Install.Tests.ps1` | 5/5 | 5/5 |
+| `Resume.Tests.ps1` | 4/4; retomada em 40 s, reexecução em 22 s | 4/4; retomada em 84 s, reexecução em 22 s |
+| Reexecução (SC-003) | plano todo `keep`, `converged`, nada alterado | idem |
+| Primeiro acesso com Playwright | 1 passed (4,2 s) | 1 passed (4,5 s) |
+| Tempo até o login (SC-001), com as imagens já baixadas | 121 s (instalação em 115 s) | 150 s (instalação em 146 s) |
 
 Achados corrigidos na VPS:
 
@@ -110,6 +114,10 @@ Achados corrigidos na VPS:
   passaram a usar `--pids-limit 512` (`Get-ContainerLimitArguments`). No Podman 5.7 não acontecia.
 - **Host limpo:** o dono dos segredos montados era ajustado antes do `compose up` com `image inspect`, que falhava com a
   imagem ainda não baixada. `Resolve-ServiceUserId` passou a baixá-la pelo digest antes.
+- **DNS no Docker:** a verificação do nome público resolvia dentro do container do instalador; o Docker não copia o
+  `/etc/hosts` do host, e o caminho do quickstart (nome no `/etc/hosts`) era recusado. O `install.sh` passou a resolver
+  o nome das respostas no host (`getent ahosts`) e a repassá-lo em `DOKPOD_HOST_PUBLIC_NAME` e
+  `DOKPOD_HOST_PUBLIC_ADDRESSES`, que a verificação usa quando o nome confere.
 - **Testes:** no Podman 6, o `compose down` da limpeza pode deixar um container parado e as redes do projeto; como a
   rede da borda tem sub-rede fixa, a execução seguinte falhava. A limpeza dos testes remove o que sobrar pelo rótulo do
   projeto. O instalador não usa `compose down` hoje; o `recreate --all` (T043) deve tratar isso.
@@ -117,5 +125,8 @@ Achados corrigidos na VPS:
   temporária, o Playwright ia para 127.0.1.1. Os containers criados pela API de compatibilidade (os da instalação) não
   herdam a linha. O Playwright roda com `--no-hosts` no Podman.
 
-Pendente: o Docker rootless. A instalação no usuário `dokpodd` pelo `get.docker.com/rootless` foi bloqueada pela política
-de permissões desta sessão e aguarda decisão do solicitante.
+Observação fora do escopo: no Docker rootless, o console mostra CPU e memória como "indisponível" (o agente não publica
+amostras de recursos nesse engine), enquanto no Podman os cartões vêm preenchidos. Fica para triagem pelo Bug Fixing.
+
+Pendente da RC (T051/T052): o fluxo guiado no TTY pelo `install.sh` publicado, a verificação de assinatura das imagens e
+a medição do SC-001 contada do `install.sh`. A recusa de Docker rootful também fica para um host com Docker rootful.

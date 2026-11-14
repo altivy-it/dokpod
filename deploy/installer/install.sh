@@ -124,6 +124,15 @@ if command -v ss >/dev/null 2>&1; then
 fi
 free_bytes=$(df -P -B1 "$install_dir" 2>/dev/null | awk 'NR == 2 { print $4 }' || true)
 host_name=$(uname -n 2>/dev/null || true)
+# O nome público resolvido no host: o Docker não copia o /etc/hosts do host para o container do instalador.
+public_name=""
+public_addresses=""
+if [ -n "$answers" ] && [ -f "$answers" ]; then
+    public_name=$(sed -n 's#.*publicUrl"\{0,1\}[[:space:]]*:[[:space:]]*"\{0,1\}https://\([^:/"]*\).*#\1#p' "$answers" | head -n 1)
+    if [ -n "$public_name" ] && command -v getent >/dev/null 2>&1; then
+        public_addresses=$(getent ahosts "$public_name" 2>/dev/null | awk '{ print $1 }' | sort -u | paste -sd, - || true)
+    fi
+fi
 
 # As opções do container entram antes da imagem e dos argumentos originais, que ficam intactos no fim de "$@".
 set -- "$image" "$@"
@@ -141,6 +150,8 @@ set -- --rm --interactive --log-driver none --user 0:0 \
     "--env=DOKPOD_HOST_LISTENING_PORTS=$listening" \
     "--env=DOKPOD_HOST_FREE_BYTES=$free_bytes" \
     "--env=DOKPOD_HOST_NAME=$host_name" \
+    "--env=DOKPOD_HOST_PUBLIC_NAME=$public_name" \
+    "--env=DOKPOD_HOST_PUBLIC_ADDRESSES=$public_addresses" \
     "--env=HOME=$HOME" \
     "$@"
 if [ -t 0 ] && [ -t 1 ]; then set -- --tty "$@"; fi

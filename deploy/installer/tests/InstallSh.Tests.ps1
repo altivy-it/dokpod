@@ -119,6 +119,16 @@ Describe 'install.sh' {
         @($run | Where-Object { $_ -match '^--volume=.*\.sock' }).Count | Should -Be 1
     }
 
+    It 'repassa o nome público das respostas resolvido no host (o Docker não copia o /etc/hosts)' {
+        $answers = Join-Path $script:box.Root 'publica.yaml'
+        Set-Content -LiteralPath $answers -Value "publicUrl: https://localhost:18444`n"
+        $result = Invoke-InstallSh $script:box @('plan', '--answers', $answers) @{ DOKPOD_INSTALLER_IMAGE = 'localhost/dokpod-installer:dev' }
+        $result.ExitCode | Should -Be 0
+        $run = $result.Calls[-1]
+        $run | Should -Contain '--env=DOKPOD_HOST_PUBLIC_NAME=localhost'
+        ($run | Where-Object { $_ -like '--env=DOKPOD_HOST_PUBLIC_ADDRESSES=*' }) | Should -Match '127\.0\.0\.1|::1'
+    }
+
     It 'respostas com caminho relativo dão código 2' {
         (Invoke-InstallSh $script:box @('plan', '--answers', 'respostas.yaml') @{ DOKPOD_INSTALLER_IMAGE = 'localhost/x:dev' }).ExitCode | Should -Be 2
     }

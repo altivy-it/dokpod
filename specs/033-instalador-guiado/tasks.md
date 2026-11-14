@@ -616,10 +616,22 @@ conectado e um administrador que precisa trocar a senha.
   Achado sem correção: com o mesmo nome e outro ID, `admin environments register` saiu com código 1 ("could not be
   persisted"), não com o conflito 8 do contrato. Com a correção acima, o instalador não chega mais a isso, mas o modo
   administrativo merece a correção pelo Bug Fixing.
-- [ ] T034 [US1] (SC-001, SC-002) Validar os cenários 1 e 2 do quickstart em host descartável com Docker Engine rootless e com Podman rootless,
+- [X] T034 [US1] (SC-001, SC-002) Validar os cenários 1 e 2 do quickstart em host descartável com Docker Engine rootless e com Podman rootless,
   incluindo a recusa de um engine rootful e de `httpsPort` abaixo do limite do host.
   Medir o tempo (SC-001), entrar pela borda com Playwright (`lzocateli/playwright-e2e`) e registrar as evidências em
   `specs/033-instalador-guiado/validation.md`.
+
+  Nota (2026-11-14): sem release candidata publicada (T051), a validação seguiu o ajuste registrado em
+  [validation.md](validation.md#t034---cenários-1-e-2-do-quickstart-sc-001-sc-002): o `install.sh` real com a imagem
+  local para as verificações iniciais e as etapas de `Install.psm1` com as imagens desta branch para a instalação. Na
+  VPS `hostinger-staging`, em usuários descartáveis com Docker 29.9.3 rootless e Podman 6.1.3 rootless:
+  - recusas de porta (código 3), DNS e engine rootful (Podman) conferidas;
+  - `Install.Tests.ps1` e `Resume.Tests.ps1` verdes nos dois engines;
+  - primeiro acesso com Playwright: troca da senha e host local conectado;
+  - tempo até o login de 121 s no Docker e 150 s no Podman, com as imagens já baixadas.
+  Achados corrigidos: `redirect_uri` do BFF sem `/dokpod` no realm; `--pids-limit` explícito nos containers avulsos
+  (Podman 6); imagem baixada antes de ler o `USER`; DNS resolvido no host pelo `install.sh` (Docker). Pendente da RC: o
+  fluxo no TTY, a assinatura das imagens publicadas e a recusa de Docker rootful.
 
 **Checkpoint**: História 1 funcional e testável de forma independente (MVP).
 
