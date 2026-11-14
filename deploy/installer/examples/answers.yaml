@@ -1,0 +1,32 @@
+# Exemplo de respostas do instalador do Dokpod (spec 033): tudo provisionado. Sem segredos: cada senha seria
+# { file: <caminho> } ou { env: <variável> }. Esquema: specs/033-instalador-guiado/contracts/answers.schema.json.
+schemaVersion: 1
+version: "0.8.0"
+edition: ce
+publicUrl: "https://dokpod.example.test:8443"
+engine: podman-rootless
+operator: "Ana"
+installDir: /home/dokpod/.local/share/dokpod
+secretsDir: /home/dokpod/.config/dokpod/secrets
+postgres:
+  mode: provision
+keycloak:
+  mode: provision
+  realm: dokpod
+  initialAdmin:
+    username: dokpod-admin
+    email: "ana@example.test"
+edge:
+  mode: provision
+  httpsPort: 8443
+certificates:
+  edge:
+    source: local-ca
+  api:
+    source: local-ca
+  agents:
+    source: local-ca
+  renewWarningDays: 30
+localEnvironment:
+  name: host-local
+  stage: production

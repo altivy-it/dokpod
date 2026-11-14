@@ -145,6 +145,44 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+  # Spec 033 T052: smoke test da imagem do instalador. O estágio de testes roda o Pester inteiro dentro da imagem (os
+  # testes com engine real ficam pulados sem socket); a imagem final responde --help sem efeitos e, com as respostas de
+  # exemplo e sem socket rootless, o plan valida as respostas e para nos pré-requisitos com código 3.
+  installer:
+    name: Installer
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Pester inside the installer image
+        run: |
+          docker build --target test -t dokpod-installer:ci-test -f deploy/installer/Dockerfile .
+          docker run --rm dokpod-installer:ci-test
+
+      - name: PSScriptAnalyzer
+        run: >
+          docker run --rm -v "$PWD/deploy/installer:/i:ro" --entrypoint pwsh dokpod-installer:ci-test -NoProfile -Command
+          "Invoke-ScriptAnalyzer -Path /i/src -Recurse -Settings /i/PSScriptAnalyzerSettings.psd1 -EnableExit"
+
+      - name: Help and plan with the example answers
+        run: |
+          set -euo pipefail
+          docker build --target runtime -t dokpod-installer:ci -f deploy/installer/Dockerfile .
+          docker run --rm dokpod-installer:ci --help | grep -q 'Instalador do Dokpod'
+          set +e
+          docker run --rm --user 0:0 -v "$PWD/deploy/installer/examples:/ex:ro" dokpod-installer:ci plan --answers /ex/answers.yaml --non-interactive > plan.txt 2>&1
+          code=$?
+          set -e
+          cat plan.txt
+          [ "$code" -eq 3 ] || { echo "::error::plan --dry-run sem engine rootless devia sair com 3, saiu com $code."; exit 1; }
+          grep -q 'nada foi alterado' plan.txt
+
   # Spec 031 História 1 (T013 a T015): a CE continua sem licença. T013 roda no job Backend; aqui ficam a tela
   # de Configurações sem seção Licença (E2E com respostas simuladas pela borda nginx) e a prova de que a API CE não
   # tenta nenhuma comunicação externa durante início, operação e reinício (D-012, SC-002).
@@ -192,6 +230,7 @@ jobs:
       - backend
       - frontend
       - images
+      - installer
       - licensing-ce
     runs-on: ubuntu-24.04
     timeout-minutes: 5
