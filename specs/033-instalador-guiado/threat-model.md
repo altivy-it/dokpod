@@ -209,6 +209,32 @@ RUNTIME (depois da instalação)
 - **Recuperação**: backup do banco antes de migration, backup do estado antes de cada execução, remoção de dados só com
   segunda confirmação nomeada.
 
+## Revisão do implementado (T058)
+
+Revisão das fronteiras B1 a B12 contra o código das tarefas T005 a T057, feita em 2026-11-14. Origem: IA assistida;
+revisão humana pendente. Cada achado diz a fronteira, o que foi encontrado e o que mudou.
+
+| # | Fronteira | Achado | Correção ou estado |
+| --- | --- | --- | --- |
+| A1 | B10, L1 | Com nginx do host em loopback, o encaminhador de portas rootless não entrega a conexão como 127.0.0.1. Ela chega com o endereço do container na rede pela qual a porta sai, e com o BFF também na `dokpod-internal` saía o dela. O BFF ignorava os `X-Forwarded-*` e montava o `redirect_uri` em http | Nesse modo, o BFF fica só na `dokpod-edge` e confia no loopback e na sub-rede dela, onde só há containers do Dokpod (mesma confiança da borda provisionada). Teste de ponta a ponta com o `redirect_uri` público (T037) |
+| A2 | B10, L1 | Uma sonda que media o endereço do encaminhador subia containers com `--network host` e media o caminho errado (outra rede) | Sonda removida; a superfície some |
+| A3 | B10, L1 | Rede compartilhada com o nginx do usuário maior que /24 faria o BFF confiar em containers alheios | Recusada com código 3; o BFF confia só nas sub-redes dela (T037) |
+| A4 | B10 | Com nginx existente e Keycloak provisionado, o Keycloak é publicado no host e aceita `X-Forwarded-*` de qualquer origem (`KC_PROXY_HEADERS`) | Publicado só em `upstreamHost` (loopback) ou na rede compartilhada; quem chega a ele já está no host ou na rede do nginx. Risco residual R8 |
+| A5 | B3, R3 | A credencial do `master` do Keycloak existente passa ao container avulso | Só no `input.json` do tar no tmpfs, apagado logo depois de lido; nunca em argumento, variável do container ou `secretsDir` (teste do engine falso e canário). A reexecução sem ela usa o `dokpod-provisioner` (T039) |
+| A6 | B3, R3 | O `-DryRun` não acessa a rede e não mostra divergências | `-Drift` compara com o contrato sem alterar nada (o `Invoke-KeycloakApi` recusa qualquer método que não seja GET nesse modo) e emite só o nome do item, nunca valores de segredos (T040). Exports de `master` e `outro` iguais antes e depois (T039) |
+| A7 | B8, R6 | O formato do `openssl enc` (AES-256-CBC com PBKDF2-SHA256, 600 mil iterações) não autentica: o SHA-256 dentro do pacote não protege contra troca dos dois arquivos | O SHA-256 do `agent.tar.enc` sai também no terminal, para seguir com a frase por outro canal; o pacote não tem outro segredo da instalação (teste com a chave da CA, o client secret do BFF e a senha do banco). R6 continua aceito |
+| A8 | B7 | Troca da CA: a chave antiga fica em disco durante a sobreposição? | Não: a chave nova sobrescreve `pki/ca.key` no início; só o certificado antigo fica em `pki/ca-previous.crt`, e ele sai depois da reconexão do agente local com o certificado novo e de nenhum host remoto pendente (T044) |
+| A9 | B12, FR-029 | Lista de dados da segunda confirmação diferente da exata | Código 2 sem efeito; componentes do usuário nunca entram na lista nem num `recreate` (T042, T043) |
+| A10 | B5, FR-039 | A espera da reconexão na troca da CA precisa ler o banco | Arquivo novo do catálogo, `Installation/status/agent-connection.sql`, com o ID conferido como GUID antes de ir por `-v` como literal; executado pela role dona no container do `psql` (T044) |
+| A11 | B2, L7 | O container avulso do `nginx -t` não tinha `--log-driver none` | Corrigido; o canário confere o driver de log de todo container avulso (T053) |
+| A12 | B11 | O estado ganhou `updated_at` na lista de certificados (início da troca da CA) | Sem segredo; a raiz antiga é pública |
+
+### Risco residual novo
+
+| # | Risco | Fronteira | Mitigação atual | Aceite |
+| --- | --- | --- | --- | --- |
+| R8 | Com nginx do usuário e Keycloak provisionado, quem alcança a porta do Keycloak no loopback do host (ou a rede compartilhada) pode mandar `X-Forwarded-*` a ele | B10 | Porta só em loopback ou na rede compartilhada; quem chega nela já tem acesso ao host ou à rede do nginx | Pendente de revisão humana |
+
 ## Decisão do revisor
 
 | Campo | Valor |

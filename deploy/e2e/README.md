@@ -1,5 +1,8 @@
 # Stack E2E do Dokpod
 
+> Esta é a stack de desenvolvimento e laboratório, e continua. Para instalar um host de verdade, use o instalador
+> guiado: [runbook de instalação](../../docs/runbooks/instalacao.md).
+
 Este diretório define a stack local do projeto Dokpod, consumindo a plataforma
 global de identidade pela rede externa `identity-global`. O Compose cria os
 serviços próprios do Dokpod e não depende do checkout do AltivyNotes.

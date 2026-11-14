@@ -83,7 +83,10 @@ Ainda não há versão estável. Antes dela, continuam abertos: carga nominal co
 
 ## Primeiros passos
 
-Ainda não há pacote de instalação para produção. Para avaliar a prévia em laboratório:
+O instalador guiado ([spec 033](specs/033-instalador-guiado/spec.md)) leva um host Linux com Docker ou Podman rootless
+até o Dokpod em execução, com PostgreSQL, Keycloak e nginx novos ou existentes. Ele sai como asset da próxima release
+(`install.sh`); o procedimento está no [runbook de instalação](docs/runbooks/instalacao.md). Para avaliar a prévia em
+laboratório:
 
 1. Suba a plataforma de identidade e a stack local conforme [`deploy/e2e/README.md`](deploy/e2e/README.md), que traz Compose, certificados de laboratório e o agente opcional.
 2. Siga a [distribuição e operação](docs/distribuicao.md) para engines homologados, agente Linux e Windows e ordem de atualização.
