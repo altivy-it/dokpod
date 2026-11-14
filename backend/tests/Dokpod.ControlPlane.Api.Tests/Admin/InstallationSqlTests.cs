@@ -70,6 +70,9 @@ public sealed class InstallationSqlTests : IDisposable
             Assert.Equal("f", runtime["schema_create"]);
             Assert.Equal("f", runtime["schema_owner"]);
             Assert.Equal("f", runtime["superuser"]);
+            // Num banco preparado pelo usuário (existing-prepared), o instalador decide por estas duas.
+            Assert.Equal("t", runtime["schema_exists"]);
+            Assert.Equal("f", runtime["database_create"]);
 
             // A senha veio do arquivo: o verificador SCRAM existe e confere com a senha canário.
             await using var connection = await OpenAsync(admin.Database!);
@@ -94,6 +97,7 @@ public sealed class InstallationSqlTests : IDisposable
         var missing = await PrivilegesAsync($"t033_ausente_{suffix}");
         Assert.Equal("f", missing["exists"]);
         Assert.Equal("f", missing["database_connect"]);
+        Assert.Equal("f", missing["database_create"]);
 
         var superuser = await PrivilegesAsync(admin.Username!);
         Assert.Equal("t", superuser["superuser"]);

@@ -79,7 +79,7 @@
           "kind": "identifier"
         }
       ],
-      "sha256": "09b0db18f72b157aff93f479a4cdf8afe4c2c8d3363036a4142ebce26bb393f7"
+      "sha256": "ffc52b4f8da05d6e4c28add7a7d889d40e7b9c0c5048f68a2f1aced2671a395d"
     },
     {
       "path": "Installation/checks/schema-fingerprint.sql",

@@ -2,7 +2,8 @@
 -- Executor psql (-At -F '|'), conectado ao banco do Dokpod. Parâmetros por -v: role (identificador), database
 -- (identificador). Saída: uma linha por verificação, `verificação|valor` com valor `t` ou `f`. O instalador decide o
 -- esperado para a role dona e para a de runtime. `runtime_group_member` diz se a role recebe os privilégios que as
--- migrations concedem ao grupo `dokpod_runtime`.
+-- migrations concedem ao grupo `dokpod_runtime`. `schema_exists` e `database_create` decidem, num banco preparado pelo
+-- usuário antes das migrations, se a role dona pode criar o schema `dokpod` (a migration o cria quando falta).
 \set ON_ERROR_STOP on
 
 SELECT check_name, value
@@ -27,5 +28,8 @@ FROM (
     UNION ALL SELECT 12, 'runtime_group_member',
         EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :'role') AND EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'dokpod_runtime')
         AND pg_has_role(:'role', 'dokpod_runtime', 'MEMBER')
+    UNION ALL SELECT 13, 'schema_exists', to_regnamespace('dokpod') IS NOT NULL
+    UNION ALL SELECT 14, 'database_create',
+        EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :'role') AND has_database_privilege(:'role', :'database', 'CREATE')
 ) AS checks
 ORDER BY position;
