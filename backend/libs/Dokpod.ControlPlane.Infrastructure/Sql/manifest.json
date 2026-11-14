@@ -103,6 +103,18 @@
       "sha256": "17e04f7018e8ad8ca41046fc444ce7e52e56e02b1845dde628add87ba4ba0c17"
     },
     {
+      "path": "Installation/status/agent-connection.sql",
+      "purpose": "status",
+      "executor": "psql",
+      "parameters": [
+        {
+          "name": "environment_id",
+          "kind": "literal"
+        }
+      ],
+      "sha256": "ac45a4806522b69225e56fdf438cae64a47d333cb43c982cc5533e192b08a786"
+    },
+    {
       "path": "Installation/status/conference-counts.sql",
       "purpose": "status",
       "executor": "admin",
