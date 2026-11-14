@@ -25,7 +25,7 @@ O baseline inicial usa imagens mantidas no projeto público [`lzocateli/containe
 | Uso no Dokpod | Imagem de referência | Papel |
 | --- | --- | --- |
 | restore, build, testes e publicação .NET | `lzocateli/dotnet-sdk:10.0.403-noble-v1` | estágio de build da API, BFF e agentes |
-| runtime da API, BFF e agente Linux | `lzocateli/dotnet-aspnet:10.0.14-noble-v1` | base dos artefatos ASP.NET Core e do host do agente |
+| runtime da API, BFF e agente Linux | `lzocateli/dotnet-aspnet:10.0.15-noble-v1` | base dos artefatos ASP.NET Core e do host do agente |
 | comandos oficiais do frontend | `lzocateli/angular-cli:22.2.4-node24.22.1-bookworm-v1` | install, lint, typecheck, testes e build Angular |
 | toolchain JavaScript de apoio | `lzocateli/node:24.15.0-bookworm` | base do Angular CLI e tarefas Node sem Angular CLI |
 | runtime do web e proxy público | `lzocateli/nginx:1.28.0-bookworm-v1` | base da imagem final com assets Angular e configuração Dokpod |
@@ -52,7 +52,7 @@ já homologada e acrescenta só o que o instalador executa. Os itens abaixo tive
 
 | Item | Versão fixada | Licença | Origem e verificação | Papel |
 | --- | --- | --- | --- | --- |
-| Imagem base | `lzocateli/dotnet-aspnet:10.0.14-noble-v1` | ver matriz acima | já homologada | runtime da imagem do instalador |
+| Imagem base | `lzocateli/dotnet-aspnet:10.0.15-noble-v1` | ver matriz acima | já homologada | runtime da imagem do instalador |
 | PowerShell | 7.6.9 (`powershell-7.6.9-linux-x64.tar.gz`) | MIT | release do `PowerShell/PowerShell`, SHA-256 `1da6d6d6035d651f20e70ddee7c4c15ac6ab8b9fb40ee92240d91263f28a884b`, publicada em 2026-10-25 | linguagem do instalador |
 | Docker CLI | 29.9.2 (binário estático, `download.docker.com`) | Apache-2.0 | `docker/cli`; SHA-256 fixado no Dockerfile (T024) | cliente do engine rootless pelo socket montado |
 | Docker Compose | v5.6.1 (`docker-compose-linux-x86_64`) | Apache-2.0 | release do `docker/compose`, SHA-256 `47737f4236e6d3ccea7291995203f8f018058783b4c3a9469119811a0b5db8c0`, publicada em 2026-10-21 | orquestração nos dois engines rootless (D-002) |
