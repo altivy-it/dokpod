@@ -85,12 +85,37 @@ Na VM, as imagens de infraestrutura vêm do registro pelo digest de `templates/i
    Esperado: `1 passed`.
 5. **Tempo:** do início da instalação até o login do passo 4, sem o download das imagens. Esperado: até 20 minutos.
 
-### Resultados na VM
+### Resultados na VPS (2026-11-14)
+
+Host: VPS `hostinger-staging` (Ubuntu 26.04.1 LTS x86-64, 8 vCPU, 31 GiB), que já roda outras stacks no Podman do
+usuário `brazildevops`. Para ter hosts limpos sem tocar nelas, a validação usou usuários descartáveis com engine
+próprio: `dokpodp` (Podman 6.1.3 rootless, netavark, pasta) e `dokpodd` (Docker rootless, pendente). A linha
+`127.0.1.1 dokpod.lab.test` ficou no `/etc/hosts` só durante a validação.
 
 | Verificação | Docker rootless | Podman rootless |
 | --- | --- | --- |
-| Recusa de `httpsPort` 443 (código 3) | pendente | pendente |
-| Recusa do engine rootful (código 3) | pendente | pendente |
-| `Install.Tests.ps1` e `Resume.Tests.ps1` | pendente | pendente |
-| Primeiro acesso com Playwright | pendente | pendente |
-| Tempo até o login (SC-001) | pendente | pendente |
+| `install.sh plan` com `httpsPort: 443` (`ip_unprivileged_port_start` 1024) | pendente | código 3, com as três saídas e "nada foi alterado" |
+| `install.sh plan` com DNS e porta corretos | pendente | pré-requisitos ok; código 5 por falta do manifesto da v0.8.0 (sem RC, esperado) |
+| Engine rootful (socket `/run/podman/podman.sock`, `--user 0:0`) | pendente | código 3: "O podman está em modo rootful… (D-015)" |
+| `Install.Tests.ps1` | pendente | 5/5 |
+| `Resume.Tests.ps1` | pendente | 4/4; retomada em 84 s, reexecução em 22 s, `converged` e nada alterado |
+| Primeiro acesso com Playwright | pendente | 1 passed (4,5 s): troca da senha e console com 1 host Podman 6.1.3 e 8 containers |
+| Tempo até o login (SC-001), com as imagens já baixadas | pendente | instalação em 146 s e login em 4,5 s (limite: 20 min) |
+
+Achados corrigidos na VPS:
+
+- **Podman 6 e `docker run`:** pela API de compatibilidade do Podman 6.1.3, o `docker run` do CLI 29.9.2 sem
+  `--pids-limit` cria o container com `pids.max` 1, e o container avulso do `psql` não criava nem o `tar` ("sh: 1:
+  Cannot fork"). Os containers avulsos do instalador (psql, modo administrativo, Keycloak, cosign e o `id` da imagem)
+  passaram a usar `--pids-limit 512` (`Get-ContainerLimitArguments`). No Podman 5.7 não acontecia.
+- **Host limpo:** o dono dos segredos montados era ajustado antes do `compose up` com `image inspect`, que falhava com a
+  imagem ainda não baixada. `Resolve-ServiceUserId` passou a baixá-la pelo digest antes.
+- **Testes:** no Podman 6, o `compose down` da limpeza pode deixar um container parado e as redes do projeto; como a
+  rede da borda tem sub-rede fixa, a execução seguinte falhava. A limpeza dos testes remove o que sobrar pelo rótulo do
+  projeto. O instalador não usa `compose down` hoje; o `recreate --all` (T043) deve tratar isso.
+- **Artefato do teste, não do produto:** o `podman run` copia o `/etc/hosts` do host para o container; com a linha
+  temporária, o Playwright ia para 127.0.1.1. Os containers criados pela API de compatibilidade (os da instalação) não
+  herdam a linha. O Playwright roda com `--no-hosts` no Podman.
+
+Pendente: o Docker rootless. A instalação no usuário `dokpodd` pelo `get.docker.com/rootless` foi bloqueada pela política
+de permissões desta sessão e aguarda decisão do solicitante.

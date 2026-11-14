@@ -57,7 +57,7 @@ function Invoke-AdminCommand {
         Stop-Installer -Code Error -Message "A conexão de dokpod_owner ($script:OwnerConnection) não existe em secretsDir; o bootstrap do banco não rodou."
     }
 
-    $run = @('run', '--rm', '--log-driver', 'none', '--read-only', '--network', $Network,
+    $run = @('run', '--rm') + (Get-ContainerLimitArguments) + @('--log-driver', 'none', '--read-only', '--network', $Network,
         '--cap-drop', 'ALL', '--security-opt', 'no-new-privileges', '--user', '0:0',
         '--tmpfs', '/tmp:rw,noexec,nosuid,nodev,size=64m,mode=1777',
         '--env', 'DOTNET_CLI_TELEMETRY_OPTOUT=1', '--env', 'DOTNET_EnableDiagnostics=0',

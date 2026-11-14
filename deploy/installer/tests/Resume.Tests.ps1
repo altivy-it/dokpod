@@ -101,10 +101,13 @@ exec docker "`$@"
         $script:install = {
             param([string] $Fault)
             if ($Fault) { [System.IO.File]::WriteAllText((Join-Path $script:faults "fail-$([guid]::NewGuid().ToString('N'))"), $Fault) }
-            Invoke-Captured {
+            $run = Invoke-Captured {
                 Invoke-InstallerInstall -Answers $script:answers -Images $script:images -Infrastructure $script:infra -InstallerImage $env:DOKPOD_INSTALLER_IMAGE_REF `
                     -Confirmations $script:confirmations -Interactive $false -Project $script:project -WaitTimeoutSeconds 420 -Cli $script:cli
             }
+            $value = $run.Result
+            Write-Host "execução (falha em '$Fault', $([int] $run.Seconds) s): $(if ($value -is [System.Exception]) { "$($value.ExitCode) $($value.Message)" } else { $value })"
+            return $run
         }
         $script:lastSteps = {
             $state = Open-InstallerState -InstallDirectory $script:answers.installDir
@@ -135,15 +138,16 @@ exec docker "`$@"
         $script:before = Get-InstallSnapshot
         $script:runs['rerun'] = & $script:install $null
         $script:after = Get-InstallSnapshot
-        foreach ($name in @($script:runs.Keys | Where-Object { $_ -notmatch '-steps$' })) {
-            $value = $script:runs[$name].Result
-            Write-Host "execução $name ($([int] $script:runs[$name].Seconds) s): $(if ($value -is [System.Exception]) { "$($value.ExitCode) $($value.Message)" } else { $value })"
-        }
     }
 
     AfterAll {
         if (-not $script:enabled) { return }
         & docker compose --file (Join-Path $script:answers.installDir 'compose.yaml') --project-name $script:project down --volumes 2>$null | Out-Null
+        # No Podman 6 o down pode deixar container parado e redes; o que sobrar sai pelo rótulo do projeto.
+        $label = "label=com.docker.compose.project=$($script:project)"
+        @(& docker ps -aq --filter $label) | ForEach-Object { & docker rm -f $_ 2>$null | Out-Null }
+        @(& docker volume ls -q --filter $label) | ForEach-Object { & docker volume rm $_ 2>$null | Out-Null }
+        @(& docker network ls -q --filter $label) | ForEach-Object { & docker network rm $_ 2>$null | Out-Null }
         Remove-Item -LiteralPath $script:root -Recurse -Force -ErrorAction SilentlyContinue
     }
 

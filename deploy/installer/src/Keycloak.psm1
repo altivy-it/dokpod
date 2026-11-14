@@ -125,7 +125,7 @@ function Invoke-KeycloakSidecar {
     )
 
     $root = $script:SidecarRoot
-    $arguments = @('run', '--rm', '--interactive', '--log-driver', 'none', '--read-only', '--network', $Network,
+    $arguments = @('run', '--rm') + (Get-ContainerLimitArguments) + @('--interactive', '--log-driver', 'none', '--read-only', '--network', $Network,
         '--cap-drop', 'ALL', '--security-opt', 'no-new-privileges',
         '--tmpfs', "$($root):rw,noexec,nosuid,nodev,size=16m,mode=1777", '--tmpfs', '/tmp:rw,noexec,nosuid,nodev,size=64m,mode=1777',
         '--env', "HOME=$root", '--env', 'POWERSHELL_TELEMETRY_OPTOUT=1', '--env', 'DOTNET_CLI_TELEMETRY_OPTOUT=1',

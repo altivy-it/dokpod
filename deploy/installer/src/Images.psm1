@@ -109,7 +109,7 @@ function Confirm-ImageSignature {
     }
 
     $cosign = (Get-InfrastructureImages).cosign
-    $arguments = @('run', '--rm', '--log-driver', 'none', '--network', $(if ($OfflineDirectory) { 'none' } else { 'bridge' }))
+    $arguments = @('run', '--rm') + (Get-ContainerLimitArguments) + @('--log-driver', 'none', '--network', $(if ($OfflineDirectory) { 'none' } else { 'bridge' }))
     if ($OfflineDirectory) {
         $arguments += @('--volume', "${OfflineDirectory}:/signatures:ro", $cosign, 'verify', '--offline', '--local-image', '/signatures')
     }

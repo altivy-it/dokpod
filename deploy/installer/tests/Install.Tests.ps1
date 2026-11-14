@@ -48,6 +48,11 @@ Describe 'Instalação completa do cenário 1' {
     AfterAll {
         if (-not $script:enabled) { return }
         & docker compose --file (Join-Path $script:answers.installDir 'compose.yaml') --project-name $script:project down --volumes 2>$null | Out-Null
+        # No Podman 6 o down pode deixar container parado e redes; o que sobrar sai pelo rótulo do projeto.
+        $label = "label=com.docker.compose.project=$($script:project)"
+        @(& docker ps -aq --filter $label) | ForEach-Object { & docker rm -f $_ 2>$null | Out-Null }
+        @(& docker volume ls -q --filter $label) | ForEach-Object { & docker volume rm $_ 2>$null | Out-Null }
+        @(& docker network ls -q --filter $label) | ForEach-Object { & docker network rm $_ 2>$null | Out-Null }
         # Os arquivos que os containers gravaram são do usuário do host (engine rootless, --user 0:0): removíveis aqui.
         Remove-Item -LiteralPath $script:root -Recurse -Force -ErrorAction SilentlyContinue
     }
@@ -76,7 +81,8 @@ Describe 'Instalação completa do cenário 1' {
         $nginx = $script:infra.nginx
         $check = {
             param([string] $path)
-            & docker run --rm --log-driver none --network "$($script:project)_dokpod-edge" --volume "$($ca):/ca.crt:ro" --entrypoint curl $nginx `
+            # --pids-limit explícito: no Podman 6, o docker run sem ele cria o container com pids.max 1.
+            & docker run --rm --pids-limit 512 --log-driver none --network "$($script:project)_dokpod-edge" --volume "$($ca):/ca.crt:ro" --entrypoint curl $nginx `
                 --silent --output /dev/null --write-out '%{http_code}' --cacert /ca.crt "https://dokpod.lab.test:18443$path"
         }
         & $check '/dokpod/' | Should -Be '200'

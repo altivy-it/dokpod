@@ -249,6 +249,21 @@ function New-InstallerTarBundle {
     return , $stream.ToArray()
 }
 
+function Get-ContainerLimitArguments {
+    <#
+    .SYNOPSIS
+    Limite explícito de processos dos containers avulsos (`docker run`) do instalador.
+    .DESCRIPTION
+    Pela API de compatibilidade do Podman 6, um `docker run` sem --pids-limit sai com pids.max 1, e o container não cria
+    nem um processo filho ("Cannot fork"). O limite explícito resolve nos dois engines e também barra fork bomb.
+    #>
+    [CmdletBinding()]
+    [OutputType([string[]])]
+    param()
+
+    return , [string[]] @('--pids-limit', '512')
+}
+
 function Test-InteractiveSession {
     [CmdletBinding()]
     [OutputType([bool])]
@@ -259,4 +274,4 @@ function Test-InteractiveSession {
 
 Export-ModuleMember -Function Get-InstallerExitCode, Stop-Installer, Register-InstallerSecret, Clear-InstallerSecrets,
 Protect-InstallerText, Write-InstallerLine, Get-InstallerHome, Import-InstallerLibraries, Get-Sha256Hex, Invoke-InstallerProcess,
-New-InstallerTarBundle, Test-InteractiveSession
+New-InstallerTarBundle, Get-ContainerLimitArguments, Test-InteractiveSession

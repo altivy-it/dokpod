@@ -213,13 +213,19 @@ function Resolve-ServiceUserId {
 
     $user = if ($Service.Contains('user')) { [string] $Service.user } else {
         $inspect = Invoke-InstallerProcess -FilePath $Cli -ArgumentList @('image', 'inspect', '--format', '{{.Config.User}}', $Service.image)
-        if ($inspect.ExitCode -ne 0) { Stop-Installer -Code Error -Message "A imagem $($Service.image) não está no engine: $($inspect.Error.Trim())" }
+        if ($inspect.ExitCode -ne 0) {
+            # Num host limpo a imagem ainda não foi baixada: o dono é ajustado antes do `compose up`, que a baixaria.
+            $pull = Invoke-InstallerProcess -FilePath $Cli -ArgumentList @('pull', '--quiet', $Service.image)
+            if ($pull.ExitCode -ne 0) { Stop-Installer -Code Error -Message "Não foi possível baixar a imagem $($Service.image): $($pull.Error.Trim())" }
+            $inspect = Invoke-InstallerProcess -FilePath $Cli -ArgumentList @('image', 'inspect', '--format', '{{.Config.User}}', $Service.image)
+            if ($inspect.ExitCode -ne 0) { Stop-Installer -Code Error -Message "A imagem $($Service.image) não está no engine: $($inspect.Error.Trim())" }
+        }
         $inspect.Output.Trim()
     }
     $name = ($user -split ':')[0]
     if (-not $name) { return 0 }
     if ($name -match '^[0-9]+$') { return [int] $name }
-    $id = Invoke-InstallerProcess -FilePath $Cli -ArgumentList @('run', '--rm', '--log-driver', 'none', '--network', 'none', '--entrypoint', 'id', $Service.image, '-u', $name)
+    $id = Invoke-InstallerProcess -FilePath $Cli -ArgumentList (@('run', '--rm') + (Get-ContainerLimitArguments) + @('--log-driver', 'none', '--network', 'none', '--entrypoint', 'id', $Service.image, '-u', $name))
     if ($id.ExitCode -ne 0 -or $id.Output.Trim() -notmatch '^[0-9]+$') { Stop-Installer -Code Error -Message "Não foi possível resolver o usuário '$name' da imagem $($Service.image)." }
     return [int] $id.Output.Trim()
 }

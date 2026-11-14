@@ -94,6 +94,8 @@ Describe 'Container avulso da reconciliação' {
             $arguments[[array]::IndexOf($arguments, '--log-driver') + 1] | Should -Be 'none'
             ($arguments -join "`n") | Should -Not -Match ([regex]::Escape($bootstrap))
             ($arguments -join "`n") | Should -Not -Match 'sock|--volume|--publish'
+            # Sem limite explícito, o Podman 6 cria o container avulso com pids.max 1 (T034).
+            ($arguments -join ' ') | Should -Match '--pids-limit 512'
 
             $inputEntry = Get-TarText -Path (Join-Path $dir 'stdin.tar') -Name 'input.json'
             $inputEntry.Mode | Should -Be ([System.IO.UnixFileMode]'UserRead, UserWrite')

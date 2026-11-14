@@ -277,7 +277,7 @@ function Invoke-PsqlCatalog {
 
     Register-InstallerSecret -Value $Server.Password
     $bundle = New-PsqlBundle -Server $Server -Steps $Steps -CatalogRoot $CatalogRoot
-    $arguments = @('run', '--rm', '--interactive', '--log-driver', 'none', '--read-only', '--network', $Network,
+    $arguments = @('run', '--rm') + (Get-ContainerLimitArguments) + @('--interactive', '--log-driver', 'none', '--read-only', '--network', $Network,
         '--user', $script:PsqlUser, '--cap-drop', 'ALL', '--security-opt', 'no-new-privileges',
         '--tmpfs', "$($script:PsqlRoot):rw,noexec,nosuid,nodev,size=4m,mode=1777",
         '--label', 'io.dokpod.installer.task=psql', '--name', "dokpod-installer-psql-$([guid]::NewGuid().ToString('N').Substring(0, 12))",

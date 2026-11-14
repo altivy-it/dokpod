@@ -79,7 +79,9 @@ case " `$* " in
   *" compose "*" restart "*) exit 0 ;;
   *" compose "*" ps --all --format json "*) cat '$fake/ps.json'; exit 0 ;;
   *" admin licensing import "*) ls `$(printf '%s\n' "`$@" | sed -n 's/^type=bind,src=\(.*\),dst=\/run\/dokpod-migrations,ro`$/\1/p') > '$fake/work.ls'; cat '$fake/admin.json'; exit 0 ;;
-  " image inspect --format {{.Config.User}} "*) case "`$*" in *keycloak*) echo 1000 ;; *dokpod-api*|*dokpod-bff*) echo 1654:1654 ;; *web*) echo nginx ;; *) echo ;; esac; exit 0 ;;
+  " image inspect --format {{.Config.User}} "*)
+    case "`$*" in *ausente*) [ -f '$fake/pulled' ] || exit 1; echo 70 ;; *keycloak*) echo 1000 ;; *dokpod-api*|*dokpod-bff*) echo 1654:1654 ;; *web*) echo nginx ;; *) echo ;; esac; exit 0 ;;
+  " pull --quiet "*) touch '$fake/pulled'; exit 0 ;;
   *" --entrypoint id "*) echo 101; exit 0 ;;
   " ps "*) exit 0 ;;
   *" inspect "*) exit 1 ;;
@@ -271,6 +273,13 @@ Describe 'Dono dos segredos montados (D-015)' {
             $owners.Contains('/s/pki/agent.pfx') | Should -BeFalse
             (Get-Content (Join-Path $root 'fake/chown.log')) | Should -Be @('1000 /s/keycloak-db-password', '1000 /s/keycloak-bootstrap-admin', '1654 /s/ConnectionStrings__ControlPlane')
             Remove-Item (Join-Path $root 'fake/chown.log')
+
+            # Imagem ainda não baixada (host limpo): baixa antes de ler o USER.
+            $model.services['postgres-novo'] = [ordered]@{ image = 'docker.io/x/ausente@sha256:1'; secrets = @(@{ source = 'novo' }) }
+            $model.secrets['novo'] = @{ file = '/s/novo' }
+            (Set-ServiceSecretOwner -Model $model -Services @('postgres-novo') -Cli $cli -Chown $chown)['/s/novo'] | Should -Be 70
+            ((Get-FakeCalls -Root $root) | Where-Object { $_[0] -eq 'pull' }).Count | Should -BeGreaterThan 0
+            $model.services.Remove('postgres-novo')
 
             $only = Set-ServiceSecretOwner -Model $model -Services @('api') -Cli $cli -Chown $chown
             @($only.Keys) | Should -Be @('/s/ConnectionStrings__ControlPlane')
