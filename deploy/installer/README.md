@@ -59,6 +59,30 @@ GRANT CONNECT ON DATABASE dokpod TO dokpod_app;
 - Nada é criado nem alterado no servidor antes das migrations. As conexões gravadas em `secretsDir` nunca são
   sobrescritas: se forem diferentes das respostas, a execução para e indica `recreate secret:<nome>`.
 
+### Nginx existente (`edge.mode: existing`, T037)
+
+O instalador não sobe a borda do Dokpod e não toca nos arquivos do seu nginx. Ele gera `installDir/edge/dokpod.conf`
+e `dokpod.locations`, valida os dois com `nginx -t` em container e lista no resumo os passos que restam:
+- configurar o certificado;
+- incluir `dokpod.conf` no contexto `http`;
+- incluir `dokpod.locations` no `server {}` com TLS do nome público;
+- testar e recarregar o nginx.
+
+`edge.upstreamHost` diz onde web e BFF escutam (FR-043). Qualquer outro valor dá código 2.
+
+- **`127.0.0.1` ou `::1`** (nginx no host): web, BFF e o Keycloak provisionado são publicados só nesse endereço, em
+  `webPort`, `bffPort` e `keycloakPort` (padrões 18080, 18081 e 18082).
+  - O encaminhamento de portas do modo rootless troca o IP do nginx pelo de um endereço da rede `dokpod-edge`, por
+    onde a porta é publicada. Por isso o BFF confia no loopback e na sub-rede da `dokpod-edge`, onde só há
+    containers do Dokpod, como na borda provisionada.
+  - No Podman, API e BFF chegam ao Keycloak provisionado pelo nome público apontado para o host (`host-gateway`). Por
+    isso o nginx precisa escutar também no endereço que os containers usam para o host, não só no IP público.
+- **`{ network: <nome> }`** (nginx em container): web, BFF e o Keycloak provisionado entram nessa rede como
+  `dokpod-web`, `dokpod-bff` e `dokpod-keycloak`, sem nenhuma porta no host.
+  - A rede precisa existir e ter sub-rede de até /24, senão a execução para com código 3. O BFF confia só nela.
+  - Com o Keycloak provisionado, dê ao container do nginx o nome público como alias nessa rede. Assim API e BFF
+    alcançam a `Authority` por ele.
+
 Decisões: [ADR 2026-0010](../../docs/adr/2026-0010-modo-administrativo-da-api.md) e
 [ADR 2026-0011](../../docs/adr/2026-0011-instalador-da-release.md), ambos aceitos em 2026-11-08. Contrato da linha de comando:
 [installer-cli.md](../../specs/033-instalador-guiado/contracts/installer-cli.md).

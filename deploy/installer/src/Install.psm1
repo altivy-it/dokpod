@@ -21,10 +21,11 @@ Ordem das etapas, cada uma registrada no estado só depois de terminar (FR-027):
 Cada etapa services:* dá antes aos segredos montados o dono do usuário do serviço que os lê (D-015).
 
 Toda etapa converge na reexecução; uma falha registra a etapa, o relatório e o código, e a próxima execução retoma.
-nginx e Keycloak existentes ficam com as tarefas das histórias 2 e 3 (T037 a T039).
+Com nginx existente (T037), o config valida o dokpod.conf com nginx -t e o resumo lista os passos no nginx do usuário.
+Keycloak existente fica com a tarefa T039.
 #>
 Set-StrictMode -Version Latest
-foreach ($module in 'Common', 'Secrets', 'State', 'Plan', 'Render', 'Pki', 'Postgres', 'Migrations', 'Keycloak', 'Environments', 'Services') {
+foreach ($module in 'Common', 'Secrets', 'State', 'Plan', 'Render', 'Edge', 'Pki', 'Postgres', 'Migrations', 'Keycloak', 'Environments', 'Services') {
     Import-Module (Join-Path $PSScriptRoot "$module.psm1")
 }
 
@@ -33,10 +34,9 @@ function Assert-ProvisionedScenario {
 
     $existing = @()
     if ($Answers.keycloak.mode -ne 'provision') { $existing += "keycloak.mode '$($Answers.keycloak.mode)'" }
-    if ($Answers.edge.mode -ne 'provision') { $existing += "edge.mode '$($Answers.edge.mode)'" }
     if ($existing.Count -gt 0) {
-        Stop-Installer -Code Usage -Message ("Esta versão do instalador aplica Keycloak e borda provisionados, com PostgreSQL provisionado ou existente; " +
-            "$($existing -join ', ') fica com as tarefas T037 a T039 da spec 033. Use 'plan' para ver o plano.")
+        Stop-Installer -Code Usage -Message ("Esta versão do instalador aplica o Keycloak provisionado; " +
+            "$($existing -join ', ') fica com a tarefa T039 da spec 033. Use 'plan' para ver o plano.")
     }
 }
 
@@ -120,6 +120,7 @@ function Invoke-InstallerInstall {
 
     Assert-ProvisionedScenario -Answers $Answers
     Assert-ExistingPostgresAnswers -Answers $Answers
+    Assert-ExistingEdgeAnswers -Answers $Answers
     [void] [System.IO.Directory]::CreateDirectory($Answers.installDir)
     Initialize-SecretsDirectory -Path $Answers.secretsDir
     $dataNetwork = "$($Project)_dokpod-data"
@@ -142,7 +143,9 @@ function Invoke-InstallerInstall {
         [void] (Start-InstallerRun -State $state -Command 'install' -RunId $runId)
 
         $environment = Resolve-LocalEnvironment -Answers $Answers -State $state
-        $model = New-InstallerComposeModel -Answers $Answers -Images $Images -Infrastructure $Infrastructure -EngineSocket $EngineSocket -LocalEnvironmentId $environment.Id
+        $edgeTrusted = Get-EdgeTrustedNetworks -Answers $Answers -Cli $Cli
+        $model = New-InstallerComposeModel -Answers $Answers -Images $Images -Infrastructure $Infrastructure -EngineSocket $EngineSocket -LocalEnvironmentId $environment.Id `
+            -TrustedNetworks $edgeTrusted
         $model.name = $Project
         $hashes = Set-ComposeConfigHashLabels -Model $model
         $desired = Get-DesiredComponents -Answers $Answers -ServiceHashes $hashes
@@ -191,6 +194,7 @@ function Invoke-InstallerInstall {
             Assert-EngineSocketIsolation -Model $model -EngineSocket $EngineSocket
             $trust = Get-TrustMaterial -Answers $Answers -Ca $certificates.Ca -Edge $certificates.Edge -Api $certificates.Api
             [void] (Write-InstallerFiles -Answers $Answers -Model $model -CaBundle $trust.CaBundle -LocalCaPem $trust.ServerCaPem -AgentsCaPem $trust.AgentsCaPem)
+            if ($Answers.edge.mode -eq 'existing') { [void] (Test-EdgeConfiguration -Answers $Answers -Image $Infrastructure.nginx -Cli $Cli) }
         }
 
         & $runStage 'data'
@@ -251,6 +255,7 @@ function Invoke-InstallerInstall {
 
         $next = @()
         if ($license -and -not $license.Imported) { $next += $license.Next }
+        $next += Get-ExistingEdgeSteps -Answers $Answers
         $next += "Para outros hosts: 'install.sh host add --name <nome>'."
         [void] (Write-InstallSummary -Answers $Answers -ReportPath $report -NextSteps $next -Interactive $Interactive)
         return 0

@@ -177,7 +177,12 @@ function Set-InstallerAnswerDefaults {
     if (-not $Answers.localEnvironment.Contains('stage')) { $Answers.localEnvironment['stage'] = 'production' }
     if (-not $Answers.keycloak.Contains('realm')) { $Answers.keycloak['realm'] = 'dokpod' }
     if ($Answers.edge.mode -eq 'provision' -and -not $Answers.edge.Contains('httpsPort')) { $Answers.edge['httpsPort'] = 443 }
-    if ($Answers.edge.mode -eq 'existing' -and -not $Answers.edge.Contains('upstreamHost')) { $Answers.edge['upstreamHost'] = '127.0.0.1' }
+    if ($Answers.edge.mode -eq 'existing') {
+        if (-not $Answers.edge.Contains('upstreamHost')) { $Answers.edge['upstreamHost'] = '127.0.0.1' }
+        foreach ($default in @(@('webPort', 18080), @('bffPort', 18081), @('keycloakPort', 18082))) {
+            if (-not $Answers.edge.Contains($default[0])) { $Answers.edge[$default[0]] = $default[1] }
+        }
+    }
     if (-not $Answers.certificates.Contains('renewWarningDays')) { $Answers.certificates['renewWarningDays'] = 30 }
 }
 
@@ -325,7 +330,14 @@ function Request-InstallerAnswers {
         }
     }
 
-    if (-not $answers.Contains('edge')) { $answers['edge'] = @{ mode = (& $ask 'edge.mode' 'Borda (provision ou existing)' 'provision' @('provision', 'existing')) } }
+    if (-not $answers.Contains('edge')) {
+        $answers['edge'] = @{ mode = (& $ask 'edge.mode' 'Borda (provision ou existing)' 'provision' @('provision', 'existing')) }
+        if ($answers.edge.mode -eq 'existing') {
+            # Só loopback ou uma rede compartilhada com o nginx do usuário (FR-043); o resto o esquema recusa.
+            $upstream = & $ask 'edge.upstreamHost' 'Onde web e BFF escutam para o seu nginx: 127.0.0.1, ::1 ou o nome de uma rede compartilhada com ele' '127.0.0.1' $null
+            $answers.edge['upstreamHost'] = if ($upstream -in '127.0.0.1', '::1') { $upstream } else { @{ network = $upstream } }
+        }
+    }
     if (-not $answers.Contains('certificates')) {
         $answers['certificates'] = @{ edge = @{ source = 'local-ca' }; api = @{ source = 'local-ca' }; agents = @{ source = 'local-ca' } }
     }

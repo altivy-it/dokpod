@@ -5,7 +5,7 @@ Linha de comando do instalador (spec 033 T027, FR-001, FR-004, FR-035; contrato 
 dos argumentos, confirmações explícitas e os comandos sem efeito (help, plan, --dry-run, status, sql export).
 #>
 Set-StrictMode -Version Latest
-foreach ($module in 'Common', 'Answers', 'State', 'Prerequisites', 'Images', 'Render', 'Plan', 'Install') {
+foreach ($module in 'Common', 'Answers', 'State', 'Prerequisites', 'Images', 'Render', 'Edge', 'Plan', 'Install') {
     Import-Module (Join-Path $PSScriptRoot "$module.psm1")
 }
 
@@ -223,6 +223,11 @@ function Invoke-InstallerPlanCommand {
         $observed = Get-ObservedServices
         $ownedPorts = @()
         if ($observed.Contains('edge')) { $ownedPorts += [int] $answers.edge.httpsPort }
+        if ($answers.edge.mode -eq 'existing' -and $answers.edge.upstreamHost -isnot [System.Collections.IDictionary]) {
+            foreach ($pair in @(@('web', 'webPort'), @('bff', 'bffPort'), @('keycloak', 'keycloakPort'))) {
+                if ($observed.Contains($pair[0])) { $ownedPorts += [int] $answers.edge[$pair[1]] }
+            }
+        }
         if ($observed.Contains('api') -and $answers.Contains('agentGrpcPort') -and $answers.agentGrpcPort) { $ownedPorts += [int] $answers.agentGrpcPort }
         Write-InstallerLine -Message 'Pré-requisitos:'
         Assert-InstallerPrerequisites -Results (Test-InstallerPrerequisites -Answers $answers -Engine $engine -HostFacts (Get-HostFacts) -OwnedPorts $ownedPorts)
@@ -230,8 +235,11 @@ function Invoke-InstallerPlanCommand {
         $release = Read-ReleaseManifest -Path (Get-ReleaseManifestPath -Version $answers.version -Offline $Parsed.Options['offline']) -Version $answers.version
         $images = Select-ReleaseImages -Images $release -Edition $answers.edition
         $environmentId = if ($state) { (Invoke-StateSql -State $state -Name 'environments-list' -Rows | Select-Object -First 1)?.environment_id } else { $null }
-        $model = New-InstallerComposeModel -Answers $answers -Images $images -Infrastructure (Get-InfrastructureImages) `
-            -EngineSocket ($env:DOKPOD_HOST_ENGINE_SOCKET ?? '/run/engine.sock') -LocalEnvironmentId ($environmentId ?? '00000000-0000-0000-0000-000000000000')
+        Assert-ExistingEdgeAnswers -Answers $answers
+        $infrastructure = Get-InfrastructureImages
+        $model = New-InstallerComposeModel -Answers $answers -Images $images -Infrastructure $infrastructure `
+            -EngineSocket ($env:DOKPOD_HOST_ENGINE_SOCKET ?? '/run/engine.sock') -LocalEnvironmentId ($environmentId ?? '00000000-0000-0000-0000-000000000000') `
+            -TrustedNetworks (Get-EdgeTrustedNetworks -Answers $answers)
         $hashes = Set-ComposeConfigHashLabels -Model $model
         $desired = Get-DesiredComponents -Answers $answers -ServiceHashes $hashes
 

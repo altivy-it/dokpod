@@ -418,10 +418,22 @@
               "default": "127.0.0.1"
             },
             "webPort": {
-              "type": "integer"
+              "description": "Porta do web no modo loopback; padrão 18080.",
+              "type": "integer",
+              "minimum": 1024,
+              "maximum": 65535
             },
             "bffPort": {
-              "type": "integer"
+              "description": "Porta do BFF no modo loopback; padrão 18081.",
+              "type": "integer",
+              "minimum": 1024,
+              "maximum": 65535
+            },
+            "keycloakPort": {
+              "description": "Porta do Keycloak provisionado no modo loopback, para o nginx do usuário encaminhar /realms/ e /resources/; padrão 18082.",
+              "type": "integer",
+              "minimum": 1024,
+              "maximum": 65535
             }
           }
         }

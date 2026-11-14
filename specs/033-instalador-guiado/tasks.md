@@ -685,7 +685,7 @@ conectado e um administrador que precisa trocar a senha.
     dona `SUPERUSER`, runtime sem `CONNECT` e senha errada recusados com código 3. `Install.Tests.ps1` fez uma
     instalação completa no Podman 5.7 rootless (2/2): schema `dokpod` da role dona, API como role de runtime com
     TLS `require`, nenhuma role nova no servidor, reexecução convergida. `Answers.Tests.ps1` cobre o modo guiado.
-- [ ] T037 [US2] (FR-021, FR-043) `edge.mode: existing` em `deploy/installer/src/Edge.psm1`:
+- [X] T037 [US2] (FR-021, FR-043) `edge.mode: existing` em `deploy/installer/src/Edge.psm1`:
   - gerar `installDir/edge/dokpod.conf` com `upstreamHost`, `webPort` e `bffPort`;
   - publicar web e BFF só em `upstreamHost`, aceitando apenas `127.0.0.1`, `::1` ou `{network}` (rede interna
     compartilhada com o nginx do usuário), e recusar outro valor com código 2 (FR-043);
@@ -694,6 +694,23 @@ conectado e um administrador que precisa trocar a senha.
 
   Testes em `deploy/installer/tests/Edge.Tests.ps1`, incluindo a recusa de `upstreamHost` fora de loopback e
   `Security__TrustedNetworks` restrito ao loopback ou à rede interna compartilhada (L1 do threat model).
+  - **Feito em 2026-11-14**. `Edge.psm1` recusa com código 2 um `upstreamHost` fora de `127.0.0.1`, `::1` ou
+    `{ network }`, além de portas repetidas. O `config` roda `nginx -t` em container sem rede, com os dois arquivos
+    incluídos como o README manda. O resumo lista os passos no nginx do usuário: certificado, os dois `include`, o
+    alias na rede compartilhada e o reload. Nenhum arquivo fora de `installDir` é tocado.
+  - **Loopback**: web, BFF e o Keycloak provisionado são publicados só em `upstreamHost` (`webPort`, `bffPort` e o novo
+    `keycloakPort`). No Podman, API e BFF chegam ao Keycloak pelo nome público apontado para o host (`host-gateway`).
+  - **Achado (L1)**: o encaminhador de portas rootless não entrega a conexão do nginx do host como 127.0.0.1. Ela chega
+    com o endereço do container na rede pela qual a porta sai, e com o BFF também na `dokpod-internal` saía o dela,
+    fora das redes confiáveis: o BFF ignorava os `X-Forwarded-*` e montava `redirect_uri` em http, sem `/dokpod`.
+    Nesse modo, o BFF fica só na `dokpod-edge` e confia no loopback e na sub-rede dela.
+  - **Rede compartilhada**: web, BFF e o Keycloak entram nela como `dokpod-web`, `dokpod-bff` e `dokpod-keycloak`, sem
+    porta no host. A rede precisa existir e ter sub-rede de até /24 (código 3), e o BFF confia só nela.
+  - **Testes**: `Edge.Tests.ps1` (13, com `nginx -t` e redes reais). `Install.Tests.ps1` fez a instalação completa no
+    Podman 5.7 rootless (3/3), com um nginx na rede do host no papel do nginx do usuário. Console, OIDC e login com
+    `redirect_uri` `https://…/dokpod/signin-oidc`, o site anterior do nginx igual e a reexecução convergida. Docker
+    rootless e a rede compartilhada de ponta a ponta ficam para a T038.
+
 - [ ] T038 [US2] Combinações (só PostgreSQL existente, só nginx existente, ambos) no motor de plano, com teste em
   `deploy/installer/tests/Plan.Tests.ps1`. Validar o cenário 3 do quickstart com Docker Engine rootless e com Podman rootless
   (SC-002) e registrar em `validation.md`.

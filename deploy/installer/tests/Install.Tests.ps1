@@ -331,3 +331,118 @@ Describe 'Instalação com PostgreSQL existente (existing-prepared)' {
         $after | Should -Be $before
     }
 }
+
+Describe 'Instalação com nginx existente em loopback (edge.mode existing)' {
+    BeforeAll {
+        $script:edgeEnabled = $script:enabled -and $env:DOKPOD_HOST_ENGINE -eq 'podman'
+        if (-not $script:edgeEnabled) { return }
+        $script:edgeProject = 'dokpod-t037'
+        $script:edgeRoot = Join-Path $env:DOKPOD_TEST_SHARED "t037-$([guid]::NewGuid().ToString('N').Substring(0, 8))"
+        New-Item -ItemType Directory -Path $script:edgeRoot | Out-Null
+        $script:edgeInfra = (Get-Content -Raw (Join-Path $PSScriptRoot '../templates/infrastructure-images.json') | ConvertFrom-Json -AsHashtable).images
+        $script:edgeAnswers = [ordered]@{
+            schemaVersion = 1; version = '0.8.0'; edition = 'ce'; publicUrl = 'https://dokpod.lab.test:18455'; engine = 'podman-rootless'; operator = 'Ana'
+            installDir = (Join-Path $script:edgeRoot 'install'); secretsDir = (Join-Path $script:edgeRoot 'secrets'); manualMigrations = $false
+            postgres = @{ mode = 'provision' }
+            keycloak = @{ mode = 'provision'; realm = 'dokpod'; initialAdmin = @{ username = 'dokpod-admin'; email = 'ana@lab.test' } }
+            edge = [ordered]@{ mode = 'existing'; upstreamHost = '127.0.0.1'; webPort = 18480; bffPort = 18481; keycloakPort = 18482 }
+            certificates = @{ edge = @{ source = 'local-ca' }; api = @{ source = 'local-ca' }; agents = @{ source = 'local-ca' }; renewWarningDays = 30 }
+            localEnvironment = @{ name = 'host-local'; stage = 'production' }
+        }
+        $images = [ordered]@{ api = $env:DOKPOD_TEST_API_IMAGE; bff = $env:DOKPOD_TEST_BFF_IMAGE; web = $env:DOKPOD_TEST_WEB_IMAGE; agent = $env:DOKPOD_TEST_AGENT_IMAGE }
+        $script:edgeConfirmations = @{ Plan = $true }
+        $script:edgeInstall = {
+            Invoke-InstallerInstall -Answers $script:edgeAnswers -Images $images -Infrastructure $script:edgeInfra -InstallerImage $env:DOKPOD_INSTALLER_IMAGE_REF `
+                -Confirmations $script:edgeConfirmations -Interactive $false -Project $script:edgeProject -WaitTimeoutSeconds 420
+        }
+        $declined = try { & $script:edgeInstall } catch { $_.Exception }
+        $script:edgeConfirmations['MigrationsPlanHash'] = [regex]::Match($declined.Message, '--confirm-migrations ([0-9a-f]{64})').Groups[1].Value
+        $script:edgeFirst = & $script:edgeInstall
+
+        # O nginx "do usuário": na rede do host, com o certificado gerado e os dois include, como mandam os passos.
+        $edgeDirectory = Join-Path $script:edgeAnswers.installDir 'edge'
+        $site = Join-Path $script:edgeRoot 'user-nginx.conf'
+        [System.IO.File]::WriteAllText($site, @"
+pid /tmp/nginx.pid;
+error_log stderr;
+events {}
+http {
+    access_log off;
+    client_body_temp_path /tmp/b; proxy_temp_path /tmp/p; fastcgi_temp_path /tmp/f; uwsgi_temp_path /tmp/u; scgi_temp_path /tmp/s;
+    include $edgeDirectory/dokpod.conf;
+    server {
+        listen 18455 ssl;
+        server_name dokpod.lab.test;
+        ssl_certificate /certs/tls.crt;
+        ssl_certificate_key /certs/tls.key;
+        location = /antigo { return 200 "site anterior"; }
+        include $edgeDirectory/dokpod.locations;
+    }
+}
+"@)
+        $script:userNginx = "dokpod-t037-user-nginx"
+        & docker run --detach --pids-limit 512 --name $script:userNginx --network host --log-driver none `
+            --volume "$($edgeDirectory):$($edgeDirectory):ro" --volume "$($site):/user.conf:ro" `
+            --volume "$(Join-Path $script:edgeAnswers.secretsDir 'pki/edge.crt'):/certs/tls.crt:ro" --volume "$(Join-Path $script:edgeAnswers.secretsDir 'pki/edge.key'):/certs/tls.key:ro" `
+            --entrypoint nginx $script:edgeInfra.nginx -c /user.conf -g 'daemon off;' | Out-Null
+        $script:edgeCa = Join-Path $script:edgeAnswers.installDir 'certs/ca.crt'
+        $script:edgeCurl = {
+            param([string] $path, [string[]] $extra = @())
+            & docker run --rm --pids-limit 512 --log-driver none --network host --volume "$($script:edgeCa):/ca.crt:ro" --entrypoint curl $script:edgeInfra.nginx `
+                --silent --cacert /ca.crt --resolve 'dokpod.lab.test:18455:127.0.0.1' @extra "https://dokpod.lab.test:18455$path"
+        }
+        $deadline = [datetime]::UtcNow.AddSeconds(30)
+        do { Start-Sleep -Seconds 1 } until ((& $script:edgeCurl '/antigo') -eq 'site anterior' -or [datetime]::UtcNow -gt $deadline)
+    }
+
+    AfterAll {
+        if (-not $script:edgeEnabled) { return }
+        & docker rm --force $script:userNginx 2>$null | Out-Null
+        $label = "label=com.docker.compose.project=$($script:edgeProject)"
+        & docker compose --file (Join-Path $script:edgeAnswers.installDir 'compose.yaml') --project-name $script:edgeProject down --volumes 2>$null | Out-Null
+        @(& docker ps -aq --filter $label) | ForEach-Object { & docker rm -f $_ 2>$null | Out-Null }
+        @(& docker volume ls -q --filter $label) | ForEach-Object { & docker volume rm $_ 2>$null | Out-Null }
+        @(& docker network ls -q --filter $label) | ForEach-Object { & docker network rm $_ 2>$null | Out-Null }
+        Remove-Item -LiteralPath $script:edgeRoot -Recurse -Force -ErrorAction SilentlyContinue
+    }
+
+    It 'instala sem a borda do Dokpod, com web, BFF e Keycloak só no loopback' {
+        if (-not $script:edgeEnabled) { Set-ItResult -Skipped -Because 'DOKPOD_TEST_FULL_INSTALL ou o engine Podman não está ativo'; return }
+        $script:edgeFirst | Should -Be 0
+        $lines = & docker compose --file (Join-Path $script:edgeAnswers.installDir 'compose.yaml') --project-name $script:edgeProject ps --all --format json
+        $services = @($lines | Where-Object { $_.Trim() } | ForEach-Object { $_ | ConvertFrom-Json })
+        ($services.Service | Sort-Object) | Should -Be @('agent', 'api', 'bff', 'dokpod-postgres', 'keycloak', 'keycloak-postgres', 'web')
+        foreach ($service in $services | Where-Object Service -in 'web', 'bff', 'keycloak') {
+            @($service.Publishers | Where-Object PublishedPort | ForEach-Object URL | Sort-Object -Unique) | Should -Be @('127.0.0.1') -Because $service.Service
+        }
+    }
+
+    It 'pelo nginx do usuário, o console, o OIDC e o login respondem, com o BFF confiando nos X-Forwarded-* (L1)' {
+        if (-not $script:edgeEnabled) { Set-ItResult -Skipped -Because 'DOKPOD_TEST_FULL_INSTALL ou o engine Podman não está ativo'; return }
+        & $script:edgeCurl '/dokpod/' @('--output', '/dev/null', '--write-out', '%{http_code}') | Should -Be '200'
+        & $script:edgeCurl '/realms/dokpod/.well-known/openid-configuration' @('--output', '/dev/null', '--write-out', '%{http_code}') | Should -Be '200'
+        # O BFF chega à Authority pelo host (host-gateway) e monta o redirect_uri com o esquema, o host e o prefixo públicos.
+        $location = & $script:edgeCurl '/dokpod/bff/login' @('--output', '/dev/null', '--write-out', '%{redirect_url}')
+        $location | Should -Match '^https://dokpod\.lab\.test:18455/realms/dokpod/protocol/openid-connect/auth\?'
+        [uri]::UnescapeDataString($location) | Should -Match 'redirect_uri=https://dokpod\.lab\.test:18455/dokpod/signin-oidc'
+        # O site anterior do nginx continua igual.
+        & $script:edgeCurl '/antigo' | Should -Be 'site anterior'
+    }
+
+    It 'o resumo lista os passos no nginx do usuário, e a reexecução termina convergida' {
+        if (-not $script:edgeEnabled) { Set-ItResult -Skipped -Because 'DOKPOD_TEST_FULL_INSTALL ou o engine Podman não está ativo'; return }
+        $before = & docker ps --filter "label=com.docker.compose.project=$($script:edgeProject)" --format '{{.ID}}' | Sort-Object
+        # O resumo sai por [Console]::Out.
+        $writer = [System.IO.StringWriter]::new()
+        $previous = [Console]::Out
+        [Console]::SetOut($writer)
+        try { $code = & $script:edgeInstall }
+        finally { [Console]::SetOut($previous) }
+        $code | Should -Be 0
+        $output = $writer.ToString()
+        $output | Should -Match 'include .*/edge/dokpod.locations;'
+        $output | Should -Match 'nginx -t && nginx -s reload'
+        $after = & docker ps --filter "label=com.docker.compose.project=$($script:edgeProject)" --format '{{.ID}}' | Sort-Object
+        $after | Should -Be $before
+    }
+}

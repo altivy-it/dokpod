@@ -141,6 +141,12 @@ function Test-InstallerPrerequisites {
 
     $ports = [System.Collections.Generic.List[object]]::new()
     if ($Answers.edge.mode -eq 'provision') { $ports.Add(@{ Name = 'edge.httpsPort'; Port = [int] $Answers.edge.httpsPort }) }
+    elseif ($Answers.edge.upstreamHost -isnot [System.Collections.IDictionary]) {
+        # Nginx existente em loopback: web, BFF e o Keycloak provisionado publicam no host (FR-043).
+        $names = @('webPort', 'bffPort')
+        if ($Answers.keycloak.mode -eq 'provision') { $names += 'keycloakPort' }
+        foreach ($name in $names) { $ports.Add(@{ Name = "edge.$name"; Port = [int] $Answers.edge[$name] }) }
+    }
     if ($Answers.Contains('agentGrpcPort') -and $Answers.agentGrpcPort) { $ports.Add(@{ Name = 'agentGrpcPort'; Port = [int] $Answers.agentGrpcPort }) }
     foreach ($entry in $ports) {
         if ($null -eq $HostFacts.UnprivilegedPortStart) {

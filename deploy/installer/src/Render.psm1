@@ -10,6 +10,8 @@ Import-Module (Join-Path $PSScriptRoot 'Common.psm1')
 
 # Sub-rede da rede interna da borda: a única em que o BFF confia para X-Forwarded-* com a borda provisionada (L1).
 $script:EdgeSubnet = '10.253.33.0/24'
+# Com nginx existente numa rede compartilhada, o nome dos serviços nela (FR-043).
+$script:SharedAliases = [ordered]@{ web = 'dokpod-web'; bff = 'dokpod-bff'; keycloak = 'dokpod-keycloak' }
 $script:SystemCaBundle = '/etc/ssl/certs/ca-certificates.crt'
 
 function Expand-InstallerTemplate {
@@ -55,15 +57,32 @@ function Get-KeycloakAuthority {
 function Get-BffTrustedNetworks {
     <#
     .SYNOPSIS
-    Redes cujos X-Forwarded-* o BFF aceita (L1): só a rede interna da borda, ou o loopback/rede compartilhada com o nginx do usuário.
+    Redes cujos X-Forwarded-* o BFF aceita (L1): a rede interna da borda; com nginx existente em loopback, também o
+    loopback; numa rede compartilhada, só as sub-redes dela, medidas por Get-EdgeTrustedNetworks (Edge.psm1) e passadas
+    em -Detected.
+    .DESCRIPTION
+    Em loopback, a conexão do nginx do host não chega ao BFF como 127.0.0.1: o encaminhador de portas do modo rootless
+    a entrega com um endereço da rede pela qual a porta é publicada (no Podman 5.7, o do próprio container nela; no
+    Docker, o gateway). Por isso, nesse modo, o BFF fica só na dokpod-edge, e a sub-rede dela, onde só há containers do
+    Dokpod, continua confiável.
     #>
     [CmdletBinding()]
     [OutputType([string[]])]
-    param([Parameter(Mandatory)][System.Collections.IDictionary] $Answers)
+    param(
+        [Parameter(Mandatory)][System.Collections.IDictionary] $Answers,
+        [string[]] $Detected = @()
+    )
 
     if ($Answers.edge.mode -eq 'provision') { return , [string[]] @($script:EdgeSubnet) }
-    if ($Answers.edge.upstreamHost -is [System.Collections.IDictionary]) { return , [string[]] @($script:EdgeSubnet) }
-    return , [string[]] @('127.0.0.1/32', '::1/128')
+    if ($Answers.edge.upstreamHost -is [System.Collections.IDictionary]) {
+        if ($Detected.Count -eq 0) {
+            Stop-Installer -Code Error -Message "As sub-redes da rede $($Answers.edge.upstreamHost.network) não foram lidas; o BFF não teria em quem confiar."
+        }
+
+        return , [string[]] @($Detected)
+    }
+
+    return , [string[]] @('127.0.0.1/32', '::1/128', $script:EdgeSubnet)
 }
 
 function Assert-TrustedNetworks {
@@ -91,14 +110,16 @@ function New-InstallerComposeModel {
         [Parameter(Mandatory)][System.Collections.IDictionary] $Images,
         [Parameter(Mandatory)][System.Collections.IDictionary] $Infrastructure,
         [Parameter(Mandatory)][string] $EngineSocket,
-        [Parameter(Mandatory)][string] $LocalEnvironmentId
+        [Parameter(Mandatory)][string] $LocalEnvironmentId,
+        # Com nginx existente numa rede compartilhada, as sub-redes dela (Get-EdgeTrustedNetworks, Edge.psm1).
+        [string[]] $TrustedNetworks = @()
     )
 
     $installDir = $Answers.installDir
     $secretsDir = $Answers.secretsDir
     $endpoint = Get-PublicEndpoint $Answers
     $authority = Get-KeycloakAuthority -Answers $Answers
-    $trusted = Get-BffTrustedNetworks -Answers $Answers
+    $trusted = Get-BffTrustedNetworks -Answers $Answers -Detected $TrustedNetworks
     Assert-TrustedNetworks -Networks $trusted
     $caBundle = if (Test-CaBundleNeeded -Answers $Answers) { '/certs/ca-bundle.crt' } else { $null }
     $secrets = [ordered]@{}
@@ -219,7 +240,42 @@ function New-InstallerComposeModel {
     if ($Answers.edge.mode -eq 'existing' -and $Answers.edge.upstreamHost -isnot [System.Collections.IDictionary]) {
         $bindHost = [string] $Answers.edge.upstreamHost
         $bff['ports'] = @([ordered]@{ target = 8080; published = [string] $Answers.edge.bffPort; host_ip = $bindHost; protocol = 'tcp' })
+        # Só na dokpod-edge: o encaminhador rootless entrega a conexão do nginx do host com um endereço da rede pela qual
+        # a porta sai, e com o BFF também na dokpod-internal seria o dela, fora das redes confiáveis. A API continua
+        # alcançável como api na dokpod-edge.
+        $bff.networks = @('dokpod-edge')
         $web['ports'] = @([ordered]@{ target = 8080; published = [string] $Answers.edge.webPort; host_ip = $bindHost; protocol = 'tcp' })
+    }
+    # Nginx do usuário: numa rede compartilhada, web, BFF e o Keycloak provisionado entram nela com nomes próprios; em
+    # loopback, o Keycloak provisionado também escuta só em upstreamHost.
+    $sharedNetwork = if ($Answers.edge.mode -eq 'existing' -and $Answers.edge.upstreamHost -is [System.Collections.IDictionary]) { [string] $Answers.edge.upstreamHost.network } else { $null }
+    $join = {
+        param([System.Collections.IDictionary] $service, [string] $alias)
+        if ($service.networks -isnot [System.Collections.IDictionary]) {
+            $map = [ordered]@{}
+            foreach ($name in $service.networks) { $map[$name] = [ordered]@{} }
+            $service.networks = $map
+        }
+        if (-not $service.networks.Contains('dokpod-shared')) { $service.networks['dokpod-shared'] = [ordered]@{} }
+        if ($alias) { $service.networks['dokpod-shared']['aliases'] = @($alias) }
+    }
+    if ($sharedNetwork) {
+        & $join $web $script:SharedAliases.web
+        & $join $bff $script:SharedAliases.bff
+        if ($services.Contains('keycloak')) { & $join $services['keycloak'] $script:SharedAliases.keycloak }
+    }
+    elseif ($Answers.edge.mode -eq 'existing' -and $services.Contains('keycloak')) {
+        $services['keycloak']['ports'] = @([ordered]@{ target = 8080; published = [string] $Answers.edge.keycloakPort; host_ip = [string] $Answers.edge.upstreamHost; protocol = 'tcp' })
+    }
+
+    # A Authority do Keycloak provisionado é o nome público, que agora é o nginx do usuário: na rede compartilhada, ele
+    # recebe o nome público como alias (passo manual); em loopback no Podman, o nome aponta para o host (host-gateway),
+    # porque o pasta dá ao container o próprio IP do host. No Docker rootless o nome resolve pelo DNS (T038).
+    if ($Answers.edge.mode -eq 'existing' -and $Answers.keycloak.mode -eq 'provision') {
+        foreach ($service in $api, $bff) {
+            if ($sharedNetwork) { & $join $service $null }
+            elseif ($Answers.engine -eq 'podman-rootless') { $service['extra_hosts'] = @("$($endpoint.Host):host-gateway") }
+        }
     }
     $services['bff'] = $bff
     $services['web'] = $web
@@ -270,6 +326,7 @@ function New-InstallerComposeModel {
         'dokpod-edge'     = [ordered]@{ ipam = [ordered]@{ config = @([ordered]@{ subnet = $script:EdgeSubnet }) } }
     }
     if ($Answers.keycloak.mode -eq 'provision') { $networks['keycloak-data'] = [ordered]@{ internal = $true } }
+    if ($sharedNetwork) { $networks['dokpod-shared'] = [ordered]@{ external = $true; name = $sharedNetwork } }
 
     $volumes = [ordered]@{ 'dokpod-api-keys' = [ordered]@{}; 'dokpod-bff-keys' = [ordered]@{}; 'dokpod-agent-data' = [ordered]@{} }
     if ($Answers.postgres.mode -eq 'provision') { $volumes['dokpod-postgres-data'] = [ordered]@{} }
@@ -373,8 +430,8 @@ function New-EdgeConfiguration {
         SERVER_NAME        = $endpoint.Host
         PUBLIC_PORT        = $endpoint.Port
         INSTALL_DIR        = $Answers.installDir
-        BFF_UPSTREAM       = $(if ($upstreamHost) { & $format $upstreamHost $Answers.edge.bffPort } else { 'bff:8080' })
-        WEB_UPSTREAM       = $(if ($upstreamHost) { & $format $upstreamHost $Answers.edge.webPort } else { 'web:8080' })
+        BFF_UPSTREAM       = $(if ($upstreamHost) { & $format $upstreamHost $Answers.edge.bffPort } elseif ($existing) { "$($script:SharedAliases.bff):8080" } else { 'bff:8080' })
+        WEB_UPSTREAM       = $(if ($upstreamHost) { & $format $upstreamHost $Answers.edge.webPort } elseif ($existing) { "$($script:SharedAliases.web):8080" } else { 'web:8080' })
         KEYCLOAK_LOCATIONS = ''
         INTERNAL_LISTEN    = ''
     }
@@ -384,7 +441,8 @@ function New-EdgeConfiguration {
         $values.INTERNAL_LISTEN = "    # Tráfego interno pela porta pública (API e BFF até a Authority, D-008).`n    listen $($endpoint.Port) ssl;"
     }
     if ($Answers.keycloak.mode -eq 'provision') {
-        $values.KEYCLOAK_LOCATIONS = Expand-InstallerTemplate -Name 'edge/keycloak.locations.template' -Values @{ PUBLIC_PORT = $endpoint.Port }
+        $keycloakUpstream = if ($upstreamHost) { & $format $upstreamHost $Answers.edge.keycloakPort } elseif ($existing) { "$($script:SharedAliases.keycloak):8080" } else { 'keycloak:8080' }
+        $values.KEYCLOAK_LOCATIONS = Expand-InstallerTemplate -Name 'edge/keycloak.locations.template' -Values @{ PUBLIC_PORT = $endpoint.Port; KEYCLOAK_UPSTREAM = $keycloakUpstream }
     }
 
     return [ordered]@{

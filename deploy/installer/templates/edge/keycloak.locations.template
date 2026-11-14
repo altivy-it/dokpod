@@ -1,7 +1,7 @@
 
 # Keycloak provisionado pelo instalador (D-008): só o que o login usa.
 location ~ ^/(realms|resources)/ {
-    proxy_pass http://keycloak:8080;
+    proxy_pass http://{{KEYCLOAK_UPSTREAM}};
     proxy_http_version 1.1;
     proxy_buffer_size 32k;
     proxy_buffers 8 32k;
