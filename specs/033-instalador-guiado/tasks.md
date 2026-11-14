@@ -798,7 +798,7 @@ conectado e um administrador que precisa trocar a senha.
   confiança dos agentes, reemissão e novo `agent-identities register` de cada agente, e remoção da raiz antiga só depois
   de todos conectados (FR-030).
   - **Estado**: Implementado em 2026-11-14 (`Start-CaRotation`, `Complete-CaRotation`, `Invoke-InstallerCaRotation`; `Installation/status/agent-connection.sql` no catálogo). Falta a validação de ponta a ponta, escrita em `Install.Tests.ps1` e bloqueada pelo DNS do host.
-  - **Validação**: Validado em 2026-11-14 no Podman: CA nova, duas raízes, agente local reemitido e reconectado, e só a raiz nova no fim.
+  - **Validação**: Validado em 2026-11-14 nos dois engines: CA nova, duas raízes, agente local reemitido e reconectado, e só a raiz nova no fim.
 
 - [X] T045 [US4] Validar o cenário 6 do quickstart (contagens de `dokpod.audit_events` e `dokpod.agent_identities` iguais
   depois da recusa) e registrar em `validation.md`.
