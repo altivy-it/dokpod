@@ -431,6 +431,15 @@ function Invoke-InstallerHostCommand {
         else {
             [void] (Invoke-InstallerHostRevoke -Answers $Answers -State $state -EnvironmentId $EnvironmentId -Reason $Reason -ApiImage $Images.api `
                     -Network $network -TrustBundle $trustBundle -Cli $Cli)
+            # O modo administrativo só grava a revogação no banco; a sessão ativa vive na memória da API, que a revogação
+            # pelo console encerra. Reiniciar a API derruba todas as sessões, e o agente revogado não volta (FR-025).
+            $restart = Invoke-InstallerProcess -FilePath $Cli -ArgumentList @('compose', '--file', (Join-Path $Answers.installDir 'compose.yaml'),
+                '--project-name', $Project, 'restart', 'api')
+            if ($restart.ExitCode -ne 0) {
+                Stop-Installer -Code Error -Message ("A identidade foi revogada, mas a API não reiniciou (código $($restart.ExitCode)): $($restart.Error.Trim()) " +
+                    "A sessão ativa do agente só cai na próxima reconexão; reinicie a API com 'recreate service:api'.")
+            }
+            Write-InstallerLine -Message 'API reiniciada: a sessão do agente revogado caiu, e os demais agentes reconectam em seguida.'
         }
 
         Complete-InstallerRun -State $state -RunId $runId -Outcome 'changed' -ExitCode 0 -ReportPath $null

@@ -711,9 +711,10 @@ conectado e um administrador que precisa trocar a senha.
     `redirect_uri` `https://…/dokpod/signin-oidc`, o site anterior do nginx igual e a reexecução convergida. Docker
     rootless e a rede compartilhada de ponta a ponta ficam para a T038.
 
-- [ ] T038 [US2] Combinações (só PostgreSQL existente, só nginx existente, ambos) no motor de plano, com teste em
+- [X] T038 [US2] Combinações (só PostgreSQL existente, só nginx existente, ambos) no motor de plano, com teste em
   `deploy/installer/tests/Plan.Tests.ps1`. Validar o cenário 3 do quickstart com Docker Engine rootless e com Podman rootless
   (SC-002) e registrar em `validation.md`.
+  - **Validação**: Validado em 2026-11-14 (ver `validation.md`): PostgreSQL existente e preparado nos dois engines; nginx existente em loopback no Podman. No Docker, o nginx existente com Keycloak provisionado depende do DNS do nome público (NOT RUN, limitação documentada).
 
 ---
 
@@ -762,8 +763,9 @@ conectado e um administrador que precisa trocar a senha.
     existente. `Install.Tests.ps1`: sem `--yes` a execução para com código 4, com a divergência no plano e nada
     corrigido; com `--yes` o redirect volta ao contrato.
 
-- [ ] T041 [US3] Validar o cenário 4 do quickstart com Docker Engine rootless e com Podman rootless (SC-002): os exports de
+- [X] T041 [US3] Validar o cenário 4 do quickstart com Docker Engine rootless e com Podman rootless (SC-002): os exports de
   `master` e `outro` iguais antes e depois (SC-006), registrado em `validation.md`.
+  - **Validação**: Validado em 2026-11-14 nos dois engines (3/3 no Podman 5.7 e no Docker 29.9 rootless), com `master` e `outro` iguais antes e depois.
 
 ---
 
@@ -773,7 +775,7 @@ conectado e um administrador que precisa trocar a senha.
 
 **Teste independente**: cenário 6 do quickstart.
 
-- [ ] T042 [US4] `recreate <item>` em `deploy/installer/src/Recreate.psm1` para `pki:edge`, `pki:api`,
+- [X] T042 [US4] `recreate <item>` em `deploy/installer/src/Recreate.psm1` para `pki:edge`, `pki:api`,
   `pki:agent:<id>`, `secret:<nome>`, `config` e `service:<nome>`:
   - efeito colateral no plano;
   - só o item pedido muda;
@@ -781,22 +783,26 @@ conectado e um administrador que precisa trocar a senha.
 
   Testes em `deploy/installer/tests/Recreate.Tests.ps1`.
   - **Estado**: Implementado em 2026-11-14 (`Recreate.psm1`; `Invoke-InstallerInstall -Recreate`). `Recreate.Tests.ps1` passa. Na instalação completa (Podman 5.7), `pki:edge`, `service:web` e `pki:agent:<id>` passaram antes da falha de DNS do host. Falta a rodada limpa de ponta a ponta: o `aardvark-dns` do host de desenvolvimento parou de resolver nomes (ver o relatório da sessão).
+  - **Validação**: Validado em 2026-11-14 (instalação completa, Podman 8/8 e Docker).
 
-- [ ] T043 [US4] `recreate --all`:
+- [X] T043 [US4] `recreate --all`:
   - confirmação normal e depois a segunda confirmação nomeando `dokpod-postgres`, `keycloak-postgres`,
     `dokpod-api-keys`, `dokpod-bff-keys` e as identidades;
   - sem ela, recria todo o resto e preserva os dados;
   - não interativo só com `--confirm-data-removal <lista>` exata (SC-008).
   - **Estado**: Implementado em 2026-11-14 (`Resolve-DataRemoval`, `Remove-InstallationData`; plano com migrations e realm recriados só com o banco removido). Testes unitários passam. Na instalação completa, a recriação total sem a segunda confirmação passou, com as contagens de auditoria e identidades iguais, e a lista inexata foi recusada com código 2. Falta a rodada com a remoção confirmada, bloqueada pelo DNS do host.
+  - **Validação**: Validado em 2026-11-14: `--all` sem e com a remoção de dados nos dois engines. Achado: `compose down` recriava as redes e o DNS do Podman parava nelas; agora `compose rm --stop --force`.
 
-- [ ] T044 [US4] `recreate pki:ca` pelo procedimento de `docs/runbooks/troca-da-ca-dos-agentes.md`: estado
+- [X] T044 [US4] `recreate pki:ca` pelo procedimento de `docs/runbooks/troca-da-ca-dos-agentes.md`: estado
   `active → rotating → active`, bundle com as raízes antiga e nova em `DOKPOD_API_CLIENT_CA_CERTIFICATE_PATH` e na
   confiança dos agentes, reemissão e novo `agent-identities register` de cada agente, e remoção da raiz antiga só depois
   de todos conectados (FR-030).
   - **Estado**: Implementado em 2026-11-14 (`Start-CaRotation`, `Complete-CaRotation`, `Invoke-InstallerCaRotation`; `Installation/status/agent-connection.sql` no catálogo). Falta a validação de ponta a ponta, escrita em `Install.Tests.ps1` e bloqueada pelo DNS do host.
+  - **Validação**: Validado em 2026-11-14 no Podman: CA nova, duas raízes, agente local reemitido e reconectado, e só a raiz nova no fim.
 
-- [ ] T045 [US4] Validar o cenário 6 do quickstart (contagens de `dokpod.audit_events` e `dokpod.agent_identities` iguais
+- [X] T045 [US4] Validar o cenário 6 do quickstart (contagens de `dokpod.audit_events` e `dokpod.agent_identities` iguais
   depois da recusa) e registrar em `validation.md`.
+  - **Validação**: Validado em 2026-11-14 (cenário 6 em `validation.md`): contagens iguais depois do `--all` sem a segunda confirmação, nos dois engines.
 
 ---
 
@@ -806,7 +812,7 @@ conectado e um administrador que precisa trocar a senha.
 
 **Teste independente**: cenários 5 e 8 do quickstart.
 
-- [ ] T046 [US5] `host add` em `deploy/installer/src/Hosts.psm1`:
+- [X] T046 [US5] `host add` em `deploy/installer/src/Hosts.psm1`:
   - ambiente cadastrado, certificado de cliente, identidade registrada;
   - `packages/<environmentId>.tar` `0600` com `agent.pfx`, `agent.pass`, `ca.crt`, `agent.env`, `compose.agent.yaml` e
     `README.txt`, mais SHA-256;
@@ -822,10 +828,12 @@ conectado e um administrador que precisa trocar a senha.
 
   Exige `agentGrpcPort`, a única porta publicada além da borda, só com mTLS (FR-022). Testes em `deploy/installer/tests/Hosts.Tests.ps1` conferindo o conteúdo do pacote.
   - **Estado**: Implementado em 2026-11-14 (`Hosts.psm1`: pacote cifrado no formato do `openssl enc`, frase fora do pacote, `package_generated_at`). `Hosts.Tests.ps1` (5) passa, inclusive a abertura do pacote com o `openssl` real. Falta o agente do pacote conectando de ponta a ponta, escrito em `Install.Tests.ps1` e bloqueado pelo DNS do host.
+  - **Validação**: Validado em 2026-11-14 no Podman: pacote 0600 cifrado, aberto como o README manda, agente do pacote conectado em menos de 5 minutos. Achado: `$name` sobrescrevia o parâmetro `$Name` e gravava o nome errado no estado.
 
-- [ ] T047 [US5] `host revoke --environment --reason` por `admin agent-identities revoke`, com o pacote marcado como
+- [X] T047 [US5] `host revoke --environment --reason` por `admin agent-identities revoke`, com o pacote marcado como
   revogado no estado.
   - **Estado**: Implementado em 2026-11-14 (`Invoke-InstallerHostRevoke`, `host revoke` na CLI). Falta a validação de ponta a ponta, junto da T046.
+  - **Validação**: Validado em 2026-11-14 no Podman. Achado: o modo administrativo só grava a revogação no banco; a sessão ativa vive na memória da API, que agora é reiniciada pelo `host revoke`.
 
 - [ ] T048 [US5] `upgrade --version` em `deploy/installer/src/Upgrade.psm1`:
   - recusar versão igual ou menor com referência a `docs/runbooks/deploy-e-rollback.md` e
@@ -864,10 +872,11 @@ conectado e um administrador que precisa trocar a senha.
   arquivo de respostas de exemplo e Pester completo dentro da imagem.
   - **Estado**: Feito em 2026-11-14: job `installer` no `ci.yml` (Pester na imagem de testes, PSScriptAnalyzer, `--help` e `plan` com `deploy/installer/examples/answers.yaml` saindo com 3). Reproduzido localmente com o Podman: 277 testes, analisador sem achados, `plan` com código 3 e "nada foi alterado".
 
-- [ ] T053 Canário de segredos (SC-005) em `deploy/installer/tests/SecretCanary.Tests.ps1` e no cenário 7 do quickstart.
+- [X] T053 Canário de segredos (SC-005) em `deploy/installer/tests/SecretCanary.Tests.ps1` e no cenário 7 do quickstart.
   Procurar cada valor em saída, `reports/*.json`, `installDir`, `docker inspect`, `ps -ef` durante a execução, logs dos
   containers e journal do host (`journalctl --user`, L7 do threat model), e confirmar zero ocorrências.
   - **Estado**: Implementado em 2026-11-14 (`SecretCanary.Tests.ps1`; `--log-driver none` também no `nginx -t`). A execução ficou bloqueada pelo DNS do host.
+  - **Validação**: Validado em 2026-11-14 nos dois engines (4/4 em cada).
 
 - [X] T054 [P] Runbook `docs/runbooks/instalacao.md`: os três cenários, o arquivo de respostas, migrations manuais
   revisadas por DBA, recriação, pacote de host, atualização, desinstalação e o que é preservado.
@@ -892,7 +901,7 @@ conectado e um administrador que precisa trocar a senha.
   SQLite.
   - **Estado**: Feito em 2026-11-14: seção "Revisão do implementado (T058)" no `threat-model.md`, com 12 achados e o risco residual R8, pendente de revisão humana.
 
-- [ ] T059 Validar o cenário 9 do quickstart (catálogo SQL sobreposto) e registrar em `validation.md` (FR-039 a
+- [X] T059 Validar o cenário 9 do quickstart (catálogo SQL sobreposto) e registrar em `validation.md` (FR-039 a
   FR-041, SC-011):
   - `sql export` e alteração de um arquivo de migration pendente;
   - plano com os hashes;
@@ -903,6 +912,7 @@ conectado e um administrador que precisa trocar a senha.
   - alteração manual sem registro (coluna, índice, restrição, função, gatilho) detectada pela impressão do schema,
     com código 6 (FR-042).
   - **Estado**: Parcial em 2026-11-14: teste novo em `Migrations.Tests.ps1` para o FR-042 (coluna, índice, restrição, função e gatilho sem registro dão código 6 no `verify`). A execução e o registro em `validation.md` ficaram bloqueados pelo DNS do host.
+  - **Validação**: Validado em 2026-11-14 no Podman (9/9, com o FR-042) e registrado em `validation.md`.
 
 - [ ] T060 Fechar `specs/033-instalador-guiado/validation.md`: os nove cenários do quickstart, o ambiente, os resultados,
   os `NOT RUN` com motivo e o estado das tarefas.

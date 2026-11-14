@@ -130,3 +130,39 @@ amostras de recursos nesse engine), enquanto no Podman os cartões vêm preenchi
 
 Pendente da RC (T051/T052): o fluxo guiado no TTY pelo `install.sh` publicado, a verificação de assinatura das imagens e
 a medição do SC-001 contada do `install.sh`. A recusa de Docker rootful também fica para um host com Docker rootful.
+
+## T038, T041, T045, T053 e T059 - Cenários 3, 4, 6, 7 e 9 (SC-002, SC-005, SC-006, SC-008, SC-011)
+
+Execução em 2026-11-14, com as suítes de `deploy/installer/tests` contra engine real, as imagens desta branch construídas
+com `--format docker` e uma instalação por vez (a sub-rede fixa da `dokpod-edge` não permite duas ao mesmo tempo no
+mesmo engine).
+
+- **Podman**: host de desenvolvimento, Podman 5.7.0 rootless com pasta.
+- **Docker**: VPS `hostinger-staging`, Docker Engine 29.9.3 rootless num usuário descartável (`dokpodd`, com o perfil
+  AppArmor do `rootlesskit`). Usuário, engine e perfil foram removidos no fim, e as stacks do `brazildevops` não foram
+  tocadas.
+
+| Cenário | Verificação | Podman 5.7 rootless | Docker 29.9 rootless |
+| --- | --- | --- | --- |
+| 3 | PostgreSQL existente `existing-create` com TLS `verify-full` de CA privada e administrador sem `SUPERUSER` (`Install.Tests.ps1`) | 4/4 | 4/4 (containers chegam ao host pelo IP dele) |
+| 3 | PostgreSQL preparado (`existing-prepared`), sem nenhuma role nova no servidor | 2/2 | 2/2 |
+| 3 | Nginx existente em loopback: console, OIDC, login com `redirect_uri` público e site anterior do nginx igual | 3/3 | NOT RUN: com Keycloak provisionado, o nome público precisa resolver por DNS para um IP alcançável pelos containers; no Docker não há `host-gateway` equivalente ao do Podman (limitação documentada no README) |
+| 3 | Combinações de PostgreSQL e nginx existentes no plano (`Plan.Tests.ps1`) | ok | ok (sem engine) |
+| 4 | Keycloak existente com CA privada: login do BFF pelo Keycloak do usuário, `master` e `outro` iguais, credencial em nenhum arquivo, divergência no plano recusada sem `--yes` e corrigida com ele | 3/3 | 3/3 |
+| 6 | Recriação por item (`pki:edge`, `service:web`, `secret:<client do BFF>`, `pki:agent:<id>`), recusa de componente do usuário, `--all` sem e com a remoção de dados, troca da CA | 8/8 | 7/8 (a troca da CA falhou num defeito do teste, corrigido depois) |
+| 6 | SC-008: contagens de `dokpod.audit_events` e `dokpod.agent_identities` iguais depois do `--all` sem a segunda confirmação; lista de dados inexata recusada com código 2 | ok | ok |
+| 7 | Canário (`SecretCanary.Tests.ps1`): nenhum segredo na saída, nos relatórios, em `installDir`, no `docker inspect` e nos processos amostrados durante a execução e nos logs; containers avulsos com `--log-driver none` | 4/4 | 4/4 |
+| 8 (parcial) | Host remoto (`host add` e `host revoke`): pacote 0600 cifrado aberto pelo README, só os seis arquivos e nenhum outro segredo, agente do pacote conectado em menos de 5 minutos, sessão derrubada e revogação na auditoria | 2/2 | NOT RUN (o teste usa o `host-gateway` do Podman para o agente chegar ao gRPC publicado) |
+| 9 | Catálogo sobreposto e FR-042 (`Migrations.Tests.ps1`): hashes no plano, recusa sem confirmação nomeada, aplicação, impressão aceita, cópia alterada voltando ao plano; coluna, índice, restrição, função e gatilho sem registro dão código 6 no `verify` | 9/9 | NOT RUN (sem diferença de engine: o SQL roda no PostgreSQL) |
+
+Achados corrigidos nesta rodada:
+- **Recriação total com dados removidos**: `compose down` apagava e recriava as redes do projeto, e o DNS interno do
+  Podman deixava de responder na rede recriada. Agora só os containers saem (`compose rm --stop --force`).
+- **`host add`**: no PowerShell, `$name` e o parâmetro `$Name` são a mesma variável, e o ambiente ficava gravado no
+  estado com o nome do arquivo da frase.
+- **Troca da CA**: um `foreach` direto sobre o resultado do estado recebia o array inteiro como um item.
+- **`host revoke`**: o modo administrativo só grava a revogação no banco, e a sessão ativa do agente vive na memória
+  da API. O `host revoke` agora reinicia a API, e o agente revogado não volta.
+- **Testes**: a limpeza por rótulo com o nome do projeto vazio casava com todo container compose do host e removeu
+  stacks locais alheias (incidente de 2026-11-14). Toda limpeza passa agora por `TestCleanup.ps1`, que só aceita
+  `dokpod-tNNN`.

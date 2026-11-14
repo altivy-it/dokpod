@@ -259,9 +259,10 @@ Depois siga dokpod-agent/README.txt.
         [Console]::Out.WriteLine('----')
     }
     else {
-        $name = "packages/$id.passphrase"
-        Write-InstallerSecret -SecretsDirectory $secretsDir -Name $name -Value $passphrase -Recreate:(Test-InstallerSecret -SecretsDirectory $secretsDir -Name $name)
-        $passphraseFile = Resolve-SecretPath -SecretsDirectory $secretsDir -Name $name
+        # Não reaproveite $name: no PowerShell é o mesmo parâmetro $Name, o nome do host.
+        $passphraseName = "packages/$id.passphrase"
+        Write-InstallerSecret -SecretsDirectory $secretsDir -Name $passphraseName -Value $passphrase -Recreate:(Test-InstallerSecret -SecretsDirectory $secretsDir -Name $passphraseName)
+        $passphraseFile = Resolve-SecretPath -SecretsDirectory $secretsDir -Name $passphraseName
     }
 
     Invoke-StateSql -State $State -Name 'environment-upsert' -Parameters @{
@@ -278,7 +279,8 @@ function Invoke-InstallerHostRevoke {
     <#
     .SYNOPSIS
     `host revoke --environment <id> --reason <texto>` (T047, FR-025): revoga a identidade do agente pelo modo
-    administrativo, com auditoria, e marca o ambiente como revogado no estado. A sessão ativa do agente cai.
+    administrativo, com auditoria, e marca o ambiente como revogado no estado. A sessão ativa cai pelo reinício da API,
+    feito por Invoke-InstallerHostCommand: o modo administrativo não alcança a memória dela.
     #>
     [CmdletBinding()]
     [OutputType([pscustomobject])]

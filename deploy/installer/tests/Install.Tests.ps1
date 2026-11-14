@@ -10,6 +10,7 @@
 
 BeforeAll {
     . (Join-Path $PSScriptRoot 'TestCleanup.ps1')
+    Import-Module (Join-Path $PSScriptRoot '../src/Hosts.psm1') -Force
     foreach ($module in 'Common', 'Secrets', 'State', 'Install') {
         Import-Module (Join-Path $PSScriptRoot "../src/$module.psm1") -Force
     }
@@ -677,7 +678,7 @@ Describe 'Recriação por item (recreate)' {
     It 'recreate pki:agent:<id> reemite o agente, revoga a identidade antiga e registra a nova' {
         if (-not $script:recreateEnabled) { Set-ItResult -Skipped -Because 'DOKPOD_TEST_FULL_INSTALL não está ativo'; return }
         $state = Open-InstallerState -InstallDirectory $script:rcAnswers.installDir
-        try { $environment = (Invoke-StateSql -State $state -Name 'environments-list' -Rows)[0] }
+        try { $environment = @(foreach ($item in @(Invoke-StateSql -State $state -Name 'environments-list' -Rows)) { foreach ($entry in @($item)) { $entry } })[0] }
         finally { Close-InstallerState -State $state }
         $id = $environment['environment_id']
         $old = $environment['agent_fingerprint']
@@ -686,7 +687,7 @@ Describe 'Recriação por item (recreate)' {
         $after = & $script:rcContainers
         & $script:rcChanged $before $after | Should -Be @('agent')
         $state = Open-InstallerState -InstallDirectory $script:rcAnswers.installDir
-        try { $new = (Invoke-StateSql -State $state -Name 'environments-list' -Rows)[0]['agent_fingerprint'] }
+        try { $new = @(foreach ($item in @(Invoke-StateSql -State $state -Name 'environments-list' -Rows)) { foreach ($entry in @($item)) { $entry } })[0]['agent_fingerprint'] }
         finally { Close-InstallerState -State $state }
         $new | Should -Not -Be $old
         $rows = & $script:rcSql "SELECT upper(certificate_fingerprint) || ':' || (revoked_at_utc IS NOT NULL) FROM dokpod.agent_identities WHERE environment_id = '$id' ORDER BY 1"
@@ -723,12 +724,9 @@ Describe 'Recriação por item (recreate)' {
 
         $auditBefore = [int] (& $script:rcSql 'SELECT count(*) FROM dokpod.audit_events')
         $script:rcConfirmations['DataRemoval'] = @('dokpod-postgres', 'keycloak-postgres', 'dokpod-api-keys', 'dokpod-bff-keys', 'agent-identities')
-        # O banco volta vazio: as migrations pedem de novo a confirmação do planHash (FR-036), e a retomada é um install.
-        $paused = try { & $script:rcRun -All } catch { $_.Exception }
+        # O banco volta vazio, com o mesmo plano do primeiro install: o planHash já confirmado vale (FR-036).
+        & $script:rcRun -All | Should -Be 0
         $script:rcConfirmations.Remove('DataRemoval')
-        $paused.ExitCode | Should -Be 4
-        $script:rcConfirmations['MigrationsPlanHash'] = [regex]::Match($paused.Message, '--confirm-migrations ([0-9a-f]{64})').Groups[1].Value
-        & $script:rcRun | Should -Be 0
 
         [int] (& $script:rcSql 'SELECT count(*) FROM dokpod.audit_events') | Should -BeLessThan $auditBefore
         $after = & $script:rcContainers
@@ -759,8 +757,9 @@ Describe 'Recriação por item (recreate)' {
         (& $read (Join-Path $script:rcAnswers.secretsDir 'pki/edge.crt')).Issuer | Should -Be $newCa.Subject
         $state = Open-InstallerState -InstallDirectory $script:rcAnswers.installDir
         try {
-            (Invoke-StateSql -State $state -Name 'certificates-list' -Rows | Where-Object { $_['role'] -eq 'ca' })['ca_state'] | Should -Be 'active'
-            $environment = (Invoke-StateSql -State $state -Name 'environments-list' -Rows)[0]
+            $certificateRows = Invoke-StateSql -State $state -Name 'certificates-list' -Rows
+            (@($certificateRows) | Where-Object { $_['role'] -eq 'ca' } | Select-Object -First 1)['ca_state'] | Should -Be 'active'
+            $environment = @(foreach ($item in @(Invoke-StateSql -State $state -Name 'environments-list' -Rows)) { foreach ($entry in @($item)) { $entry } })[0]
         }
         finally { Close-InstallerState -State $state }
         $active = & $script:rcSql "SELECT upper(certificate_fingerprint) FROM dokpod.agent_identities WHERE environment_id = '$($environment['environment_id'])' AND revoked_at_utc IS NULL"
@@ -818,7 +817,8 @@ Describe 'Host remoto (host add e host revoke)' {
         $state = Open-InstallerState -InstallDirectory $script:hoAnswers.installDir
         try { $rows = Invoke-StateSql -State $state -Name 'environments-list' -Rows }
         finally { Close-InstallerState -State $state }
-        $row = $rows | Where-Object { $_['name'] -eq 'host-b' }
+        $row = @(foreach ($item in @($rows)) { foreach ($entry in @($item)) { if ($entry['name'] -eq 'host-b') { $entry } } }) | Select-Object -First 1
+        $row | Should -Not -BeNullOrEmpty -Because "ambientes no estado: $(@(foreach ($item in @($rows)) { foreach ($entry in @($item)) { $entry['name'] } }) -join ', ')"
         $script:hoId = $row['environment_id']
         $row['package_generated_at'] | Should -Not -BeNullOrEmpty
         $package = Join-Path $script:hoAnswers.installDir "packages/$($script:hoId).tar"
@@ -837,7 +837,7 @@ Describe 'Host remoto (host add e host revoke)' {
         $reader = [System.Formats.Tar.TarReader]::new([System.IO.MemoryStream]::new($inner))
         try { while ($null -ne ($entry = $reader.GetNextEntry())) { $entry.ExtractToFile((Join-Path $script:hoAgentDir $entry.Name), $false) } }
         finally { $reader.Dispose() }
-        (Get-ChildItem -LiteralPath $script:hoAgentDir).Name | Sort-Object | Should -Be @('README.txt', 'agent.env', 'agent.pass', 'agent.pfx', 'ca.crt', 'compose.agent.yaml')
+        (Get-ChildItem -LiteralPath $script:hoAgentDir).Name | Sort-Object | Should -Be (@('README.txt', 'agent.env', 'agent.pass', 'agent.pfx', 'ca.crt', 'compose.agent.yaml') | Sort-Object)
         foreach ($name in 'ca.key', 'Authentication__Keycloak__ClientSecret', 'dokpod-db-password') {
             $value = [System.IO.File]::ReadAllText((Resolve-SecretPath -SecretsDirectory $script:hoAnswers.secretsDir -Name $(if ($name -eq 'ca.key') { 'pki/ca.key' } else { $name })))
             foreach ($file in Get-ChildItem -LiteralPath $script:hoAgentDir) { [System.IO.File]::ReadAllText($file.FullName) | Should -Not -Match ([regex]::Escape($value.Trim())) }
@@ -870,6 +870,7 @@ Describe 'Host remoto (host add e host revoke)' {
         $state = Open-InstallerState -InstallDirectory $script:hoAnswers.installDir
         try { $rows = Invoke-StateSql -State $state -Name 'environments-list' -Rows }
         finally { Close-InstallerState -State $state }
-        ($rows | Where-Object { $_['environment_id'] -eq $script:hoId })['revoked_at'] | Should -Not -BeNullOrEmpty
+        $revoked = @(foreach ($item in @($rows)) { foreach ($entry in @($item)) { if ($entry['environment_id'] -eq $script:hoId) { $entry } } }) | Select-Object -First 1
+        $revoked['revoked_at'] | Should -Not -BeNullOrEmpty
     }
 }

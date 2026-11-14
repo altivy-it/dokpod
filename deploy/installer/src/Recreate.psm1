@@ -255,8 +255,10 @@ function Remove-InstallationData {
     $items = Get-DataRemovalItem -Answers $Answers
     if (-not $PSCmdlet.ShouldProcess($Project, "remover os dados: $($items -join ', ')")) { return , [string[]] @() }
 
+    # Só os containers saem, não as redes: recriar uma rede com o mesmo nome segundos depois deixa o DNS interno do
+    # Podman (aardvark) sem responder nela, e o Keycloak novo não seria alcançado pelo nome.
     $compose = @('compose', '--file', (Join-Path $Answers.installDir 'compose.yaml'), '--project-name', $Project)
-    $down = Invoke-InstallerProcess -FilePath $Cli -ArgumentList ($compose + @('down', '--remove-orphans'))
+    $down = Invoke-InstallerProcess -FilePath $Cli -ArgumentList ($compose + @('rm', '--stop', '--force'))
     if ($down.ExitCode -ne 0) {
         Stop-Installer -Code Error -Message "Não foi possível parar o projeto $Project (código $($down.ExitCode)): $($down.Error.Trim()) Nenhum dado foi removido."
     }
@@ -372,7 +374,9 @@ function Get-CaRotationPending {
     param([Parameter(Mandatory)] $State, [Parameter(Mandatory)][string] $LocalEnvironmentId)
 
     $since = (Get-CaRotationState -State $State).Since
-    $pending = foreach ($row in Invoke-StateSql -State $State -Name 'environments-list' -Rows) {
+    # Atribuído antes: o -Rows devolve o array como um objeto só no pipeline.
+    $rows = Invoke-StateSql -State $State -Name 'environments-list' -Rows
+    $pending = foreach ($row in $rows) {
         if ($row['environment_id'] -eq $LocalEnvironmentId -or $row['revoked_at']) { continue }
         $generated = if ($row['package_generated_at']) { [DateTimeOffset]::Parse($row['package_generated_at']) } else { $null }
         if (-not $generated -or ($since -and $generated -lt $since)) { $row['name'] }

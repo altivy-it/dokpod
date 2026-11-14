@@ -96,7 +96,8 @@ conectou. Para tirar um host:
 sh install.sh host revoke --environment <id> --reason "host desativado"
 ```
 
-A sessão do agente cai, e a revogação fica na auditoria.
+A revogação fica na auditoria, e o instalador reinicia a API para derrubar a sessão ativa do agente: o modo
+administrativo só grava no banco. Os demais agentes reconectam em seguida; o revogado não volta.
 
 ## Atualização
 
