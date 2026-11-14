@@ -6,6 +6,7 @@
 # container dos testes: a garantia é o --log-driver none dos containers avulsos, conferido aqui.
 
 BeforeAll {
+    . (Join-Path $PSScriptRoot 'TestCleanup.ps1')
     Import-Module (Join-Path $PSScriptRoot '../src/Common.psm1') -Force
     Import-Module (Join-Path $PSScriptRoot '../src/Secrets.psm1') -Force
     Import-Module (Join-Path $PSScriptRoot '../src/Install.psm1') -Force
@@ -90,11 +91,7 @@ Describe 'Canário de segredos (SC-005)' {
 
     AfterAll {
         if (-not $script:enabled) { return }
-        $label = "label=com.docker.compose.project=$($script:project)"
-        & docker compose --file (Join-Path $script:answers.installDir 'compose.yaml') --project-name $script:project down --volumes 2>$null | Out-Null
-        @(& docker ps -aq --filter $label) | ForEach-Object { & docker rm -f $_ 2>$null | Out-Null }
-        @(& docker volume ls -q --filter $label) | ForEach-Object { & docker volume rm $_ 2>$null | Out-Null }
-        @(& docker network ls -q --filter $label) | ForEach-Object { & docker network rm $_ 2>$null | Out-Null }
+        Remove-TestComposeProject -Project $script:project
         Remove-Item -LiteralPath $script:root -Recurse -Force -ErrorAction SilentlyContinue
     }
 

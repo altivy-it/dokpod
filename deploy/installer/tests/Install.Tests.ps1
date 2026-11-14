@@ -9,6 +9,7 @@
 # DOKPOD_TEST_AGENT_IMAGE e DOKPOD_INSTALLER_IMAGE_REF, todas construídas com --format docker (o OCI descarta o HEALTHCHECK).
 
 BeforeAll {
+    . (Join-Path $PSScriptRoot 'TestCleanup.ps1')
     foreach ($module in 'Common', 'Secrets', 'State', 'Install') {
         Import-Module (Join-Path $PSScriptRoot "../src/$module.psm1") -Force
     }
@@ -49,10 +50,7 @@ Describe 'Instalação completa do cenário 1' {
         if (-not $script:enabled) { return }
         & docker compose --file (Join-Path $script:answers.installDir 'compose.yaml') --project-name $script:project down --volumes 2>$null | Out-Null
         # No Podman 6 o down pode deixar container parado e redes; o que sobrar sai pelo rótulo do projeto.
-        $label = "label=com.docker.compose.project=$($script:project)"
-        @(& docker ps -aq --filter $label) | ForEach-Object { & docker rm -f $_ 2>$null | Out-Null }
-        @(& docker volume ls -q --filter $label) | ForEach-Object { & docker volume rm $_ 2>$null | Out-Null }
-        @(& docker network ls -q --filter $label) | ForEach-Object { & docker network rm $_ 2>$null | Out-Null }
+        Remove-TestComposeProject -Project $script:project
         # Os arquivos que os containers gravaram são do usuário do host (engine rootless, --user 0:0): removíveis aqui.
         Remove-Item -LiteralPath $script:root -Recurse -Force -ErrorAction SilentlyContinue
     }
@@ -187,11 +185,7 @@ Describe 'Instalação com PostgreSQL existente (existing-create)' {
 
     AfterAll {
         if (-not $script:existingEnabled) { return }
-        $label = "label=com.docker.compose.project=$($script:existingProject)"
-        & docker compose --file (Join-Path $script:existingAnswers.installDir 'compose.yaml') --project-name $script:existingProject down --volumes 2>$null | Out-Null
-        @(& docker ps -aq --filter $label) | ForEach-Object { & docker rm -f $_ 2>$null | Out-Null }
-        @(& docker volume ls -q --filter $label) | ForEach-Object { & docker volume rm $_ 2>$null | Out-Null }
-        @(& docker network ls -q --filter $label) | ForEach-Object { & docker network rm $_ 2>$null | Out-Null }
+        Remove-TestComposeProject -Project $script:existingProject
         & docker rm --force --volumes $script:pgServer 2>$null | Out-Null
         Remove-Item -LiteralPath $script:root -Recurse -Force -ErrorAction SilentlyContinue
     }
@@ -295,11 +289,7 @@ Describe 'Instalação com PostgreSQL existente (existing-prepared)' {
 
     AfterAll {
         if (-not $script:preparedEnabled) { return }
-        $label = "label=com.docker.compose.project=$($script:preparedProject)"
-        & docker compose --file (Join-Path $script:preparedAnswers.installDir 'compose.yaml') --project-name $script:preparedProject down --volumes 2>$null | Out-Null
-        @(& docker ps -aq --filter $label) | ForEach-Object { & docker rm -f $_ 2>$null | Out-Null }
-        @(& docker volume ls -q --filter $label) | ForEach-Object { & docker volume rm $_ 2>$null | Out-Null }
-        @(& docker network ls -q --filter $label) | ForEach-Object { & docker network rm $_ 2>$null | Out-Null }
+        Remove-TestComposeProject -Project $script:preparedProject
         & docker rm --force --volumes $script:preparedServer 2>$null | Out-Null
         Remove-Item -LiteralPath $script:preparedRoot -Recurse -Force -ErrorAction SilentlyContinue
     }
@@ -398,11 +388,7 @@ http {
     AfterAll {
         if (-not $script:edgeEnabled) { return }
         & docker rm --force $script:userNginx 2>$null | Out-Null
-        $label = "label=com.docker.compose.project=$($script:edgeProject)"
-        & docker compose --file (Join-Path $script:edgeAnswers.installDir 'compose.yaml') --project-name $script:edgeProject down --volumes 2>$null | Out-Null
-        @(& docker ps -aq --filter $label) | ForEach-Object { & docker rm -f $_ 2>$null | Out-Null }
-        @(& docker volume ls -q --filter $label) | ForEach-Object { & docker volume rm $_ 2>$null | Out-Null }
-        @(& docker network ls -q --filter $label) | ForEach-Object { & docker network rm $_ 2>$null | Out-Null }
+        Remove-TestComposeProject -Project $script:edgeProject
         Remove-Item -LiteralPath $script:edgeRoot -Recurse -Force -ErrorAction SilentlyContinue
     }
 
@@ -541,11 +527,7 @@ Describe 'Instalação com Keycloak existente (keycloak.mode existing)' {
 
     AfterAll {
         if (-not $script:kcEnabled) { return }
-        $label = "label=com.docker.compose.project=$($script:kcProject)"
-        & docker compose --file (Join-Path $script:kcAnswers.installDir 'compose.yaml') --project-name $script:kcProject down --volumes 2>$null | Out-Null
-        @(& docker ps -aq --filter $label) | ForEach-Object { & docker rm -f $_ 2>$null | Out-Null }
-        @(& docker volume ls -q --filter $label) | ForEach-Object { & docker volume rm $_ 2>$null | Out-Null }
-        @(& docker network ls -q --filter $label) | ForEach-Object { & docker network rm $_ 2>$null | Out-Null }
+        Remove-TestComposeProject -Project $script:kcProject
         & docker rm --force --volumes $script:kcServer 2>$null | Out-Null
         Remove-Item -LiteralPath $script:kcRoot -Recurse -Force -ErrorAction SilentlyContinue
     }
@@ -652,11 +634,7 @@ Describe 'Recriação por item (recreate)' {
 
     AfterAll {
         if (-not $script:recreateEnabled) { return }
-        $label = "label=com.docker.compose.project=$($script:rcProject)"
-        & docker compose --file (Join-Path $script:rcAnswers.installDir 'compose.yaml') --project-name $script:rcProject down --volumes 2>$null | Out-Null
-        @(& docker ps -aq --filter $label) | ForEach-Object { & docker rm -f $_ 2>$null | Out-Null }
-        @(& docker volume ls -q --filter $label) | ForEach-Object { & docker volume rm $_ 2>$null | Out-Null }
-        @(& docker network ls -q --filter $label) | ForEach-Object { & docker network rm $_ 2>$null | Out-Null }
+        Remove-TestComposeProject -Project $script:rcProject
         Remove-Item -LiteralPath $script:rcRoot -Recurse -Force -ErrorAction SilentlyContinue
     }
 
@@ -798,7 +776,9 @@ Describe 'Host remoto (host add e host revoke)' {
     BeforeAll {
         $script:hostEnabled = $script:enabled -and $env:DOKPOD_HOST_ENGINE -eq 'podman'
         if (-not $script:hostEnabled) { return }
+        # Os nomes dos projetos antes de qualquer coisa que possa falhar: o AfterAll limpa por eles.
         $script:hoProject = 'dokpod-t046'
+        $script:hoAgentProject = 'dokpod-t046-host-b'
         $script:hoRoot = Join-Path $env:DOKPOD_TEST_SHARED "t046-$([guid]::NewGuid().ToString('N').Substring(0, 8))"
         $script:hoInfra = (Get-Content -Raw (Join-Path $PSScriptRoot '../templates/infrastructure-images.json') | ConvertFrom-Json -AsHashtable).images
         $script:hoImages = [ordered]@{ api = $env:DOKPOD_TEST_API_IMAGE; bff = $env:DOKPOD_TEST_BFF_IMAGE; web = $env:DOKPOD_TEST_WEB_IMAGE; agent = $env:DOKPOD_TEST_AGENT_IMAGE }
@@ -819,16 +799,12 @@ Describe 'Host remoto (host add e host revoke)' {
         $script:hoFirst = & $run
         $script:hoSql = { param([string] $sql) (& docker exec "$($script:hoProject)-dokpod-postgres-1" psql -At -U dokpod_admin -d dokpod -c $sql) -join "`n" }
         $script:hoAgentDir = Join-Path $script:hoRoot 'host-b'
-        $script:hoAgentProject = 'dokpod-t046-host-b'
     }
 
     AfterAll {
         if (-not $script:hostEnabled) { return }
-        foreach ($project in $script:hoAgentProject, $script:hoProject) {
-            $label = "label=com.docker.compose.project=$project"
-            @(& docker ps -aq --filter $label) | ForEach-Object { & docker rm -f $_ 2>$null | Out-Null }
-            @(& docker volume ls -q --filter $label) | ForEach-Object { & docker volume rm $_ 2>$null | Out-Null }
-            @(& docker network ls -q --filter $label) | ForEach-Object { & docker network rm $_ 2>$null | Out-Null }
+        foreach ($project in @($script:hoAgentProject, $script:hoProject) | Where-Object { $_ }) {
+            Remove-TestComposeProject -Project $project
         }
         Remove-Item -LiteralPath $script:hoRoot -Recurse -Force -ErrorAction SilentlyContinue
     }

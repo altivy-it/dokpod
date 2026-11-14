@@ -9,6 +9,7 @@
 # Mesmas variáveis de Install.Tests.ps1 (DOKPOD_TEST_FULL_INSTALL=1 e as imagens desta branch).
 
 BeforeAll {
+    . (Join-Path $PSScriptRoot 'TestCleanup.ps1')
     foreach ($module in 'Common', 'Secrets', 'State', 'Install') {
         Import-Module (Join-Path $PSScriptRoot "../src/$module.psm1") -Force
     }
@@ -144,10 +145,7 @@ exec docker "`$@"
         if (-not $script:enabled) { return }
         & docker compose --file (Join-Path $script:answers.installDir 'compose.yaml') --project-name $script:project down --volumes 2>$null | Out-Null
         # No Podman 6 o down pode deixar container parado e redes; o que sobrar sai pelo rótulo do projeto.
-        $label = "label=com.docker.compose.project=$($script:project)"
-        @(& docker ps -aq --filter $label) | ForEach-Object { & docker rm -f $_ 2>$null | Out-Null }
-        @(& docker volume ls -q --filter $label) | ForEach-Object { & docker volume rm $_ 2>$null | Out-Null }
-        @(& docker network ls -q --filter $label) | ForEach-Object { & docker network rm $_ 2>$null | Out-Null }
+        Remove-TestComposeProject -Project $script:project
         Remove-Item -LiteralPath $script:root -Recurse -Force -ErrorAction SilentlyContinue
     }
 
