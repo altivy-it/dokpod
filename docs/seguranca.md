@@ -327,6 +327,26 @@ Métricas só por estado, motivo e ID do host (`dokpod.image_update.checks`, `do
 - nenhuma credencial em Git, camada de imagem, variável pública ou exemplo;
 - achado crítico ou alto bloqueia release até correção ou aceitação formal.
 
+## Instalador (spec 033)
+
+O [threat model da spec 033](../specs/033-instalador-guiado/threat-model.md) cobre o instalador. As regras que valem para a
+operação:
+
+- **Credenciais transitórias**: as credenciais administrativas do PostgreSQL e do Keycloak existentes vêm de arquivo,
+  variável ou prompt, são usadas só na execução e nunca vão para `secretsDir`, para o estado ou para o relatório
+  (FR-008, FR-015). As reexecuções usam a role dona do banco e o `dokpod-provisioner` do realm.
+- **Segredos só por arquivo**: os segredos da instalação ficam em `secretsDir` (`0600`) e entram nos containers pelos
+  `secrets:` do Compose. Os containers avulsos (psql, modo administrativo, Keycloak) os recebem por stdin, num tar
+  extraído para um tmpfs. Nada sensível passa por argumento, variável de ambiente do container ou `docker inspect`.
+- **Modo administrativo da API** ([ADR 2026-0010](adr/2026-0010-modo-administrativo-da-api.md)): migrations,
+  cadastro de ambientes e identidades rodam num container avulso da imagem da API, sem porta, sem socket do engine,
+  com raiz somente leitura e só na rede do banco.
+- **Menor privilégio**: a API conecta com uma role de runtime sem DDL. A role dona aplica as migrations, e nenhuma das
+  duas tem `SUPERUSER`, `CREATEROLE` ou `CREATEDB`. Com o nginx do usuário, web e BFF escutam só em loopback ou numa
+  rede compartilhada, e o BFF só confia em `X-Forwarded-*` dessas redes (FR-043, L1).
+- **Pacote de host remoto**: cifrado com uma frase gerada que nunca vai no pacote, com o SHA-256 junto e nenhum
+  outro segredo da instalação (FR-025, L2).
+
 ## Divulgação de vulnerabilidades
 
 Consulte a [política de segurança](../.github/SECURITY.md). Não abra issue pública com exploit, credencial ou detalhe que facilite abuso antes da correção coordenada.

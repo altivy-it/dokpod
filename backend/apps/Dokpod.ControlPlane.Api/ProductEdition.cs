@@ -36,6 +36,18 @@ public static class ProductEdition
         return System.Text.Json.JsonSerializer.Serialize(new { edition = Current, trustStoreKeyIds = keyIds });
     }
 
+    /// <summary>
+    /// Spec 033 (FR-031): <c>admin licensing import</c>. Compila nas duas edições, como o resto do licenciamento, e o
+    /// comando recusa na CE (<see cref="Admin.AdminContext.Edition"/>).
+    /// </summary>
+    internal static Task<int> RunLicensingAdminAsync(
+        string command,
+        Admin.AdminArguments arguments,
+        Dokpod.ControlPlane.Infrastructure.ControlPlaneDbContext database,
+        Admin.AdminContext context,
+        CancellationToken cancellationToken) =>
+        Licensing.LicensingAdminCommands.RunAsync(command, arguments, database, context, cancellationToken);
+
     public static void AddServices(IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);

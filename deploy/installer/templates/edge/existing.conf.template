@@ -1,0 +1,8 @@
+# Dokpod {{VERSION}}: para o nginx existente (spec 033, FR-021, FR-043). Inclua no contexto http:
+#   include {{INSTALL_DIR}}/edge/dokpod.conf;
+# e, dentro do server {} que atende {{SERVER_NAME}} (com o seu TLS):
+#   include {{INSTALL_DIR}}/edge/dokpod.locations;
+map $http_upgrade $dokpod_connection_upgrade {
+    default upgrade;
+    '' close;
+}

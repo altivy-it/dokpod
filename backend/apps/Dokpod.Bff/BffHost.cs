@@ -24,6 +24,7 @@ public static class BffHost
     public static WebApplicationBuilder CreateBuilder(string[] args)
     {
         var builder = WebApplication.CreateBuilder(args);
+        Configuration.SecretFiles.AddTo(builder.Configuration);
         // URLs com query não vão aos logs: `contains` dos logs sob demanda (spec 011) e demais filtros
         // apareceriam em "Request starting ..." e no log do HttpClient em nível Information.
         builder.Logging.AddFilter("Microsoft.AspNetCore.Hosting.Diagnostics", LogLevel.Warning);

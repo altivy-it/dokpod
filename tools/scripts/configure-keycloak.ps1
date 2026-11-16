@@ -50,11 +50,25 @@ temporária.
 .PARAMETER BffBaseUrl
 Origem externa do BFF. Padrão: https://localhost:7443.
 
+.PARAMETER InternalHttp
+Aceita BaseUrl HTTP fora do loopback. Uso exclusivo do instalador (spec 033), que fala com o Keycloak provisionado
+pela rede interna do Compose, num container avulso sem rota para fora; o acesso público continua pela borda HTTPS.
+
 .PARAMETER SkipUser
 Não cria nem atualiza o usuário inicial, mesmo quando DOKPOD_ADMIN_EMAIL estiver definido.
 
 .PARAMETER DryRun
 Exibe o plano sem acessar a rede, solicitar credenciais ou alterar o Keycloak.
+
+.PARAMETER Drift
+Compara o realm com o contrato do Dokpod (clients, scopes, recurso UMA, roles, grupos e, com -Bootstrap, a política
+do realm e as roles do dokpod-provisioner) e lista cada divergência em linhas `Divergência: <item>`, sem alterar o
+Keycloak. Exige as mesmas credenciais da reconciliação. Usado pelo instalador (spec 033 T040) para mostrar no plano o
+que a reconciliação vai corrigir. Valores de segredos nunca aparecem: só o nome do item.
+
+.PARAMETER LoginTheme
+Tema de login do realm, aplicado com -Bootstrap. Padrão: dokpod. Vazio mantém o tema atual, para um Keycloak
+existente sem o tema do Dokpod.
 
 .PARAMETER RemainingArguments
 Argumentos literais remanescentes. Aceita somente --help.
@@ -127,7 +141,14 @@ param(
 
     [switch] $SkipUser,
 
+    [switch] $InternalHttp,
+
     [switch] $DryRun,
+
+    [switch] $Drift,
+
+    [ValidatePattern('^[a-z0-9._-]*$')]
+    [string] $LoginTheme = 'dokpod',
 
     [Parameter(ValueFromRemainingArguments)]
     [string[]] $RemainingArguments
@@ -155,7 +176,7 @@ if ($Realm -eq 'master') {
     throw 'O realm administrativo master não pode ser gerenciado por este script. Use um realm dedicado.'
 }
 
-if ($baseUri.Scheme -ne 'https' -and -not $baseUri.IsLoopback) {
+if ($baseUri.Scheme -ne 'https' -and -not $baseUri.IsLoopback -and -not $InternalHttp) {
     throw 'BaseUrl deve usar HTTPS fora do ambiente local.'
 }
 
@@ -245,6 +266,10 @@ if ($InitialUserEmail -and -not $SkipUser) {
     $plannedResources += "usuário $InitialUsername ($InitialUserEmail) no grupo administrators"
 }
 
+if ($Drift -and $DryRun) {
+    throw 'Use -Drift ou -DryRun, não os dois: -DryRun não acessa a rede e -Drift compara com o realm.'
+}
+
 if ($DryRun) {
     Write-Output "Plano para $BaseUrl/admin/realms/$Realm`:"
     $plannedResources | ForEach-Object { Write-Output "- $_" }
@@ -300,6 +325,7 @@ function Invoke-KeycloakApi {
         [object] $Body
     )
 
+    if ($Drift -and $Method -ne 'GET') { throw "O modo -Drift não altera o Keycloak ($Method $Path)." }
     $parameters = @{
         Method      = $Method
         Uri         = "$BaseUrl$Path"
@@ -381,12 +407,51 @@ function Request-AccessToken {
     $script:accessToken = $tokenResponse.access_token
 }
 
+$script:DriftItems = [System.Collections.Generic.List[string]]::new()
+
+function Add-Drift {
+    param([Parameter(Mandatory)][string] $Item)
+    if (-not $script:DriftItems.Contains($Item)) { $script:DriftItems.Add($Item) }
+}
+
+function Compare-KeycloakRepresentation {
+    # Campos do contrato que diferem no Keycloak: escalares pelo texto, listas sem ordem, dicionários por chave.
+    param([Parameter(Mandatory)] $Existing, [Parameter(Mandatory)][hashtable] $Desired, [Parameter(Mandatory)][string] $Label, [string[]] $Skip = @('secret'))
+
+    foreach ($key in $Desired.Keys) {
+        if ($key -in $Skip) { continue }
+        $want = $Desired[$key]
+        $have = if ($Existing.PSObject.Properties[$key]) { $Existing.$key } else { $null }
+        if ($want -is [hashtable]) {
+            foreach ($inner in $want.Keys) {
+                $value = if ($null -ne $have -and $have.PSObject.Properties[$inner]) { $have.$inner } else { $null }
+                if ("$value" -ne "$($want[$inner])") { Add-Drift "$($Label): $key.$inner" }
+            }
+        }
+        elseif ($want -is [array]) {
+            if ((@($want | Sort-Object) -join "`n") -ne (@($have | Sort-Object) -join "`n")) { Add-Drift "$($Label): $key" }
+        }
+        elseif ("$have" -ne "$want") {
+            Add-Drift "$($Label): $key"
+        }
+    }
+}
+
 function Ensure-Client {
     param([Parameter(Mandatory)][hashtable] $Representation)
 
     $encodedClientId = [Uri]::EscapeDataString($Representation.clientId)
     $existing = @(Invoke-KeycloakApi GET "/admin/realms/$Realm/clients?clientId=$encodedClientId") |
     Where-Object clientId -eq $Representation.clientId | Select-Object -First 1
+    if ($Drift) {
+        if (-not $existing) { Add-Drift "client $($Representation.clientId) ausente"; return $null }
+        Compare-KeycloakRepresentation -Existing $existing -Desired $Representation -Label "client $($Representation.clientId)"
+        if ($Representation.ContainsKey('secret')) {
+            $current = Invoke-KeycloakApi GET "/admin/realms/$Realm/clients/$($existing.id)/client-secret"
+            if ($current.value -ne $Representation.secret) { Add-Drift "client $($Representation.clientId): secret" }
+        }
+        return $existing.id
+    }
     if ($existing) {
         Invoke-KeycloakApi PUT "/admin/realms/$Realm/clients/$($existing.id)" $Representation | Out-Null
         Write-Verbose "Atualizado client $($Representation.clientId)."
@@ -407,6 +472,17 @@ function Ensure-ClientRole {
     )
 
     $encodedRole = [Uri]::EscapeDataString($RoleName)
+    if ($Drift) {
+        try {
+            $existing = Invoke-KeycloakApi GET "/admin/realms/$Realm/clients/$ClientUuid/roles/$encodedRole"
+            if ($existing.description -ne $Description) { Add-Drift "role $($RoleName): description" }
+        }
+        catch {
+            if (-not (Test-KeycloakNotFound $_)) { throw }
+            Add-Drift "role $RoleName ausente"
+        }
+        return
+    }
     try {
         $existing = Invoke-KeycloakApi GET "/admin/realms/$Realm/clients/$ClientUuid/roles/$encodedRole"
         $representation = @{ id = $existing.id; name = $RoleName; description = $Description }
@@ -434,6 +510,15 @@ function Ensure-AudienceClientScope {
     }
     $scope = @(Invoke-KeycloakApi GET "/admin/realms/$Realm/client-scopes") |
     Where-Object name -eq $scopeRepresentation.name | Select-Object -First 1
+    if ($Drift) {
+        if (-not $scope) { Add-Drift 'client scope dokpod-api-audience ausente'; return }
+        Compare-KeycloakRepresentation -Existing $scope -Desired $scopeRepresentation -Label 'client scope dokpod-api-audience'
+        $mappers = @(Invoke-KeycloakApi GET "/admin/realms/$Realm/client-scopes/$($scope.id)/protocol-mappers/models")
+        if (-not ($mappers | Where-Object name -eq 'dokpod-api-audience')) { Add-Drift 'mapper dokpod-api-audience ausente' }
+        $defaultScopes = @(Invoke-KeycloakApi GET "/admin/realms/$Realm/clients/$ClientUuid/default-client-scopes")
+        if (@($defaultScopes | ForEach-Object { $_.id }) -notcontains $scope.id) { Add-Drift "client scope dokpod-api-audience fora dos padrões de $ClientUuid" }
+        return
+    }
     if ($scope) {
         Invoke-KeycloakApi PUT "/admin/realms/$Realm/client-scopes/$($scope.id)" $scopeRepresentation | Out-Null
         $scopeId = $scope.id
@@ -503,6 +588,7 @@ function Ensure-AuthorizationScopes {
         $encodedScope = [Uri]::EscapeDataString($scopeName)
         $scope = @(Invoke-KeycloakApi GET "$authzBase/scope?name=$encodedScope&exact=true") |
             Where-Object name -eq $scopeName | Select-Object -First 1
+        if (-not $scope -and $Drift) { Add-Drift "scope UMA $scopeName ausente"; continue }
         if (-not $scope) {
             Invoke-KeycloakApi POST "$authzBase/scope" @{ name = $scopeName } | Out-Null
             Write-Output "Criado scope UMA $scopeName em $ClientUuid."
@@ -523,6 +609,7 @@ function Ensure-InstallationResource {
         $encodedScope = [Uri]::EscapeDataString($scopeName)
         $scope = @(Invoke-KeycloakApi GET "$authzBase/scope?name=$encodedScope&exact=true") |
             Where-Object name -eq $scopeName | Select-Object -First 1
+        if (-not $scope -and $Drift) { continue }
         if (-not $scope) { throw "Scope UMA $scopeName não encontrado em $ClientUuid." }
         @{ id = $scope.id; name = $scope.name }
     }
@@ -535,6 +622,12 @@ function Ensure-InstallationResource {
         displayName = 'Dokpod installation'
         scopes = @($scopes)
         ownerManagedAccess = $false
+    }
+    if ($Drift) {
+        if (-not $resource) { Add-Drift "recurso UMA $resourceName ausente"; return }
+        $currentScopes = @($resource.scopes | ForEach-Object { $_.name })
+        if (@($scopeNames | Where-Object { $currentScopes -notcontains $_ }).Count -gt 0) { Add-Drift "recurso UMA $($resourceName): scopes" }
+        return
     }
     if (-not $resource) {
         Invoke-KeycloakApi POST "$authzBase/resource" $representation | Out-Null
@@ -566,6 +659,7 @@ function Ensure-GroupPath {
             @(Invoke-KeycloakApi GET "/admin/realms/$Realm/groups?search=$encodedSearch&exact=true")
         }
         $group = $matchingGroups | Where-Object path -eq $currentPath | Select-Object -First 1
+        if (-not $group -and $Drift) { Add-Drift "grupo $currentPath ausente"; return $null }
         if (-not $group) {
             $path = if ($parentId) { "/admin/realms/$Realm/groups/$parentId/children" } else { "/admin/realms/$Realm/groups" }
             Invoke-KeycloakApi POST $path @{ name = $segment } | Out-Null
@@ -647,6 +741,11 @@ if ($Bootstrap) {
     }
     catch {
         if (-not (Test-KeycloakNotFound $_)) { throw }
+        if ($Drift) {
+            # Sem o realm, tudo do contrato falta: a reconciliação cria o realm inteiro.
+            Write-Output "Divergência: realm $Realm ausente"
+            exit 0
+        }
         Invoke-KeycloakApi POST '/admin/realms' @{ realm = $Realm; enabled = $true; displayName = 'Dokpod' } | Out-Null
         $realmRepresentation = Invoke-KeycloakApi GET "/admin/realms/$Realm"
         Write-Output "Criado realm $Realm."
@@ -668,6 +767,8 @@ if ($Bootstrap) {
         revokeRefreshToken = $false; eventsEnabled = $true; eventsExpiration = 2592000
         eventsListeners = @('jboss-logging'); adminEventsEnabled = $true; adminEventsDetailsEnabled = $false
     }
+    if (-not $LoginTheme) { $realmSettings.Remove('loginTheme') } else { $realmSettings.loginTheme = $LoginTheme }
+    if ($Drift) { Compare-KeycloakRepresentation -Existing $realmRepresentation -Desired $realmSettings -Label "realm $Realm" }
     foreach ($key in $realmSettings.Keys) { $realmRepresentation | Add-Member -NotePropertyName $key -NotePropertyValue $realmSettings[$key] -Force }
 
     if ($smtpHost) {
@@ -686,12 +787,14 @@ if ($Bootstrap) {
             ssl             = 'false'
         } -Force
     }
-    Invoke-KeycloakApi PUT "/admin/realms/$Realm" $realmRepresentation | Out-Null
-    Write-Output "Atualizado baseline do realm $Realm."
+    if (-not $Drift) {
+        Invoke-KeycloakApi PUT "/admin/realms/$Realm" $realmRepresentation | Out-Null
+        Write-Output "Atualizado baseline do realm $Realm."
+    }
 }
 else {
     if ($smtpHost) { Write-Warning 'DOKPOD_SMTP_HOST definido, mas SMTP exige manage-realm; rode com -Bootstrap para aplicar.' }
-    Write-Output "Política do realm $Realm preservada; use -Bootstrap para alterá-la."
+    if (-not $Drift) { Write-Output "Política do realm $Realm preservada; use -Bootstrap para alterá-la." }
 }
 
 $apiClient = @{
@@ -700,8 +803,10 @@ $apiClient = @{
     serviceAccountsEnabled = $true; authorizationServicesEnabled = $true; protocol = 'openid-connect'
 }
 $apiClientUuid = Ensure-Client $apiClient
-Ensure-AuthorizationScopes -ClientUuid $apiClientUuid
-Ensure-InstallationResource -ClientUuid $apiClientUuid
+if ($apiClientUuid) {
+    Ensure-AuthorizationScopes -ClientUuid $apiClientUuid
+    Ensure-InstallationResource -ClientUuid $apiClientUuid
+}
 
 $provisionerClient = @{
     clientId = 'dokpod-provisioner'; name = 'Dokpod Provisioner'; enabled = $true; publicClient = $false
@@ -711,7 +816,7 @@ $provisionerClient = @{
 $provisionerSecret = Get-EnvironmentSecret @('DOKPOD_PROVISIONER_CLIENT_SECRET')
 if ($provisionerSecret) { $provisionerClient.secret = $provisionerSecret }
 $provisionerClientUuid = Ensure-Client $provisionerClient
-if ($Bootstrap) {
+if ($Bootstrap -and $provisionerClientUuid) {
     # Service account do provisioner: somente manage-clients, manage-users e manage-authorization no
     # realm-management (documentado acima); exige a credencial administrativa do -Bootstrap.
     $serviceAccount = Invoke-KeycloakApi GET "/admin/realms/$Realm/clients/$provisionerClientUuid/service-account-user"
@@ -719,15 +824,20 @@ if ($Bootstrap) {
     Where-Object clientId -eq 'realm-management' | Select-Object -First 1
     if (-not $realmManagement) { throw 'Client realm-management não encontrado no realm.' }
     $currentRoles = @(Invoke-KeycloakApi GET "/admin/realms/$Realm/users/$($serviceAccount.id)/role-mappings/clients/$($realmManagement.id)" | ForEach-Object { $_.name })
-    $missingRoles = @(foreach ($roleName in @('manage-clients', 'manage-users', 'manage-authorization')) {
+    if ($Drift) {
+        foreach ($roleName in @('manage-clients', 'manage-users', 'manage-authorization')) {
+            if ($currentRoles -notcontains $roleName) { Add-Drift "service account dokpod-provisioner sem $roleName" }
+        }
+    }
+    $missingRoles = @(if (-not $Drift) { foreach ($roleName in @('manage-clients', 'manage-users', 'manage-authorization')) {
             if ($currentRoles -notcontains $roleName) {
                 Invoke-KeycloakApi GET "/admin/realms/$Realm/clients/$($realmManagement.id)/roles/$roleName"
             }
-        })
+        } })
     if ($missingRoles.Count -gt 0) {
         Invoke-KeycloakApi POST "/admin/realms/$Realm/users/$($serviceAccount.id)/role-mappings/clients/$($realmManagement.id)" $missingRoles | Out-Null
     }
-    Write-Output 'Reconciliadas roles do realm-management da service account dokpod-provisioner.'
+    if (-not $Drift) { Write-Output 'Reconciliadas roles do realm-management da service account dokpod-provisioner.' }
 }
 
 $bffClient = @{
@@ -740,7 +850,7 @@ $bffClient = @{
 $bffSecret = Get-EnvironmentSecret @('DOKPOD_BFF_CLIENT_SECRET')
 if ($bffSecret) { $bffClient.secret = $bffSecret }
 $bffClientUuid = Ensure-Client $bffClient
-Ensure-AudienceClientScope -ClientUuid $bffClientUuid
+if ($bffClientUuid) { Ensure-AudienceClientScope -ClientUuid $bffClientUuid }
 
 $authorizationSpikeClient = @{
     clientId = 'dokpod-authorization-spike'; name = 'Dokpod Authorization Spike'; enabled = $true
@@ -750,7 +860,7 @@ $authorizationSpikeClient = @{
     attributes = @{ 'pkce.code.challenge.method' = 'S256'; 'oauth2.device.authorization.grant.enabled' = 'false' }
 }
 $authorizationSpikeClientUuid = Ensure-Client $authorizationSpikeClient
-Ensure-AudienceClientScope -ClientUuid $authorizationSpikeClientUuid
+if ($authorizationSpikeClientUuid) { Ensure-AudienceClientScope -ClientUuid $authorizationSpikeClientUuid }
 
 $labClient = @{
     clientId = 'dokpod-lab'; name = 'Dokpod Lab'; enabled = $true
@@ -760,7 +870,7 @@ $labClient = @{
     attributes = @{ 'pkce.code.challenge.method' = 'S256'; 'oauth2.device.authorization.grant.enabled' = 'false' }
 }
 $labClientUuid = Ensure-Client $labClient
-Ensure-AudienceClientScope -ClientUuid $labClientUuid
+if ($labClientUuid) { Ensure-AudienceClientScope -ClientUuid $labClientUuid }
 
 $roles = @(
     @{ name = 'Administrator'; description = 'Administra ambientes, auditoria e recursos Dokpod explicitamente autorizados.'; group = 'administrators' },
@@ -769,6 +879,15 @@ $roles = @(
     @{ name = 'Reader'; description = 'Le ambientes e containers Dokpod explicitamente autorizados.'; group = 'readers' }
 )
 foreach ($role in $roles) {
+    if ($Drift) {
+        if ($apiClientUuid) { Ensure-ClientRole -ClientUuid $apiClientUuid -RoleName $role.name -Description $role.description }
+        $groupId = Ensure-GroupPath @('dokpod', $role.group)
+        if ($apiClientUuid -and $groupId) {
+            $currentMappings = @(Invoke-KeycloakApi GET "/admin/realms/$Realm/groups/$groupId/role-mappings/clients/$apiClientUuid")
+            if (@($currentMappings | ForEach-Object { $_.name }) -notcontains $role.name) { Add-Drift "grupo /dokpod/$($role.group) sem a role $($role.name)" }
+        }
+        continue
+    }
     Ensure-ClientRole -ClientUuid $apiClientUuid -RoleName $role.name -Description $role.description
     $groupId = Ensure-GroupPath @('dokpod', $role.group)
     $encodedRole = [Uri]::EscapeDataString($role.name)
@@ -778,6 +897,14 @@ foreach ($role in $roles) {
         Invoke-KeycloakApi POST "/admin/realms/$Realm/groups/$groupId/role-mappings/clients/$apiClientUuid" @($roleRepresentation) | Out-Null
     }
 }
+if ($Drift) {
+    $script:accessToken = $null
+    $script:adminPasswordPlain = $null
+    if ($script:DriftItems.Count -eq 0) { Write-Output 'Sem divergências.' }
+    foreach ($item in $script:DriftItems) { Write-Output "Divergência: $item" }
+    exit 0
+}
+
 Write-Output 'Reconciliadas roles e associações de grupos.'
 
 if ($InitialUserEmail -and -not $SkipUser) {

@@ -1,0 +1,414 @@
+{
+  "files": [
+    {
+      "path": "schema/0001-initial.sql",
+      "purpose": "schema",
+      "executor": "sqlite",
+      "parameters": [],
+      "sha256": "0915fce41c87054cc6455ede7b631cc03868e8ec4063b779b3492bf46db768b7"
+    },
+    {
+      "path": "queries/backup.sql",
+      "purpose": "query",
+      "executor": "sqlite",
+      "parameters": [
+        {
+          "name": "path",
+          "kind": "literal"
+        }
+      ],
+      "sha256": "ed1c1150a5ee53e2d32ee5e610c547aa7e60b2c0fa9090e82eb77111a8898f80"
+    },
+    {
+      "path": "queries/certificate-upsert.sql",
+      "purpose": "query",
+      "executor": "sqlite",
+      "parameters": [
+        {
+          "name": "ca_state",
+          "kind": "literal"
+        },
+        {
+          "name": "fingerprint_sha",
+          "kind": "literal"
+        },
+        {
+          "name": "not_after",
+          "kind": "literal"
+        },
+        {
+          "name": "now",
+          "kind": "literal"
+        },
+        {
+          "name": "origin",
+          "kind": "literal"
+        },
+        {
+          "name": "role",
+          "kind": "literal"
+        },
+        {
+          "name": "secret_ref",
+          "kind": "literal"
+        },
+        {
+          "name": "subject_alt_names_json",
+          "kind": "literal"
+        }
+      ],
+      "sha256": "d8a5d0cdab081ccfd865cc4a68aea8c06d0b7dab4e0fe1560fec7d72789e4ec9"
+    },
+    {
+      "path": "queries/certificates-list.sql",
+      "purpose": "query",
+      "executor": "sqlite",
+      "parameters": [],
+      "sha256": "71f4a8a90eb714716fbc8e9c5d098715396e882e66c07af673966bc5a64eda1f"
+    },
+    {
+      "path": "queries/component-upsert.sql",
+      "purpose": "query",
+      "executor": "sqlite",
+      "parameters": [
+        {
+          "name": "desired_hash",
+          "kind": "literal"
+        },
+        {
+          "name": "name",
+          "kind": "literal"
+        },
+        {
+          "name": "now",
+          "kind": "literal"
+        },
+        {
+          "name": "observed_json",
+          "kind": "literal"
+        },
+        {
+          "name": "origin",
+          "kind": "literal"
+        },
+        {
+          "name": "recreatable",
+          "kind": "literal"
+        }
+      ],
+      "sha256": "09f5c8bdf1c35170603f553a52034dc7cc968df93528eee6cee283aa85520ce6"
+    },
+    {
+      "path": "queries/components-list.sql",
+      "purpose": "query",
+      "executor": "sqlite",
+      "parameters": [],
+      "sha256": "213bcf07ee029aa2ffc82b4e5c6af5c5ea188bd34f36d3c82bda317f415edc78"
+    },
+    {
+      "path": "queries/connection-open.sql",
+      "purpose": "query",
+      "executor": "sqlite",
+      "parameters": [],
+      "sha256": "8bc2d49c2c22f06a302a4658407cfb6f81f8d988311539f5a4c783825cb1710d"
+    },
+    {
+      "path": "queries/environment-upsert.sql",
+      "purpose": "query",
+      "executor": "sqlite",
+      "parameters": [
+        {
+          "name": "agent_fingerprint",
+          "kind": "literal"
+        },
+        {
+          "name": "engine",
+          "kind": "literal"
+        },
+        {
+          "name": "environment_id",
+          "kind": "literal"
+        },
+        {
+          "name": "name",
+          "kind": "literal"
+        },
+        {
+          "name": "package_generated_at",
+          "kind": "literal"
+        },
+        {
+          "name": "revoked_at",
+          "kind": "literal"
+        }
+      ],
+      "sha256": "babe2c9a51e6073d42544ba7ee438b069db25dc52266059d46929b9174ea8825"
+    },
+    {
+      "path": "queries/environments-list.sql",
+      "purpose": "query",
+      "executor": "sqlite",
+      "parameters": [],
+      "sha256": "e4dd2dcd88c2c82320263e0cbfdaf88d44b268d0f9b0f831b2b7a1ac6f6ca48e"
+    },
+    {
+      "path": "queries/installation-get.sql",
+      "purpose": "query",
+      "executor": "sqlite",
+      "parameters": [],
+      "sha256": "40bc4c332e11dc1771ef7b163380cefa5c3daeffa8ccd5526db6513d44e27199"
+    },
+    {
+      "path": "queries/installation-upsert.sql",
+      "purpose": "query",
+      "executor": "sqlite",
+      "parameters": [
+        {
+          "name": "edition",
+          "kind": "literal"
+        },
+        {
+          "name": "engine",
+          "kind": "literal"
+        },
+        {
+          "name": "installation_id",
+          "kind": "literal"
+        },
+        {
+          "name": "now",
+          "kind": "literal"
+        },
+        {
+          "name": "public_url",
+          "kind": "literal"
+        },
+        {
+          "name": "version",
+          "kind": "literal"
+        }
+      ],
+      "sha256": "770a7b6aaa13cfe87a2a893bfc76285df62f220384bbf95eaa83d02d78164daf"
+    },
+    {
+      "path": "queries/integrity-check.sql",
+      "purpose": "query",
+      "executor": "sqlite",
+      "parameters": [],
+      "sha256": "f246695347e4969288bb471acd9fc9ebdf2f689ec04ef032d5b55408d55adb1e"
+    },
+    {
+      "path": "queries/lock-delete.sql",
+      "purpose": "query",
+      "executor": "sqlite",
+      "parameters": [
+        {
+          "name": "run_id",
+          "kind": "literal"
+        }
+      ],
+      "sha256": "16c1ef2034b67269095597398f1bfdb014e6c1b7efc8fa510fd6dda8ccbfef03"
+    },
+    {
+      "path": "queries/lock-get.sql",
+      "purpose": "query",
+      "executor": "sqlite",
+      "parameters": [],
+      "sha256": "5dd2abf22ab92fe4545d2f3c6041df1504adf8b6cecd3a90519b3897e622d59a"
+    },
+    {
+      "path": "queries/lock-insert.sql",
+      "purpose": "query",
+      "executor": "sqlite",
+      "parameters": [
+        {
+          "name": "container_name",
+          "kind": "literal"
+        },
+        {
+          "name": "now",
+          "kind": "literal"
+        },
+        {
+          "name": "run_id",
+          "kind": "literal"
+        }
+      ],
+      "sha256": "a1d1048a20b305f2d4a9e3ab2b824656b6d75885c3292c0c99c9ff2e4495eeee"
+    },
+    {
+      "path": "queries/run-delete.sql",
+      "purpose": "query",
+      "executor": "sqlite",
+      "parameters": [
+        {
+          "name": "run_id",
+          "kind": "literal"
+        }
+      ],
+      "sha256": "ec3271ebdf2931aabb462a1db0c68f749acd7b616315a816295595b5e6c01231"
+    },
+    {
+      "path": "queries/run-finish.sql",
+      "purpose": "query",
+      "executor": "sqlite",
+      "parameters": [
+        {
+          "name": "exit_code",
+          "kind": "literal"
+        },
+        {
+          "name": "now",
+          "kind": "literal"
+        },
+        {
+          "name": "outcome",
+          "kind": "literal"
+        },
+        {
+          "name": "report_path",
+          "kind": "literal"
+        },
+        {
+          "name": "run_id",
+          "kind": "literal"
+        }
+      ],
+      "sha256": "33bc14f0192851076c322e292cc0502faf27d633fa93ab2ecf00c45cd2ff2972"
+    },
+    {
+      "path": "queries/run-get.sql",
+      "purpose": "query",
+      "executor": "sqlite",
+      "parameters": [
+        {
+          "name": "run_id",
+          "kind": "literal"
+        }
+      ],
+      "sha256": "b9a041d13cdcecb25fbcf49f754eca9fe83f5363bc6e56d50b6ddaeaa6149f07"
+    },
+    {
+      "path": "queries/run-insert.sql",
+      "purpose": "query",
+      "executor": "sqlite",
+      "parameters": [
+        {
+          "name": "command",
+          "kind": "literal"
+        },
+        {
+          "name": "now",
+          "kind": "literal"
+        },
+        {
+          "name": "run_id",
+          "kind": "literal"
+        }
+      ],
+      "sha256": "5234a13a283b56e8f783654d9c1dff8faa434443e83f63402e6b2e14ec82ca42"
+    },
+    {
+      "path": "queries/run-step-insert.sql",
+      "purpose": "query",
+      "executor": "sqlite",
+      "parameters": [
+        {
+          "name": "now",
+          "kind": "literal"
+        },
+        {
+          "name": "run_id",
+          "kind": "literal"
+        },
+        {
+          "name": "status",
+          "kind": "literal"
+        },
+        {
+          "name": "step",
+          "kind": "literal"
+        }
+      ],
+      "sha256": "1a1958c20cd369a7bf95cce89402da920c48f25a8f99a66884faac753a7b5b11"
+    },
+    {
+      "path": "queries/run-steps-list.sql",
+      "purpose": "query",
+      "executor": "sqlite",
+      "parameters": [
+        {
+          "name": "run_id",
+          "kind": "literal"
+        }
+      ],
+      "sha256": "cc97db2f630298aadd02229d71298badb6266e03a211f7836950b684aa4e52c8"
+    },
+    {
+      "path": "queries/runs-expired.sql",
+      "purpose": "query",
+      "executor": "sqlite",
+      "parameters": [
+        {
+          "name": "keep",
+          "kind": "literal"
+        }
+      ],
+      "sha256": "485a7bdf1497ceea2b81e43f2bd39aca482b2902503d6ef3419b5c5b9e61e54a"
+    },
+    {
+      "path": "queries/sql-override-insert.sql",
+      "purpose": "query",
+      "executor": "sqlite",
+      "parameters": [
+        {
+          "name": "accepted_schema_fingerprint",
+          "kind": "literal"
+        },
+        {
+          "name": "applied_sha",
+          "kind": "literal"
+        },
+        {
+          "name": "confirmed_by",
+          "kind": "literal"
+        },
+        {
+          "name": "now",
+          "kind": "literal"
+        },
+        {
+          "name": "original_sha",
+          "kind": "literal"
+        },
+        {
+          "name": "path",
+          "kind": "literal"
+        },
+        {
+          "name": "purpose",
+          "kind": "literal"
+        },
+        {
+          "name": "run_id",
+          "kind": "literal"
+        }
+      ],
+      "sha256": "4bf5943f9e3466f138a60f68e03f0c741824e60ca33308ff2fc9095dfe4966a6"
+    },
+    {
+      "path": "queries/sql-overrides-list.sql",
+      "purpose": "query",
+      "executor": "sqlite",
+      "parameters": [],
+      "sha256": "155d31d72b8e38b69607602cf78b6e432c2bab9b975b16c50675c1602a93b956"
+    },
+    {
+      "path": "queries/user-version-get.sql",
+      "purpose": "query",
+      "executor": "sqlite",
+      "parameters": [],
+      "sha256": "575cffa48f6e2b51c4f08e70d8f07f6a05f51eb5bc65cdaacc3f5979d6b3e92e"
+    }
+  ]
+}

@@ -217,6 +217,19 @@ Para liberar diretamente um usuário:
 Use `-DryRun` antes da alteração. O script é idempotente e não aceita
 simultaneamente `OwnerUsername` e `GroupPath`.
 
+### Divergências do realm
+
+`configure-keycloak.ps1 -Drift` compara o realm com o contrato e não altera nada. Ele confere:
+- clients, client scope de audience e recurso e scopes UMA;
+- roles, grupos e o mapeamento das roles nos grupos;
+- com `-Bootstrap`, também a política do realm e as roles do `dokpod-provisioner`.
+
+Cada diferença sai numa linha `Divergência: <item>`, por exemplo `client dokpod-bff: redirectUris`. Segredos aparecem só
+pelo nome do item. O instalador (spec 033) usa essa lista no plano e só corrige depois da confirmação.
+
+`-LoginTheme` define o tema de login aplicado com `-Bootstrap` (padrão `dokpod`). Vazio mantém o tema atual, para um
+Keycloak existente sem o tema do Dokpod.
+
 ## Operação
 
 O deployment deve incluir health/readiness do Keycloak sem transformar indisponibilidade em bypass. Backups do banco do Keycloak e do banco do Dokpod são independentes e ambos precisam de testes de restauração. Atualizações seguem release notes, compatibilidade, migration, rollback, scan de vulnerabilidades e teste dos fluxos autenticados.

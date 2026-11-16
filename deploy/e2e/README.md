@@ -1,5 +1,8 @@
 # Stack E2E do Dokpod
 
+> Esta é a stack de desenvolvimento e laboratório, e continua. Para instalar um host de verdade, use o instalador
+> guiado: [runbook de instalação](../../docs/runbooks/instalacao.md).
+
 Este diretório define a stack local do projeto Dokpod, consumindo a plataforma
 global de identidade pela rede externa `identity-global`. O Compose cria os
 serviços próprios do Dokpod e não depende do checkout do AltivyNotes.
@@ -78,7 +81,7 @@ New-Item -ItemType Directory -Force $DokpodCertsDirectory | Out-Null
 
 docker run --rm `
   -v "${DokpodCertsDirectory}:/certs" `
-  lzocateli/nginx:1.28.0-bookworm-v1 `
+  lzocateli/postgresql:18.4-pgvector0.8.6-bookworm `
   openssl pkcs12 -export `
     -in /certs/dokpod-api.crt `
     -inkey /certs/dokpod-api.key `

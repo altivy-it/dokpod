@@ -28,7 +28,7 @@ RUN case "$RELEASE_VERSION" in *[!0-9A-Za-z.-]*) echo "RELEASE_VERSION inválida
     && npm run generate:api \
     && npm run build -- --configuration production --base-href ${BASE_HREF}
 
-FROM lzocateli/nginx:1.28.0-bookworm-v1 AS runtime
+FROM lzocateli/nginx:1.30.6-alpine-v1 AS runtime
 LABEL org.opencontainers.image.title="dokpod-web" \
     org.opencontainers.image.description="Aplicação web estática do Dokpod." \
     org.opencontainers.image.source="https://github.com/altivy-it/dokpod" \
@@ -36,11 +36,9 @@ LABEL org.opencontainers.image.title="dokpod-web" \
     org.opencontainers.image.url="https://github.com/altivy-it/dokpod"
 COPY deploy/nginx/conf.d/web.conf /etc/nginx/conf.d/default.conf
 COPY --from=publish /src/dist/dokpod-web/browser/ /usr/share/nginx/html/
-# Spec 005 FR-003: aplica as correções de segurança já publicadas pelo Debian sobre a base.
-RUN apt-get update \
-    && apt-get upgrade --yes --no-install-recommends \
-    && apt-get install --yes --no-install-recommends curl \
-    && rm -rf /var/lib/apt/lists/* \
+# Spec 005 FR-003: aplica as correções de segurança já publicadas pelo Alpine sobre a base, menos o nginx e os módulos
+# dele (compilados contra a versão da base); o curl do healthcheck já vem nela.
+RUN apk upgrade --no-cache $(apk info | grep -vE '^nginx($|-)') \
     && sed -i 's#^[[:space:]]*pid[[:space:]].*#pid /tmp/nginx.pid;#' /etc/nginx/nginx.conf \
     && chown -R nginx:nginx /usr/share/nginx/html /var/cache/nginx /var/log/nginx /var/run
 # Spec 005 FR-008: licença do Dokpod dentro da imagem e no rótulo OCI.

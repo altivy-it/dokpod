@@ -5,7 +5,7 @@ public static class AuditCategories
 {
     public static IReadOnlyDictionary<string, IReadOnlyList<string>> Actions { get; } = new Dictionary<string, IReadOnlyList<string>>(StringComparer.Ordinal)
     {
-        ["environments"] = ["environment.register", "environment.approve", "environment.suspend", "environment.revoke", "environment.stage_changed"],
+        ["environments"] = ["environment.register", "environment.approve", "environment.suspend", "environment.revoke", "environment.stage_changed", "environment.agent_identity_register"],
         ["containers"] = ["container.start", "container.stop", "container.restart", "container.delete", "container.pause", "container.unpause", "container.create.requested"],
         ["commands"] = ["container.command.result"],
         ["images"] = ["image.pull", "image.update_check_requested"],

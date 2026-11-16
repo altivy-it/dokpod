@@ -32,6 +32,10 @@ URL do Keycloak sem barra final. Padrão: http://localhost:8080.
 .PARAMETER Realm
 Realm administrado. Padrão: dokpod.
 
+.PARAMETER InternalHttp
+Aceita BaseUrl HTTP fora do loopback. Uso exclusivo do instalador (spec 033), que fala com o Keycloak provisionado
+pela rede interna do Compose, num container avulso sem rota para fora; o acesso público continua pela borda HTTPS.
+
 .PARAMETER DryRun
 Exibe o plano sem acessar a rede, solicitar credenciais ou alterar o Keycloak.
 
@@ -81,6 +85,8 @@ param(
     [ValidatePattern('^[a-z0-9-]+$')]
     [string] $Realm = 'dokpod',
 
+    [switch] $InternalHttp,
+
     [switch] $DryRun,
 
     [Parameter(ValueFromRemainingArguments)]
@@ -102,7 +108,7 @@ if ([string]::IsNullOrWhiteSpace($EnvironmentId)) { throw 'EnvironmentId é obri
 if ($Realm -eq 'master') { throw 'O realm master não pode ser administrado por este script.' }
 if ([string]::IsNullOrWhiteSpace($OwnerUsername) -and [string]::IsNullOrWhiteSpace($GroupPath)) { throw 'Informe OwnerUsername ou GroupPath.' }
 if (-not [string]::IsNullOrWhiteSpace($OwnerUsername) -and -not [string]::IsNullOrWhiteSpace($GroupPath)) { throw 'OwnerUsername e GroupPath são exclusivos.' }
-if ($baseUri.Scheme -ne 'https' -and -not $baseUri.IsLoopback) { throw 'BaseUrl deve usar HTTPS fora do ambiente local.' }
+if ($baseUri.Scheme -ne 'https' -and -not $baseUri.IsLoopback -and -not $InternalHttp) { throw 'BaseUrl deve usar HTTPS fora do ambiente local.' }
 
 if ($DryRun) {
     [pscustomobject]@{

@@ -35,7 +35,7 @@ ARG RELEASE_VERSION=
 RUN case "$RELEASE_VERSION" in *[!0-9A-Za-z.-]*) echo "RELEASE_VERSION inválida" >&2; exit 1 ;; esac \
     && dotnet publish backend/apps/Dokpod.ControlPlane.Api/Dokpod.ControlPlane.Api.csproj --configuration Release --no-restore --output /app/publish /p:UseAppHost=false ${DOKPOD_EDITION:+/p:DokpodEdition=$DOKPOD_EDITION} ${RELEASE_VERSION:+/p:Version=$RELEASE_VERSION}
 
-FROM lzocateli/dotnet-aspnet:10.0.14-noble-v1 AS runtime
+FROM lzocateli/dotnet-aspnet:10.0.15-noble-v1 AS runtime
 LABEL org.opencontainers.image.title="dokpod-api-business" \
     org.opencontainers.image.description="API do plano de controle Dokpod, edição Business (licenciamento offline, spec 031)." \
     org.opencontainers.image.source="https://github.com/altivy-it/dokpod" \
@@ -49,6 +49,9 @@ RUN apt-get update \
     && apt-get purge --yes --allow-remove-essential apt libapt-pkg6.0t64 \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=publish /app/publish ./
+# Spec 033 (FR-040, D-013): catálogo SQL legível e alterável fora da imagem; o runtime só o lê embutido na assembly.
+COPY --from=publish /src/backend/libs/Dokpod.ControlPlane.Infrastructure/Sql/ /app/sql/
+COPY --from=publish /src/backend/libs/Dokpod.ControlPlane.Infrastructure/Migrations/Script/ /app/sql/Migrations/Script/
 # Spec 005 FR-008: licença do Dokpod dentro da imagem e no rótulo OCI.
 LABEL org.opencontainers.image.licenses="AGPL-3.0-only"
 COPY LICENSE /usr/share/licenses/dokpod/LICENSE

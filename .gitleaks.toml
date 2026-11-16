@@ -29,7 +29,7 @@ regexes = [
 	'''^\s*Get-EnvironmentSecret @\((?:['"][A-Z][A-Z0-9_]*['"]|\$[A-Za-z_][A-Za-z0-9_]*)\)\s*$''',
 	'''^\s*Get-EnvironmentSecret @\("DOKPOD_IDP_\$\(\$Provider\.prefix\)_CLIENT_SECRET"\)\s*$''',
 	'''^\s*Get-EnvironmentFileValue -Path \$[A-Za-z_][A-Za-z0-9_]* -Name ['"][A-Z][A-Z0-9_]*['"]\s*$''',
-	'''^\s*ConvertTo-SecureString \$[A-Za-z_][A-Za-z0-9_]* -AsPlainText -Force\s*$''',
+	'''^\s*ConvertTo-SecureString (?:-String )?\$[A-Za-z_][A-Za-z0-9_.]* -AsPlainText -Force\s*$''',
 	'''^\s*Environment\.GetEnvironmentVariable\("[A-Z][A-Z0-9_]*"\)\s*$''',
 	'''^\s*keycloak\.ClientSecret\s*$''',
 	'''^\s*(?:os\.environ\.get|os\.getenv)\(['"][A-Z][A-Z0-9_]*['"]\)\s*$''',
@@ -50,6 +50,19 @@ regexes = [
 	'''^`,\s*`''',
 	# Duas chaves em código inline ligadas por "e", como na mensagem do commit 8bc426c (spec 025), quebrada depois da segunda chave.
 	'''^`\s+e\s+`[A-Za-z_][A-Za-z0-9_]*\s*$''',
+	# Instalador (spec 033): leitura e geração de segredos por função, referência a propriedade ou índice de variável,
+	# nome de arquivo de segredo em secretsDir (D-006), leitura de /run/secrets no shell e variável em argumento.
+	'''^\s*Read-(?:Installer|Optional)Secret -SecretsDirectory \$[A-Za-z_][A-Za-z0-9_.:]* -Name (?:\$[A-Za-z_][A-Za-z0-9_.:]*|'[A-Za-z0-9_-]+')\s*\}?\s*$''',
+	'''^\s*(?:New-InstallerSecret|New-InitialAdminPassword)\s*\}?\s*$''',
+	'''^\s*if \(\$[A-Za-z_][A-Za-z0-9_]*\) \{ \$[A-Za-z_][A-Za-z0-9_]*\.Password \} else \{ New-InstallerSecret \}\s*$''',
+	'''^\s*\$[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)+\s*\}?\s*$''',
+	'''^\s*\[string\] \$[A-Za-z_][A-Za-z0-9_]*\['[A-Za-z]+'\]\s*$''',
+	'''^'(?:dokpod-db-password|keycloak-db-password|keycloak-bootstrap-admin|initial-admin-password|keycloak-provisioner-client-secret|Authentication__Keycloak__ClientSecret)'$''',
+	'''^\x60"\x60\$\(cat /run/secrets/''',
+	'''^\$\(\$script:[A-Za-z_][A-Za-z0-9_]*\)"\s*\x60?\s*$''',
+	# Valores sintéticos dos testes do instalador (spec 033).
+	'''^'(?:senha-qualquer|senha-do-admin-033|canario:admin\\033)'$''',
+	'''^"a;b'c=d \x60"\s*$''',
 	# Valores sintéticos dos testes de mascaramento e do catálogo de desenvolvimento.
 	'''^'segredo-do-cofre'$''',
 	'''(?i)\bhunter2\b''',

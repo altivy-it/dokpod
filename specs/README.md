@@ -166,6 +166,12 @@ Dependências: 026 → 028 (exceção de emergência compartilhada). 025, 027 e 
 
 [032 - Responsáveis e colaboração no GitHub](032-colaboracao-responsaveis-github/spec.md): donos por área no CODEOWNERS, responsáveis na governança e referências ao repositório `altivy-it/dokpod`. Sem alteração de aplicação, políticas gerenciadas ou histórico.
 
+### Instalador guiado (033)
+
+**Data**: 2026-11-08 | **Branch**: `033-instalador-guiado` | **Estado**: `draft` (Rascunho), aguardando revisão humana.
+
+[033 - Instalador guiado do Dokpod](033-instalador-guiado/spec.md): instalador único e idempotente para quem está fora do projeto. Cobre a stack completa num host vazio, o uso de PostgreSQL e/ou nginx existentes e a integração a um Keycloak existente. Aplica migrations sem SDK, gera e valida certificados, cadastra o primeiro ambiente e o agente, recria componentes com dupla confirmação e atualiza a versão. A stack de laboratório `deploy/e2e` continua para desenvolvimento.
+
 ### Registro de alocação de contratos
 
 Evita colisão de tags entre specs desenvolvidas em paralelo. Alterar somente com atualização desta tabela.

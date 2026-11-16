@@ -47,13 +47,27 @@ public sealed record AgentOptions(
             GetAbsolutePath(
                 "DOKPOD_AGENT_CLIENT_CERTIFICATE_PATH",
                 Path.Combine(dataDirectory, "identity", "agent.pfx")),
-            Environment.GetEnvironmentVariable("DOKPOD_AGENT_CLIENT_CERTIFICATE_PASSWORD"),
+            ReadSecret("DOKPOD_AGENT_CLIENT_CERTIFICATE_PASSWORD"),
             GetOptionalAbsolutePath("DOKPOD_AGENT_SERVER_CA_CERTIFICATE_PATH"),
             TimeSpan.FromSeconds(GetBoundedInteger("DOKPOD_AGENT_METRICS_INTERVAL_SECONDS", 15, 5, 30)),
             // Spec 012: config.json (formato Docker, `auths`) com credenciais de registro que ficam no host.
             GetOptionalAbsolutePath("DOKPOD_AGENT_REGISTRY_AUTH_FILE"),
             // Spec 013: bind mount só destes diretórios exatos (absolutos, separados por ':', sem aninhamento); vazio = somente volumes nomeados.
             GetBindAllowlist());
+    }
+
+    /// <summary>
+    /// Spec 033 (FR-033, D-006): segredo entregue por arquivo em <c>/run/secrets</c> (Compose <c>secrets:</c>), como na API
+    /// e no BFF. O arquivo vence a variável de ambiente, e o valor não aparece em <c>docker inspect</c>. Sem o arquivo
+    /// (Windows Service, compose antigo), vale a variável. <c>DOKPOD_SECRETS_DIRECTORY</c> troca o diretório só em testes.
+    /// </summary>
+    public static string? ReadSecret(string name, string? directory = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        var root = directory
+            ?? (Environment.GetEnvironmentVariable("DOKPOD_SECRETS_DIRECTORY") is { Length: > 0 } configured ? configured : "/run/secrets");
+        var path = Path.Combine(root, name);
+        return File.Exists(path) ? File.ReadAllText(path).TrimEnd('\r', '\n') : Environment.GetEnvironmentVariable(name);
     }
 
     private static string GetAbsolutePath(string variableName, string defaultValue)

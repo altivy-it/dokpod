@@ -1,35 +1,17 @@
-using System.Reflection;
-using System.Text;
+using Dokpod.ControlPlane.Infrastructure.SqlFiles;
 
 namespace Dokpod.ControlPlane.Infrastructure.Migrations;
 
+/// <summary>
+/// Corpo SQL das migrations, lido do catálogo (spec 033, D-013): os mesmos arquivos de <c>Migrations/Script</c> que a release
+/// publica para revisão. Com uma sobreposição aberta pelo modo administrativo, o arquivo sobreposto de mesmo caminho vence.
+/// </summary>
 internal static class MigrationSqlScriptLoader
 {
-    private static readonly Assembly MigrationAssembly = typeof(MigrationSqlScriptLoader).Assembly;
-
     internal static string Load(string relativePath)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(relativePath);
 
-        var suffix = $".Migrations.Script._{relativePath.Replace('/', '.')}";
-        var resourceName = MigrationAssembly
-            .GetManifestResourceNames()
-            .SingleOrDefault(name => name.EndsWith(suffix, StringComparison.Ordinal))
-            ?? throw new InvalidOperationException(
-                $"Embedded PostgreSQL migration script '{relativePath}' was not found.");
-
-        using var stream = MigrationAssembly.GetManifestResourceStream(resourceName)
-            ?? throw new InvalidOperationException(
-                $"Embedded PostgreSQL migration resource '{resourceName}' could not be opened.");
-        using var reader = new StreamReader(
-            stream,
-            Encoding.UTF8,
-            detectEncodingFromByteOrderMarks: true);
-        var script = reader.ReadToEnd();
-
-        return !string.IsNullOrWhiteSpace(script)
-            ? script
-            : throw new InvalidOperationException(
-                $"Embedded PostgreSQL migration script '{relativePath}' is empty.");
+        return SqlCatalog.Read(SqlCatalog.MigrationsPrefix + relativePath);
     }
 }

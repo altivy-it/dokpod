@@ -25,10 +25,10 @@ O baseline inicial usa imagens mantidas no projeto público [`lzocateli/containe
 | Uso no Dokpod | Imagem de referência | Papel |
 | --- | --- | --- |
 | restore, build, testes e publicação .NET | `lzocateli/dotnet-sdk:10.0.403-noble-v1` | estágio de build da API, BFF e agentes |
-| runtime da API, BFF e agente Linux | `lzocateli/dotnet-aspnet:10.0.14-noble-v1` | base dos artefatos ASP.NET Core e do host do agente |
+| runtime da API, BFF e agente Linux | `lzocateli/dotnet-aspnet:10.0.15-noble-v1` | base dos artefatos ASP.NET Core e do host do agente |
 | comandos oficiais do frontend | `lzocateli/angular-cli:22.2.4-node24.22.1-bookworm-v1` | install, lint, typecheck, testes e build Angular |
 | toolchain JavaScript de apoio | `lzocateli/node:24.15.0-bookworm` | base do Angular CLI e tarefas Node sem Angular CLI |
-| runtime do web e proxy público | `lzocateli/nginx:1.28.0-bookworm-v1` | base da imagem final com assets Angular e configuração Dokpod |
+| runtime do web e proxy público | `lzocateli/nginx:1.30.6-alpine-v1` | base da imagem final com assets Angular e configuração Dokpod |
 | testes de carga | `lzocateli/k6:2.1.0-node24.15.0-bookworm` | cenários HTTP, SignalR e capacidade do plano de controle |
 | testes E2E black-box | `lzocateli/playwright-e2e:0.1.0` | pytest/Playwright contra o deployment containerizado |
 | detecção de secrets | `lzocateli/gitleaks:8.30.1` | workspace, diff e histórico no CI |
@@ -36,6 +36,51 @@ O baseline inicial usa imagens mantidas no projeto público [`lzocateli/containe
 | persistência | `lzocateli/postgresql:18.4-pgvector0.8.6-bookworm` | mesma imagem adotada pelo AltivyNotes, para instâncias independentes do Dokpod e Keycloak |
 
 A imagem PostgreSQL inclui pgvector 0.8.6, mas o Dokpod não habilita nem depende dessa extensão. API, BFF, agente Linux e web produzem imagens próprias `dokpod/*`; as imagens acima são bases, toolchains ou serviços de infraestrutura, não substitutos dos artefatos do produto.
+
+### Instalador (spec 033)
+
+O caminho de instalação em produção é o `install.sh` da release, que verifica e executa a imagem `dokpod-installer`
+da mesma versão com o socket rootless do usuário. O procedimento está no [runbook de instalação](runbooks/instalacao.md),
+e os modos (PostgreSQL, Keycloak e nginx novos ou existentes) em [deploy/installer/README.md](../deploy/installer/README.md).
+A stack de `deploy/e2e` continua para desenvolvimento e laboratório.
+
+A imagem `dokpod-installer` ([ADR 2026-0011](adr/2026-0011-instalador-da-release.md), aceito em 2026-11-08) parte da base de runtime
+já homologada e acrescenta só o que o instalador executa. Os itens abaixo tiveram licença e versão conferidas em
+2026-11-08 (T004 da [spec 033](../specs/033-instalador-guiado/spec.md)).
+
+**Base e ferramentas da imagem:**
+
+| Item | Versão fixada | Licença | Origem e verificação | Papel |
+| --- | --- | --- | --- | --- |
+| Imagem base | `lzocateli/dotnet-aspnet:10.0.15-noble-v1` | ver matriz acima | já homologada | runtime da imagem do instalador |
+| PowerShell | 7.6.9 (`powershell-7.6.9-linux-x64.tar.gz`) | MIT | release do `PowerShell/PowerShell`, SHA-256 `1da6d6d6035d651f20e70ddee7c4c15ac6ab8b9fb40ee92240d91263f28a884b`, publicada em 2026-10-25 | linguagem do instalador |
+| Docker CLI | 29.9.2 (binário estático, `download.docker.com`) | Apache-2.0 | `docker/cli`; SHA-256 fixado no Dockerfile (T024) | cliente do engine rootless pelo socket montado |
+| Docker Compose | v5.6.1 (`docker-compose-linux-x86_64`) | Apache-2.0 | release do `docker/compose`, SHA-256 `47737f4236e6d3ccea7291995203f8f018058783b4c3a9469119811a0b5db8c0`, publicada em 2026-10-21 | orquestração nos dois engines rootless (D-002) |
+| PKI | `System.Security.Cryptography` do runtime .NET 10 da imagem base | MIT | já homologada com a base | CA local, emissão e validação de certificados (D-005); sem `openssl` na imagem desde a T022 |
+
+**Pacotes .NET carregados pelo PowerShell:**
+
+| Item | Versão fixada | Licença | Origem e verificação | Papel |
+| --- | --- | --- | --- | --- |
+| `Microsoft.Data.Sqlite` | 10.0.14 | MIT | NuGet (Microsoft), publicada em 2026-10-25 | acesso ao estado SQLite (D-014) |
+| `SQLitePCLRaw.bundle_e_sqlite3` | 2.1.13 (dependência de `Microsoft.Data.Sqlite` 10.0.14) | Apache-2.0 | NuGet | SQLite nativo empacotado |
+| SQLite | a do `e_sqlite3` do bundle | domínio público | sqlite.org | formato do estado |
+| `YamlDotNet` | 18.1.0 | MIT | NuGet (`aaubry/YamlDotNet`) | leitura do `answers.yaml` e escrita do `compose.yaml` (T018, T026) |
+
+**Fora da imagem:**
+
+| Item | Versão fixada | Licença | Origem e verificação | Papel |
+| --- | --- | --- | --- | --- |
+| Pester | 6.2.0 | Apache-2.0 | PowerShell Gallery, publicada em 2026-09-09 | testes do instalador; só no estágio de testes, nunca na imagem final |
+| PSScriptAnalyzer | 1.25.0 | MIT | PowerShell Gallery, publicada em 2026-03-20 | análise estática dos módulos; só no estágio de testes |
+| `psql` | da imagem `lzocateli/postgresql:18.4-pgvector0.8.6-bookworm` | ver matriz acima | já homologada | container avulso para bootstrap e verificações do catálogo SQL (D-013); não entra na imagem do instalador |
+| cosign | v3.1.4 (`ghcr.io/sigstore/cosign/cosign`, por digest) | Apache-2.0 | release do `sigstore/cosign`, publicada em 2026-10-20 | verificação de imagens pelo `install.sh` e pelo instalador (D-010) |
+
+As imagens que o instalador provisiona (PostgreSQL, Keycloak e nginx da matriz acima, mais o cosign) ficam fixadas pelo
+digest do índice em `deploy/installer/templates/infrastructure-images.json`, atualizado junto com esta matriz.
+
+A imagem oficial `mcr.microsoft.com/powershell:7.5-ubuntu-24.04` foi considerada e rejeitada: a tag não recebe
+atualização desde janeiro de 2025. A versão 7.6 do PowerShell não tem imagem MCR equivalente.
 
 Versões desta tabela podem receber atualização de patch sem novo ADR quando contratos, major versions e fronteiras permanecem iguais. A atualização exige build, SBOM, scan, testes do recorte, compatibilidade e atualização desta tabela. Mudança de major version, troca de distribuição base ou substituição de tecnologia exige revisão arquitetural proporcional.
 
@@ -90,7 +135,7 @@ O stream operacional com o plano de controle é habilitado quando estas variáve
 | `DOKPOD_AGENT_CONTROL_PLANE_ENDPOINT` | para conexão remota | URL HTTPS do endpoint gRPC do plano de controle |
 | `DOKPOD_AGENT_ENVIRONMENT_ID` | com endpoint configurado | UUID do ambiente associado ao certificado |
 | `DOKPOD_AGENT_CLIENT_CERTIFICATE_PATH` | com endpoint configurado | caminho absoluto do PFX; padrão `identity/agent.pfx` sob o diretório de dados |
-| `DOKPOD_AGENT_CLIENT_CERTIFICATE_PASSWORD` | quando o PFX exigir | senha injetada pelo mecanismo externo de secrets, nunca por argumento ou arquivo versionado |
+| `DOKPOD_AGENT_CLIENT_CERTIFICATE_PASSWORD` | quando o PFX exigir | senha injetada pelo mecanismo externo de secrets, nunca por argumento ou arquivo versionado. No Linux, o arquivo `/run/secrets/DOKPOD_AGENT_CLIENT_CERTIFICATE_PASSWORD` (Compose `secrets:`) vence a variável e não aparece em `docker inspect`; é o que o instalador usa (spec 033) |
 | `DOKPOD_AGENT_SERVER_CA_CERTIFICATE_PATH` | não | raízes confiáveis para o certificado da API (PEM, uma ou mais, ou DER com uma); sem ela, vale a confiança do sistema operacional. Em ambos os casos o nome do endpoint precisa estar no certificado da API |
 
 | `DOKPOD_AGENT_REGISTRY_AUTH_FILE` | não | caminho absoluto de um `config.json` no formato Docker (`auths`) com credenciais de registros privados para o pull (spec 012) |
@@ -202,6 +247,8 @@ reinicia indefinidamente o processo.
 Configuração não secreta pode vir de arquivo montado no Linux ou arquivo protegido no Windows. Secrets e chaves privadas usam arquivos com permissões mínimas ou provider seguro. Variáveis de ambiente são aceitas somente quando o ambiente operacional impedir exposição por inspeção de processo e houver justificativa.
 
 O endpoint gRPC do plano de controle exige um certificado de servidor explícito em `DOKPOD_API_CERTIFICATE_PATH`; a senha opcional do PFX vem de `DOKPOD_API_CERTIFICATE_PASSWORD`. Em produção, use certificado emitido pela PKI da organização ou por uma autoridade confiável, montado como arquivo somente leitura. Não gere certificado autoassinado no startup e não dependa do certificado de desenvolvimento do SDK. Em testes automatizados, certificados autoassinados efêmeros e restritos ao processo são aceitáveis. Em laboratório, uma CA local controlada pode emitir os certificados de servidor e agente, desde que sua raiz seja distribuída explicitamente aos participantes e nunca seja desabilitada a validação da cadeia. As raízes aceitas para os agentes ficam em `DOKPOD_API_CLIENT_CA_CERTIFICATE_PATH`; esse arquivo e o `DOKPOD_AGENT_SERVER_CA_CERTIFICATE_PATH` aceitam um bundle PEM com a raiz antiga e a nova durante a [troca da CA](runbooks/troca-da-ca-dos-agentes.md).
+
+Com `DOKPOD_API_HTTPS_PORT`, a API abre mais um endpoint HTTPS com o mesmo certificado e sem certificado de cliente, para o BFF chegar à REST fora de Development (o BFF recusa downstream HTTP nesse caso). O instalador usa a porta `8443`, só na rede interna (`Downstream__Api__BaseUrl=https://api:8443`). O gRPC dos agentes continua só na porta do mTLS: sem certificado de cliente, a sessão é recusada com `client_certificate_required`. Sem a variável, nada muda.
 
 Campos mínimos:
 

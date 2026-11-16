@@ -1,0 +1,30 @@
+# Dokpod {{VERSION}}: rotas da borda (spec 033, FR-021). Gerado pelo instalador; alterações manuais são sobrescritas.
+# Com nginx existente, inclua este arquivo dentro do server {} que atende {{SERVER_NAME}}.
+location ~ ^/dokpod/(bff|api/v1|hubs|signin-oidc|signout-callback-oidc)(/|$) {
+    # A API responde problem+json; a borda não troca o corpo dos erros.
+    proxy_intercept_errors off;
+    rewrite ^/dokpod(/.*)$ $1 break;
+    proxy_pass http://{{BFF_UPSTREAM}};
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Host $http_host;
+    proxy_set_header X-Forwarded-Prefix /dokpod;
+    proxy_set_header X-Forwarded-Proto https;
+    proxy_set_header X-Forwarded-Port {{PUBLIC_PORT}};
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection $dokpod_connection_upgrade;
+    proxy_read_timeout 3600s;
+}
+
+location ~ ^/dokpod(/|$) {
+    rewrite ^/dokpod(/.*)$ $1 break;
+    proxy_pass http://{{WEB_UPSTREAM}};
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Host $http_host;
+    proxy_set_header X-Forwarded-Prefix /dokpod;
+    proxy_set_header X-Forwarded-Proto https;
+    proxy_set_header X-Forwarded-Port {{PUBLIC_PORT}};
+}
+{{KEYCLOAK_LOCATIONS}}
