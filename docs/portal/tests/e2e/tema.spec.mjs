@@ -59,7 +59,7 @@ test.describe('tema (SC-003)', () => {
       Object.defineProperty(window, 'localStorage', {get() { throw new Error('bloqueado'); }});
     });
     await page.goto('/instalacao/');
-    await expect(page.getByRole('heading', {name: 'Avaliação em laboratório'})).toBeVisible();
+    await expect(page.getByRole('heading', {name: 'Cenários'})).toBeVisible();
     expect(['dark', 'light']).toContain(await theme(page));
   });
 

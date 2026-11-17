@@ -46,11 +46,12 @@ const config = {
         docs: {
           routeBasePath: '/',
           sidebarPath: './sidebars.js',
-          lastVersion: '0.7',
+          lastVersion: '0.8',
           includeCurrentVersion: true,
           versions: {
             current: {label: 'Preview (não publicado)', path: 'next', banner: 'unreleased', noIndex: true},
-            '0.7': {label: '0.7 (prévia)', banner: 'none'},
+            '0.8': {label: '0.8 (prévia)', banner: 'none'},
+            '0.7': {label: '0.7 (prévia)', banner: 'unmaintained'},
           },
         },
         theme: {

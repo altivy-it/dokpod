@@ -10,9 +10,8 @@ containers **Docker** e **Podman** em vários servidores **Linux** e
 **Windows**, sem Kubernetes e sem nuvem do fornecedor.
 
 :::warning Próxima linha em preparação
-Este manual acompanha a próxima linha do Dokpod (0.8, hoje em versão
-candidata). O principal acréscimo é o **instalador guiado** para Linux com
-Docker ou Podman rootless. O Dokpod continua em prévia.
+Este manual acompanha o que está na `main` do Dokpod depois da 0.8 e pode
+mudar antes da próxima release. Para a versão publicada, use o manual da 0.8.
 :::
 
 ## O que o Dokpod faz

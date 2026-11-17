@@ -3,15 +3,16 @@
 Manual versionado do Dokpod em Docusaurus 3.10, destinado a
 `docs.dokpod.altivy.it`. Especificação: [spec 034](../../specs/034-portal-documentacao/spec.md).
 
-> Primeira versão do manual: linha `0.7` (prévia, publicada e indexável) e
-> `next` (preview da 0.8, só em português e com `noindex`). O artefato
+> Primeira versão do manual: linhas `0.8` e `0.7` (prévias, publicadas e
+> indexáveis, em PT/EN/ES) e `next` (o que está na `main` depois da 0.8, só em
+> português e com `noindex`). O artefato
 > `docs-portal-site` é gerado no CI e **só vai ao ar pelo workflow manual
 > `docs-deploy.yml`**.
 
 ## O que o portal entrega
 
-- **Versões**: `0.7` em `/` e preview `next` em `/next/` (banner + `noindex`,
-  fora do sitemap). Trocar de versão mantém o tópico; se ele não existir no
+- **Versões**: `0.8` em `/`, `0.7` em `/0.7/` (banner de linha anterior) e
+  preview `next` em `/next/` (banner + `noindex`, fora do sitemap). Trocar de versão mantém o tópico; se ele não existir no
   destino, a página inicial da versão mostra o aviso `?topico-ausente=<docId>`.
 - **Idiomas**: `pt-BR` (raiz), `en` (`/en/`) e `es` (`/es/`). Só a entrada neutra
   `/` escolhe pelo navegador (`locale-entry.js`); links profundos nunca

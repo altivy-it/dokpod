@@ -331,10 +331,11 @@ manifesto e forçar falhas (link quebrado e tradução obrigatória ausente).
 Escopo acrescentado por pedido explícito ("implementar a primeira versão do
 docs.dokpod"). Revoga o item 4 da estratégia para o Dokpod.
 
-- [x] T040 Substituir as fixtures pelo manual real: linha `0.7` (5 tópicos,
-  PT/EN/ES) e `next` (6 tópicos, só PT), a partir das tags e runbooks do Dokpod.
-- [x] T041 Tornar a `0.7` indexável, ligar o sitemap sem `/next/` e marcar o
-  estado `publicada` no manifesto.
+- [x] T040 Substituir as fixtures pelo manual real a partir das tags e runbooks
+  do Dokpod: linha `0.8` (6 tópicos, inclui o instalador guiado e hosts
+  remotos), linha `0.7` (5 tópicos), ambas em PT/EN/ES, e `next` só em PT.
+- [x] T041 Tornar `0.8` e `0.7` indexáveis, ligar o sitemap sem `/next/`, banner
+  de linha anterior na `0.7` e estado `publicada` no manifesto.
 - [x] T042 Reescrever os e2e para o conteúdo real e corrigir o que eles acharam
   (peso de `<strong>`, sublinhado de links, tabelas roláveis, menu mobile).
 - [x] T043 Criar `.github/workflows/docs-deploy.yml` (manual, ambiente

@@ -7,7 +7,7 @@ sidebar_position: 3
 :::info No production installation in 0.7
 The 0.7 line has no production package or installer. Evaluation uses the
 repository's lab stack, aimed at project contributors. The guided installer
-arrives in the next line; see the **Preview** version of this manual.
+arrived in 0.8; see the [0.8 installation](/en/instalacao/).
 :::
 
 ## Lab evaluation

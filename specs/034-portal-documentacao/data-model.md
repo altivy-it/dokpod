@@ -8,10 +8,10 @@ estado no navegador.
 | Campo | Origem | Regra |
 |-------|--------|-------|
 | `id` | `versions.json` ou `current` | `X.Y` (regex `^\d+\.\d+$`) ou `next` |
-| `rotulo` | `docusaurus.config.js` (`versions.<id>.label`) | `0.7`: "0.7 (prévia)"; `next`: "Preview (não publicado)" |
+| `rotulo` | `docusaurus.config.js` (`versions.<id>.label`) | `0.8`: "0.8 (prévia)"; `0.7`: "0.7 (prévia)"; `next`: "Preview (não publicado)" |
 | `caminho` | Derivado | `lastVersion` na raiz; demais em `/<id>/` |
 | `estado` | Configuração | `preview` ou `publicada` (`demonstracao` saiu com as fixtures) |
-| `banner` | Configuração | `unreleased` para `next` |
+| `banner` | Configuração | `unreleased` para `next`; `unmaintained` para linhas anteriores à mais recente |
 | `indexavel` | Configuração | `false` para `next` (fora do sitemap); `true` para linhas publicadas |
 
 ## Tópico

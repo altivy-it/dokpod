@@ -2,7 +2,7 @@ import {expect, test} from './fixtures.mjs';
 
 // Auditoria de marca em runtime (T037): pesos ≤ 600, Outfit em todo texto que não
 // é código e nenhuma cor computada com matiz roxo/lavanda (OKLCH 275°–330°).
-const PAGES = ['/', '/agentes/', '/next/instalacao/', '/?topico-ausente=hosts-remotos', '/en/next/hosts-remotos/'];
+const PAGES = ['/', '/agentes/', '/next/instalacao/', '/0.7/?topico-ausente=hosts-remotos', '/en/next/hosts-remotos/'];
 
 for (const mode of ['dark', 'light']) {
   for (const path of PAGES) {

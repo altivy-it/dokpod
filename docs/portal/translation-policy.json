@@ -5,6 +5,10 @@
     "es"
   ],
   "versions": {
+    "0.8": {
+      "required": "all",
+      "optional": []
+    },
     "0.7": {
       "required": "all",
       "optional": []

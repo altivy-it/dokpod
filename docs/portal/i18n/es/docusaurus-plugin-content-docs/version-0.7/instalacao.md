@@ -7,8 +7,8 @@ sidebar_position: 3
 :::info Sin instalación de producción en la 0.7
 La línea 0.7 no tiene paquete ni instalador para producción. La evaluación usa
 el stack de laboratorio del repositorio, pensado para quienes contribuyen al
-proyecto. El instalador guiado llega en la próxima línea; vea la versión
-**Vista previa** de este manual.
+proyecto. El instalador guiado llegó en la 0.8; vea la
+[instalación de la 0.8](/es/instalacao/).
 :::
 
 ## Evaluación en laboratorio

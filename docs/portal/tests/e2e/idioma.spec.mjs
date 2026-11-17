@@ -35,7 +35,7 @@ test.describe('idioma (SC-002, SC-004)', () => {
     await pickFromNavbarDropdown(page, {...LOCALE_MENU, item: 'Español'});
     await expect(page).toHaveURL(/\/es\/instalacao\/$/);
     await expect(page.locator('html')).toHaveAttribute('lang', 'es');
-    await expect(page.getByRole('heading', {name: 'Evaluación en laboratorio'})).toBeVisible();
+    await expect(page.getByRole('heading', {name: 'Escenarios'})).toBeVisible();
     await expect.poll(() => page.evaluate(() => localStorage.getItem('dokpod.docs.locale'))).toBe('es');
     await page.goto('/');
     await expect(page).toHaveURL(/\/es\/$/);
@@ -58,7 +58,7 @@ test.describe('idioma (SC-002, SC-004)', () => {
     await page.goto('/');
     await expect(page.locator('h1')).toBeVisible();
     await page.goto('/instalacao/');
-    await expect(page.getByRole('heading', {name: 'Avaliação em laboratório'})).toBeVisible();
+    await expect(page.getByRole('heading', {name: 'Cenários'})).toBeVisible();
   });
 });
 
@@ -67,7 +67,7 @@ test.describe('sem JavaScript', () => {
 
   test('conteúdo legível e rodapé com idiomas', async ({page}) => {
     await page.goto('/instalacao/');
-    await expect(page.getByRole('heading', {name: 'Avaliação em laboratório'})).toBeVisible();
+    await expect(page.getByRole('heading', {name: 'Cenários'})).toBeVisible();
     const footer = page.locator('footer');
     await expect(footer.locator('a[href="/en/"]')).toHaveCount(1);
     await expect(footer.locator('a[href="/es/"]')).toHaveCount(1);
