@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.8.0](https://github.com/altivy-it/dokpod/compare/v0.7.0...v0.8.0) (2026-11-17)
+
+
+### Adicionado
+
+* **deploy:** instalador guiado do Dokpod (spec 033) ([#142](https://github.com/altivy-it/dokpod/issues/142)) ([d3a4888](https://github.com/altivy-it/dokpod/commit/d3a48881bb21983fe13ab8bef6b8a01ce0021d85))
+
+
+### Corrigido
+
+* **deps:** bump @microsoft/signalr from 10.0.11 to 11.0.0 in /frontend/web in the npm-production group across 1 directory ([#146](https://github.com/altivy-it/dokpod/issues/146)) ([6180135](https://github.com/altivy-it/dokpod/commit/6180135903110a53c23ace24bba89fab103d0d38))
+* **deps:** bump tslib from 2.8.1 to 2.9.1 in /frontend/web in the npm-production group across 1 directory ([#138](https://github.com/altivy-it/dokpod/issues/138)) ([01fe5b0](https://github.com/altivy-it/dokpod/commit/01fe5b0c526742edb420541cdd9a0b4e9fa2e74e))
+* **test:** entregue a senha administrativa ao psql por passfile e falhe sem prompt (spec 033) ([#147](https://github.com/altivy-it/dokpod/issues/147)) ([d6ba4cf](https://github.com/altivy-it/dokpod/commit/d6ba4cf10e4bea6131e892ce5e1be6bf8edbc8f8))
+
 ## [0.7.0](https://github.com/altivy-it/dokpod/compare/v0.6.0...v0.7.0) (2026-11-08)
 
 
