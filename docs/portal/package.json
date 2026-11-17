@@ -1,0 +1,48 @@
+{
+  "name": "dokpod-docs-portal",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Portal de documenta\u00e7\u00e3o versionada do Dokpod (Docusaurus, sa\u00edda est\u00e1tica).",
+  "license": "AGPL-3.0-only",
+  "scripts": {
+    "docusaurus": "docusaurus",
+    "start": "docusaurus start",
+    "build": "docusaurus build && pagefind --site build",
+    "write-translations": "docusaurus write-translations",
+    "check:translations": "node scripts/check-translations.mjs",
+    "build:manifest": "node scripts/build-manifest.mjs",
+    "check:artifact": "node scripts/check-artifact.mjs",
+    "serve:test": "node tests/serve.mjs",
+    "test:e2e": "playwright test --config tests/playwright.config.mjs"
+  },
+  "dependencies": {
+    "@docusaurus/core": "3.10.2",
+    "@docusaurus/preset-classic": "3.10.2",
+    "@mdx-js/react": "3.1.1",
+    "clsx": "2.1.1",
+    "pagefind": "1.6.0",
+    "prism-react-renderer": "2.4.1",
+    "react": "19.3.1",
+    "react-dom": "19.3.1"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.65.1",
+    "axe-core": "4.14.0"
+  },
+  "browserslist": {
+    "production": [
+      ">0.5%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 3 chrome version",
+      "last 3 firefox version",
+      "last 5 safari version"
+    ]
+  },
+  "engines": {
+    "node": ">=24.22.1 <25"
+  },
+  "packageManager": "npm@12.2.1"
+}

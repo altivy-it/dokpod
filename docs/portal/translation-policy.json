@@ -1,0 +1,9 @@
+{
+  "$comment": "Traduções obrigatórias por linha. 'all' exige todos os tópicos da linha nos idiomas de requiredLocales, exceto os listados em optional.",
+  "requiredLocales": ["en", "es"],
+  "versions": {
+    "1.1": {"required": "all", "optional": ["recursos-avancados"]},
+    "1.0": {"required": "all", "optional": []},
+    "current": {"required": "none", "optional": []}
+  }
+}

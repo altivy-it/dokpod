@@ -1,0 +1,7 @@
+node_modules/
+.docusaurus/
+.cache-loader/
+build/
+artifacts/
+test-results/
+playwright-report/
