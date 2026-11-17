@@ -40,6 +40,15 @@ completos. Scripts disponíveis:
 | `npm run serve:test` | Servidor estático com a CSP de produção (`SITE_DIR`, `PORT`, `HOST`) |
 | `npm run test:e2e` | Playwright: versões, idioma, tema, busca, axe, marca e CSP em 320/768/1280 px |
 
+## Artefato `docs-portal-site`
+
+O job `docs-portal` do CI gera o artefato `docs-portal-site` (retenção de 14
+dias, sem secrets): o site estático em `site/`, o `SHA256SUMS` de cada arquivo e
+o `portal-manifest.json` (commit, versões, idiomas, traduções ausentes, snapshot
+da marca e hashes CSP). O job `docs-portal-e2e` testa esse mesmo artefato. Ele
+**não é publicado automaticamente** nem entra nos assets da release; publicar em
+`docs.dokpod.altivy.it` é uma etapa separada, com aprovação explícita.
+
 ## Estrutura
 
 ```text

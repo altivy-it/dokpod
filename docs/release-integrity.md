@@ -217,12 +217,3 @@ Verifique testes `ReleasePreviewTests`, contratos do catálogo e workflows
 renderizados com actionlint em containers. Casos essenciais: main avança durante
 aprovação/consulta, CI errado/pendente/falho, dependência squash/ausente,
 RC/final com código diferente, waiver e republish histórico.
-## Portal de documentação (`docs-portal-site`)
-
-O job `docs-portal` do CI gera o artefato `docs-portal-site` (retenção de 14
-dias, sem secrets): o site estático do portal em `site/`, o `SHA256SUMS` de cada
-arquivo e o `portal-manifest.json` (commit, versões, idiomas, traduções ausentes,
-snapshot da marca e hashes CSP). O job `docs-portal-e2e` testa esse mesmo
-artefato. Ele **não é publicado automaticamente** nem entra nos assets da
-release; publicar em `docs.dokpod.altivy.it` é uma etapa separada, com aprovação
-explícita (ver `docs/portal/README.md` e a spec 034).

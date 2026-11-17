@@ -172,3 +172,4 @@ Sem violações da constituição.
 | Marca | `src/brand/fonts/LICENSE` | `src/brand/public/fonts/LICENSE-Outfit-1.1.txt` (servida com a fonte) | OFL exige distribuir a licença |
 | Armazenamento bloqueado | Tema escuro | Segue `prefers-color-scheme` | Script de cor do Docusaurus; contrato de preferências atualizado |
 | Auditoria de marca | Manual | Também `tests/e2e/marca.spec.mjs` (peso ≤ 600, Outfit, sem roxo) | Achou `.footer__title` em 700 (atalho `font: bold` do Infima) |
+| Distribuição | Parágrafo em `docs/release-integrity.md` | Seção "Artefato `docs-portal-site`" em `docs/portal/README.md` | `release-integrity.md` é gerenciado pelo Groundwork (`Test-ManagedFiles.ps1`) |
