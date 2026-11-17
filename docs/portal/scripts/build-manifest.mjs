@@ -63,7 +63,7 @@ const manifest = {
   generator: {docusaurus: docusaurus.version, node: process.versions.node},
   locales: LOCALES,
   versions: [
-    ...versions.map((id, index) => ({id, state: 'demonstracao', path: index === 0 ? '/' : `/${id}/`})),
+    ...versions.map((id, index) => ({id, state: 'publicada', path: index === 0 ? '/' : `/${id}/`})),
     {id: 'next', state: 'preview', path: '/next/'},
   ],
   translations: {missing},

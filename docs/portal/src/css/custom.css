@@ -231,3 +231,30 @@ body {
 .footer__title {
   font-weight: 600;
 }
+
+/* "bolder" do navegador chega a 700 (ex.: <b> do banner de versão); a marca vai até 600. */
+b,
+strong {
+  font-weight: 600;
+}
+
+/* Link em meio a texto não pode depender só da cor (WCAG 1.4.1). */
+.markdown p a,
+.markdown li a,
+.markdown td a,
+.theme-doc-version-banner a,
+.portal-notice a {
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}
+
+/* Região rolável das tabelas (ver src/theme/MDXComponents.js). */
+.portal-table {
+  overflow-x: auto;
+  margin-bottom: var(--ifm-spacing-vertical);
+}
+
+.portal-table table {
+  display: table;
+  margin-bottom: 0;
+}

@@ -1,4 +1,4 @@
-// Confere front matter das fixtures e traduções obrigatórias (translation-policy.json).
+// Confere front matter do manual e traduções obrigatórias (translation-policy.json).
 // Sem dependências; termina com código 1 e a lista do que falta.
 import fs from 'node:fs';
 import path from 'node:path';
@@ -46,9 +46,6 @@ for (const file of contentDirs.flatMap(markdownFiles)) {
     if (!fields[field]) {
       errors.push(`${relative}: campo obrigatório "${field}" ausente no front matter`);
     }
-  }
-  if (fields.fixture !== 'true') {
-    errors.push(`${relative}: conteúdo de demonstração precisa de "fixture: true"`);
   }
 }
 

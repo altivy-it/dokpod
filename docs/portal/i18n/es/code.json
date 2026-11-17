@@ -379,5 +379,9 @@
   "theme.tags.tagsPageTitle": {
     "message": "Etiquetas",
     "description": "The title of the tag list page"
+  },
+  "portal.table.label": {
+    "message": "Tabla; desplácese en horizontal para ver todas las columnas",
+    "description": "Accessible name of the scrollable region that wraps wide tables"
   }
 }

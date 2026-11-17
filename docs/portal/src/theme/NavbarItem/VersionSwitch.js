@@ -21,7 +21,7 @@ function targetFor(version, activeDocContext) {
   return missing ? `${mainDoc.path}?topico-ausente=${encodeURIComponent(missing)}` : mainDoc.path;
 }
 
-export default function VersionSwitch({mobile, docsPluginId, ...props}) {
+export default function VersionSwitch({mobile, docsPluginId, onClick, ...props}) {
   const versions = useVersions(docsPluginId);
   const activeDocContext = useActiveDocContext(docsPluginId);
   const {savePreferredVersionName} = useDocsPreferredVersion(docsPluginId);
@@ -35,7 +35,11 @@ export default function VersionSwitch({mobile, docsPluginId, ...props}) {
       to: targetFor(version, activeDocContext),
       isActive: () => isActive,
       'aria-current': isActive ? 'true' : undefined,
-      onClick: () => savePreferredVersionName(version.name),
+      // No mobile, o onClick recebido fecha o painel; o do item o substituiria.
+      onClick: (event) => {
+        savePreferredVersionName(version.name);
+        onClick?.(event);
+      },
     };
   });
 
@@ -46,6 +50,7 @@ export default function VersionSwitch({mobile, docsPluginId, ...props}) {
   return (
     <DropdownNavbarItem
       {...props}
+      onClick={onClick}
       mobile={mobile}
       label={label}
       aria-label={translate(

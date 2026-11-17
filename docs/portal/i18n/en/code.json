@@ -379,5 +379,9 @@
   "theme.tags.tagsPageTitle": {
     "message": "Tags",
     "description": "The title of the tag list page"
+  },
+  "portal.table.label": {
+    "message": "Table; scroll horizontally to see every column",
+    "description": "Accessible name of the scrollable region that wraps wide tables"
   }
 }

@@ -11,8 +11,6 @@ const config = {
   url: 'https://docs.dokpod.altivy.it',
   baseUrl: '/',
   trailingSlash: true,
-  // Piloto só com conteúdo de demonstração: nada deve ser indexado.
-  noIndex: true,
   baseUrlIssueBanner: false,
   onBrokenLinks: 'throw',
   onBrokenAnchors: 'throw',
@@ -48,18 +46,17 @@ const config = {
         docs: {
           routeBasePath: '/',
           sidebarPath: './sidebars.js',
-          lastVersion: '1.1',
+          lastVersion: '0.7',
           includeCurrentVersion: true,
           versions: {
             current: {label: 'Preview (não publicado)', path: 'next', banner: 'unreleased', noIndex: true},
-            '1.1': {label: '1.1 (demonstração)', banner: 'none', noIndex: true},
-            '1.0': {label: '1.0 (demonstração)', path: '1.0', banner: 'none', noIndex: true},
+            '0.7': {label: '0.7 (prévia)', banner: 'none'},
           },
         },
         theme: {
           customCss: './src/css/custom.css',
         },
-        sitemap: false,
+        sitemap: {ignorePatterns: ['/next/**', '/en/next/**', '/es/next/**']},
       }),
     ],
   ],
@@ -99,7 +96,7 @@ const config = {
             ],
           },
         ],
-        copyright: 'Dokpod · Altivy. Conteúdo de demonstração; não descreve uma release.',
+        copyright: 'Dokpod · Altivy · Licença AGPL-3.0-only',
       },
       prism: {
         theme: altivyPrismTheme,

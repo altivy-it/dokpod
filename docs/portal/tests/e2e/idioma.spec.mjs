@@ -22,8 +22,8 @@ test.describe('idioma (SC-002, SC-004)', () => {
   test('links profundos não são redirecionados', async ({browser, baseURL}) => {
     const context = await browser.newContext({locale: 'es-ES', baseURL});
     const page = await context.newPage();
-    await page.goto('/1.0/instalacao/');
-    await expect(page).toHaveURL(`${baseURL}/1.0/instalacao/`);
+    await page.goto('/next/instalacao/');
+    await expect(page).toHaveURL(`${baseURL}/next/instalacao/`);
     await page.goto('/en/instalacao/');
     await expect(page).toHaveURL(`${baseURL}/en/instalacao/`);
     await expect(page.locator('html')).toHaveAttribute('lang', 'en');
@@ -31,23 +31,23 @@ test.describe('idioma (SC-002, SC-004)', () => {
   });
 
   test('a escolha manual prevalece e a troca preserva linha e tópico', async ({page}) => {
-    await page.goto('/1.0/instalacao/');
+    await page.goto('/instalacao/');
     await pickFromNavbarDropdown(page, {...LOCALE_MENU, item: 'Español'});
-    await expect(page).toHaveURL(/\/es\/1\.0\/instalacao\/$/);
+    await expect(page).toHaveURL(/\/es\/instalacao\/$/);
     await expect(page.locator('html')).toHaveAttribute('lang', 'es');
-    await expect(page.getByText('Linha 1.0', {exact: true})).toBeVisible();
+    await expect(page.getByRole('heading', {name: 'Evaluación en laboratorio'})).toBeVisible();
     await expect.poll(() => page.evaluate(() => localStorage.getItem('dokpod.docs.locale'))).toBe('es');
     await page.goto('/');
     await expect(page).toHaveURL(/\/es\/$/);
   });
 
   test('tradução ausente mostra aviso e link para o português', async ({page}) => {
-    await page.goto('/en/recursos-avancados/');
+    await page.goto('/en/next/hosts-remotos/');
     const missing = page.getByTestId('traducao-ausente');
     await expect(missing).toBeVisible();
-    await expect(missing.getByRole('link')).toHaveAttribute('href', '/recursos-avancados/');
+    await expect(missing.getByRole('link')).toHaveAttribute('href', '/next/hosts-remotos/');
     await expect(page.locator('meta[name="robots"]').last()).toHaveAttribute('content', /noindex/);
-    await expect(page.getByText('Linha 1.1', {exact: true})).toHaveCount(0);
+    await expect(page.getByRole('heading', {name: 'Adicionar um host'})).toHaveCount(0);
     await expect(page.locator('.theme-doc-toc-desktop, .theme-doc-toc-mobile')).toHaveCount(0);
   });
 
@@ -58,7 +58,7 @@ test.describe('idioma (SC-002, SC-004)', () => {
     await page.goto('/');
     await expect(page.locator('h1')).toBeVisible();
     await page.goto('/instalacao/');
-    await expect(page.getByText('Linha 1.1', {exact: true})).toBeVisible();
+    await expect(page.getByRole('heading', {name: 'Avaliação em laboratório'})).toBeVisible();
   });
 });
 
@@ -67,7 +67,7 @@ test.describe('sem JavaScript', () => {
 
   test('conteúdo legível e rodapé com idiomas', async ({page}) => {
     await page.goto('/instalacao/');
-    await expect(page.getByText('Linha 1.1', {exact: true})).toBeVisible();
+    await expect(page.getByRole('heading', {name: 'Avaliação em laboratório'})).toBeVisible();
     const footer = page.locator('footer');
     await expect(footer.locator('a[href="/en/"]')).toHaveCount(1);
     await expect(footer.locator('a[href="/es/"]')).toHaveCount(1);

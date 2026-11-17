@@ -16,7 +16,7 @@
     "description": "The label of footer link with label=Español linking to pathname:///es/"
   },
   "copyright": {
-    "message": "Dokpod · Altivy. Contenido de demostración; no describe una versión publicada.",
+    "message": "Dokpod · Altivy · Licencia AGPL-3.0-only",
     "description": "The footer copyright"
   }
 }
