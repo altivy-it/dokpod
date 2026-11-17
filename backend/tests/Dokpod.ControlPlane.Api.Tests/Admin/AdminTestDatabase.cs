@@ -114,16 +114,36 @@ internal sealed class AdminTestDatabase : IAsyncDisposable
             .Select(directory => Path.Combine(directory, "psql")).FirstOrDefault(File.Exists)
             ?? throw new InvalidOperationException("psql não encontrado no PATH; instale o cliente do PostgreSQL para estes testes.");
         var start = new ProcessStartInfo(psql) { RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false };
-        foreach (var argument in new[] { "-X", "-q", "-v", "ON_ERROR_STOP=1", "-h", admin.Host!, "-p", admin.Port.ToString(), "-U", admin.Username!, "-d", Name, "-f", file })
+        foreach (var argument in new[] { "-X", "-q", "-w", "-v", "ON_ERROR_STOP=1", "-h", admin.Host!, "-p", admin.Port.ToString(), "-U", admin.Username!, "-d", Name, "-f", file })
         {
             start.ArgumentList.Add(argument);
         }
 
+        UsePassfile(start, admin, secrets);
         using var process = Process.Start(start)!;
         _ = process.StandardOutput.ReadToEndAsync(Ct);
         var error = await process.StandardError.ReadToEndAsync(Ct);
         await process.WaitForExitAsync(Ct);
         return (process.ExitCode, error);
+    }
+
+    /// <summary>
+    /// A senha da role administrativa vai ao <c>psql</c> por passfile, como o instalador entrega (PGPASSFILE). Com
+    /// <c>-w</c>, uma credencial faltando falha na hora em vez de o <c>psql</c> esperar a senha no terminal (o CI do push
+    /// usa scram; o do PR, trust).
+    /// </summary>
+    internal static void UsePassfile(ProcessStartInfo start, NpgsqlConnectionStringBuilder admin, string directory)
+    {
+        if (string.IsNullOrEmpty(admin.Password)) return;
+        var passfile = Path.Combine(directory, $"pgpass-admin-{Guid.NewGuid():N}");
+        static string Escape(string value) => value.Replace(@"\", @"\\").Replace(":", @"\:");
+        File.WriteAllText(passfile, $"*:*:*:{Escape(admin.Username!)}:{Escape(admin.Password)}\n");
+        if (!OperatingSystem.IsWindows())
+        {
+            File.SetUnixFileMode(passfile, UnixFileMode.UserRead | UnixFileMode.UserWrite);
+        }
+
+        start.Environment["PGPASSFILE"] = passfile;
     }
 
     public async ValueTask DisposeAsync()

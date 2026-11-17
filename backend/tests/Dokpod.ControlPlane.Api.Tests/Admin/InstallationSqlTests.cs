@@ -179,7 +179,7 @@ public sealed class InstallationSqlTests : IDisposable
         var file = Path.Combine(secrets, Path.GetFileName(path));
         File.WriteAllText(file, SqlCatalog.Read(path));
         var start = new ProcessStartInfo(psql) { RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false };
-        foreach (var argument in new[] { "-X", "-q", "-At", "-F", "|", "-h", admin.Host!, "-p", admin.Port.ToString(), "-U", admin.Username!, "-d", database })
+        foreach (var argument in new[] { "-X", "-q", "-w", "-At", "-F", "|", "-h", admin.Host!, "-p", admin.Port.ToString(), "-U", admin.Username!, "-d", database })
         {
             start.ArgumentList.Add(argument);
         }
@@ -193,6 +193,7 @@ public sealed class InstallationSqlTests : IDisposable
         start.ArgumentList.Add("-f");
         start.ArgumentList.Add(file);
         start.Environment.Remove("PGPASSWORD");
+        AdminTestDatabase.UsePassfile(start, admin, secrets);
         return start;
     }
 

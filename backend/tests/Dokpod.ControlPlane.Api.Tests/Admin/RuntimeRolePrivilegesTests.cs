@@ -130,7 +130,7 @@ public sealed class RuntimeRolePrivilegesTests : IAsyncDisposable
             ?? throw new InvalidOperationException("psql não encontrado no PATH; instale o cliente do PostgreSQL para estes testes.");
         var file = Write(Path.GetFileName(path), SqlCatalog.Read(path));
         var start = new ProcessStartInfo(psql) { RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false };
-        foreach (var argument in new[] { "-X", "-q", "-h", admin.Host!, "-p", admin.Port.ToString(), "-U", admin.Username!, "-d", database })
+        foreach (var argument in new[] { "-X", "-q", "-w", "-h", admin.Host!, "-p", admin.Port.ToString(), "-U", admin.Username!, "-d", database })
         {
             start.ArgumentList.Add(argument);
         }
@@ -143,6 +143,7 @@ public sealed class RuntimeRolePrivilegesTests : IAsyncDisposable
 
         start.ArgumentList.Add("-f");
         start.ArgumentList.Add(file);
+        AdminTestDatabase.UsePassfile(start, admin, secrets);
         using var process = Process.Start(start)!;
         _ = process.StandardOutput.ReadToEndAsync(Ct);
         var error = await process.StandardError.ReadToEndAsync(Ct);
