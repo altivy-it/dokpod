@@ -8,11 +8,11 @@ estado no navegador.
 | Campo | Origem | Regra |
 |-------|--------|-------|
 | `id` | `versions.json` ou `current` | `X.Y` (regex `^\d+\.\d+$`) ou `next` |
-| `rotulo` | `docusaurus.config.js` (`versions.<id>.label`) | Fixtures: "1.1 (demonstração)"; `next`: "Preview (não publicado)" |
+| `rotulo` | `docusaurus.config.js` (`versions.<id>.label`) | `0.7`: "0.7 (prévia)"; `next`: "Preview (não publicado)" |
 | `caminho` | Derivado | `lastVersion` na raiz; demais em `/<id>/` |
-| `estado` | Configuração | `demonstracao`, `preview` ou `publicada` (este último proibido nesta feature) |
-| `banner` | Configuração | `unreleased` para `next`; aviso de demonstração para fixtures |
-| `indexavel` | Configuração | `false` para `next` e fixtures |
+| `estado` | Configuração | `preview` ou `publicada` (`demonstracao` saiu com as fixtures) |
+| `banner` | Configuração | `unreleased` para `next` |
+| `indexavel` | Configuração | `false` para `next` (fora do sitemap); `true` para linhas publicadas |
 
 ## Tópico
 
@@ -21,7 +21,6 @@ estado no navegador.
 | `docId` | Caminho do arquivo | Estável entre linhas e idiomas; kebab-case |
 | `linha` | Diretório | Uma das linhas acima |
 | `titulo`, `descricao` | Front matter | Obrigatórios; validados por `check-translations` |
-| `fixture` | Front matter | `true` em todo conteúdo desta feature |
 | `traducoes` | Plugin `translation-status` | Mapa `locale → presente/ausente` |
 | `obrigatoria` | `translation-policy.json` | Ausência de tradução obrigatória falha o build |
 

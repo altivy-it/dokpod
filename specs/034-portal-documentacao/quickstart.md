@@ -20,7 +20,7 @@ docker run --rm --user 0 --volume "${PWD}:/work" --workdir /work/docs/portal \
 
 Resultado esperado: `docs/portal/artifacts/docs-portal-site/` com `site/`,
 `SHA256SUMS` e `portal-manifest.json`. Falhas esperadas, cada uma com diagnóstico:
-link interno quebrado, tradução obrigatória ausente, fixture sem front matter ou
+link interno quebrado, tradução obrigatória ausente, página sem front matter ou
 arquivo proibido no artefato.
 
 ## 2. Testes e2e, CSP e acessibilidade
@@ -62,6 +62,19 @@ docker run --rm -it --user 0 -p 4173:4173 --volume "${PWD}:/work" --workdir /wor
   --env SITE_DIR=artifacts/docs-portal-site/site --env HOST=0.0.0.0 \
   lzocateli/angular-cli:22.2.4-node24.22.1-bookworm-v1 \
   bash -lc "npm run serve:test"
+```
+
+## 4. Publicação (manual, com aprovação)
+
+Pré-requisitos (uma vez): o ambiente `docs-production` no GitHub, com os secrets
+`VPS_SSH_KEY`, `VPS_SSH_KNOWN_HOSTS`, `VPS_HOST` e `VPS_USER` (variável
+`VPS_SSH_PORT` opcional), e a borda Altivy publicada com o vhost
+`docs.dokpod.altivy.it`.
+
+```bash
+gh workflow run docs-deploy.yml -f commit=<sha da main com CI verde>
+gh run watch
+curl -sI https://docs.dokpod.altivy.it/ | grep -i -e '^HTTP' -e content-security-policy
 ```
 
 ## Registro de evidências

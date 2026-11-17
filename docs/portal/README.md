@@ -3,14 +3,15 @@
 Manual versionado do Dokpod em Docusaurus 3.10, destinado a
 `docs.dokpod.altivy.it`. Especificação: [spec 034](../../specs/034-portal-documentacao/spec.md).
 
-> O conteúdo atual (linhas `1.0` e `1.1`) é **fixture de demonstração**: não descreve
-> uma release do Dokpod e todas as páginas saem com `noindex`. O artefato
-> `docs-portal-site` é gerado no CI, mas **não é publicado automaticamente**.
+> Primeira versão do manual: linha `0.7` (prévia, publicada e indexável) e
+> `next` (preview da 0.8, só em português e com `noindex`). O artefato
+> `docs-portal-site` é gerado no CI e **só vai ao ar pelo workflow manual
+> `docs-deploy.yml`**.
 
 ## O que o portal entrega
 
-- **Versões**: `1.1` em `/`, `1.0` em `/1.0/`, preview `next` em `/next/`
-  (banner + `noindex`). Trocar de versão mantém o tópico; se ele não existir no
+- **Versões**: `0.7` em `/` e preview `next` em `/next/` (banner + `noindex`,
+  fora do sitemap). Trocar de versão mantém o tópico; se ele não existir no
   destino, a página inicial da versão mostra o aviso `?topico-ausente=<docId>`.
 - **Idiomas**: `pt-BR` (raiz), `en` (`/en/`) e `es` (`/es/`). Só a entrada neutra
   `/` escolhe pelo navegador (`locale-entry.js`); links profundos nunca
@@ -46,8 +47,30 @@ O job `docs-portal` do CI gera o artefato `docs-portal-site` (retenção de 14
 dias, sem secrets): o site estático em `site/`, o `SHA256SUMS` de cada arquivo e
 o `portal-manifest.json` (commit, versões, idiomas, traduções ausentes, snapshot
 da marca e hashes CSP). O job `docs-portal-e2e` testa esse mesmo artefato. Ele
-**não é publicado automaticamente** nem entra nos assets da release; publicar em
-`docs.dokpod.altivy.it` é uma etapa separada, com aprovação explícita.
+não entra nos assets da release nem é publicado automaticamente.
+
+## Publicação em `docs.dokpod.altivy.it`
+
+O workflow `.github/workflows/docs-deploy.yml` (só `workflow_dispatch`, ambiente
+protegido `docs-production`) recebe o SHA de um commit da `main` e:
+
+1. localiza a execução verde do CI daquele commit e baixa o `docs-portal-site`
+   (não reconstrói);
+2. confere o `SHA256SUMS` e se o manifesto é do commit pedido;
+3. lê por SSH a CSP instalada na borda e aborta se faltar algum
+   `csp.scriptHashes` do manifesto;
+4. envia para `/userapps/altivy/docs/dokpod/releases/<sha>/` e troca os
+   symlinks relativos `current`/`previous` de forma atômica (guarda 5 releases);
+5. faz smoke em `/`, `/en/`, `/es/` e `/next/` (200 + CSP) e volta para
+   `previous` se falhar.
+
+O vhost, a CSP e o TLS pertencem ao repositório Altivy
+(`deploy/nginx/docs-portals.conf` e `security-docs-dokpod-prd.conf`). Se o
+build mudar o hash do script inline, atualize a CSP lá e publique a borda
+**antes** de rodar este workflow.
+
+Secrets do ambiente: `VPS_SSH_KEY`, `VPS_SSH_KNOWN_HOSTS`, `VPS_HOST`,
+`VPS_USER`; variável opcional `VPS_SSH_PORT` (padrão 22).
 
 ## Estrutura
 

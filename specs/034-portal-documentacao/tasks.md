@@ -326,6 +326,28 @@ manifesto e forçar falhas (link quebrado e tradução obrigatória ausente).
 
 ---
 
+## Fase 7: Primeira versão publicada
+
+Escopo acrescentado por pedido explícito ("implementar a primeira versão do
+docs.dokpod"). Revoga o item 4 da estratégia para o Dokpod.
+
+- [x] T040 Substituir as fixtures pelo manual real: linha `0.7` (5 tópicos,
+  PT/EN/ES) e `next` (6 tópicos, só PT), a partir das tags e runbooks do Dokpod.
+- [x] T041 Tornar a `0.7` indexável, ligar o sitemap sem `/next/` e marcar o
+  estado `publicada` no manifesto.
+- [x] T042 Reescrever os e2e para o conteúdo real e corrigir o que eles acharam
+  (peso de `<strong>`, sublinhado de links, tabelas roláveis, menu mobile).
+- [x] T043 Criar `.github/workflows/docs-deploy.yml` (manual, ambiente
+  `docs-production`, artefato do CI verde, checagem da CSP da borda, promoção
+  atômica, smoke e rollback). Validado com actionlint e simulação local da
+  promoção.
+- [x] T044 Vhost e CSP de `docs.dokpod.altivy.it` no repositório Altivy,
+  validados com `nginx -t` e com os e2e contra o Nginx em container.
+- [ ] T045 Ação humana: criar o ambiente `docs-production` com os secrets da VPS,
+  publicar a borda Altivy, conferir o certificado e disparar o `docs-deploy`.
+
+---
+
 ## Dependências e ordem
 
 - Fase 1 → Fase 2 → (Fase 3 ∥ Fase 4) → Fase 5 → Fase 6.
@@ -350,4 +372,4 @@ manifesto e forçar falhas (link quebrado e tradução obrigatória ausente).
    versionamento com a marca Altivy.
 2. **Incremento 2**: a História 2 completa os requisitos aprovados de idioma e tema.
 3. **Incremento 3**: a História 3 coloca o portal no CI com artefato verificável.
-4. Deploy, DNS, TLS e outros produtos ficam para features futuras com autorização própria.
+4. Outros produtos ficam para features futuras. O deploy do Dokpod entrou na Fase 7.

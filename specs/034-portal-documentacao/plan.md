@@ -172,4 +172,8 @@ Sem violações da constituição.
 | Marca | `src/brand/fonts/LICENSE` | `src/brand/public/fonts/LICENSE-Outfit-1.1.txt` (servida com a fonte) | OFL exige distribuir a licença |
 | Armazenamento bloqueado | Tema escuro | Segue `prefers-color-scheme` | Script de cor do Docusaurus; contrato de preferências atualizado |
 | Auditoria de marca | Manual | Também `tests/e2e/marca.spec.mjs` (peso ≤ 600, Outfit, sem roxo) | Achou `.footer__title` em 700 (atalho `font: bold` do Infima) |
+| Conteúdo | Fixtures `1.0`/`1.1` com `noindex` | Manual real: `0.7` publicada (PT/EN/ES) e `next` (0.8) só em PT | Primeira versão pedida para `docs.dokpod.altivy.it`; `current` com `required: none` |
+| Deploy | Fora do escopo | `docs-deploy.yml` manual, promove o artefato do CI verde; borda no repositório Altivy | Pedido explícito de publicar a primeira versão |
+| Tabelas | — | `src/theme/MDXComponents.js` envolve tabelas em região rolável focável | axe `scrollable-region-focusable` em 320 px |
+| Menu mobile | — | `VersionSwitch` encadeia o `onClick` do item com o que fecha o painel | O painel ficava aberto depois de trocar de versão |
 | Distribuição | Parágrafo em `docs/release-integrity.md` | Seção "Artefato `docs-portal-site`" em `docs/portal/README.md` | `release-integrity.md` é gerenciado pelo Groundwork (`Test-ManagedFiles.ps1`) |
