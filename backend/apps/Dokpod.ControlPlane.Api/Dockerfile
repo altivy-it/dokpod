@@ -34,7 +34,7 @@ RUN case "$RELEASE_VERSION" in *[!0-9A-Za-z.-]*) echo "RELEASE_VERSION inválida
     && dotnet publish backend/apps/Dokpod.ControlPlane.Api/Dokpod.ControlPlane.Api.csproj --configuration Release --no-restore --output /app/publish /p:UseAppHost=false ${DOKPOD_EDITION:+/p:DokpodEdition=$DOKPOD_EDITION} ${RELEASE_VERSION:+/p:Version=$RELEASE_VERSION}
 
 FROM lzocateli/dotnet-aspnet:10.0.15-noble-v1 AS runtime
-LABEL org.opencontainers.image.title="dokpod-api" \
+LABEL org.opencontainers.image.title="dokpod-ce-api" \
     org.opencontainers.image.description="API do plano de controle Dokpod para protocolo de agentes e health do laboratório." \
     org.opencontainers.image.source="https://github.com/altivy-it/dokpod" \
     org.opencontainers.image.documentation="https://github.com/altivy-it/dokpod/tree/main/deploy/e2e" \
