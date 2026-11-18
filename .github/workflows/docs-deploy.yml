@@ -104,7 +104,10 @@ jobs:
             # Só tipos e impressões digitais, que são públicos; os nomes ficam de fora.
             echo "::group::Diagnóstico do known_hosts"
             echo "Linhas não vazias: $(grep -cv '^[[:space:]]*$' "$HOME/.ssh/known_hosts" || true)"
-            awk '!/^[[:space:]]*(#|$)/ {print "Entrada com tipo " $2 " e " (index($1, "[") == 1 ? "porta explícita" : "porta 22")}' "$HOME/.ssh/known_hosts"
+            awk '!/^[[:space:]]*(#|$)/ {
+              if ($1 ~ /^(ssh-|ecdsa-|sk-)/) print "Entrada sem host: parece uma chave .pub, não uma linha de known_hosts"
+              else print "Entrada com tipo " $2 " e " (index($1, "[") == 1 ? "porta explícita" : "porta 22")
+            }' "$HOME/.ssh/known_hosts"
             ssh-keygen -lf "$HOME/.ssh/known_hosts" 2>&1 | awk '{print "Secret: " $2 " " $NF}' || true
             ssh-keyscan -T 10 -p "$port" "$VPS_HOST" 2> /dev/null | ssh-keygen -lf - 2>&1 | awk '{print "Servidor: " $2 " " $NF}' || true
             echo "::endgroup::"
