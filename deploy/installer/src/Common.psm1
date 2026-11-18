@@ -136,7 +136,7 @@ function Import-InstallerLibraries {
     }
 
     if (-not (Test-Path -LiteralPath $Directory)) {
-        Stop-Installer -Code Error -Message "Bibliotecas do instalador ausentes em $Directory; use a imagem dokpod-installer."
+        Stop-Installer -Code Error -Message "Bibliotecas do instalador ausentes em $Directory; use a imagem dokpod-ce-installer."
     }
 
     foreach ($name in 'SQLitePCLRaw.core', 'SQLitePCLRaw.provider.e_sqlite3', 'SQLitePCLRaw.batteries_v2', 'Microsoft.Data.Sqlite', 'YamlDotNet') {

@@ -8,10 +8,10 @@ BeforeAll {
     Import-Module (Join-Path $PSScriptRoot '../src/Edge.psm1') -Force
 
     $script:images = [ordered]@{
-        api   = "ghcr.io/altivy-it/dokpod-api@sha256:$('1' * 64)"
-        bff   = "ghcr.io/altivy-it/dokpod-bff@sha256:$('2' * 64)"
-        web   = "ghcr.io/altivy-it/dokpod-web@sha256:$('3' * 64)"
-        agent = "ghcr.io/altivy-it/dokpod-agent@sha256:$('4' * 64)"
+        api   = "ghcr.io/altivy-it/dokpod-ce-api@sha256:$('1' * 64)"
+        bff   = "ghcr.io/altivy-it/dokpod-ce-bff@sha256:$('2' * 64)"
+        web   = "ghcr.io/altivy-it/dokpod-ce-web@sha256:$('3' * 64)"
+        agent = "ghcr.io/altivy-it/dokpod-ce-agent@sha256:$('4' * 64)"
     }
     $script:infra = (Get-Content -Raw (Join-Path $PSScriptRoot '../templates/infrastructure-images.json') | ConvertFrom-Json -AsHashtable).images
 

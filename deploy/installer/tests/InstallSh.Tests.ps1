@@ -143,7 +143,7 @@ Describe 'install.sh' {
             $ok.ExitCode | Should -Be 0
             $ok.Calls[0] | Should -Contain 'verify'
             ($ok.Calls[0] -join ' ') | Should -Match 'cosign:v3.1.4@sha256:'
-            $ok.Calls[1][-2..-1] | Should -Be @("ghcr.io/altivy-it/dokpod-installer@sha256:$('a' * 64)", 'status')
+            $ok.Calls[1][-2..-1] | Should -Be @("ghcr.io/altivy-it/dokpod-ce-installer@sha256:$('a' * 64)", 'status')
 
             Remove-Item $script:box.Log
             $bad = Invoke-InstallSh $script:box @('status') @{ FAKE_COSIGN_EXIT = '1' }

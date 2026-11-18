@@ -1,7 +1,7 @@
 # Contrato: CLI do instalador
 
 Ponto de entrada no host: `install.sh` (asset da release; [D-001](../research.md#d-001-forma-do-instalador)). Ele repassa
-os argumentos à imagem `dokpod-installer` da mesma versão.
+os argumentos à imagem `dokpod-ce-installer` da mesma versão.
 
 ```text
 install.sh [comando] [opções]

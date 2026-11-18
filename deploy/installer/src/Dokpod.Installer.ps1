@@ -3,7 +3,7 @@
 Instala, atualiza, recria e consulta uma instalação self-hosted do Dokpod.
 
 .DESCRIPTION
-Ponto de entrada do instalador guiado da spec 033. Executa dentro da imagem dokpod-installer, iniciada pelo bootstrap
+Ponto de entrada do instalador guiado da spec 033. Executa dentro da imagem dokpod-ce-installer, iniciada pelo bootstrap
 install.sh com o socket do engine rootless (Docker ou Podman), o diretório de instalação e o destino de segredos
 montados. O host precisa somente do engine rootless com Compose v2.
 

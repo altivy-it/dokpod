@@ -6,10 +6,10 @@ Decisões: [D-003](../research.md#d-003-migrations-sem-sdk-e-com-controle-do-usu
 ```text
 docker run --rm --network <rede-interna> \
   --mount type=bind,src=<secretsDir>/dokpod-owner-connection,dst=/run/secrets/ConnectionStrings__ControlPlane,ro \
-  ghcr.io/altivy-it/dokpod-api@sha256:<digest> admin <grupo> <comando> [opções] --output json
+  ghcr.io/altivy-it/dokpod-ce-api@sha256:<digest> admin <grupo> <comando> [opções] --output json
 ```
 
-- Vale para `dokpod-api` e `dokpod-api-business`. A edição só muda `admin licensing import`, que só existe na Business.
+- Vale para `dokpod-ce-api` e `dokpod-api-business`. A edição só muda `admin licensing import`, que só existe na Business.
 - Com catálogo sobreposto, o instalador monta o diretório conferido em `/run/sql-override` (somente leitura). O
   `MigrationSqlScriptLoader` o usa só no modo administrativo, e o runtime da API não o monta (D-013).
 - Todo SQL dos comandos vem do catálogo (`/app/sql/manifest.json`); não há SQL no código (FR-039).

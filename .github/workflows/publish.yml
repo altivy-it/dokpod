@@ -60,12 +60,12 @@ jobs:
       tag: ${{ inputs.tag }}
       republish: ${{ inputs.republish }}
       images: >-
-        [{"name":"dokpod-api","context":".","dockerfile":"backend/apps/Dokpod.ControlPlane.Api/Dockerfile"},
-        {"name":"dokpod-bff","context":".","dockerfile":"backend/apps/Dokpod.Bff/Dockerfile"},
-        {"name":"dokpod-web","context":".","dockerfile":"frontend/web/Dockerfile"},
-        {"name":"dokpod-agent","context":".","dockerfile":"deploy/agent/Dockerfile"},
+        [{"name":"dokpod-ce-api","context":".","dockerfile":"backend/apps/Dokpod.ControlPlane.Api/Dockerfile"},
+        {"name":"dokpod-ce-bff","context":".","dockerfile":"backend/apps/Dokpod.Bff/Dockerfile"},
+        {"name":"dokpod-ce-web","context":".","dockerfile":"frontend/web/Dockerfile"},
+        {"name":"dokpod-ce-agent","context":".","dockerfile":"deploy/agent/Dockerfile"},
         {"name":"dokpod-api-business","context":".","dockerfile":"backend/apps/Dokpod.ControlPlane.Api/Business.Dockerfile"},
-        {"name":"dokpod-installer","context":".","dockerfile":"deploy/installer/Dockerfile"}]
+        {"name":"dokpod-ce-installer","context":".","dockerfile":"deploy/installer/Dockerfile"}]
 
   # Assinatura cosign sem chave por digest (docs/seguranca.md). A identidade é a deste workflow:
   # publish.yml@refs/heads/main no merge do Release PR e publish.yml@refs/tags/vX.Y.Z no republish.
@@ -150,11 +150,11 @@ jobs:
       - name: Download container entries
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
-          pattern: release-entries-container-dokpod-installer
+          pattern: release-entries-container-dokpod-ce-installer
           path: artifacts/entries
           merge-multiple: true
 
-      # Instalador (spec 033 T051, ADR 2026-0011): install.sh com o digest publicado da imagem dokpod-installer,
+      # Instalador (spec 033 T051, ADR 2026-0011): install.sh com o digest publicado da imagem dokpod-ce-installer,
       # e o catálogo SQL com o manifest.json para revisão e alteração externa (FR-040). Os dois são atestados como os
       # demais assets pelo gw-github-assets.
       - name: Build installer assets
@@ -163,10 +163,10 @@ jobs:
           RELEASE_VERSION: ${{ inputs.version }}
         run: |
           set -euo pipefail
-          entry=artifacts/entries/container-dokpod-installer.json
-          reference=$(jq -r '.[] | select(.name == "dokpod-installer") | .reference' "$entry")
-          digest=$(jq -r '.[] | select(.name == "dokpod-installer") | .digest' "$entry")
-          [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ && -n "$reference" ]] || { echo "::error::Imagem dokpod-installer sem digest válido: '$reference@$digest'."; exit 1; }
+          entry=artifacts/entries/container-dokpod-ce-installer.json
+          reference=$(jq -r '.[] | select(.name == "dokpod-ce-installer") | .reference' "$entry")
+          digest=$(jq -r '.[] | select(.name == "dokpod-ce-installer") | .digest' "$entry")
+          [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ && -n "$reference" ]] || { echo "::error::Imagem dokpod-ce-installer sem digest válido: '$reference@$digest'."; exit 1; }
           out="$PWD/artifacts/release-assets"
           sed "s|^INSTALLER_IMAGE_DEFAULT=.*$|INSTALLER_IMAGE_DEFAULT=\"${reference}@${digest}\"|" deploy/installer/install.sh > "$out/install.sh"
           if grep -q '__DOKPOD_INSTALLER_DIGEST__' "$out/install.sh"; then echo '::error::O install.sh ficou sem o digest do instalador.'; exit 1; fi

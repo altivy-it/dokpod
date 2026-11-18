@@ -33,11 +33,11 @@ Describe 'Pacote do host remoto' {
         $answers = New-HostAnswers
         try {
             foreach ($engine in 'docker', 'podman') {
-                $files = New-HostPackageFiles -Answers $answers -EnvironmentId $script:hostId -Engine $engine -AgentImage 'ghcr.io/altivy-it/dokpod-agent@sha256:abc'
+                $files = New-HostPackageFiles -Answers $answers -EnvironmentId $script:hostId -Engine $engine -AgentImage 'ghcr.io/altivy-it/dokpod-ce-agent@sha256:abc'
                 @($files.Keys) | Should -Be @('agent.pfx', 'agent.pass', 'ca.crt', 'agent.env', 'compose.agent.yaml', 'README.txt')
                 $files['agent.env'] | Should -Match "DOKPOD_AGENT_CONTROL_PLANE_ENDPOINT=https://dokpod.lab.test:17443"
                 $files['agent.env'] | Should -Match "DOKPOD_AGENT_ENVIRONMENT_ID=$($script:hostId)"
-                $files['compose.agent.yaml'] | Should -Match 'image: ghcr.io/altivy-it/dokpod-agent@sha256:abc'
+                $files['compose.agent.yaml'] | Should -Match 'image: ghcr.io/altivy-it/dokpod-ce-agent@sha256:abc'
                 $files['compose.agent.yaml'] | Should -Match '\$\{DOKPOD_ENGINE_SOCKET:\?'
                 # Nenhum outro segredo da instalação: nem a chave da CA, nem o client secret do BFF.
                 $text = ($files.Values | ForEach-Object { if ($_ -is [byte[]]) { '' } else { $_ } }) -join "`n"
