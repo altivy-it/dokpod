@@ -1,0 +1,260 @@
+/*
+ * Identidade Altivy no portal do Dokpod.
+ * Cores, raios e sombras vêm só de tokens (src/brand/tokens/tokens.css); este
+ * arquivo apenas liga as variáveis --ifm-* do Docusaurus a eles. O tema escuro
+ * é :root e o claro é :root[data-theme="light"], nos dois lados.
+ */
+@import '../brand/tokens/tokens.css';
+
+@font-face {
+  font-family: 'Outfit';
+  src: url('../brand/fonts/Outfit-Variable-Latin.woff2') format('woff2');
+  font-style: normal;
+  font-weight: 400 600;
+  font-display: swap;
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+:root {
+  --ifm-font-family-base: var(--font-sans);
+  --ifm-heading-font-family: var(--font-sans);
+  --ifm-font-weight-bold: 600;
+  --ifm-font-weight-semibold: 600;
+  --ifm-heading-font-weight: 600;
+  --ifm-font-color-base: var(--foreground);
+  --ifm-heading-color: var(--text-strong);
+  --ifm-color-content: var(--foreground);
+  --ifm-color-content-secondary: var(--muted);
+  --ifm-background-color: var(--surface-base);
+  --ifm-background-surface-color: var(--surface-panel);
+  --ifm-color-emphasis-0: var(--surface-base);
+  --ifm-color-emphasis-100: var(--row-tint);
+  --ifm-color-emphasis-200: var(--hairline);
+  --ifm-color-emphasis-300: var(--hairline);
+  --ifm-color-emphasis-600: var(--muted);
+  --ifm-color-emphasis-700: var(--foreground);
+  --ifm-color-emphasis-800: var(--foreground);
+  --ifm-toc-border-color: var(--hairline);
+  --ifm-hr-background-color: var(--hairline);
+  --ifm-table-border-color: var(--hairline);
+  --ifm-table-stripe-background: var(--row-tint);
+
+  /* Acento único. */
+  --ifm-color-primary: var(--teal-light);
+  --ifm-color-primary-dark: var(--teal-light);
+  --ifm-color-primary-darker: var(--teal-light);
+  --ifm-color-primary-darkest: var(--teal-light);
+  --ifm-color-primary-light: var(--teal-light);
+  --ifm-color-primary-lighter: var(--teal-light);
+  --ifm-color-primary-lightest: var(--teal-light);
+  --ifm-link-color: var(--teal-light);
+  --ifm-link-hover-color: var(--teal-light);
+  --ifm-menu-color: var(--foreground);
+  --ifm-menu-color-active: var(--teal-light);
+  --ifm-menu-color-background-active: var(--accent-tint);
+  --ifm-menu-color-background-hover: var(--hover-wash);
+  --ifm-hover-overlay: var(--hover-wash);
+  --ifm-navbar-link-color: var(--foreground);
+  --ifm-navbar-link-hover-color: var(--teal-light);
+  --ifm-dropdown-link-color: var(--foreground);
+  --ifm-dropdown-hover-background-color: var(--hover-wash);
+
+  /* Superfícies elevadas usam o vidro; o resto é plano. */
+  --ifm-navbar-background-color: transparent;
+  --ifm-navbar-shadow: none;
+  --ifm-dropdown-background-color: transparent;
+  --ifm-global-shadow-lw: none;
+  --ifm-global-shadow-md: var(--shadow-popover);
+  --ifm-global-shadow-tl: var(--shadow-popover);
+  --ifm-footer-background-color: var(--shell-bg);
+  --ifm-footer-color: var(--muted);
+  --ifm-footer-link-color: var(--foreground);
+  --ifm-footer-link-hover-color: var(--teal-light);
+  --ifm-footer-title-color: var(--text-strong);
+
+  --ifm-global-radius: var(--radius-md);
+  --ifm-button-border-radius: var(--radius-control);
+  --ifm-code-border-radius: var(--radius-sm);
+  --ifm-code-background: var(--input-fill);
+  --ifm-pre-background: var(--surface-panel);
+  --ifm-pre-color: var(--foreground);
+
+  /* Admonitions: tom de status do DS com rótulo textual do Docusaurus. */
+  --ifm-alert-foreground-color: var(--foreground);
+  --ifm-color-info-contrast-background: var(--info-tint);
+  --ifm-color-info-dark: var(--signal-info);
+  --ifm-color-secondary-contrast-background: var(--row-tint);
+  --ifm-color-secondary-dark: var(--muted);
+  --ifm-color-success-contrast-background: var(--success-tint);
+  --ifm-color-success-dark: var(--signal-success);
+  --ifm-color-warning-contrast-background: var(--warning-tint);
+  --ifm-color-warning-dark: var(--signal-warning);
+  --ifm-color-danger-contrast-background: var(--error-tint-strong);
+  --ifm-color-danger-dark: var(--signal-error);
+  --ifm-color-info-contrast-foreground: var(--foreground);
+  --ifm-color-secondary-contrast-foreground: var(--foreground);
+  --ifm-color-success-contrast-foreground: var(--foreground);
+  --ifm-color-warning-contrast-foreground: var(--foreground);
+  --ifm-color-danger-contrast-foreground: var(--foreground);
+
+  --docusaurus-highlighted-code-line-bg: var(--accent-tint);
+  --docusaurus-collapse-button-bg: transparent;
+  --docusaurus-collapse-button-bg-hover: var(--hover-wash);
+}
+
+/* Fundo Page do DS: superfície base com os véus. */
+html {
+  background-color: var(--surface-base);
+}
+
+body {
+  background:
+    radial-gradient(900px 620px at 88% -8%, var(--veil-teal), transparent 62%),
+    radial-gradient(760px 560px at -6% 96%, var(--veil-teal-deep), transparent 62%),
+    radial-gradient(640px 460px at 52% 48%, var(--veil-blue), transparent 70%),
+    var(--surface-base);
+  background-attachment: fixed;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Liquid glass: raised na barra, overlay nos menus. */
+.navbar {
+  background: linear-gradient(145deg, var(--glass-fill-top) 0%, var(--glass-fill-mid) 42%, var(--glass-fill-bottom) 100%);
+  border-bottom: 1px solid var(--glass-border);
+  -webkit-backdrop-filter: var(--backdrop-raised);
+  backdrop-filter: var(--backdrop-raised);
+  box-shadow: var(--shadow-glass);
+}
+
+.dropdown__menu,
+.navbar-sidebar {
+  background: linear-gradient(145deg, var(--overlay-fill-top) 0%, var(--overlay-fill-mid) 45%, var(--overlay-fill-bottom) 100%);
+  border: 1px solid var(--glass-border-strong);
+  -webkit-backdrop-filter: var(--backdrop-overlay);
+  backdrop-filter: var(--backdrop-overlay);
+  box-shadow: var(--shadow-glass-overlay);
+  border-radius: var(--radius-md);
+}
+
+.navbar-sidebar {
+  border-radius: 0;
+}
+
+.navbar__title {
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--text-strong);
+}
+
+.dropdown__link--active,
+.menu__link--active {
+  font-weight: 500;
+}
+
+:focus-visible {
+  outline: 2px solid var(--teal-light);
+  outline-offset: 2px;
+}
+
+/* Sintaxe só com tokens: acento para palavras-chave, neutros para o resto. */
+.prism-code {
+  background-color: var(--surface-panel);
+  color: var(--foreground);
+}
+
+.theme-code-block {
+  border: 1px solid var(--hairline);
+}
+
+.token.comment,
+.token.prolog,
+.token.cdata {
+  color: var(--muted);
+  font-style: italic;
+}
+
+.token.keyword,
+.token.builtin,
+.token.function,
+.token.selector,
+.token.important {
+  color: var(--teal-light);
+}
+
+.token.string,
+.token.attr-value,
+.token.number,
+.token.boolean,
+.token.constant,
+.token.variable,
+.token.parameter {
+  color: var(--text-strong);
+}
+
+.token.punctuation,
+.token.operator {
+  color: var(--muted);
+}
+
+.token--empty {
+  display: inline-block;
+}
+
+/* Avisos próprios do portal: tradução ausente e tópico fora da linha. */
+.portal-notice {
+  margin-bottom: var(--space-24);
+  padding: var(--space-16) var(--space-20);
+  border: 1px solid var(--accent-border);
+  border-radius: var(--radius-md);
+  background-color: var(--accent-tint);
+  color: var(--foreground);
+}
+
+.portal-notice__title {
+  margin: 0 0 var(--space-6);
+  font-size: var(--type-body-size);
+  font-weight: 600;
+  color: var(--text-strong);
+}
+
+.portal-notice p:last-child {
+  margin-bottom: 0;
+}
+
+/* Sprite de ícones do tema (ver plugins/strict-csp). */
+.portal-svg-sprite {
+  display: none;
+}
+
+/* O Infima usa o atalho "font: bold" (700) no título do rodapé; a marca vai até 600. */
+.footer__title {
+  font-weight: 600;
+}
+
+/* "bolder" do navegador chega a 700 (ex.: <b> do banner de versão); a marca vai até 600. */
+b,
+strong {
+  font-weight: 600;
+}
+
+/* Link em meio a texto não pode depender só da cor (WCAG 1.4.1). */
+.markdown p a,
+.markdown li a,
+.markdown td a,
+.theme-doc-version-banner a,
+.portal-notice a {
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}
+
+/* Região rolável das tabelas (ver src/theme/MDXComponents.js). */
+.portal-table {
+  overflow-x: auto;
+  margin-bottom: var(--ifm-spacing-vertical);
+}
+
+.portal-table table {
+  display: table;
+  margin-bottom: 0;
+}

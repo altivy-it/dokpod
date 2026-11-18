@@ -1,0 +1,192 @@
+# Spec 034: publica o portal de documentação em https://docs.dokpod.altivy.it.
+# Não reconstrói nada: promove o artefato `docs-portal-site` já aprovado pelo CI (build + E2E) de um commit da main.
+# A borda (vhost Nginx, CSP e TLS) pertence ao repositório Altivy; aqui só o conteúdo muda.
+name: Docs deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      commit:
+        description: SHA completo de um commit da main com o CI verde
+        required: true
+        type: string
+
+permissions: {}
+
+concurrency:
+  group: docs-deploy-dokpod
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy docs.dokpod.altivy.it
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      actions: read
+    environment:
+      name: docs-production
+      url: https://docs.dokpod.altivy.it/
+    env:
+      DOCS_HOST: docs.dokpod.altivy.it
+      DOCS_ROOT: /userapps/altivy/docs/dokpod
+      DOCS_SECURITY_CONF: /userapps/configs/nginx/altivy/security-docs-dokpod-prd.conf
+    steps:
+      - name: Resolve green CI run
+        id: run
+        env:
+          GH_TOKEN: ${{ github.token }}
+          COMMIT: ${{ inputs.commit }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$COMMIT" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::Informe o SHA completo (40 caracteres hexadecimais)."
+            exit 1
+          fi
+          # "ahead"/"identical": a main contém o commit.
+          if [[ ! "$(gh api "repos/$GITHUB_REPOSITORY/compare/$COMMIT...main" --jq '.status')" =~ ^(ahead|identical)$ ]]; then
+            echo "::error::O commit $COMMIT não pertence à main."
+            exit 1
+          fi
+          run_id="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow ci.yml --branch main --commit "$COMMIT" \
+            --status success --limit 1 --json databaseId --jq '.[0].databaseId // empty')"
+          if [[ -z "$run_id" ]]; then
+            echo "::error::Nenhuma execução verde do CI na main para $COMMIT."
+            exit 1
+          fi
+          echo "id=$run_id" >> "$GITHUB_OUTPUT"
+
+      - name: Download portal artifact
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: docs-portal-site
+          path: portal
+          run-id: ${{ steps.run.outputs.id }}
+          github-token: ${{ github.token }}
+
+      - name: Verify artifact
+        id: artifact
+        env:
+          COMMIT: ${{ inputs.commit }}
+        run: |
+          set -euo pipefail
+          (cd portal/site && sha256sum --check --quiet --strict ../SHA256SUMS)
+          manifest_commit="$(jq -r '.commit' portal/portal-manifest.json)"
+          if [[ "$manifest_commit" != "$COMMIT" ]]; then
+            echo "::error::O manifesto é do commit $manifest_commit, não de $COMMIT."
+            exit 1
+          fi
+          jq -r '.csp.scriptHashes[]' portal/portal-manifest.json > script-hashes.txt
+          if [[ ! -s script-hashes.txt ]]; then
+            echo "::error::O manifesto não declara csp.scriptHashes."
+            exit 1
+          fi
+
+      - name: Configure SSH
+        env:
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          VPS_SSH_KNOWN_HOSTS: ${{ secrets.VPS_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -d -m 0700 "$HOME/.ssh"
+          printf '%s\n' "$VPS_SSH_KEY" > "$HOME/.ssh/id_ed25519"
+          printf '%s\n' "$VPS_SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 0600 "$HOME/.ssh/id_ed25519" "$HOME/.ssh/known_hosts"
+
+      - name: Promote release
+        env:
+          COMMIT: ${{ inputs.commit }}
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_SSH_PORT: ${{ vars.VPS_SSH_PORT }}
+        run: |
+          set -euo pipefail
+          ssh_options=(-i "$HOME/.ssh/id_ed25519" -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" -p "${VPS_SSH_PORT:-22}")
+          remote="$VPS_USER@$VPS_HOST"
+          # shellcheck disable=SC2029 # os argumentos são caminhos sem espaços, montados no runner.
+          on_vps() { ssh "${ssh_options[@]}" "$remote" "$@"; }
+
+          # A CSP instalada pela borda precisa autorizar cada script inline deste build; senão o portal quebra no ar.
+          remote_csp="$(on_vps cat "$DOCS_SECURITY_CONF")"
+          while read -r hash; do
+            if ! grep -qF "'$hash'" <<<"$remote_csp"; then
+              echo "::error::A CSP da borda não autoriza $hash. Atualize security-docs-dokpod-prd.conf no repositório Altivy e publique a borda antes."
+              exit 1
+            fi
+          done < script-hashes.txt
+
+          release="$DOCS_ROOT/releases/$COMMIT"
+          on_vps mkdir -p "$release"
+          rsync -az --delete -e "ssh ${ssh_options[*]}" portal/ "$remote:$release/"
+
+          on_vps bash -s -- "$DOCS_ROOT" "$COMMIT" <<'REMOTE_SCRIPT'
+          set -euo pipefail
+          root="$1"
+          target="releases/$2/site"
+          (cd "$root/$target" && sha256sum --check --quiet --strict ../SHA256SUMS)
+          find "$root/releases/$2" -type d -exec chmod 0755 {} +
+          find "$root/releases/$2" -type f -exec chmod 0644 {} +
+          # Alvos relativos: o edge monta /userapps/altivy em /srv/altivy, então caminhos absolutos do host não resolvem.
+          if [[ -L "$root/current" ]]; then
+            current="$(readlink "$root/current")"
+            if [[ "$current" != "$target" ]]; then
+              ln -sfn "$current" "$root/previous.incoming"
+              mv -Tf "$root/previous.incoming" "$root/previous"
+            fi
+          fi
+          ln -sfn "$target" "$root/current.incoming"
+          mv -Tf "$root/current.incoming" "$root/current"
+          # Mantém as 5 releases mais recentes, sem remover as apontadas por current/previous.
+          keep=" $(readlink "$root/current") $(readlink "$root/previous" 2>/dev/null || true) "
+          ls -1dt "$root"/releases/*/ | tail -n +6 | while read -r dir; do
+            name="$(basename "$dir")"
+            [[ "$keep" == *" releases/$name/site "* ]] || rm -rf -- "$root/releases/$name"
+          done
+          REMOTE_SCRIPT
+
+      - name: Smoke test
+        id: smoke
+        run: |
+          set -euo pipefail
+          for path in / /en/ /es/ /next/; do
+            headers="$(curl -sS --retry 3 --retry-all-errors --max-time 20 -o /dev/null -D - "https://$DOCS_HOST$path")"
+            status="$(awk 'NR==1 {print $2}' <<<"$headers")"
+            if [[ "$status" != "200" ]]; then
+              echo "::error::$path respondeu $status."
+              exit 1
+            fi
+            if ! grep -qi '^content-security-policy:.*script-src' <<<"$headers"; then
+              echo "::error::$path sem Content-Security-Policy."
+              exit 1
+            fi
+          done
+          echo "Smoke OK em https://$DOCS_HOST/"
+
+      - name: Roll back
+        if: ${{ failure() && steps.smoke.conclusion == 'failure' }}
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_SSH_PORT: ${{ vars.VPS_SSH_PORT }}
+        run: |
+          set -euo pipefail
+          ssh_options=(-i "$HOME/.ssh/id_ed25519" -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" -p "${VPS_SSH_PORT:-22}")
+          # shellcheck disable=SC2029 # os argumentos são caminhos sem espaços, montados no runner.
+          on_vps() { ssh "${ssh_options[@]}" "$VPS_USER@$VPS_HOST" "$@"; }
+          on_vps bash -s -- "$DOCS_ROOT" <<'REMOTE_SCRIPT'
+          set -euo pipefail
+          root="$1"
+          previous="$(readlink "$root/previous" 2>/dev/null || true)"
+          if [[ -z "$previous" ]]; then
+            echo "Sem release anterior; current mantido para diagnóstico."
+            exit 0
+          fi
+          ln -sfn "$previous" "$root/current.incoming"
+          mv -Tf "$root/current.incoming" "$root/current"
+          echo "Rollback para $previous."
+          REMOTE_SCRIPT
+
+      - name: Remove SSH material
+        if: ${{ always() }}
+        run: rm -f "$HOME/.ssh/id_ed25519" "$HOME/.ssh/known_hosts"
