@@ -5,6 +5,7 @@ não lê o repositório da Altivy durante o build nem em runtime.
 
 - **Origem**: repositório Altivy, branch `main`, commit `55dfa317cd645837136da6bef5eaa5ad793abf23`.
 - **Data da cópia**: 2026-11-17.
+- **Favicons** (`icon-16`, `icon-48`, `icon-192`, `icon-dark-*`): commit `e934e29168dbc7760af77232bdb8c666d16a27e7`, mesmos hashes de `docs/brand/assets/dist/SHA256SUMS`.
 
 | Arquivo do snapshot | Origem na Altivy |
 |---------------------|------------------|
@@ -13,7 +14,7 @@ não lê o repositório da Altivy durante o build nem em runtime.
 | `public/fonts/LICENSE-Outfit-1.1.txt` | `docs/brand/fonts/LICENSE-Outfit-1.1.txt` (SIL OFL 1.1) |
 | `public/img/symbol-dark.svg` | `docs/brand/assets/dist/symbol-dark.svg` |
 | `public/img/symbol-light.svg` | `docs/brand/assets/dist/symbol-light.svg` |
-| `public/img/icon-32.png` | `docs/brand/assets/dist/icon-32.png` |
+| `public/img/icon-*.png` | `docs/brand/assets/dist/icon-{16,32,48,192}.png` e `icon-dark-{16,32,48}.png` (favicons da landing) |
 
 `SHA256SUMS` cobre todos os arquivos acima e é conferido por `npm run check:artifact`.
 Os hashes da fonte, da licença e dos símbolos coincidem com os manifests

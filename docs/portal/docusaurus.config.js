@@ -3,11 +3,34 @@ import altivyPrismTheme from './src/prism/altivy.js';
 
 const locales = ['pt-BR', 'en', 'es'];
 
+// Mesmos favicons da landing Altivy (src/layouts/partials/head.html): PNG neutro
+// como fallback e versões por esquema de cor do navegador.
+const icon = (href, attributes = {}) => ({tagName: 'link', attributes: {rel: 'icon', type: 'image/png', href, ...attributes}});
+const faviconTags = [
+  icon('/img/icon-192.png', {sizes: '192x192'}),
+  icon('/img/icon-32.png', {sizes: '32x32', media: '(prefers-color-scheme: light)'}),
+  icon('/img/icon-16.png', {sizes: '16x16', media: '(prefers-color-scheme: light)'}),
+  icon('/img/icon-dark-48.png', {sizes: '48x48', media: '(prefers-color-scheme: dark)'}),
+  icon('/img/icon-dark-32.png', {sizes: '32x32', media: '(prefers-color-scheme: dark)'}),
+  icon('/img/icon-dark-16.png', {sizes: '16x16', media: '(prefers-color-scheme: dark)'}),
+  {tagName: 'link', attributes: {rel: 'apple-touch-icon', sizes: '192x192', href: '/img/icon-192.png'}},
+];
+
 /** @type {import('@docusaurus/types').Config} */
 const config = {
   title: 'Dokpod',
   tagline: 'Manual versionado do Dokpod',
-  favicon: 'img/icon-32.png',
+  favicon: 'img/icon-48.png',
+  headTags: faviconTags,
+  customFields: {
+    portal: {
+      product: 'Dokpod',
+      productSlug: 'dokpod',
+      publicRepository: 'https://github.com/altivy-it/dokpod',
+      license: 'AGPL-3.0-only',
+      licenseUrl: 'https://github.com/altivy-it/dokpod/blob/main/LICENSE',
+    },
+  },
   url: 'https://docs.dokpod.altivy.it',
   baseUrl: '/',
   trailingSlash: true,
@@ -84,20 +107,6 @@ const config = {
           {type: 'custom-versionSwitch', position: 'right'},
           {type: 'localeDropdown', position: 'right'},
         ],
-      },
-      footer: {
-        links: [
-          {
-            title: 'Idiomas',
-            // pathname:// gera link estático fora do roteador, navegável sem JavaScript.
-            items: [
-              {label: 'Português', href: 'pathname:///'},
-              {label: 'English', href: 'pathname:///en/'},
-              {label: 'Español', href: 'pathname:///es/'},
-            ],
-          },
-        ],
-        copyright: 'Dokpod · Altivy · Licença AGPL-3.0-only',
       },
       prism: {
         theme: altivyPrismTheme,

@@ -118,27 +118,138 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* Liquid glass: raised na barra, overlay nos menus. */
+/* Liquid glass: raised na barra, overlay nos menus. Como na landing
+   (main.css, .site-header .alt-header::before), o desfoque da barra fica no
+   ::before: um elemento com backdrop-filter vira a raiz de fundo dos filhos, e o
+   vidro dos menus só desfocaria a própria barra, deixando o texto vazar. */
 .navbar {
   background: linear-gradient(145deg, var(--glass-fill-top) 0%, var(--glass-fill-mid) 42%, var(--glass-fill-bottom) 100%);
   border-bottom: 1px solid var(--glass-border);
-  -webkit-backdrop-filter: var(--backdrop-raised);
-  backdrop-filter: var(--backdrop-raised);
   box-shadow: var(--shadow-glass);
 }
 
+.navbar::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  -webkit-backdrop-filter: var(--backdrop-raised);
+  backdrop-filter: var(--backdrop-raised);
+}
+
+/* Mesma base escura do menu da landing (main.css, .dropdown__list), para o
+   conteúdo da página não competir com os itens. */
 .dropdown__menu,
 .navbar-sidebar {
-  background: linear-gradient(145deg, var(--overlay-fill-top) 0%, var(--overlay-fill-mid) 45%, var(--overlay-fill-bottom) 100%);
+  background: linear-gradient(145deg, var(--overlay-fill-top) 0%, var(--overlay-fill-mid) 45%, var(--overlay-fill-bottom) 100%), var(--surface-dim);
   border: 1px solid var(--glass-border-strong);
   -webkit-backdrop-filter: var(--backdrop-overlay);
   backdrop-filter: var(--backdrop-overlay);
   box-shadow: var(--shadow-glass-overlay);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
 }
 
 .navbar-sidebar {
   border-radius: 0;
+}
+
+/* Menus suspensos da navbar (versão e idioma) no desenho da landing: botão em
+   pílula com chevron Lucide no lugar do triângulo do Infima. */
+.navbar__item.dropdown > .navbar__link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-6);
+  min-height: 40px;
+  padding: 0 var(--space-12);
+  border-radius: var(--radius-pill);
+  font-size: var(--type-nav-size);
+  font-weight: var(--type-nav-weight);
+  color: var(--muted);
+}
+
+.navbar__item.dropdown > .navbar__link::after {
+  display: none;
+}
+
+.navbar__item.dropdown:hover > .navbar__link,
+.navbar__item.dropdown--show > .navbar__link {
+  color: var(--foreground);
+  background-color: var(--hover-wash);
+}
+
+.dropdown__chevron {
+  transition: transform 0.2s ease;
+}
+
+.navbar__item.dropdown--show .dropdown__chevron {
+  transform: rotate(180deg);
+}
+
+.dropdown__menu {
+  min-width: 180px;
+  padding: var(--space-6);
+}
+
+.dropdown__link {
+  display: flex;
+  align-items: center;
+  gap: var(--space-10);
+  margin-top: 2px;
+  padding: var(--space-10) var(--space-12);
+  border-radius: var(--radius-control);
+  font-size: 15px;
+  font-weight: 400;
+  color: var(--muted);
+}
+
+.dropdown__menu > li:first-child > .dropdown__link {
+  margin-top: 0;
+}
+
+.dropdown__link:hover {
+  color: var(--foreground);
+  background-color: var(--hover-wash);
+}
+
+.dropdown__link:focus-visible {
+  outline-offset: -2px;
+}
+
+.dropdown__link--active,
+.dropdown__link--active:hover {
+  color: var(--foreground);
+  background-color: transparent;
+}
+
+/* O check ocupa espaço em todos os itens para alinhar; só o atual o mostra. */
+.dropdown__check {
+  flex: none;
+  color: var(--teal-light);
+  visibility: hidden;
+}
+
+.dropdown__link--active .dropdown__check,
+.menu__link--active .dropdown__check,
+[aria-current] > .dropdown__check,
+[aria-checked='true'] > .dropdown__check {
+  visibility: visible;
+}
+
+.menu__link:has(> .dropdown__check) {
+  justify-content: flex-start;
+  gap: var(--space-10);
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .navbar__title {
@@ -147,7 +258,6 @@ body {
   color: var(--text-strong);
 }
 
-.dropdown__link--active,
 .menu__link--active {
   font-weight: 500;
 }
@@ -155,6 +265,116 @@ body {
 :focus-visible {
   outline: 2px solid var(--teal-light);
   outline-offset: 2px;
+}
+
+/* Rodapé do DS: marca 5/3/3/4, contato e linha legal, como na landing. */
+.portal-footer {
+  margin-top: var(--space-46);
+  padding-top: var(--space-46);
+  border-top: 1px solid var(--hairline);
+  color: var(--muted);
+  font-size: var(--type-nav-size);
+  line-height: var(--type-body-line);
+}
+
+.portal-footer__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 3fr) minmax(0, 3fr) minmax(0, 4fr);
+  gap: var(--space-46);
+}
+
+.portal-footer__about p {
+  max-width: 40ch;
+  margin-top: var(--space-16);
+}
+
+.portal-footer__brand {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-10);
+  font-size: var(--type-card-title-size);
+  font-weight: var(--type-card-title-weight);
+}
+
+.portal-footer__mark--light,
+[data-theme='light'] .portal-footer__mark--dark {
+  display: none;
+}
+
+[data-theme='light'] .portal-footer__mark--light {
+  display: inline;
+}
+
+.portal-footer__label {
+  margin: 0 0 var(--space-12);
+  color: var(--muted);
+  font-size: var(--type-label-size);
+  line-height: var(--type-label-line);
+  font-weight: var(--type-label-weight);
+  letter-spacing: var(--type-label-tracking);
+  text-transform: uppercase;
+}
+
+.portal-footer ul {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.portal-footer li {
+  margin: 0;
+}
+
+.portal-footer a {
+  color: var(--foreground);
+  text-decoration: none;
+}
+
+.portal-footer a:hover,
+.portal-footer .portal-footer__email {
+  color: var(--teal-light);
+}
+
+.portal-footer__email {
+  overflow-wrap: anywhere;
+}
+
+.portal-footer__legal {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-24);
+  margin-top: var(--space-32);
+  padding-block: var(--space-24);
+  border-top: 1px solid var(--hairline);
+  font-size: var(--type-caption-size);
+  line-height: var(--type-caption-line);
+}
+
+.portal-footer__legal p {
+  margin: 0;
+}
+
+.portal-footer .portal-footer__languages {
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: var(--space-16);
+}
+
+.portal-footer__languages [aria-current='page'] {
+  text-decoration: underline;
+  text-underline-offset: var(--space-4);
+}
+
+@media (max-width: 996px) {
+  .portal-footer__grid {
+    grid-template-columns: 1fr;
+    gap: var(--space-24);
+  }
 }
 
 /* Sintaxe só com tokens: acento para palavras-chave, neutros para o resto. */
