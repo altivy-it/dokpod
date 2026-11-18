@@ -87,12 +87,37 @@ jobs:
         env:
           VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
           VPS_SSH_KNOWN_HOSTS: ${{ secrets.VPS_SSH_KNOWN_HOSTS }}
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_SSH_PORT: ${{ vars.VPS_SSH_PORT }}
         run: |
           set -euo pipefail
           install -d -m 0700 "$HOME/.ssh"
-          printf '%s\n' "$VPS_SSH_KEY" > "$HOME/.ssh/id_ed25519"
-          printf '%s\n' "$VPS_SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          # Secrets colados no Windows ou no navegador podem trazer CR, que invalida chave e known_hosts.
+          printf '%s\n' "$VPS_SSH_KEY" | tr -d '\r' > "$HOME/.ssh/id_ed25519"
+          printf '%s\n' "$VPS_SSH_KNOWN_HOSTS" | tr -d '\r' > "$HOME/.ssh/known_hosts"
           chmod 0600 "$HOME/.ssh/id_ed25519" "$HOME/.ssh/known_hosts"
+
+          port="${VPS_SSH_PORT:-22}"
+          lookup="$VPS_HOST"
+          [[ "$port" == 22 ]] || lookup="[$VPS_HOST]:$port"
+          if ! ssh-keygen -F "$lookup" -f "$HOME/.ssh/known_hosts" > /dev/null; then
+            # Só tipos e impressões digitais, que são públicos; os nomes ficam de fora.
+            echo "::group::Diagnóstico do known_hosts"
+            echo "Linhas não vazias: $(grep -cv '^[[:space:]]*$' "$HOME/.ssh/known_hosts" || true)"
+            awk '!/^[[:space:]]*(#|$)/ {
+              if ($1 ~ /^(ssh-|ecdsa-|sk-)/) print "Entrada sem host: parece uma chave .pub, não uma linha de known_hosts"
+              else print "Entrada com tipo " $2 " e " (index($1, "[") == 1 ? "porta explícita" : "porta 22")
+            }' "$HOME/.ssh/known_hosts"
+            ssh-keygen -lf "$HOME/.ssh/known_hosts" 2>&1 | awk '{print "Secret: " $2 " " $NF}' || true
+            ssh-keyscan -T 10 -p "$port" "$VPS_HOST" 2> /dev/null | ssh-keygen -lf - 2>&1 | awk '{print "Servidor: " $2 " " $NF}' || true
+            echo "::endgroup::"
+            echo "::error title=known_hosts::VPS_SSH_KNOWN_HOSTS não tem entrada para VPS_HOST na porta $port. Gere com: ssh-keyscan -p $port <VPS_HOST>"
+            exit 1
+          fi
+          if ! ssh-keygen -y -f "$HOME/.ssh/id_ed25519" > /dev/null 2>&1; then
+            echo "::error title=VPS_SSH_KEY::VPS_SSH_KEY não é uma chave privada OpenSSH válida ou exige passphrase."
+            exit 1
+          fi
 
       - name: Promote release
         env:
