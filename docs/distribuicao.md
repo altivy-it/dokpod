@@ -46,7 +46,7 @@ A stack de `deploy/e2e` continua para desenvolvimento e laboratório.
 
 As imagens da edição CE são públicas no GHCR com o prefixo `dokpod-ce-`: `dokpod-ce-installer`, `dokpod-ce-api`,
 `dokpod-ce-bff`, `dokpod-ce-web` e `dokpod-ce-agent`. A API da edição Business é `dokpod-api-business`, privada
-([runbook](runbooks/licenciamento-imagem-business.md)). Até a 0.8.0-rc.1, as imagens CE eram publicadas sem o prefixo.
+([runbook](runbooks/licenciamento-imagem-business.md)). Até a 0.8.0, as imagens CE eram publicadas sem o prefixo.
 
 A imagem `dokpod-ce-installer` ([ADR 2026-0011](adr/2026-0011-instalador-da-release.md), aceito em 2026-11-08) parte da base de runtime
 já homologada e acrescenta só o que o instalador executa. Os itens abaixo tiveram licença e versão conferidas em
