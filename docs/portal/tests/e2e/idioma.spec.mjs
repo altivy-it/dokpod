@@ -1,6 +1,6 @@
 import {expect, pickFromNavbarDropdown, test} from './fixtures.mjs';
 
-const LOCALE_MENU = {desktopName: /^(Português|English|Español)$/, mobileName: /^(Línguas|Languages|Idiomas)$/};
+const LOCALE_MENU = {desktopName: /^(PT|EN|ES) ?, (Idioma|Language): (Português|English|Español)$/, mobileName: /^(Línguas|Languages|Idiomas)$/};
 
 test.describe('idioma (SC-002, SC-004)', () => {
   for (const [locale, expected, lang] of [

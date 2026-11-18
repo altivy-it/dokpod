@@ -1,35 +1,10 @@
 import React, {useCallback, useEffect, useId, useRef, useState} from 'react';
 import clsx from 'clsx';
 import {translate} from '@docusaurus/Translate';
+import Icon from '@site/src/components/Icon';
 import styles from './styles.module.css';
 
 const CHOICE_KEY = 'altivy.docs.theme';
-
-// Ícones no estilo Lucide: traço 2, pontas arredondadas, sem preenchimento.
-function Icon({name}) {
-  const paths = {
-    dark: <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" />,
-    light: (
-      <>
-        <circle cx="12" cy="12" r="4" />
-        <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" />
-      </>
-    ),
-    system: (
-      <>
-        <rect width="20" height="14" x="2" y="3" rx="2" />
-        <path d="M8 21h8M12 17v4" />
-      </>
-    ),
-  };
-  return (
-    <svg className={styles.icon} viewBox="0 0 24 24" width="18" height="18" fill="none"
-      stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-      aria-hidden="true" focusable="false">
-      {paths[name]}
-    </svg>
-  );
-}
 
 function useOptions() {
   return [
@@ -129,6 +104,7 @@ export default function ColorModeToggle({className, buttonClassName, value, onCh
           }
         }}>
         <Icon name={current.choice} />
+        <Icon name="chevron" size={14} className={clsx('dropdown__chevron', open && styles.chevronOpen)} />
       </button>
       {open && (
         <ul
@@ -149,6 +125,7 @@ export default function ColorModeToggle({className, buttonClassName, value, onCh
                 data-theme-choice={option.choice}
                 className={clsx('clean-btn', styles.item, option === current && styles.itemActive)}
                 onClick={() => select(option)}>
+                <Icon name="check" className="dropdown__check" />
                 <Icon name={option.choice} />
                 <span>{option.label}</span>
               </button>

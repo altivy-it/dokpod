@@ -383,5 +383,8 @@
   "portal.table.label": {
     "message": "Tabla; desplácese en horizontal para ver todas las columnas",
     "description": "Accessible name of the scrollable region that wraps wide tables"
+  },
+  "portal.locale.label": {
+    "message": "Idioma"
   }
 }
