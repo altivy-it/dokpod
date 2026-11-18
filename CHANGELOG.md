@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.9.0](https://github.com/altivy-it/dokpod/compare/v0.8.0...v0.9.0) (2026-11-18)
+
+
+### ⚠ BREAKING CHANGES
+
+* **deploy:** publique as imagens da edição CE com o prefixo dokpod-ce- (spec 033) ([#150](https://github.com/altivy-it/dokpod/issues/150))
+
+### Adicionado
+
+* **docs:** adiciona portal de documentação versionada com Docusaurus (spec 034) ([#148](https://github.com/altivy-it/dokpod/issues/148)) ([66d21db](https://github.com/altivy-it/dokpod/commit/66d21db31dfcbda8832ea34c774eacac59eda695))
+* **docs:** alinhe o rodapé do portal à Altivy ([#153](https://github.com/altivy-it/dokpod/issues/153)) ([1a86630](https://github.com/altivy-it/dokpod/commit/1a86630e4da0f3050b8a2915c9f1718905a385e0))
+
+
+### Corrigido
+
+* **docs:** alinha menus e favicon do portal com a landing Altivy ([#152](https://github.com/altivy-it/dokpod/issues/152)) ([6af5c1b](https://github.com/altivy-it/dokpod/commit/6af5c1b22ba0d6e1375398f1aac083b4feae39ac))
+
+
+### Build
+
+* **deploy:** publique as imagens da edição CE com o prefixo dokpod-ce- (spec 033) ([#150](https://github.com/altivy-it/dokpod/issues/150)) ([8dffcab](https://github.com/altivy-it/dokpod/commit/8dffcabd71c3ac24b6084ef509adf7e231ddd1bd))
+
 ## [0.8.0](https://github.com/altivy-it/dokpod/compare/v0.7.0...v0.8.0) (2026-11-17)
 
 
