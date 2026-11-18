@@ -14,7 +14,7 @@ Também atualiza a versão, aplica as migrations sem SDK e recria componentes co
 
 ## Como vai funcionar
 
-- `install.sh`, asset da release, detecta o engine rootless e verifica a imagem `dokpod-installer` pelo digest e pela
+- `install.sh`, asset da release, detecta o engine rootless e verifica a imagem `dokpod-ce-installer` pelo digest e pela
   assinatura. Em seguida a executa com o socket do usuário, o diretório de instalação e o destino de segredos.
 - A imagem orquestra tudo pelo Docker CLI com Compose v2. Ela aplica as migrations pelo modo administrativo da imagem da
   API e configura o realm do Dokpod no Keycloak.

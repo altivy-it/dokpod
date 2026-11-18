@@ -35,7 +35,7 @@ RUN curl --fail --silent --show-error --location --output powershell.tar.gz \
     && mkdir -p /out/cli-plugins && install -m 0755 docker-compose /out/cli-plugins/docker-compose
 
 FROM lzocateli/dotnet-aspnet:10.0.15-noble-v1 AS runtime
-LABEL org.opencontainers.image.title="dokpod-installer" \
+LABEL org.opencontainers.image.title="dokpod-ce-installer" \
     org.opencontainers.image.description="Instalador guiado do Dokpod (spec 033): instala, atualiza e recria a stack em Docker ou Podman rootless." \
     org.opencontainers.image.source="https://github.com/altivy-it/dokpod" \
     org.opencontainers.image.documentation="https://github.com/altivy-it/dokpod/tree/main/deploy/installer" \

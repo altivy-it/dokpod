@@ -128,7 +128,7 @@ Describe 'plan --dry-run contra o engine real' {
         $root = Join-Path ([System.IO.Path]::GetTempPath()) "dokpod-033-plan-$([guid]::NewGuid().ToString('N'))"
         New-Item -ItemType Directory -Path $root | Out-Null
         $manifest = Join-Path $root 'release-manifest.json'
-        $artifacts = foreach ($name in 'dokpod-api', 'dokpod-api-business', 'dokpod-bff', 'dokpod-web', 'dokpod-agent') {
+        $artifacts = foreach ($name in 'dokpod-ce-api', 'dokpod-api-business', 'dokpod-ce-bff', 'dokpod-ce-web', 'dokpod-ce-agent') {
             @{ kind = 'container'; name = $name; reference = "ghcr.io/altivy-it/$name"; digest = "sha256:$('c' * 64)" }
         }
         @{ version = '0.8.0'; artifacts = @($artifacts) } | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $manifest

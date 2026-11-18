@@ -13,7 +13,7 @@
 #   ENV_FILE=/srv/dokpod/dokpod.env    # --env-file do compose
 #   PROJECT=dokpod                     # nome do projeto (containers <projeto>_<serviço>_1)
 #   PROFILES=agent-podman              # perfis extras, separados por vírgula (opcional)
-#   SERVICES="dokpod-api=api dokpod-bff=bff dokpod-web=web dokpod-agent=agent-podman"
+#   SERVICES="dokpod-ce-api=api dokpod-ce-bff=bff dokpod-ce-web=web dokpod-ce-agent=agent-podman"
 #   ORDER="bff api web agent-podman"   # ordem de remoção (dependentes primeiro)
 # O arquivo pode exportar variáveis exigidas pelo compose e preparar PATH.
 #

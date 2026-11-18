@@ -459,8 +459,8 @@ function New-DeployEnvironment {
         [Parameter(Mandatory)][System.Collections.IDictionary] $Model
     )
 
-    $api = if ($Answers.edition -eq 'business') { 'dokpod-api-business' } else { 'dokpod-api' }
-    $services = "$api=api dokpod-bff=bff dokpod-web=web dokpod-agent=agent"
+    $api = if ($Answers.edition -eq 'business') { 'dokpod-api-business' } else { 'dokpod-ce-api' }
+    $services = "$api=api dokpod-ce-bff=bff dokpod-ce-web=web dokpod-ce-agent=agent"
     $order = (@('edge', 'bff', 'web', 'agent', 'api') | Where-Object { $Model.services.Contains($_) } | Where-Object { $_ -ne 'edge' }) -join ' '
     return Expand-InstallerTemplate -Name 'deploy.env.template' -Values @{ INSTALL_DIR = $Answers.installDir; SERVICES = $services; ORDER = $order }
 }

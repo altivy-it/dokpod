@@ -6,7 +6,7 @@
 set -eu
 
 # Substituídos pelo publish.yml (T051). Com o marcador, só uma imagem local de desenvolvimento é aceita.
-INSTALLER_IMAGE_DEFAULT="ghcr.io/altivy-it/dokpod-installer@sha256:__DOKPOD_INSTALLER_DIGEST__"
+INSTALLER_IMAGE_DEFAULT="ghcr.io/altivy-it/dokpod-ce-installer@sha256:__DOKPOD_INSTALLER_DIGEST__"
 COSIGN_IMAGE="ghcr.io/sigstore/cosign/cosign:v3.1.4@sha256:0f06154836d2de34f887a5c273506d52ca43edaa1d9e53e6510fa78a48f69c2d"
 CERTIFICATE_IDENTITY='^https://github\.com/altivy-it/dokpod/\.github/workflows/publish\.yml@refs/(heads/main|tags/v[0-9]+\.[0-9]+\.[0-9]+.*)$'
 OIDC_ISSUER='https://token.actions.githubusercontent.com'

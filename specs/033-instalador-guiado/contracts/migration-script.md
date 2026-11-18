@@ -7,7 +7,7 @@ dar ao usu√°rio, por exemplo a um DBA, controle sobre o que vai ao banco (revis√
 
 ```sql
 -- dokpod-migrations: 1
--- product: dokpod 0.8.0 (dokpod-api@sha256:<digest>)
+-- product: dokpod 0.8.0 (dokpod-ce-api@sha256:<digest>)
 -- from: 202611010002_ImageUpdateCheck
 -- to: 202611150001_<Nome>
 -- plan-hash: <sha256>

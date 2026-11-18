@@ -29,7 +29,7 @@ RUN case "$RELEASE_VERSION" in *[!0-9A-Za-z.-]*) echo "RELEASE_VERSION inválida
     && npm run build -- --configuration production --base-href ${BASE_HREF}
 
 FROM lzocateli/nginx:1.30.6-alpine-v1 AS runtime
-LABEL org.opencontainers.image.title="dokpod-web" \
+LABEL org.opencontainers.image.title="dokpod-ce-web" \
     org.opencontainers.image.description="Aplicação web estática do Dokpod." \
     org.opencontainers.image.source="https://github.com/altivy-it/dokpod" \
     org.opencontainers.image.documentation="https://github.com/altivy-it/dokpod/tree/main/deploy/e2e" \

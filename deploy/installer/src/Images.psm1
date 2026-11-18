@@ -63,9 +63,9 @@ function Select-ReleaseImages {
         [Parameter(Mandatory)][ValidateSet('ce', 'business')][string] $Edition
     )
 
-    $api = if ($Edition -eq 'business') { 'dokpod-api-business' } else { 'dokpod-api' }
+    $api = if ($Edition -eq 'business') { 'dokpod-api-business' } else { 'dokpod-ce-api' }
     $selected = [ordered]@{}
-    foreach ($pair in @(@('api', $api), @('bff', 'dokpod-bff'), @('web', 'dokpod-web'), @('agent', 'dokpod-agent'))) {
+    foreach ($pair in @(@('api', $api), @('bff', 'dokpod-ce-bff'), @('web', 'dokpod-ce-web'), @('agent', 'dokpod-ce-agent'))) {
         if (-not $Images.Contains($pair[1])) {
             Stop-Installer -Code Signature -Message "O manifesto da release não traz a imagem $($pair[1])."
         }
