@@ -7,6 +7,7 @@ import {
 } from '@docusaurus/plugin-content-docs/client';
 import {translate} from '@docusaurus/Translate';
 import DropdownNavbarItem from '@theme/NavbarItem/DropdownNavbarItem';
+import Icon, {MenuItemLabel} from '@site/src/components/Icon';
 
 // Igual ao seletor nativo, exceto quando o tópico não existe na linha de
 // destino: em vez de cair na página inicial em silêncio, a URL leva
@@ -31,7 +32,7 @@ export default function VersionSwitch({mobile, docsPluginId, onClick, ...props})
   const items = versions.map((version) => {
     const isActive = version === activeDocContext.activeVersion;
     return {
-      label: version.label,
+      label: <MenuItemLabel>{version.label}</MenuItemLabel>,
       to: targetFor(version, activeDocContext),
       isActive: () => isActive,
       'aria-current': isActive ? 'true' : undefined,
@@ -43,9 +44,14 @@ export default function VersionSwitch({mobile, docsPluginId, onClick, ...props})
     };
   });
 
-  const label = mobile
-    ? translate({id: 'portal.versionSwitch.mobileLabel', message: 'Versões do manual'})
-    : displayed.label;
+  const label = mobile ? (
+    translate({id: 'portal.versionSwitch.mobileLabel', message: 'Versões do manual'})
+  ) : (
+    <>
+      <span>{displayed.label}</span>
+      <Icon name="chevron" size={14} className="dropdown__chevron" />
+    </>
+  );
 
   return (
     <DropdownNavbarItem

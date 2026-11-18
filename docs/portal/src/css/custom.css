@@ -118,27 +118,138 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* Liquid glass: raised na barra, overlay nos menus. */
+/* Liquid glass: raised na barra, overlay nos menus. Como na landing
+   (main.css, .site-header .alt-header::before), o desfoque da barra fica no
+   ::before: um elemento com backdrop-filter vira a raiz de fundo dos filhos, e o
+   vidro dos menus só desfocaria a própria barra, deixando o texto vazar. */
 .navbar {
   background: linear-gradient(145deg, var(--glass-fill-top) 0%, var(--glass-fill-mid) 42%, var(--glass-fill-bottom) 100%);
   border-bottom: 1px solid var(--glass-border);
-  -webkit-backdrop-filter: var(--backdrop-raised);
-  backdrop-filter: var(--backdrop-raised);
   box-shadow: var(--shadow-glass);
 }
 
+.navbar::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  -webkit-backdrop-filter: var(--backdrop-raised);
+  backdrop-filter: var(--backdrop-raised);
+}
+
+/* Mesma base escura do menu da landing (main.css, .dropdown__list), para o
+   conteúdo da página não competir com os itens. */
 .dropdown__menu,
 .navbar-sidebar {
-  background: linear-gradient(145deg, var(--overlay-fill-top) 0%, var(--overlay-fill-mid) 45%, var(--overlay-fill-bottom) 100%);
+  background: linear-gradient(145deg, var(--overlay-fill-top) 0%, var(--overlay-fill-mid) 45%, var(--overlay-fill-bottom) 100%), var(--surface-dim);
   border: 1px solid var(--glass-border-strong);
   -webkit-backdrop-filter: var(--backdrop-overlay);
   backdrop-filter: var(--backdrop-overlay);
   box-shadow: var(--shadow-glass-overlay);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
 }
 
 .navbar-sidebar {
   border-radius: 0;
+}
+
+/* Menus suspensos da navbar (versão e idioma) no desenho da landing: botão em
+   pílula com chevron Lucide no lugar do triângulo do Infima. */
+.navbar__item.dropdown > .navbar__link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-6);
+  min-height: 40px;
+  padding: 0 var(--space-12);
+  border-radius: var(--radius-pill);
+  font-size: var(--type-nav-size);
+  font-weight: var(--type-nav-weight);
+  color: var(--muted);
+}
+
+.navbar__item.dropdown > .navbar__link::after {
+  display: none;
+}
+
+.navbar__item.dropdown:hover > .navbar__link,
+.navbar__item.dropdown--show > .navbar__link {
+  color: var(--foreground);
+  background-color: var(--hover-wash);
+}
+
+.dropdown__chevron {
+  transition: transform 0.2s ease;
+}
+
+.navbar__item.dropdown--show .dropdown__chevron {
+  transform: rotate(180deg);
+}
+
+.dropdown__menu {
+  min-width: 180px;
+  padding: var(--space-6);
+}
+
+.dropdown__link {
+  display: flex;
+  align-items: center;
+  gap: var(--space-10);
+  margin-top: 2px;
+  padding: var(--space-10) var(--space-12);
+  border-radius: var(--radius-control);
+  font-size: 15px;
+  font-weight: 400;
+  color: var(--muted);
+}
+
+.dropdown__menu > li:first-child > .dropdown__link {
+  margin-top: 0;
+}
+
+.dropdown__link:hover {
+  color: var(--foreground);
+  background-color: var(--hover-wash);
+}
+
+.dropdown__link:focus-visible {
+  outline-offset: -2px;
+}
+
+.dropdown__link--active,
+.dropdown__link--active:hover {
+  color: var(--foreground);
+  background-color: transparent;
+}
+
+/* O check ocupa espaço em todos os itens para alinhar; só o atual o mostra. */
+.dropdown__check {
+  flex: none;
+  color: var(--teal-light);
+  visibility: hidden;
+}
+
+.dropdown__link--active .dropdown__check,
+.menu__link--active .dropdown__check,
+[aria-current] > .dropdown__check,
+[aria-checked='true'] > .dropdown__check {
+  visibility: visible;
+}
+
+.menu__link:has(> .dropdown__check) {
+  justify-content: flex-start;
+  gap: var(--space-10);
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .navbar__title {
@@ -147,7 +258,6 @@ body {
   color: var(--text-strong);
 }
 
-.dropdown__link--active,
 .menu__link--active {
   font-weight: 500;
 }
