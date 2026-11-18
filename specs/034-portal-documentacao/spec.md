@@ -83,6 +83,13 @@ Como mantenedor do Dokpod, quero validar o portal e gerar um artefato estático 
 - **FR-011**: Alterações do portal MUST ser validadas por CI sem secrets de produção e sem publicar ou implantar conteúdo automaticamente.
 - **FR-012**: O artefato de CI MUST conter apenas saída estática e metadados de integridade aprovados; não deve depender de runtime Node para servir o site.
 - **FR-013**: O portal MUST identificar explicitamente conteúdo de demonstração/preview e não apresentar fixture como release real ou alegação de suporte.
+- **FR-014**: Refinamento solicitado pelo usuário em 2026-11-18: o rodapé MUST
+  seguir o Footer da landing Altivy nos dois temas, com marca, resumo, link
+  localizado à landing do produto, GitHub público (ou organização quando
+  privado), releases/licença somente quando públicos, site institucional,
+  contato e links explícitos de idiomas sem JavaScript. Não adicionar SLA,
+  CNPJ, dependências ou recursos externos. Origem: IA assistida; solicitação
+  humana: @zocatel_cat, nesta conversa; revisão visual final pendente.
 
 ## Entidades principais
 

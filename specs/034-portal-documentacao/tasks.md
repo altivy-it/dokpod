@@ -349,7 +349,20 @@ docs.dokpod"). Revoga o item 4 da estratégia para o Dokpod.
 
 ---
 
-## Dependências e ordem
+## Refinamento do rodapé (2026-11-18)
+
+Escopo FR-014 solicitado explicitamente por @zocatel_cat nesta conversa.
+Origem: IA assistida. Mantém o piloto da feature 034 e não altera código do
+produto, release, pipeline ou produção.
+
+- [x] T046 Aplicar Footer Altivy em `docs/portal/src/theme/Footer/index.js`,
+  com metadados em `customFields.portal`, traduções PT/EN/ES e estilos por
+  tokens. Substituir a configuração anterior de rodapé.
+- [x] T047 Validar T046: links localizados/públicos, idiomas sem JS, foco,
+  responsividade 320/768/1280, axe nos dois temas, build/manifesto/integridade
+  e CSP. Registrar resultados no README do portal.
+
+## Dependências e ordem (piloto original)
 
 - Fase 1 → Fase 2 → (Fase 3 ∥ Fase 4) → Fase 5 → Fase 6.
 - US1 e US2 dependem só da Fundação. Elas compartilham `docusaurus.config.js`;
