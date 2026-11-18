@@ -22,6 +22,15 @@ const config = {
   tagline: 'Manual versionado do Dokpod',
   favicon: 'img/icon-48.png',
   headTags: faviconTags,
+  customFields: {
+    portal: {
+      product: 'Dokpod',
+      productSlug: 'dokpod',
+      publicRepository: 'https://github.com/altivy-it/dokpod',
+      license: 'AGPL-3.0-only',
+      licenseUrl: 'https://github.com/altivy-it/dokpod/blob/main/LICENSE',
+    },
+  },
   url: 'https://docs.dokpod.altivy.it',
   baseUrl: '/',
   trailingSlash: true,
@@ -98,20 +107,6 @@ const config = {
           {type: 'custom-versionSwitch', position: 'right'},
           {type: 'localeDropdown', position: 'right'},
         ],
-      },
-      footer: {
-        links: [
-          {
-            title: 'Idiomas',
-            // pathname:// gera link estático fora do roteador, navegável sem JavaScript.
-            items: [
-              {label: 'Português', href: 'pathname:///'},
-              {label: 'English', href: 'pathname:///en/'},
-              {label: 'Español', href: 'pathname:///es/'},
-            ],
-          },
-        ],
-        copyright: 'Dokpod · Altivy · Licença AGPL-3.0-only',
       },
       prism: {
         theme: altivyPrismTheme,

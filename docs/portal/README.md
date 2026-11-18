@@ -26,6 +26,16 @@ Manual versionado do Dokpod em Docusaurus 3.10, destinado a
 - **CSP estrita**: sem `style=""` nem recurso externo (o plugin `strict-csp`
   reprova o build). Único script inline é o de cor do Docusaurus, liberado por
   hash (`portal-manifest.json`). A busca exige `'wasm-unsafe-eval'`.
+- **Rodapé Altivy**: marca, resumo documental, landing do produto no idioma
+  ativo, GitHub público do produto e releases, site/GitHub institucional,
+  contato e licença. Idiomas são links HTML explícitos e funcionam sem JS.
+  Metadados ficam em `customFields.portal` da configuração; rótulos e resumo
+  em `src/theme/Footer/index.js` e `i18n/{en,es}/code.json`.
+  Ao replicar em outro portal, conferir o slug e a existência da landing
+  PT/EN/ES, a visibilidade do repositório e a licença: repositório privado
+  usa GitHub da Altivy e não mostra releases; licença só com URL pública.
+  O padrão da família é documentado no repositório Altivy em
+  `docs/design/portais-documentacao-versionada.md` (seção Rodapé comum).
 
 ## Comandos (sempre em container)
 
@@ -99,3 +109,18 @@ scripts/ · tests/                                               manifesto, veri
 Copie os arquivos do commit desejado da Altivy (`git show <commit>:<caminho>`),
 atualize `src/brand/SOURCE.md` e regenere `src/brand/SHA256SUMS`. O
 `check:artifact` reprova divergências entre o snapshot e o site.
+
+## Validação do rodapé (2026-11-18)
+
+- [x] Build PT/EN/ES, `check:translations`, manifesto e integridade (257 arquivos).
+- [x] 165 testes E2E pela borda Nginx 1.28 em container com a CSP de produção:
+  links localizados/públicos, navegação por teclado e foco, idiomas sem JS,
+  axe A/AA e auditoria de marca nos dois temas.
+- [x] Seis capturas adicionais do rodapé: claro/escuro em 320/768/1280 px,
+  conferidas sem overflow; sem recursos novos de terceiros ou dependências.
+- [x] Hash CSP preservado:
+  `sha256-0xt7rjlfRsoD7aukiSWSNvMBWU159Lh5cl3WNaV1g+w=`.
+- [ ] Revisão visual humana e publicação (não executadas nesta alteração).
+
+Lighthouse não foi reexecutado neste recorte; não há nova mídia, dependência
+ou carregamento externo. Os links externos são navegação, não sub-recursos.

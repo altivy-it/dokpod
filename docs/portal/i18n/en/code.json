@@ -1,4 +1,14 @@
 {
+  "portal.footer.about": {"message": "Versioned documentation for {product}. Installation, operations and upgrade guides by version."},
+  "portal.footer.product": {"message": "Product"},
+  "portal.footer.productPage": {"message": "Explore {product}"},
+  "portal.footer.releases": {"message": "Releases"},
+  "portal.footer.company": {"message": "About Altivy"},
+  "portal.footer.institutional": {"message": "Company website"},
+  "portal.footer.contact": {"message": "Contact"},
+  "portal.footer.contactText": {"message": "Talk to Altivy about your project."},
+  "portal.footer.license": {"message": "License"},
+  "portal.footer.languages": {"message": "Manual languages"},
   "portal.search.loading": {
     "message": "Searching…"
   },

@@ -267,6 +267,116 @@ body {
   outline-offset: 2px;
 }
 
+/* Rodapé do DS: marca 5/3/3/4, contato e linha legal, como na landing. */
+.portal-footer {
+  margin-top: var(--space-46);
+  padding-top: var(--space-46);
+  border-top: 1px solid var(--hairline);
+  color: var(--muted);
+  font-size: var(--type-nav-size);
+  line-height: var(--type-body-line);
+}
+
+.portal-footer__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 3fr) minmax(0, 3fr) minmax(0, 4fr);
+  gap: var(--space-46);
+}
+
+.portal-footer__about p {
+  max-width: 40ch;
+  margin-top: var(--space-16);
+}
+
+.portal-footer__brand {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-10);
+  font-size: var(--type-card-title-size);
+  font-weight: var(--type-card-title-weight);
+}
+
+.portal-footer__mark--light,
+[data-theme='light'] .portal-footer__mark--dark {
+  display: none;
+}
+
+[data-theme='light'] .portal-footer__mark--light {
+  display: inline;
+}
+
+.portal-footer__label {
+  margin: 0 0 var(--space-12);
+  color: var(--muted);
+  font-size: var(--type-label-size);
+  line-height: var(--type-label-line);
+  font-weight: var(--type-label-weight);
+  letter-spacing: var(--type-label-tracking);
+  text-transform: uppercase;
+}
+
+.portal-footer ul {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.portal-footer li {
+  margin: 0;
+}
+
+.portal-footer a {
+  color: var(--foreground);
+  text-decoration: none;
+}
+
+.portal-footer a:hover,
+.portal-footer .portal-footer__email {
+  color: var(--teal-light);
+}
+
+.portal-footer__email {
+  overflow-wrap: anywhere;
+}
+
+.portal-footer__legal {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-24);
+  margin-top: var(--space-32);
+  padding-block: var(--space-24);
+  border-top: 1px solid var(--hairline);
+  font-size: var(--type-caption-size);
+  line-height: var(--type-caption-line);
+}
+
+.portal-footer__legal p {
+  margin: 0;
+}
+
+.portal-footer .portal-footer__languages {
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: var(--space-16);
+}
+
+.portal-footer__languages [aria-current='page'] {
+  text-decoration: underline;
+  text-underline-offset: var(--space-4);
+}
+
+@media (max-width: 996px) {
+  .portal-footer__grid {
+    grid-template-columns: 1fr;
+    gap: var(--space-24);
+  }
+}
+
 /* Sintaxe só com tokens: acento para palavras-chave, neutros para o resto. */
 .prism-code {
   background-color: var(--surface-panel);
