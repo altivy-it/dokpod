@@ -173,8 +173,13 @@ jobs:
       - name: Help and plan with the example answers
         run: |
           set -euo pipefail
-          docker build --target runtime -t dokpod-installer:ci -f deploy/installer/Dockerfile .
+          # Sem --target, como o publish.yml: o estágio padrão precisa ser o instalador.
+          docker build -t dokpod-installer:ci -f deploy/installer/Dockerfile .
           docker run --rm dokpod-installer:ci --help | grep -q 'Instalador do Dokpod'
+          # O modo guiado usa Read-Host: o pwsh do entrypoint não pode estar em -NonInteractive.
+          if docker image inspect dokpod-installer:ci --format '{{json .Config.Entrypoint}}' | grep -q NonInteractive; then
+            echo "::error::O ENTRYPOINT do instalador não pode usar -NonInteractive (modo guiado)."; exit 1
+          fi
           set +e
           docker run --rm --user 0:0 -v "$PWD/deploy/installer/examples:/ex:ro" dokpod-installer:ci plan --answers /ex/answers.yaml --non-interactive > plan.txt 2>&1
           code=$?
