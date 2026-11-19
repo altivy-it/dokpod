@@ -103,7 +103,7 @@
     },
     "version": {
       "type": "string",
-      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(-[0-9A-Za-z.-]+)?$"
     },
     "edition": {
       "enum": [
@@ -378,7 +378,7 @@
               "minimum": 1,
               "maximum": 65535,
               "default": 443,
-              "description": "Abaixo de net.ipv4.ip_unprivileged_port_start do host é recusada nas verificações iniciais (D-015)."
+              "description": "Sem valor, é a porta da publicUrl, ou 443 quando ela não tem porta. Abaixo de net.ipv4.ip_unprivileged_port_start do host é recusada nas verificações iniciais (D-015)."
             }
           }
         },

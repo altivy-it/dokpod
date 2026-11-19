@@ -45,6 +45,18 @@ Describe 'Arquivo de respostas' {
         $answers.certificates.renewWarningDays | Should -Be 30
     }
 
+    It 'sem httpsPort, a borda usa a porta da publicUrl' {
+        $answers = Read-InstallerAnswers -Path (Write-Answers (New-Answers @{ publicUrl = 'https://dokpod.lab.test:18443' }))
+
+        $answers.edge.httpsPort | Should -Be 18443
+    }
+
+    It 'aceita a versão de um release candidate (X.Y.Z-rc.N)' {
+        $answers = Read-InstallerAnswers -Path (Write-Answers (New-Answers @{ version = '0.9.0-rc.2' }))
+
+        $answers.version | Should -Be '0.9.0-rc.2'
+    }
+
     It 'lê YAML com números, booleanos e texto entre aspas' {
         $yaml = @"
 schemaVersion: 1
@@ -103,6 +115,7 @@ certificates:
         @{ Name = 'engine rootful'; Override = @{ engine = 'podman-rootful' } }
         @{ Name = 'URL sem https'; Override = @{ publicUrl = 'http://dokpod.lab.test' } }
         @{ Name = 'campo desconhecido'; Override = @{ inventado = 1 } }
+        @{ Name = 'versão sem X.Y.Z'; Override = @{ version = '0.9' } }
         @{ Name = 'upstreamHost fora de loopback'; Override = @{ edge = @{ mode = 'existing'; upstreamHost = '10.0.0.5' } } }
     ) {
         { Read-InstallerAnswers -Path (Write-Answers (New-Answers $Override)) } | Should -Throw

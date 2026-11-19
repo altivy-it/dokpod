@@ -176,7 +176,11 @@ function Set-InstallerAnswerDefaults {
     if (-not $Answers.localEnvironment.Contains('name')) { $Answers.localEnvironment['name'] = 'host-local' }
     if (-not $Answers.localEnvironment.Contains('stage')) { $Answers.localEnvironment['stage'] = 'production' }
     if (-not $Answers.keycloak.Contains('realm')) { $Answers.keycloak['realm'] = 'dokpod' }
-    if ($Answers.edge.mode -eq 'provision' -and -not $Answers.edge.Contains('httpsPort')) { $Answers.edge['httpsPort'] = 443 }
+    if ($Answers.edge.mode -eq 'provision' -and -not $Answers.edge.Contains('httpsPort')) {
+        # A porta da publicUrl, quando ela tem uma: é a que os navegadores usam (o modo guiado não pergunta outra).
+        $url = [uri] $Answers.publicUrl
+        $Answers.edge['httpsPort'] = if ($url.IsDefaultPort) { 443 } else { $url.Port }
+    }
     if ($Answers.edge.mode -eq 'existing') {
         if (-not $Answers.edge.Contains('upstreamHost')) { $Answers.edge['upstreamHost'] = '127.0.0.1' }
         foreach ($default in @(@('webPort', 18080), @('bffPort', 18081), @('keycloakPort', 18082))) {
