@@ -2,7 +2,7 @@ name: altivy-keycloak-lab
 
 services:
   nginx-proxy:
-    image: lzocateli/nginx:1.30.6-alpine-v1
+    image: lzocateli/nginx:1.30.7-alpine-v1
     container_name: altivy-nginx-proxy
     restart: unless-stopped
     ports:

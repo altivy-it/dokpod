@@ -136,4 +136,4 @@ O frontend não implementa tela de senha, cadastro, recuperação, MFA, grupos o
 
 Os testes unitários das features cobrem catálogo e cadastro de ambientes, sessão expirada, carregamento do inventário, negação `403`, submissão com antiforgery e idempotência e acompanhamento até estado terminal. A validação black-box autenticada permanece obrigatória na stack E2E.
 
-Os assets de produção são servidos por uma imagem Dokpod derivada de `lzocateli/nginx:1.30.6-alpine-v1`; Node.js e Angular CLI não fazem parte da imagem final. A matriz completa e a política de digest estão em [Distribuição e operação](distribuicao.md#imagens-base-e-toolchains).
+Os assets de produção são servidos por uma imagem Dokpod derivada de `lzocateli/nginx:1.30.7-alpine-v1`; Node.js e Angular CLI não fazem parte da imagem final. A matriz completa e a política de digest estão em [Distribuição e operação](distribuicao.md#imagens-base-e-toolchains).

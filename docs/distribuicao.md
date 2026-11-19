@@ -28,7 +28,7 @@ O baseline inicial usa imagens mantidas no projeto público [`lzocateli/containe
 | runtime da API, BFF e agente Linux | `lzocateli/dotnet-aspnet:10.0.15-noble-v1` | base dos artefatos ASP.NET Core e do host do agente |
 | comandos oficiais do frontend | `lzocateli/angular-cli:22.2.4-node24.22.1-bookworm-v1` | install, lint, typecheck, testes e build Angular |
 | toolchain JavaScript de apoio | `lzocateli/node:24.15.0-bookworm` | base do Angular CLI e tarefas Node sem Angular CLI |
-| runtime do web e proxy público | `lzocateli/nginx:1.30.6-alpine-v1` | base da imagem final com assets Angular e configuração Dokpod |
+| runtime do web e proxy público | `lzocateli/nginx:1.30.7-alpine-v1` | base da imagem final com assets Angular e configuração Dokpod |
 | testes de carga | `lzocateli/k6:2.1.0-node24.15.0-bookworm` | cenários HTTP, SignalR e capacidade do plano de controle |
 | testes E2E black-box | `lzocateli/playwright-e2e:0.1.0` | pytest/Playwright contra o deployment containerizado |
 | detecção de secrets | `lzocateli/gitleaks:8.30.1` | workspace, diff e histórico no CI |
