@@ -83,6 +83,8 @@ Hosts são composition roots. Regras reutilizáveis pertencem às bibliotecas. C
 
 O contrato v1 terá um serviço de sessão com uma operação bidirecional `Connect`. Servidor envia controle de sessão, solicitação de snapshot e comandos; agente envia apresentação, heartbeat, deltas, partes de snapshot, aceite e resultado. Inscrição inicial e emissão do primeiro certificado usam endpoint HTTPS separado, de uso único e sem conexão anônima ao stream operacional.
 
+Quando a sessão cai, o agente reconecta sozinho ([spec 035](../specs/035-reconexao-agente-backoff/spec.md)). A primeira tentativa é imediata. Depois de cada falha, a espera dobra a partir de 1 s até o teto de 30 s e é sorteada entre a metade e o limite, para que agentes que caíram juntos, como num restart da API, não voltem todos no mesmo instante. A sequência só recomeça depois de uma sessão que durou pelo menos 60 s. Enquanto não há sessão, o host aparece como desconectado; o alerta de agente desconectado só abre depois da duração da regra.
+
 ## Fluxo de comando
 
 1. O BFF mantém os tokens fora do browser e envia à API um token destinado ao recurso Dokpod.

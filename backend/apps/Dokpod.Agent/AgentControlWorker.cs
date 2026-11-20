@@ -23,8 +23,10 @@ public sealed class AgentControlWorker(
     ILogger<AgentControlWorker> logger,
     Dokpod.Agent.Application.Terminal.ExecSessionManager? execSessions = null,
     Dokpod.Agent.Application.Pods.ISelfContainer? selfContainer = null,
-    Dokpod.Agent.Infrastructure.Engines.RegistryCredentialFile? registryCredentials = null) : BackgroundService
+    Dokpod.Agent.Infrastructure.Engines.RegistryCredentialFile? registryCredentials = null,
+    TimeProvider? timeProvider = null) : BackgroundService
 {
+    private readonly TimeProvider time = timeProvider ?? TimeProvider.System;
     // Containers em execução do último snapshot (alvo da amostragem de recursos, spec 009).
     private IReadOnlyList<Dokpod.Agent.Application.Metrics.SampleTarget> runningTargets = [];
     /// <summary>Container do próprio agente (spec 021): marca o pod do agente.</summary>
@@ -32,7 +34,8 @@ public sealed class AgentControlWorker(
 
     /// <summary>Último inventário de containers (spec 018): montagens para o snapshot de volumes.</summary>
     private IReadOnlyList<EngineContainer> latestContainers = [];
-    private static readonly TimeSpan ReconnectDelay = TimeSpan.FromSeconds(5);
+    // O engine é local: o stream de eventos volta em 5 s fixos; a sessão de controle usa AgentReconnectBackoff (spec 035).
+    private static readonly TimeSpan EngineEventsReconnectDelay = TimeSpan.FromSeconds(5);
     private const int SnapshotPageSize = 100;
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -57,8 +60,11 @@ public sealed class AgentControlWorker(
             : AgentGrpcClient.LoadTrustedRoots(options.ServerCaCertificatePath);
         await using var client = AgentGrpcClient.Create(endpoint, certificate, serverCaCertificates);
 
+        var backoff = new AgentReconnectBackoff(Random.Shared);
         while (!stoppingToken.IsCancellationRequested)
         {
+            var started = time.GetTimestamp();
+            Exception? failure = null;
             try
             {
                 await RunSessionAsync(client.Connect, environmentId, stoppingToken, client.Exec);
@@ -69,13 +75,24 @@ public sealed class AgentControlWorker(
             }
             catch (Exception exception) when (exception is RpcException or HttpRequestException or IOException)
             {
-                logger.LogWarning(
-                    exception,
-                    "Agent control session disconnected with status {Status}",
-                    GetStatus(exception));
+                failure = exception;
             }
 
-            await Task.Delay(ReconnectDelay, stoppingToken);
+            var next = backoff.NextDelay(time.GetElapsedTime(started));
+            logger.LogWarning(
+                failure,
+                "Agent control session disconnected with status {Status}; attempt {Attempt}, reconnecting in {DelaySeconds:F1} s",
+                failure is null ? "stream_ended" : GetStatus(failure),
+                next.Attempt,
+                next.Delay.TotalSeconds);
+            try
+            {
+                await Task.Delay(next.Delay, time, stoppingToken);
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                break;
+            }
         }
     }
 
@@ -581,7 +598,7 @@ public sealed class AgentControlWorker(
                 logger.LogWarning(exception, "Engine event stream interrupted");
             }
 
-            await Task.Delay(ReconnectDelay, cancellationToken);
+            await Task.Delay(EngineEventsReconnectDelay, cancellationToken);
         }
 
         await IgnoreCancellationAsync(pump);
