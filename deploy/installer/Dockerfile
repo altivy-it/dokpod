@@ -64,7 +64,8 @@ ENV DOKPOD_INSTALLER_HOME=/opt/dokpod-installer \
 # (o root do container é mapeado para ele) e não dá privilégio no host; sem isso, os arquivos de installDir e secretsDir
 # ficariam com um UID de subuid.
 USER $APP_UID
-ENTRYPOINT ["pwsh", "-NoLogo", "-NoProfile", "-NonInteractive", "-File", "/opt/dokpod-installer/src/Dokpod.Installer.ps1"]
+# Sem -NonInteractive: o modo guiado pergunta pelo Read-Host. Sem terminal, Test-InteractiveSession já evita as perguntas.
+ENTRYPOINT ["pwsh", "-NoLogo", "-NoProfile", "-File", "/opt/dokpod-installer/src/Dokpod.Installer.ps1"]
 
 FROM runtime AS test
 USER root
@@ -77,3 +78,6 @@ COPY deploy/installer/tests/ /opt/dokpod-installer/tests/
 COPY deploy/installer/install.sh /opt/dokpod-installer/install.sh
 WORKDIR /opt/dokpod-installer
 ENTRYPOINT ["pwsh", "-NoLogo", "-NoProfile", "-Command", "Invoke-Pester -Path /opt/dokpod-installer/tests -Output Detailed -CI"]
+
+# Último estágio: o build sem --target (o do publish.yml) gera a imagem do instalador, não a dos testes.
+FROM runtime AS release
