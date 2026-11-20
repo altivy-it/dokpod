@@ -4,7 +4,7 @@
 
 **Criada em**: 2026-10-27
 
-**Estado**: `draft` - aguardando revisão humana.
+**Estado**: `approved` - aprovada pelo solicitante em 2026-11-20 ("Aprovado a spec, autorizado a começar"), incluindo as respostas da sessão de 2026-10-27.
 
 **Entrada**: Pedido do solicitante em 2026-10-27: "Itens de referência que ainda não estão no dokpod, inclua todos no roadmap", item 2 de 5: janelas de mudança por estágio, complementando a justificativa obrigatória.
 

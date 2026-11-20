@@ -59,7 +59,9 @@ Os corpos das ações que enfileiram comando (comandos de container, criação d
 | Fora da janela, com `changeWindowOverride`, sem `change:override` no host | `403 change_override_denied`, e auditoria `change_window.denied` |
 | Fora da janela, com `changeWindowOverride` e o scope | o resultado normal da ação, e auditoria `change_window.override` na mesma transação |
 
-No terminal, as recusas chegam como a mensagem de erro do hub, com o mesmo código. A ordem das verificações é: autorização da ação, ambiente, janela, justificativa da 016 e sessão do agente. Assim, quem não pode executar a ação não descobre o horário da janela.
+No terminal, as recusas chegam como a mensagem de erro do hub, com o mesmo código. A ordem das verificações é: autorização da ação, ambiente, janela (incluindo a busca do `commandId` para o `Replay`), justificativa da 016 e sessão do agente. Assim, o `409` só chega a quem pode agir e quem não pode não descobre se um `commandId` existe. O horário da janela em si não é segredo: ele aparece em `changeWindow` para quem lê o host (threat model L3).
+
+Num estágio com janela aberta, o `deadlineUtc` pedido é encurtado para o fechamento da janela mais 5 minutos (threat model L1).
 
 ## Respostas de host (CE e Business)
 
