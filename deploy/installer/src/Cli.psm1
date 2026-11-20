@@ -338,7 +338,16 @@ function Invoke-InstallerInstallCommand {
         ConfirmStaleLock = [bool] $Parsed.Flags['confirm-stale-lock']
     }
     if ($RotateCa) { return Invoke-InstallerCaRotation -Parameters $parameters }
-    return Invoke-InstallerInstall @parameters -Recreate $Recreate -RecreateAll:$RecreateAll
+    $code = Invoke-InstallerInstall @parameters -Recreate $Recreate -RecreateAll:$RecreateAll
+    # Modo guiado (data-model.md): as respostas, sem segredos, ficam em installDir/answers.yaml para a reexecução sem
+    # perguntas (upgrade, recreate e o próprio install).
+    if ($code -eq 0 -and -not $Parsed.Options['answers']) {
+        $path = Join-Path $answers.installDir 'answers.yaml'
+        Save-InstallerAnswers -Answers $answers -Path $path
+        Write-InstallerLine -Message "Respostas gravadas em $path; reexecute sem perguntas com --answers $path."
+    }
+
+    return $code
 }
 
 function Invoke-InstallerHostCliCommand {

@@ -5,6 +5,7 @@
 BeforeAll {
     Import-Module (Join-Path $PSScriptRoot '../src/Common.psm1') -Force
     Import-Module (Join-Path $PSScriptRoot '../src/Cli.psm1') -Force
+    Import-Module (Join-Path $PSScriptRoot '../src/Answers.psm1') -Force
     $script:entry = Join-Path $PSScriptRoot '../src/Dokpod.Installer.ps1'
 
     function Invoke-Entry {
@@ -172,5 +173,56 @@ Describe 'plan --dry-run contra o engine real' {
                 ForEach-Object { Remove-Item "env:$_" -ErrorAction SilentlyContinue }
             Remove-Item -LiteralPath $root -Recurse -Force -ErrorAction SilentlyContinue
         }
+    }
+}
+
+Describe 'Respostas do modo guiado' {
+    BeforeEach {
+        $script:root = Join-Path ([System.IO.Path]::GetTempPath()) "dokpod-033-guided-$([guid]::NewGuid().ToString('N'))"
+        $script:previousRef = $env:DOKPOD_INSTALLER_IMAGE_REF
+        $env:DOKPOD_INSTALLER_IMAGE_REF = 'localhost/dokpod-installer:test'
+    }
+
+    AfterEach {
+        if ($script:previousRef) { $env:DOKPOD_INSTALLER_IMAGE_REF = $script:previousRef } else { Remove-Item env:DOKPOD_INSTALLER_IMAGE_REF -ErrorAction SilentlyContinue }
+        Remove-Item -LiteralPath $script:root -Recurse -Force -ErrorAction SilentlyContinue
+    }
+
+    It 'grava installDir/answers.yaml só no modo guiado e só com a instalação concluída: <Name>' -ForEach @(
+        @{ Name = 'guiado, sucesso'; Arguments = @('install'); Code = 0; Saved = $true }
+        @{ Name = 'guiado, falha'; Arguments = @('install'); Code = 1; Saved = $false }
+        @{ Name = 'com --answers'; Arguments = @('install', '--answers', '/tmp/respostas.yaml'); Code = 0; Saved = $false }
+    ) {
+        InModuleScope Cli -Parameters @{ Root = $script:root; Arguments = $Arguments; Code = $Code } {
+            param($Root, $Arguments, $Code)
+            $answers = [ordered]@{
+                schemaVersion = 1; version = '0.9.1'; edition = 'ce'; publicUrl = 'https://dokpod.lab.test:18443'; engine = 'docker-rootless'; operator = 'Ana'
+                installDir = (Join-Path $Root 'install'); secretsDir = (Join-Path $Root 'secrets'); manualMigrations = $false
+                postgres = @{ mode = 'provision' }
+                keycloak = @{ mode = 'provision'; realm = 'dokpod'; initialAdmin = @{ username = 'dokpod-admin'; email = 'ana@lab.test' } }
+                edge = @{ mode = 'provision'; httpsPort = 18443 }
+                certificates = @{ edge = @{ source = 'local-ca' }; api = @{ source = 'local-ca' }; agents = @{ source = 'local-ca' }; renewWarningDays = 30 }
+                localEnvironment = @{ name = 'host-local'; stage = 'production' }
+            }
+            Mock Get-CliAnswers { $answers }
+            Mock Get-EngineFacts { @{} }
+            Mock Get-ObservedServices { @{} }
+            Mock Get-HostFacts { @{} }
+            Mock Test-InstallerPrerequisites { , @() }
+            Mock Assert-InstallerPrerequisites { }
+            Mock Get-ReleaseManifestPath { '/tmp/release-manifest.json' }
+            Mock Read-ReleaseManifest { @{} }
+            Mock Select-ReleaseImages { @{} }
+            Mock Confirm-ImageSignature { }
+            Mock Get-InfrastructureImages { @{} }
+            Mock Write-InstallerLine { }
+            Mock Invoke-InstallerInstall { $Code }
+
+            Invoke-InstallerInstallCommand -Parsed (ConvertFrom-InstallerArguments -Arguments $Arguments) | Should -Be $Code
+        }
+
+        $path = Join-Path $script:root 'install/answers.yaml'
+        Test-Path -LiteralPath $path | Should -Be $Saved
+        if ($Saved) { (Read-InstallerAnswers -Path $path).publicUrl | Should -Be 'https://dokpod.lab.test:18443' }
     }
 }

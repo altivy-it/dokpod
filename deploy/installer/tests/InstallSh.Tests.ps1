@@ -129,6 +129,17 @@ Describe 'install.sh' {
         ($run | Where-Object { $_ -like '--env=DOKPOD_HOST_PUBLIC_ADDRESSES=*' }) | Should -Match '127\.0\.0\.1|::1'
     }
 
+    It 'installDir fica 0750 e secretsDir 0700, qualquer que seja o umask' {
+        $install = Join-Path $script:box.Root 'perm/install'
+        $secrets = Join-Path $script:box.Root 'perm/secrets'
+
+        $result = Invoke-InstallSh $script:box @('status', '--install-dir', $install, '--secrets-dir', $secrets) @{ DOKPOD_INSTALLER_IMAGE = 'localhost/dokpod-installer:dev' }
+
+        $result.ExitCode | Should -Be 0
+        [System.IO.File]::GetUnixFileMode($install) | Should -Be ([System.IO.UnixFileMode]'UserRead, UserWrite, UserExecute, GroupRead, GroupExecute')
+        [System.IO.File]::GetUnixFileMode($secrets) | Should -Be ([System.IO.UnixFileMode]'UserRead, UserWrite, UserExecute')
+    }
+
     It 'respostas com caminho relativo dão código 2' {
         (Invoke-InstallSh $script:box @('plan', '--answers', 'respostas.yaml') @{ DOKPOD_INSTALLER_IMAGE = 'localhost/x:dev' }).ExitCode | Should -Be 2
     }
