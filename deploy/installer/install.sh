@@ -97,6 +97,8 @@ for directory in "$install_dir" "$secrets_dir"; do
 done
 
 mkdir -p "$install_dir" "$secrets_dir"
+# Permissões do data-model.md, independentes do umask do usuário.
+chmod 0750 "$install_dir"
 chmod 0700 "$secrets_dir"
 
 image="${DOKPOD_INSTALLER_IMAGE:-$INSTALLER_IMAGE_DEFAULT}"
