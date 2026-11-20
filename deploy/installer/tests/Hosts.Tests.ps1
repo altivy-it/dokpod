@@ -65,7 +65,11 @@ Describe 'Pacote do host remoto' {
         $cipher = Protect-HostPackage -Bytes $bytes -Passphrase 'frase-certa-033'
         [System.Text.Encoding]::ASCII.GetString($cipher[0..7]) | Should -Be 'Salted__'
         [System.Text.Encoding]::UTF8.GetString((Unprotect-HostPackage -Bytes $cipher -Passphrase 'frase-certa-033')) | Should -Be 'conteúdo do pacote 033'
-        { Unprotect-HostPackage -Bytes $cipher -Passphrase 'frase-errada' } | Should -Throw
+        # Sem autenticação (formato do openssl enc), a frase errada passa no padding em ~1/256 das vezes: o que não pode
+        # acontecer é recuperar o conteúdo.
+        $wrong = $null
+        try { $wrong = Unprotect-HostPackage -Bytes $cipher -Passphrase 'frase-errada' } catch { $wrong = $null }
+        if ($null -ne $wrong) { [System.Convert]::ToBase64String($wrong) | Should -Not -Be ([System.Convert]::ToBase64String($bytes)) }
     }
 
     It 'o openssl do host de destino abre o pacote com o comando do README' {
