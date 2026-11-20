@@ -44,7 +44,7 @@ Esses três gates valem a partir da T003. `/speckit-implement` exige autorizaç�
 
 **Objetivo**: fronteira de segurança aceita e scope criado no Keycloak antes de qualquer código.
 
-- [ ] T001 Threat model em `specs/026-janelas-de-mudanca/threat-model.md`, no formato do de `specs/027-exportacao-auditoria-siem/threat-model.md`. Cobrir:
+- [x] T001 Threat model em `specs/026-janelas-de-mudanca/threat-model.md`, no formato do de `specs/027-exportacao-auditoria-siem/threat-model.md`. Cobrir:
   - contorno da janela por cliente da API que ignora a UI, por ação nova sem guard e pelo terminal ([D-001](research.md#d-001-ponto-único-de-aplicação));
   - abuso do scope `change:override` (concessão ampla, exceção repetida, justificativa vazia ou trivial) e a falha fechada do Keycloak ([D-005](research.md#d-005-exceção-de-emergência));
   - manipulação do relógio e do fuso (relógio do navegador, réplicas sem NTP, tzdata desatualizado) ([D-004](research.md#d-004-fuso-e-cálculo-da-janela), [D-010](research.md#d-010-relógio-e-comandos-em-andamento));
@@ -52,8 +52,8 @@ Esses três gates valem a partir da T003. `/speckit-implement` exige autorizaç�
   - licença restrita e troca de edição para a CE ([D-002](research.md#d-002-composição-entre-ce-e-business), [D-007](research.md#d-007-licença));
   - volume de `change_window.denied` gerado por repetição ([D-006](research.md#d-006-auditoria)).
 
-  Registrar lacunas, riscos residuais e a decisão do revisor humano. Bloqueia todas as tarefas de código.
-- [ ] T002 [P] Scope `change:override` em `tools/scripts/configure-keycloak.ps1` (`Ensure-AuthorizationScopes`, com o comentário "Spec 026: exceção de emergência fora da janela de mudança") e no `ValidateSet` de `-Scope` em `tools/scripts/provision-environment-authorization.ps1`. Nenhuma permissão nem papel recebe o scope por padrão ([D-009](research.md#d-009-scope-changeoverride-no-keycloak)). Conferir com `-Drift` e com o `--help` dos dois scripts.
+  Registrar lacunas, riscos residuais e a decisão do revisor humano. Bloqueia todas as tarefas de código. Nota (2026-11-20): aceito pelo solicitante, com as lacunas L1, L4 e L6 aplicadas na T007 e na T022, L3 no contrato, L2 e L5 aceitas sem mudança, e os riscos R1–R7 aceitos.
+- [x] T002 [P] Scope `change:override` em `tools/scripts/configure-keycloak.ps1` (`Ensure-AuthorizationScopes`, com o comentário "Spec 026: exceção de emergência fora da janela de mudança") e no `ValidateSet` de `-Scope` em `tools/scripts/provision-environment-authorization.ps1`. Nenhuma permissão nem papel recebe o scope por padrão ([D-009](research.md#d-009-scope-changeoverride-no-keycloak)). Conferir com `-Drift` e com o `--help` dos dois scripts. Nota (2026-11-20): validado com o `Keycloak.Tests.ps1` do instalador contra um Keycloak real (13 aprovados, 3 pulados por exigirem `DOKPOD_TEST_SHARED`): a reconciliação cria o scope e o `-Drift` seguinte sai vazio; `--help` dos dois scripts e `provision-environment-authorization.ps1 -Scope change:override -DryRun` conferidos. Instalações existentes acusam o scope ausente no `-Drift` até a próxima reconciliação (upgrade).
 
 ---
 
@@ -81,7 +81,8 @@ Esses três gates valem a partir da T003. `/speckit-implement` exige autorizaç�
   - `ChangeWindowClearance` com `EnvironmentId`, `Kind` (`AgentCommandKind` ou o marcador de terminal), `Mode` (`NoWindow`, `Open`, `Override`, `Replay`) e `OverrideAuditEvent?`. O construtor é privado e a única fábrica fica no `ChangeWindowGuard`: um construtor `internal` não basta, porque a fila e os serviços estão no mesmo assembly;
   - antes de avaliar a janela, o guard procura o comando com `IAgentCommandStore.GetAsync(environmentId, commandId)`. Se ele existe, a liberação sai em `Replay`, sem avaliar a janela nem consultar o Keycloak ([D-001](research.md#d-001-ponto-único-de-aplicação), princípio IV);
   - `ChangeWindowGuard.EvaluateAsync(registration, kind, commandId, actor, accessToken, correlationId, ChangeWindowOverrideRequest?, ct)` → liberação ou recusa (`change_window_closed` com `nextWindowStartsAt`, `justification_required` ou `change_override_denied`, e `authorization_unavailable` quando o Keycloak não responde), conforme [D-005](research.md#d-005-exceção-de-emergência);
-  - host sem estágio, estágio sem janela ou janela aberta: liberação sem consultar o Keycloak;
+  - host sem estágio, estágio sem janela ou janela aberta: liberação sem consultar o Keycloak; com janela aberta, a liberação leva o prazo máximo (`closesAt` + 5 min), e o serviço encurta o `deadlineUtc` pedido para ele antes de montar o comando (threat model L1);
+  - a busca do `commandId` (`Replay`) acontece dentro do guard, depois da autorização da ação e da checagem do ambiente feitas pelo serviço (threat model L6);
   - nenhuma lista de ações liberadas: todo `AgentCommandKind` é controlado ([D-001](research.md#d-001-ponto-único-de-aplicação)).
 - [ ] T008 Fila exige a liberação:
   - `AgentCommandQueueService.EnqueueAsync(command, auditEvent, ChangeWindowClearance clearance, ct)` em `backend/libs/Dokpod.ControlPlane.Application/Commands/AgentCommandQueueService.cs` recusa (`ArgumentException`) liberação de outro ambiente ou de outro tipo. Com `Replay`, devolve só `Duplicate` ou `ConflictingPayload` e nunca cria comando. Se a linha sumiu (expurgo), devolve um resultado que leva o serviço a pedir nova avaliação ao guard como pedido novo;
@@ -155,7 +156,9 @@ Esses três gates valem a partir da T003. `/speckit-implement` exige autorizaç�
 - [ ] T021 [P] [US2] Testes do guard em `backend/tests/Dokpod.ControlPlane.Application.Tests/ChangeWindows/ChangeWindowGuardTests.cs`: cada valor de `AgentCommandKind` (iteração sobre o enum, para um tipo novo entrar sozinho) e o terminal são recusados fora da janela e liberados dentro; host sem estágio e estágio sem janela liberam; `NoChangeWindows` libera tudo.
 - [ ] T022 [P] [US2] Testes de integração em `backend/tests/Dokpod.ControlPlane.Api.Tests/ChangeWindows/ChangeWindowEnforcementTests.cs`, com PostgreSQL real e `TimeProvider` falso:
   - fora da janela, as rotas de comando de container, criação, pull, remoção de volume e de rede e ações de pod dão `409 change_window_closed` com `nextWindowStartsAt`, sem linha nova em `agent_commands`, e com `change_window.denied`;
-  - quem não tem o scope da ação recebe `403` da ação, e não `409` (a janela não vaza);
+  - quem não tem o scope da ação recebe `403` da ação, e não `409`, inclusive com um `commandId` existente (threat model L6);
+  - com o servidor fora da janela e cabeçalhos de data do cliente (`Date`) dentro dela, a recusa vale (threat model L4);
+  - dentro da janela, um `deadlineUtc` de dias é encurtado para `closesAt` + 5 min; com exceção, o prazo pedido é mantido (threat model L1);
   - logs, inspeção, alertas, auditoria e listas respondem `200` (SC-003);
   - comando aceito dentro da janela continua `Pending` depois do fechamento, e o reenvio com o mesmo `commandId` e o mesmo payload depois do fechamento devolve o resultado de duplicado (e não `409`), sem nova linha nem `change_window.denied`; com payload diferente, devolve o conflito de hoje ([D-010](research.md#d-010-relógio-e-comandos-em-andamento));
   - com licença restrita, a recusa continua (FR-007).

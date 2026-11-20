@@ -79,7 +79,8 @@ Cada decisão resolve um ponto do contexto técnico do [plano](plan.md). As deci
 
 ## D-010: Relógio e comandos em andamento
 
-- **Decisão**: a decisão usa o `TimeProvider` da API no momento do aceite. Comando já aceito executa mesmo que a janela feche antes da entrega, e o reenvio dele com o mesmo `commandId` devolve `Duplicate` ([D-001](#d-001-ponto-único-de-aplicação)); os prazos de expiração existentes continuam valendo. A sessão de terminal aberta dentro da janela continua até os limites da 014. Com várias réplicas, cada uma usa o próprio relógio, e a instalação já pressupõe NTP.
+- **Prazo do comando (threat model L1)**: num estágio com janela, o prazo pedido (`deadlineUtc`) fica limitado ao fechamento da janela (`closesAt`) mais 5 minutos; um prazo maior é encurtado no aceite. Sem isso, um comando aceito dentro da janela com prazo de dias executaria muito depois. Com exceção de emergência, o prazo pedido vale como hoje.
+- **Decisão**: a decisão usa o `TimeProvider` da API no momento do aceite. Comando já aceito executa mesmo que a janela feche antes da entrega, dentro da folga do prazo, e o reenvio dele com o mesmo `commandId` devolve `Duplicate` ([D-001](#d-001-ponto-único-de-aplicação)); os prazos de expiração existentes continuam valendo. A sessão de terminal aberta dentro da janela continua até os limites da 014. Com várias réplicas, cada uma usa o próprio relógio, e a instalação já pressupõe NTP.
 
 ## D-011: Desempenho
 
