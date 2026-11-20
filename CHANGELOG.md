@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.9.1](https://github.com/altivy-it/dokpod/compare/v0.9.0...v0.9.1) (2026-11-20)
+
+
+### Corrigido
+
+* **deploy:** corrija a imagem publicada do instalador e o modo guiado (spec 033) ([#154](https://github.com/altivy-it/dokpod/issues/154)) ([0bb69c9](https://github.com/altivy-it/dokpod/commit/0bb69c9a954ed2c4b8d93ab4b2770a92edf6230a))
+
 ## [0.9.0](https://github.com/altivy-it/dokpod/compare/v0.8.0...v0.9.0) (2026-11-18)
 
 
