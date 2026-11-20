@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.10.0](https://github.com/altivy-it/dokpod/compare/v0.9.1...v0.10.0) (2026-11-20)
+
+A 0.9.2 não teve release final; a correção dela entra nesta versão.
+
+### Adicionado
+
+* **agent:** espace a reconexão da sessão com backoff exponencial e jitter (spec 035) ([#158](https://github.com/altivy-it/dokpod/issues/158)) ([d9096d9](https://github.com/altivy-it/dokpod/commit/d9096d9c65c05057c6cf5cfc136a5cb6563a2aed))
+
+### Corrigido
+
+* **deploy:** grave as respostas do modo guiado e aplique as permissões do installDir (spec 033) ([#156](https://github.com/altivy-it/dokpod/issues/156)) ([d15d8d3](https://github.com/altivy-it/dokpod/commit/d15d8d323eb2cc9d0b257395fe0c3201779b2cc7))
+
 ## [0.9.2](https://github.com/altivy-it/dokpod/compare/v0.9.1...v0.9.2) (2026-11-20)
 
 
