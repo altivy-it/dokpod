@@ -835,7 +835,7 @@ conectado e um administrador que precisa trocar a senha.
   - **Estado**: Implementado em 2026-11-14 (`Invoke-InstallerHostRevoke`, `host revoke` na CLI). Falta a validação de ponta a ponta, junto da T046.
   - **Validação**: Validado em 2026-11-14 no Podman. Achado: o modo administrativo só grava a revogação no banco; a sessão ativa vive na memória da API, que agora é reiniciada pelo `host revoke`.
 
-- [ ] T048 [US5] `upgrade --version` em `deploy/installer/src/Upgrade.psm1`:
+- [X] T048 [US5] `upgrade --version` em `deploy/installer/src/Upgrade.psm1`:
   - recusar versão igual ou menor com referência a `docs/runbooks/deploy-e-rollback.md` e
     `docs/runbooks/backup-restore-e-atualizacao.md`;
   - verificar as imagens (T025);
@@ -847,6 +847,7 @@ conectado e um administrador que precisa trocar a senha.
 
   Testes em `deploy/installer/tests/Upgrade.Tests.ps1`.
   - **Estado**: Implementado em 2026-11-14 (`Upgrade.psm1`: só para versão maior, rótulo OCI de cada serviço; o resto é o fluxo do install). `Upgrade.Tests.ps1` passa. A atualização entre duas versões fica para a T050.
+  - **Validação**: Validado em 2026-11-19/20 na VPS com o instalador publicado: `0.9.0-rc.2 → 0.9.1-rc.1` e `0.9.2-rc.1 → 0.10.0-rc.1` com o rótulo OCI conferido; `upgrade` para versão anterior recusado com código 2 e referência aos runbooks ([validation.md](validation.md)).
 
 - [X] T049 [US5] `certificates check` e aviso de vencimento a partir de `renewWarningDays` (padrão 30) na reexecução,
   oferecendo `recreate pki:<item>` para certificados `local-ca`, e só aviso para `organization` (FR-019).
@@ -855,18 +856,20 @@ conectado e um administrador que precisa trocar a senha.
 - [ ] T050 [US5] Validar os cenários 5 e 8 do quickstart com duas versões consecutivas com migration (candidatas da
   release), o segundo host Podman e uma imagem adulterada no `--offline` (código 5), e registrar em `validation.md`
   (SC-007, SC-009).
+  - **Estado**: Parcial em 2026-11-20 ([validation.md](validation.md)): upgrades sem migration, recusa de versão anterior e `--offline` adulterado com código 5 sem alteração; NOT RUN: upgrade com migration nova (sem duas versões publicadas com migration), segundo host Podman fora do host de desenvolvimento e imagem adulterada num engine sem as camadas.
 
 ---
 
 ## Fase Final: Refinamento e Aspectos Transversais
 
-- [ ] T051 [P] Publicação em `.github/workflows/publish.yml`:
+- [X] T051 [P] Publicação em `.github/workflows/publish.yml`:
   - imagem `dokpod-installer` na lista `images` (`deploy/installer/Dockerfile`);
   - `install.sh` em `build-assets` com o placeholder do digest substituído pelo digest publicado do instalador, de
     modo que o asset seja atestado e assinado como os demais;
   - asset `dokpod-sql-<versão>.tar.gz` com o catálogo e o `manifest.json`, atestado como os demais (FR-040);
   - entrada correspondente no `release-manifest.json`.
   - **Estado**: Implementado em 2026-11-14: `dokpod-installer` na lista de imagens; `build-assets` depende das imagens e grava `install.sh` com a referência e o digest publicados, mais `dokpod-sql-<versão>.tar.gz`; os dois são atestados pelo `gw-github-assets`. Validado por actionlint. A publicação não foi executada (exige pedido explícito).
+  - **Validação**: Executada nas releases `v0.9.1`, `v0.9.2-rc.1`, `v0.10.0-rc.1` e `v0.10.0`: imagem do instalador, `install.sh` com o digest publicado e `dokpod-sql-<versão>.tar.gz` no `release-manifest.json`, assinados e atestados.
 
 - [X] T052 [P] Smoke test da imagem do instalador no CI (`.github/workflows/ci.yml`): `--help`, `plan --dry-run` com
   arquivo de respostas de exemplo e Pester completo dentro da imagem.
@@ -891,10 +894,11 @@ conectado e um administrador que precisa trocar a senha.
   senha nem em exemplos.
   - **Estado**: Feito em 2026-11-14: Gitleaks com `.gitleaks.toml` limpo no diff de cada commit.
 
-- [ ] T057 Formatação, análise estática e testes amplos: `dotnet format --verify-no-changes` nos projetos alterados,
+- [X] T057 Formatação, análise estática e testes amplos: `dotnet format --verify-no-changes` nos projetos alterados,
   suíte .NET completa, Pester completo e `PSScriptAnalyzer` (T004) sem avisos nos módulos de
   `deploy/installer/src/`.
   - **Estado**: Parcial em 2026-11-14: Pester sem engine (278), PSScriptAnalyzer sem achados com `deploy/installer/PSScriptAnalyzerSettings.psd1` (exclusões justificadas, como a T004 pediu), `dotnet format --verify-no-changes` no projeto de testes alterado. A suíte .NET completa fica com o CI.
+  - **Validação**: Concluída em 2026-11-20: suíte .NET completa verde no CI da `main` (`d9096d9`, `e0c87b4`); Pester 284 passed e PSScriptAnalyzer sem achados.
 
 - [X] T058 Revisão de segurança e privacidade das superfícies de T001 contra o implementado, em
   `specs/033-instalador-guiado/threat-model.md`, com achados e correções. Inclui o SQL sobreposto e o banco de estado
@@ -914,8 +918,9 @@ conectado e um administrador que precisa trocar a senha.
   - **Estado**: Parcial em 2026-11-14: teste novo em `Migrations.Tests.ps1` para o FR-042 (coluna, índice, restrição, função e gatilho sem registro dão código 6 no `verify`). A execução e o registro em `validation.md` ficaram bloqueados pelo DNS do host.
   - **Validação**: Validado em 2026-11-14 no Podman (9/9, com o FR-042) e registrado em `validation.md`.
 
-- [ ] T060 Fechar `specs/033-instalador-guiado/validation.md`: os nove cenários do quickstart, o ambiente, os resultados,
+- [X] T060 Fechar `specs/033-instalador-guiado/validation.md`: os nove cenários do quickstart, o ambiente, os resultados,
   os `NOT RUN` com motivo e o estado das tarefas.
+  - **Estado**: Feito em 2026-11-20: seção "T050 e fechamento (T060)" do `validation.md`, com os `NOT RUN` e o estado das tarefas. A T050 segue parcial.
 
 ---
 
