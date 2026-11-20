@@ -166,3 +166,37 @@ Achados corrigidos nesta rodada:
 - **Testes**: a limpeza por rótulo com o nome do projeto vazio casava com todo container compose do host e removeu
   stacks locais alheias (incidente de 2026-11-14). Toda limpeza passa agora por `TestCleanup.ps1`, que só aceita
   `dokpod-tNNN`.
+
+## T050 e fechamento (T060) - Instalador publicado na VPS (2026-11-19 e 2026-11-20)
+
+Ambiente: VPS `hostinger-staging`, Ubuntu 26.04, Docker Engine 29.9.3 rootless no usuário descartável `dokpodd` (perfil
+AppArmor do `rootlesskit`, armazenamento do containerd), URL pública `https://srv2096690.hstgr.cloud:18443`. Sempre o
+`install.sh` e as imagens **publicados** da release, com a assinatura do instalador conferida pelo próprio `install.sh`.
+Uma instalação por vez; as stacks do `brazildevops` não foram tocadas.
+
+| Cenário | Verificação | Resultado |
+| --- | --- | --- |
+| 1 | Instalação guiada do zero com a `v0.9.2-rc.1` (VPS limpa, sem `--answers`): perguntas pelo terminal, plano e 31 migrations confirmados com `aplicar`, senha temporária do administrador uma vez | ok: 8 containers healthy, borda HTTP 200, `status` com todos os componentes convergidos/aplicados |
+| 2 | Respostas do modo guiado gravadas em `installDir/answers.yaml` (sem segredos), `installDir` `0750` e `secretsDir` `0700`; reexecução `install --answers` sem nenhuma pergunta | ok |
+| 5.6 | `upgrade --version 0.9.2-rc.1` com a `0.10.0-rc.1` instalada | ok: código 2, referência a `deploy-e-rollback.md` e `backup-restore-e-atualizacao.md`, nada alterado |
+| 5 (sem migration) | Atualizações entre candidatas consecutivas: `0.9.0-rc.2 → 0.9.1-rc.1` (2026-11-19) e `0.9.2-rc.1 → 0.10.0-rc.1` (`upgrade --version ... --answers`), com só api, bff, web e agent recriados e `org.opencontainers.image.version` conferido | ok |
+| 5 (com migration) | `migrations plan/export`, `--manual-migrations` com pausa em código 10, comparação de schema com o clone, `upgrade` sem confirmar o backup (código 4) | NOT RUN: não há duas versões publicadas consecutivas com migration nova (a última é `202611080001_GrantRuntimeEnvironments`, já presente na 0.9.0) |
+| 8.1–8.2 | Segundo host Podman pelo pacote do `host add` e `host revoke` | NOT RUN na VPS: exige um host Podman rootless separado; validado no Podman do host de desenvolvimento em 2026-11-14 (2/2, seção anterior) |
+| 8.3 | Um byte alterado num blob de `images/dokpod-ce-web.tar` do diretório `--offline` e `install --offline` | Parcial: código 5 e nada alterado (containers e `compose.yaml` iguais), mas a parada veio da assinatura ausente em `signatures/`; o containerd da VPS já tinha as camadas originais e pulou o blob adulterado no `load`, usando o conteúdo íntegro. A detecção num engine sem as camadas (o caso real do modo offline) fica NOT RUN |
+
+Achados:
+
+- O teste `a cifra abre com a frase e não com outra` falhava em cerca de 1/256 execuções e reprovou o CI do commit do
+  Release PR da 0.9.2, que acabou sem release final. Corrigido pelo Bug Fixing
+  [`teste-cifra-intermitente`](../../.specify/bugs/teste-cifra-intermitente/assessment.md) (#161).
+- Depois de um `upgrade`, o `answers.yaml` gravado continua com a versão anterior; o `upgrade` exige `--version`, então
+  não há efeito, mas uma reexecução `install --answers` sem `--version` pediria a versão antiga. Fica como observação.
+- O `upgrade` com `--answers` ainda pede `aplicar` para confirmar o plano; `--yes` dispensa.
+
+### Estado das tarefas no fechamento
+
+- T048 e T051: validadas pela publicação e pelos upgrades acima.
+- T050: parcial; restam a atualização com migration nova (exige a próxima release com migration), o segundo host Podman
+  fora do host de desenvolvimento e a imagem adulterada num engine limpo.
+- T057: a suíte .NET completa passou no CI da `main` (`d9096d9` e `e0c87b4`), além do Pester e do PSScriptAnalyzer.
+- Restantes da 033: todas concluídas.
