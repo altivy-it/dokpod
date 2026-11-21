@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.11.0](https://github.com/altivy-it/dokpod/compare/v0.10.0...v0.11.0) (2026-11-21)
+
+
+### Adicionado
+
+* **deploy:** mostre o logo do Dokpod no instalador e aceite --no-logo (spec 036) ([#163](https://github.com/altivy-it/dokpod/issues/163)) ([8ab5562](https://github.com/altivy-it/dokpod/commit/8ab5562b8548de2c419900b887111be816d1d3fd))
+
 ## [0.10.0](https://github.com/altivy-it/dokpod/compare/v0.9.1...v0.10.0) (2026-11-20)
 
 A 0.9.2 não teve release final; a correção dela entra nesta versão.
