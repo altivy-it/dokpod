@@ -38,7 +38,8 @@ install.sh [comando] [opções]
 | `--confirm-sql-overrides <lista>` | — | No modo não interativo, confirma exatamente os caminhos alterados. `--yes` não basta (FR-041). |
 | `--confirm-backup <banco>` | — | No modo não interativo, confirma que há backup recente do banco nomeado antes de migrations num banco que já tem dados (FR-011), seguindo `docs/runbooks/backup-restore-e-atualizacao.md`. Com o `dokpod-postgres` provisionado, o instalador faz o `pg_dump` em `installDir/backups/` e a opção não é usada. |
 | `--manual-migrations` | — | Exporta o SQL, pausa com o código 10 e, na retomada, roda `verify` (FR-038). |
-| `--non-interactive` | Automático sem TTY | Proíbe prompts. |
+| `--non-interactive` | Automático sem TTY | Proíbe prompts e desliga o logo. |
+| `--no-logo` | Logo só em terminal interativo | Spec 036. Aceita em qualquer comando e posição, inclusive `help`; não muda resultado, arquivos nem código de saída. |
 
 ## Códigos de saída (FR-035)
 
@@ -56,6 +57,10 @@ install.sh [comando] [opções]
 
 ## Saída
 
+- **Logo** (spec 036, [contrato](../../036-logo-instalador/contracts/installer-cli.md)): o nome Dokpod em letras de
+  blocos e a linha "Instalador do Dokpod <versão> · Altivy", uma vez, antes de qualquer outra mensagem do instalador.
+  Só aparece com entrada e saída num terminal e sem `--no-logo` nem `--non-interactive`. `NO_COLOR` não vazia ou
+  `TERM=dumb` tiram a cor; sem UTF-8, o desenho sai com `#`; com menos de 52 colunas, sai só a linha da versão.
 - **Plano**: tabela por componente com ação e motivo, mais o resumo de efeitos colaterais, por exemplo "os agentes
   precisarão do novo certificado da CA".
 - **Segredos**: nenhuma linha contém segredo. A senha temporária do primeiro administrador é a única exceção. Ela é

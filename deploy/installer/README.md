@@ -122,6 +122,13 @@ deploy/installer/
 fica no catálogo de `backend/libs/Dokpod.ControlPlane.Infrastructure/Sql/`, e o do estado em `sql/state/`. Nenhum
 módulo tem SQL escrito no código (FR-039).
 
+## Logo (spec 036)
+
+Em terminal interativo, a execução abre com o nome Dokpod em letras de blocos (degradê de amarelo para o lima do logo) e a versão
+do instalador, que vem do `RELEASE_VERSION` do build (`dev` num build local). O desenho e as regras de cor ficam em
+`src/Banner.psm1`. O logo não aparece com `--no-logo`, com `--non-interactive` nem com a saída redirecionada; o
+`install.sh` repassa ao container, só pelo nome, `NO_COLOR`, `TERM`, `COLORTERM`, `LANG`, `LC_ALL` e `LC_CTYPE`.
+
 ## Ajuda
 
 ```bash

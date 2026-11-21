@@ -156,6 +156,10 @@ set -- --rm --interactive --log-driver none --user 0:0 \
     "--env=DOKPOD_HOST_PUBLIC_ADDRESSES=$public_addresses" \
     "--env=HOME=$HOME" \
     "$@"
+# Terminal do operador para o logo (spec 036 D-003): só o nome, e só das variáveis definidas no host.
+for name in NO_COLOR TERM COLORTERM LANG LC_ALL LC_CTYPE; do
+    if printenv "$name" >/dev/null 2>&1; then set -- "--env=$name" "$@"; fi
+done
 if [ -t 0 ] && [ -t 1 ]; then set -- --tty "$@"; fi
 if [ "$engine" = podman ]; then set -- --security-opt=label=disable "$@"; fi
 

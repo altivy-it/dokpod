@@ -172,6 +172,12 @@ Dependências: 026 → 028 (exceção de emergência compartilhada). 025, 027 e 
 
 [033 - Instalador guiado do Dokpod](033-instalador-guiado/spec.md): instalador único e idempotente para quem está fora do projeto. Cobre a stack completa num host vazio, o uso de PostgreSQL e/ou nginx existentes e a integração a um Keycloak existente. Aplica migrations sem SDK, gera e valida certificados, cadastra o primeiro ambiente e o agente, recria componentes com dupla confirmação e atualiza a versão. A stack de laboratório `deploy/e2e` continua para desenvolvimento.
 
+### Identificação visual do instalador (036)
+
+**Data**: 2026-11-20 | **Branch**: `036-logo-instalador` | **Estado**: `approved`, implementação autorizada pelo solicitante em 2026-11-20.
+
+[036 - Identificação visual do instalador](036-logo-instalador/spec.md): logo do Dokpod em letras de blocos com a versão no início do instalador em terminal interativo, desligado por `--no-logo`, por `--non-interactive` e sempre que a saída não é terminal. Depende da [033](033-instalador-guiado/spec.md).
+
 ### Registro de alocação de contratos
 
 Evita colisão de tags entre specs desenvolvidas em paralelo. Alterar somente com atualização desta tabela.

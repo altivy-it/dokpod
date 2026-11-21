@@ -226,3 +226,74 @@ Describe 'Respostas do modo guiado' {
         if ($Saved) { (Read-InstallerAnswers -Path $path).publicUrl | Should -Be 'https://dokpod.lab.test:18443' }
     }
 }
+
+Describe 'Logo do instalador (spec 036)' {
+    BeforeEach {
+        $script:order = [System.Collections.Generic.List[string]]::new()
+        Mock -ModuleName Cli Write-InstallerBanner { $script:order.Add("logo:$Version") }
+        Mock -ModuleName Cli Write-InstallerHelp { $script:order.Add('help') }
+        $env:DOKPOD_INSTALLER_VERSION = '0.0.0-logo'
+    }
+    AfterEach { Remove-Item Env:DOKPOD_INSTALLER_VERSION -ErrorAction SilentlyContinue }
+
+    Context 'em terminal interativo' {
+        BeforeEach { Mock -ModuleName Cli Test-InteractiveSession { $true } }
+
+        It 'o logo vem uma vez antes da ajuda, com a versão do instalador (T005)' {
+            Invoke-InstallerCli -Arguments @('help') | Should -Be 0
+            $script:order | Should -Be @('logo:0.0.0-logo', 'help')
+        }
+
+        It 'o logo vem antes de um erro de uso, que continua com código 2: <Arguments>' -ForEach @(
+            @{ Arguments = @('instalar') }
+            @{ Arguments = @('plan', '--confirm-migrations', 'abc') }
+        ) {
+            Invoke-InstallerCli -Arguments $Arguments 2>$null | Should -Be 2
+            $script:order | Should -Be @('logo:0.0.0-logo')
+        }
+
+        It '<Arguments> não mostra o logo (T008)' -ForEach @(
+            @{ Arguments = @('help', '--no-logo') }
+            @{ Arguments = @('--no-logo', '--help') }
+            @{ Arguments = @('--help', '--non-interactive') }
+        ) {
+            Invoke-InstallerCli -Arguments $Arguments | Should -Be 0
+            $script:order | Should -Be @('help')
+        }
+
+        It '--no-logo num comando não mostra o logo e mantém o código' {
+            Invoke-InstallerCli -Arguments @('instalar', '--no-logo') 2>$null | Should -Be 2
+            $script:order.Count | Should -Be 0
+        }
+    }
+
+    It 'sem terminal interativo o logo não aparece, mesmo sem --no-logo' {
+        Mock -ModuleName Cli Test-InteractiveSession { $false }
+        Invoke-InstallerCli -Arguments @('help') | Should -Be 0
+        $script:order | Should -Be @('help')
+    }
+
+    It '--no-logo é aceita em qualquer posição e repetida' {
+        { ConvertFrom-InstallerArguments -Arguments @('--no-logo', 'plan', '--no-logo', '--dry-run') } | Should -Not -Throw
+    }
+}
+
+Describe 'Logo com a saída redirecionada (spec 036 T008)' {
+    It 'help<Suffix> não tem logo nem cor e sai com 0' -ForEach @(@{ Suffix = ''; Extra = @() }, @{ Suffix = ' --no-logo'; Extra = @('--no-logo') }) {
+        $result = Invoke-Entry -Arguments (@('help') + $Extra)
+        $result.ExitCode | Should -Be 0
+        $result.Output | Should -Not -Match '█'
+        $result.Output | Should -Not -Match ([regex]::Escape([string] [char] 27))
+        $result.Output | Should -Not -Match 'Instalador do Dokpod .+ · Altivy'
+    }
+
+    It 'o código de saída é o mesmo com e sem --no-logo: <Arguments>' -ForEach @(
+        @{ Arguments = @('help') }
+        @{ Arguments = @('instalar') }
+        @{ Arguments = @('plan') }
+    ) {
+        $without = Invoke-Entry -Arguments $Arguments
+        $with = Invoke-Entry -Arguments ($Arguments + '--no-logo')
+        $with.ExitCode | Should -Be $without.ExitCode
+    }
+}

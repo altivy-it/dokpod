@@ -5,14 +5,14 @@ Linha de comando do instalador (spec 033 T027, FR-001, FR-004, FR-035; contrato 
 dos argumentos, confirmações explícitas e os comandos sem efeito (help, plan, --dry-run, status, sql export).
 #>
 Set-StrictMode -Version Latest
-foreach ($module in 'Common', 'Answers', 'State', 'Prerequisites', 'Images', 'Render', 'Edge', 'Plan', 'Recreate', 'Upgrade', 'Install') {
+foreach ($module in 'Common', 'Banner', 'Answers', 'State', 'Prerequisites', 'Images', 'Render', 'Edge', 'Plan', 'Recreate', 'Upgrade', 'Install') {
     Import-Module (Join-Path $PSScriptRoot "$module.psm1")
 }
 
 $script:Commands = 'install', 'plan', 'upgrade', 'migrations', 'sql', 'recreate', 'host', 'certificates', 'status', 'help'
 $script:ValueOptions = 'answers', 'install-dir', 'secrets-dir', 'version', 'offline', 'sql-dir', 'out', 'confirm-data-removal',
 'confirm-migrations', 'confirm-sql-overrides', 'confirm-backup', 'name', 'engine', 'environment', 'reason'
-$script:FlagOptions = 'dry-run', 'yes', 'manual-migrations', 'non-interactive', 'all', 'help', 'confirm-stale-lock'
+$script:FlagOptions = 'dry-run', 'yes', 'manual-migrations', 'non-interactive', 'all', 'help', 'confirm-stale-lock', 'no-logo'
 # Tarefa que entrega cada comando que aplica mudanças (specs/033-instalador-guiado/tasks.md).
 $script:Pending = @{}
 
@@ -95,6 +95,15 @@ function Invoke-InstallerCli {
     param([string[]] $Arguments = @())
 
     try {
+        # Spec 036 (D-002): o logo vem antes de tudo, inclusive da ajuda, só em terminal interativo; --no-logo sai da
+        # lista aqui para valer também em `help --no-logo` e `--no-logo --help`.
+        $noLogo = @($Arguments) -contains '--no-logo' -or @($Arguments) -contains '--non-interactive'
+        $Arguments = @($Arguments | Where-Object { $_ -ne '--no-logo' })
+        if (-not $noLogo -and (Test-InteractiveSession)) {
+            try { Write-InstallerBanner -Version $env:DOKPOD_INSTALLER_VERSION }
+            catch { Write-Verbose "Logo não exibido: $($_.Exception.Message)" }
+        }
+
         if ($Arguments.Count -eq 0 -or $Arguments[0] -in '--help', '-h', '-?' -or ($Arguments[0] -eq 'help')) {
             Write-InstallerHelp -Topic $(if ($Arguments.Count -gt 1) { $Arguments[1] } else { $null })
             return 0
@@ -172,7 +181,9 @@ Comandos:
 
 Opções: --answers <arquivo> (absoluto), --install-dir, --secrets-dir, --version, --offline <pasta>, --dry-run, --yes,
 --confirm-data-removal <lista>, --confirm-migrations <planHash>, --sql-dir <pasta>, --confirm-sql-overrides <lista>,
---confirm-backup <banco>, --manual-migrations, --non-interactive.
+--confirm-backup <banco>, --manual-migrations, --non-interactive, --no-logo.
+
+O logo só aparece em terminal interativo; --no-logo ou --non-interactive o desligam.
 
 --yes confirma só o plano normal; remoção de dados, migrations, sobreposição de SQL e backup pedem a confirmação nomeada.
 
