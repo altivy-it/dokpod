@@ -61,6 +61,6 @@ O solicitante trocou o degradê D1 (ciano para azul) pelo Y1 (amarelo para o lim
 
 - Numa das primeiras execuções no pseudo-terminal, com `LANG=C`, só a linha da versão apareceu, como se a largura do terminal ainda fosse desconhecida. Não se repetiu em 8 execuções seguidas nem nas demais. Se a largura não estiver disponível no início, o instalador cai para a linha da versão (FR-005), sem erro.
 
-## Não executado
+## Conferência visual
 
-- NOT RUN: conferência visual num emulador de terminal real pelo revisor humano.
+- Feita pelo solicitante no próprio terminal, com o degradê Y1, em 2026-11-20: "Ficou bom".
