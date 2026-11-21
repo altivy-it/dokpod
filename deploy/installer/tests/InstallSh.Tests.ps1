@@ -129,6 +129,23 @@ Describe 'install.sh' {
         ($run | Where-Object { $_ -like '--env=DOKPOD_HOST_PUBLIC_ADDRESSES=*' }) | Should -Match '127\.0\.0\.1|::1'
     }
 
+    It 'repassa as variáveis do terminal só pelo nome e só quando definidas (spec 036 T007)' {
+        $environment = @{
+            DOKPOD_INSTALLER_IMAGE = 'localhost/dokpod-installer:dev'
+            COLORTERM = 'truecolor'; LANG = 'pt_BR.UTF-8'; NO_COLOR = $null; TERM = $null; LC_ALL = $null; LC_CTYPE = $null
+        }
+        $result = Invoke-InstallSh $script:box @('help', '--no-logo') $environment
+        $result.ExitCode | Should -Be 0
+        $run = $result.Calls[-1]
+        $run | Should -Contain '--env=COLORTERM'
+        $run | Should -Contain '--env=LANG'
+        ($run -join "`n") | Should -Not -Match 'truecolor|pt_BR'
+        $run | Should -Not -Contain '--env=NO_COLOR'
+        $run | Should -Not -Contain '--env=TERM'
+        $imageIndex = [array]::IndexOf($run, 'localhost/dokpod-installer:dev')
+        $run[($imageIndex + 1)..($run.Count - 1)] | Should -Be @('help', '--no-logo')
+    }
+
     It 'installDir fica 0750 e secretsDir 0700, qualquer que seja o umask' {
         $install = Join-Path $script:box.Root 'perm/install'
         $secrets = Join-Path $script:box.Root 'perm/secrets'

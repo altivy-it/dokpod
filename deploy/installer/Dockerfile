@@ -56,7 +56,12 @@ COPY backend/libs/Dokpod.ControlPlane.Infrastructure/Migrations/Script/ /opt/dok
 # Fonte única do contrato do realm (D-001): os scripts de tools/scripts, sem cópia no repositório.
 COPY tools/scripts/configure-keycloak.ps1 tools/scripts/provision-environment-authorization.ps1 /opt/dokpod-installer/keycloak/
 COPY LICENSE /usr/share/licenses/dokpod/LICENSE
-ENV DOKPOD_INSTALLER_HOME=/opt/dokpod-installer \
+# Versão do próprio instalador, mostrada no logo (spec 036 D-001); o Publish-ContainerImage.ps1 passa a da tag, e o
+# build local fica com "dev".
+ARG RELEASE_VERSION=
+RUN case "$RELEASE_VERSION" in *[!0-9A-Za-z.-]*) echo "RELEASE_VERSION inválida" >&2; exit 1 ;; esac
+ENV DOKPOD_INSTALLER_VERSION=${RELEASE_VERSION:-dev} \
+    DOKPOD_INSTALLER_HOME=/opt/dokpod-installer \
     POWERSHELL_TELEMETRY_OPTOUT=1 \
     POWERSHELL_UPDATECHECK=Off \
     DOCKER_CLI_HINTS=false

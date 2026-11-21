@@ -43,6 +43,10 @@ sh install.sh install --answers respostas.yaml --yes
 (`--confirm-migrations <planHash>`, `--confirm-backup <banco>`, `--confirm-sql-overrides <lista>` e
 `--confirm-data-removal <lista>`).
 
+Num terminal, o instalador abre com o logo do Dokpod e a versão do próprio instalador (spec 036). Em automação ele já
+não aparece: sem terminal, com a saída redirecionada ou com `--non-interactive`, a saída começa pela primeira mensagem
+do comando. Para desligá-lo também no terminal, use `--no-logo`; `NO_COLOR=1` mantém o logo sem cor.
+
 ## Migrations revisadas por DBA
 
 1. `sh install.sh migrations plan` lista as pendentes e o efeito de cada uma, sem tocar no banco.
