@@ -28,6 +28,8 @@ public enum ContainerCreationOutcome
     EnvironmentUnavailable,
     AgentOffline,
     NotSupported,
+    /// <summary>Recusa da janela de mudança (spec 026); o código está em <c>FailureCode</c>.</summary>
+    ChangeWindowDenied,
 }
 
 public sealed record ContainerCreationResult(
@@ -35,7 +37,11 @@ public sealed record ContainerCreationResult(
     Guid CommandId,
     string? FailureCode,
     IReadOnlyList<FieldError> Errors,
-    string? EquivalentCommand = null);
+    string? EquivalentCommand = null)
+{
+    /// <summary>A recusa da janela, com a próxima abertura (spec 026).</summary>
+    public ChangeWindows.ChangeWindowDecision? ChangeWindow { get; init; }
+}
 
 public sealed record HostObjectName(string Name, string? Kind = null, string? Driver = null);
 
@@ -62,6 +68,7 @@ public sealed class ContainerCreationService(
     IEnvironmentRegistrationStore registrationStore,
     IAgentSessionStore sessionStore,
     AgentCommandQueueService queueService,
+    ChangeWindows.ChangeWindowGuard changeWindows,
     IAgentHostStore hostStore,
     ImagePullPolicy registryPolicy,
     AgentQueryDispatcher queries,
@@ -122,6 +129,15 @@ public sealed class ContainerCreationService(
             return new ContainerCreationResult(ContainerCreationOutcome.EnvironmentUnavailable, commandId, access.Reason, []);
         }
 
+        // Spec 026: a janela de mudança vem logo depois da autorização e do ambiente.
+        var changeWindow = await changeWindows.EvaluateCommandAsync(
+            registration, AgentCommandKind.CreateContainer, commandId, "container.create.requested", spec.Name, actor, accessToken, correlationId, null, cancellationToken)
+            .ConfigureAwait(false);
+        if (changeWindow.Clearance is not { } clearance)
+        {
+            return new ContainerCreationResult(ContainerCreationOutcome.ChangeWindowDenied, commandId, changeWindow.FailureCode, []) { ChangeWindow = changeWindow };
+        }
+
         if (!registryPolicy.Allows(registration.Stage, spec.Image))
         {
             return new ContainerCreationResult(ContainerCreationOutcome.RegistryNotAllowed, commandId, "registry_not_allowed", [new FieldError("image", "registry_not_allowed")]);
@@ -153,7 +169,7 @@ public sealed class ContainerCreationService(
             string.Empty,
             string.Empty,
             AgentCommandKinds.PayloadHash(AgentCommandKind.CreateContainer, string.Empty, string.Empty, parameters),
-            deadline,
+            clearance.LimitDeadline(deadline),
             (long)session.FencingToken)
         {
             Parameters = parameters,
@@ -180,7 +196,7 @@ public sealed class ContainerCreationService(
                 ["image"] = spec.Image.Canonical.Length > 128 ? spec.Image.Canonical[..127] + "…" : spec.Image.Canonical,
                 ["engine"] = descriptor.EngineKind,
             });
-        var result = await queueService.EnqueueAsync(command, auditEvent, cancellationToken).ConfigureAwait(false);
+        var result = await queueService.EnqueueAsync(command, auditEvent, clearance, cancellationToken).ConfigureAwait(false);
         return new ContainerCreationResult(
             result switch
             {

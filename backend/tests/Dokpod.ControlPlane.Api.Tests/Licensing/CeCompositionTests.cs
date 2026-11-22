@@ -64,6 +64,37 @@ public sealed class CeCompositionTests
         Assert.Null(app.Services.GetService<ILicensingAuditWriter>());
     }
 
+    /// <summary>Spec 026 T014 (D-002): a CE não tem rota de janelas e o calendário dela nunca fecha nada.</summary>
+    [Fact]
+    public void CommunityComposition_HasNoChangeWindowRoutesAndAnEmptySchedule()
+    {
+        using var serverCertificate = TestCertificateFactory.CreateServerCertificate();
+        var builder = ApiHost.CreateBuilder(
+            ["--ConnectionStrings:ControlPlane=Host=localhost;Database=dokpod;Username=dokpod"],
+            new ApiHostOptions(
+                GrpcPort: 7443,
+                HealthPort: 8080,
+                ServerCertificate: serverCertificate,
+                ClientCertificateValidation: null,
+                LoopbackOnly: true));
+        ProductEdition.AddServices(builder.Services);
+
+        using var app = builder.Build();
+        ApiHost.MapEndpoints(app);
+        ProductEdition.MapEndpoints(app);
+        var routes = ((IEndpointRouteBuilder)app).DataSources
+            .SelectMany(dataSource => dataSource.Endpoints)
+            .OfType<RouteEndpoint>()
+            .Select(endpoint => endpoint.RoutePattern.RawText ?? string.Empty)
+            .Where(route => route.StartsWith("/api/v1/change-windows", StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+
+        Assert.Empty(routes);
+        Assert.IsType<Dokpod.ControlPlane.Application.ChangeWindows.NoChangeWindows>(
+            app.Services.GetRequiredService<Dokpod.ControlPlane.Application.ChangeWindows.IChangeWindowSchedule>());
+        Assert.Null(app.Services.GetService<Dokpod.ControlPlane.Application.ChangeWindows.IChangeWindowStore>());
+    }
+
     private static bool IsLicensing(Type? type) =>
         type?.Namespace is { } name && name.Split('.').Contains("Licensing", StringComparer.Ordinal);
 }

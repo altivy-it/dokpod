@@ -6,6 +6,7 @@ using Dokpod.ControlPlane.Application.Volumes;
 using Dokpod.Domain.Commands;
 using Dokpod.Domain.Environments;
 using Dokpod.Domain.Volumes;
+using Dokpod.ControlPlane.Application.Tests.ChangeWindows;
 using Xunit;
 
 namespace Dokpod.ControlPlane.Application.Tests.Volumes;
@@ -82,6 +83,7 @@ public sealed class VolumeRemovalServiceTests
             new Registrations(stage),
             new Sessions(new AgentSession(EnvironmentId, Guid.NewGuid(), 17)),
             new AgentCommandQueueService(store, new Delivery(), TimeProvider.System),
+            ChangeWindowTestGuard.Unrestricted(),
             new FakeHostStore(capabilities ?? ["VolumeInventory", "VolumeRemove"], EnvironmentId),
             new Volumes(),
             new JustifiedCommandTests.Justifications(),

@@ -579,6 +579,8 @@ function Ensure-AuthorizationScopes {
         'volume:delete',
         # Spec 019: remoção de redes sem uso.
         'network:delete',
+        # Spec 026: exceção de emergência fora da janela de mudança; nenhuma permissão a concede por padrão.
+        'change:override',
         # Spec 031: leitura e gestão do licenciamento da instalação (recurso urn:dokpod:installation).
         'licensing:read',
         'licensing:manage',

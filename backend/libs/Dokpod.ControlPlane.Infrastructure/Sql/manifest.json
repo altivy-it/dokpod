@@ -2,7 +2,7 @@
   "version": "0.11.0",
   "expectedSchema": {
     "path": "schema/expected-schema.json",
-    "sha256": "62dc5fa4c983fd849a591bb55d1cfcda7d45282afc2ebe4fced99306982ce0d8"
+    "sha256": "25008b33fd9c5a9d8f267d9f94779e289daa3c2dae98c508372529b71a1df50a"
   },
   "files": [
     {
@@ -505,6 +505,20 @@
       "executor": "ef",
       "parameters": [],
       "sha256": "5bcf3e0e6b4c9aeae2c296b510d2e9f15929ae11c15b2ff266d9987029d05158"
+    },
+    {
+      "path": "Migrations/Script/202611220001_ChangeWindows/Down/01-ChangeWindows.sql",
+      "purpose": "migration",
+      "executor": "ef",
+      "parameters": [],
+      "sha256": "1bed61a8afd274299ec52639b3aae99ae40a1e4ed54a71e2cdf7b99bfce0f5d4"
+    },
+    {
+      "path": "Migrations/Script/202611220001_ChangeWindows/Up/01-ChangeWindows.sql",
+      "purpose": "migration",
+      "executor": "ef",
+      "parameters": [],
+      "sha256": "5dbf705b70b79acaa32181b1883b3bda425c5a45c1e8b7200373c90da9d34a8a"
     }
   ]
 }

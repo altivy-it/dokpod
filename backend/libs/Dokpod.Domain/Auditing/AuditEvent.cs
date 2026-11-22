@@ -82,6 +82,11 @@ public sealed record AuditEvent
         "audit_export.destination_deleted",
         "audit_export.test_sent",
         "audit_export.gap",
+        // Spec 026: janelas de mudança por estágio.
+        "change_window.updated",
+        "change_window.removed",
+        "change_window.denied",
+        "change_window.override",
     ];
 
     /// <summary>Ações aceitas pela trilha (spec 017: filtros e categorias da consulta).</summary>
@@ -170,6 +175,8 @@ public sealed record AuditEvent
         // Spec 027: destino de exportação, sem segredos (só se há secretRef).
         "destinationId", "protocol", "host", "port", "categories", "hasSecretRef", "active", "changed", "delivered", "errorCode",
         "fromUtc", "toUtc",
+        // Spec 026: janela de mudança (fuso e faixas, anteriores e novos) e próxima abertura.
+        "timeZone", "previousTimeZone", "ranges", "previousRanges", "nextWindowStartsAt",
     ];
 
     /// <summary>Justificativa do terminal (spec 014 D-009): única exceção de texto livre além do comando equivalente.</summary>
@@ -200,6 +207,7 @@ public sealed record AuditEvent
                     "justification" => MaxJustificationDetailLength,
                     "host" => 253,
                     "categories" or "changed" => 512,
+                    "ranges" or "previousRanges" => 1024,
                     _ => 128,
                 }) ?? string.Empty;
                 size += key.Length + normalized.Length;

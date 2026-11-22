@@ -187,6 +187,9 @@ public static class ApiHost
         builder.Services.AddScoped<EnvironmentAccessService>();
         builder.Services.AddScoped<EnvironmentRegistrationService>();
         builder.Services.AddScoped<AgentIdentityRevocationService>();
+        // Spec 026 D-002: a CE nunca fecha nada; o módulo Business troca o calendário pelo PostgreSQL.
+        builder.Services.AddSingleton<Dokpod.ControlPlane.Application.ChangeWindows.IChangeWindowSchedule, Dokpod.ControlPlane.Application.ChangeWindows.NoChangeWindows>();
+        builder.Services.AddScoped<Dokpod.ControlPlane.Application.ChangeWindows.ChangeWindowGuard>();
         builder.Services.AddScoped<AgentCommandQueueService>();
         builder.Services.AddScoped<ContainerCommandService>();
         builder.Services.AddScoped<ContainerCommandQueryService>();

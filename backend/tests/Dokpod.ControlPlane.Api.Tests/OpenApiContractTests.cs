@@ -107,8 +107,8 @@ public sealed class OpenApiContractTests
         Assert.Contains("operationId: resetTrustedInstant", contract, StringComparison.Ordinal);
         Assert.Contains("application/jose:", contract, StringComparison.Ordinal);
         Assert.Contains("LicensingProblemCode:", contract, StringComparison.Ordinal);
-        // Spec 031 (10), spec 027 (5) e spec 025 (1): operações só da composição Business.
-        Assert.Equal(16, CountOccurrences(contract, "\n      x-dokpod-edition: business"));
+        // Spec 031 (10), spec 027 (5), spec 025 (1) e spec 026 (3): operações só da composição Business.
+        Assert.Equal(19, CountOccurrences(contract, "\n      x-dokpod-edition: business"));
         foreach (var operation in new[] { "listAuditExportDestinations", "createAuditExportDestination", "updateAuditExportDestination", "deleteAuditExportDestination", "testAuditExportDestination" })
         {
             Assert.Contains($"operationId: {operation}", contract, StringComparison.Ordinal);
@@ -155,6 +155,34 @@ public sealed class OpenApiContractTests
         Assert.DoesNotContain("egistry:", schema, StringComparison.Ordinal);
         Assert.Contains("enum: [event, metric, image_outdated]", contract, StringComparison.Ordinal);
         Assert.Contains("imageOutdatedAvailable:", contract, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ChangeWindowContract_IsBusinessAndAddsTheRefusalsToTheActions()
+    {
+        // Spec 026 T015 (contracts/api.md): configuração só na Business, exceção opcional nas seis ações e estado nos hosts.
+        var contract = await File.ReadAllTextAsync(FindContractPath(), TestContext.Current.CancellationToken);
+        var paths = contract[contract.IndexOf("  /api/v1/change-windows:", StringComparison.Ordinal)..];
+        paths = paths[..paths.IndexOf("  /api/v1/licensing/status:", StringComparison.Ordinal)];
+
+        Assert.Contains("operationId: listChangeWindows", paths, StringComparison.Ordinal);
+        Assert.Contains("operationId: putChangeWindow", paths, StringComparison.Ordinal);
+        Assert.Contains("operationId: deleteChangeWindow", paths, StringComparison.Ordinal);
+        Assert.Equal(3, paths.Split("x-dokpod-edition: business").Length - 1);
+        Assert.Contains("'412':", paths, StringComparison.Ordinal);
+        Assert.Contains("ChangeWindowInvalidProblem", paths, StringComparison.Ordinal);
+        foreach (var request in new[] { "SubmitContainerCommandRequest", "ContainerCreationRequest", "PullImageRequest", "RemoveVolumeRequest", "RemoveNetworkRequest", "PodActionRequest" })
+        {
+            var schema = contract[contract.IndexOf($"\n    {request}:\n", StringComparison.Ordinal)..];
+            schema = schema[..System.Text.RegularExpressions.Regex.Match(schema[1..], "\n    [A-Za-z]").Index];
+            Assert.Contains("changeWindowOverride:", schema, StringComparison.Ordinal);
+            Assert.Contains("justification:", schema, StringComparison.Ordinal);
+        }
+
+        Assert.Equal(6, contract.Split("$ref: '#/components/responses/ChangeWindowConflict'").Length - 1);
+        Assert.Contains("nextWindowStartsAt:", contract, StringComparison.Ordinal);
+        Assert.Contains("enum: [none, open, closed]", contract, StringComparison.Ordinal);
+        Assert.Contains("- change:override", contract, StringComparison.Ordinal);
     }
 
     private static string FindContractPath()

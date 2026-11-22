@@ -11,6 +11,7 @@ using Dokpod.Domain.Auditing;
 using Dokpod.Domain.Environments;
 using Dokpod.Domain.Inventory;
 using Google.Protobuf;
+using Dokpod.ControlPlane.Application.Tests.ChangeWindows;
 using Xunit;
 
 namespace Dokpod.ControlPlane.Application.Tests.Terminal;
@@ -48,7 +49,8 @@ public sealed class TerminalSessionServiceTests
             Registry,
             Audit,
             Options,
-            TimeProvider.System);
+            TimeProvider.System,
+            ChangeWindowTestGuard.Unrestricted());
 
         /// <summary>Simula o agente: lê o ExecOpen, vincula, abre e devolve eco do que receber.</summary>
         public async Task<List<ExecFrame>> AgentAsync(string? refuse = null, bool echo = true)

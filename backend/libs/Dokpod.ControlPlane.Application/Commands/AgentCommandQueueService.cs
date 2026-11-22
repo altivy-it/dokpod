@@ -1,3 +1,4 @@
+using Dokpod.ControlPlane.Application.ChangeWindows;
 using Dokpod.Domain.Commands;
 using Dokpod.Domain.Auditing;
 
@@ -11,10 +12,22 @@ public sealed class AgentCommandQueueService(
     public async Task<AgentCommandEnqueueResult> EnqueueAsync(
         AgentCommand command,
         AuditEvent auditEvent,
+        ChangeWindowGuard.Clearance clearance,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(command);
         ArgumentNullException.ThrowIfNull(auditEvent);
+        // Spec 026 D-001: só enfileira com a liberação do guard, do mesmo ambiente e do mesmo tipo de ação.
+        ArgumentNullException.ThrowIfNull(clearance);
+        if (clearance.EnvironmentId != command.EnvironmentId || clearance.Kind != command.Kind)
+        {
+            throw new ArgumentException("Change window clearance does not match the command.", nameof(clearance));
+        }
+
+        if (clearance.MaxDeadlineUtc is { } maxDeadline && command.DeadlineUtc > maxDeadline)
+        {
+            throw new ArgumentException("Command deadline exceeds the change window.", nameof(command));
+        }
 
         var now = timeProvider.GetUtcNow();
         if (command.EnvironmentId == Guid.Empty || command.CommandId == Guid.Empty)
@@ -66,15 +79,23 @@ public sealed class AgentCommandQueueService(
             throw new ArgumentException("Command deadline must be in the future.", nameof(command));
         }
 
+        if (clearance.Mode == ChangeWindowClearanceMode.Replay)
+        {
+            return ReplayResult(command, clearance.ExistingCommand!);
+        }
+
         var persistedCommand = new PersistedAgentCommand(
             command,
             ControlPlaneCommandState.Pending,
             now,
             now);
 
+        IReadOnlyList<AuditEvent> auditEvents = clearance.OverrideAuditEvent is { } overrideEvent
+            ? [auditEvent, overrideEvent]
+            : [auditEvent];
         var result = await commandStore.EnqueueAuditedAsync(
             persistedCommand,
-            auditEvent,
+            auditEvents,
             cancellationToken)
             .ConfigureAwait(false);
         if (result == AgentCommandEnqueueResult.Created)
@@ -84,5 +105,19 @@ public sealed class AgentCommandQueueService(
         }
 
         return result;
+    }
+
+    /// <summary>
+    /// Repetição de um <c>commandId</c> aceito (spec 026 D-001): o resultado sai do comando lido pelo guard, sem tocar
+    /// a fila, então nunca cria. O prazo gravado pode ser menor que o pedido, porque a janela aberta o encurtou (L1).
+    /// </summary>
+    private static AgentCommandEnqueueResult ReplayResult(AgentCommand command, AgentCommandStatusSnapshot existing)
+    {
+        var sameEnvelope = existing.Kind == command.Kind &&
+            string.Equals(existing.ContainerId, command.ContainerId, StringComparison.Ordinal) &&
+            string.Equals(existing.ExpectedContainerRevision, command.ExpectedContainerRevision, StringComparison.Ordinal) &&
+            string.Equals(existing.PayloadHash, command.PayloadHash, StringComparison.Ordinal) &&
+            existing.DeadlineUtc <= command.DeadlineUtc;
+        return sameEnvelope ? AgentCommandEnqueueResult.Duplicate : AgentCommandEnqueueResult.ConflictingPayload;
     }
 }

@@ -6,6 +6,7 @@ using Dokpod.ControlPlane.Application.Tests.Alerts;
 using Dokpod.Domain.Commands;
 using Dokpod.Domain.Environments;
 using Dokpod.Domain.Networks;
+using Dokpod.ControlPlane.Application.Tests.ChangeWindows;
 using Xunit;
 
 namespace Dokpod.ControlPlane.Application.Tests.Networks;
@@ -89,6 +90,7 @@ public sealed class NetworkRemovalServiceTests
             new Registrations(stage),
             new Sessions(new AgentSession(EnvironmentId, Guid.NewGuid(), 17)),
             new AgentCommandQueueService(store, new Delivery(), TimeProvider.System),
+            ChangeWindowTestGuard.Unrestricted(),
             new FakeHostStore(capabilities ?? ["NetworkInventory", "NetworkRemove"], EnvironmentId),
             new Networks(),
             new JustifiedCommandTests.Justifications(),

@@ -5,6 +5,7 @@ using Dokpod.ControlPlane.Application.Commands;
 using Dokpod.Domain.Alerts;
 using Dokpod.Domain.Commands;
 using Dokpod.Domain.Environments;
+using Dokpod.ControlPlane.Application.Tests.ChangeWindows;
 using Xunit;
 
 namespace Dokpod.ControlPlane.Application.Tests.Alerts;
@@ -128,6 +129,7 @@ public sealed class JustifiedCommandTests
             new Registrations(stage),
             new Sessions(new AgentSession(EnvironmentId, Guid.NewGuid(), 17)),
             new AgentCommandQueueService(store, new Delivery(), TimeProvider.System),
+            ChangeWindowTestGuard.Unrestricted(),
             justifications);
         return (service, store, justifications);
     }

@@ -46,6 +46,9 @@ public sealed record AgentCommandStatusSnapshot(
     public string? PodName { get; init; }
 
     public string? PodAction { get; init; }
+
+    /// <summary>Hash do envelope, para a repetição fora da janela (spec 026 D-001) comparar sem tocar a fila.</summary>
+    public string? PayloadHash { get; init; }
 }
 
 public enum AgentCommandEnqueueResult
@@ -89,6 +92,18 @@ public interface IAgentCommandStore
         PersistedAgentCommand command,
         AuditEvent auditEvent,
         CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Spec 026 D-006: grava o comando e todos os eventos (o da ação e, com exceção de janela, o
+    /// <c>change_window.override</c>) na mesma transação; sem o comando novo, nenhum evento.
+    /// </summary>
+    Task<AgentCommandEnqueueResult> EnqueueAuditedAsync(
+        PersistedAgentCommand command,
+        IReadOnlyList<AuditEvent> auditEvents,
+        CancellationToken cancellationToken) =>
+        auditEvents is [var single]
+            ? EnqueueAuditedAsync(command, single, cancellationToken)
+            : throw new NotSupportedException("This store records a single audit event per command.");
 
     Task<AgentCommandStatusUpdateResult> ApplyStatusAsync(
         AgentCommandStatusUpdate update,

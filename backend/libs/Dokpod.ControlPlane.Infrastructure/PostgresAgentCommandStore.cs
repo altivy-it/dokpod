@@ -63,6 +63,7 @@ public sealed class PostgresAgentCommandStore(
             row.UpdatedAtUtc,
             row.CompletedAtUtc)
         {
+            PayloadHash = row.PayloadHash,
             Output = row.ResolvedImageDigest is null && row.ImageSizeBytes is null && row.CreatedContainerId is null && row.FailedContainers is null
                 ? null
                 : new AgentCommandOutput(row.ResolvedImageDigest, row.ImageSizeBytes, row.CreatedContainerId)
@@ -163,23 +164,43 @@ public sealed class PostgresAgentCommandStore(
             : AgentCommandEnqueueResult.ConflictingPayload;
     }
 
-    public async Task<AgentCommandEnqueueResult> EnqueueAuditedAsync(
+    public Task<AgentCommandEnqueueResult> EnqueueAuditedAsync(
         PersistedAgentCommand command,
         AuditEvent auditEvent,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(auditEvent);
+        return EnqueueAuditedAsync(command, [auditEvent], cancellationToken);
+    }
+
+    public async Task<AgentCommandEnqueueResult> EnqueueAuditedAsync(
+        PersistedAgentCommand command,
+        IReadOnlyList<AuditEvent> auditEvents,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        ArgumentNullException.ThrowIfNull(auditEvents);
+        if (auditEvents.Count == 0) throw new ArgumentException("The command audit event is required.", nameof(auditEvents));
         ValidateAuditEvent(
-            auditEvent,
+            auditEvents[0],
             command.Command.EnvironmentId,
             command.Command.CommandId,
             command.Command.Parameters is PodActionParameters podParameters ? Dokpod.Domain.Pods.PodNames.AuditAction(podParameters.Action) : GetCommandAction(command.Command.Kind));
+        // Spec 026 D-006: além do evento da ação, só a exceção de janela, do mesmo ambiente e do mesmo comando.
+        foreach (var extra in auditEvents.Skip(1))
+        {
+            ValidateAuditEvent(extra, command.Command.EnvironmentId, command.Command.CommandId, "change_window.override");
+        }
+
         await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken)
             .ConfigureAwait(false);
         var result = await EnqueueAsync(command, cancellationToken).ConfigureAwait(false);
         if (result == AgentCommandEnqueueResult.Created)
         {
-            await auditEventWriter.AppendAsync(auditEvent, cancellationToken).ConfigureAwait(false);
+            foreach (var auditEvent in auditEvents)
+            {
+                await auditEventWriter.AppendAsync(auditEvent, cancellationToken).ConfigureAwait(false);
+            }
         }
 
         await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);

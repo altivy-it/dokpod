@@ -5,6 +5,7 @@ using Dokpod.ControlPlane.Application.Environments;
 using Dokpod.Domain.Auditing;
 using Dokpod.Domain.Commands;
 using Dokpod.Domain.Environments;
+using Dokpod.ControlPlane.Application.Tests.ChangeWindows;
 using Xunit;
 
 namespace Dokpod.ControlPlane.Application.Tests.Commands;
@@ -112,7 +113,8 @@ public sealed class ContainerCommandServiceTests
             new AgentCommandQueueService(
                 commandStore,
                 new RecordingDeliveryQueue(),
-                new FixedTimeProvider(Now)));
+                new FixedTimeProvider(Now)),
+            ChangeWindowTestGuard.Unrestricted());
 
         var result = await service.SubmitAsync(
             EnvironmentId,
@@ -224,7 +226,8 @@ public sealed class ContainerCommandServiceTests
             authorization,
             registrationStore ?? new RecordingRegistrationStore(),
             sessionStore ?? new FixedSessionStore(new AgentSession(EnvironmentId, Guid.NewGuid(), 17)),
-            new AgentCommandQueueService(commandStore, deliveryQueue, new FixedTimeProvider(Now)));
+            new AgentCommandQueueService(commandStore, deliveryQueue, new FixedTimeProvider(Now)),
+            ChangeWindowTestGuard.Unrestricted());
 
     private sealed class RecordingAuthorizationDecider(
         AuthorizationDecisionOutcome outcome,
