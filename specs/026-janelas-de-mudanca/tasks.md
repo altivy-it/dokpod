@@ -63,45 +63,45 @@ Esses três gates valem a partir da T003. `/speckit-implement` exige autorizaç�
 
 **CRÍTICO**: nenhuma história começa antes desta fase.
 
-- [ ] T003 [P] Modelo em `backend/libs/Dokpod.Domain/ChangeWindows/ChangeWindow.cs`, conforme [data-model.md](data-model.md):
+- [x] T003 [P] Modelo em `backend/libs/Dokpod.Domain/ChangeWindows/ChangeWindow.cs`, conforme [data-model.md](data-model.md):
   - `ChangeWindowRange(IReadOnlySet<DayOfWeek> Days, TimeOnly Start, TimeOnly End)`: de 1 a 7 dias sem repetição, `Start` e `End` em minutos inteiros de `00:00` a `23:59`, `End != Start`; `End < Start` cruza a meia-noite e pertence ao dia de início;
   - `ChangeWindow(EnvironmentStage Stage, string TimeZone, IReadOnlyList<ChangeWindowRange> Ranges, int Version, string UpdatedBy, DateTimeOffset UpdatedAtUtc)`: `TimeZone` IANA de até 64 caracteres aceito por `TimeZoneInfo.TryFindSystemTimeZoneById`; de 1 a 14 faixas;
   - `ChangeWindow.Validate(...)` devolve a lista de erros por campo (`timeZone`, `ranges[i].days`, `ranges[i].start`, `ranges[i].end`), sem lançar exceção, para o `400 change_window_invalid`.
-- [ ] T004 [P] Testes de `ChangeWindowCalendar` em `backend/tests/Dokpod.ControlPlane.Application.Tests/ChangeWindows/ChangeWindowCalendarTests.cs`, com instantes UTC fixos e sem depender do fuso do host:
+- [x] T004 [P] Testes de `ChangeWindowCalendar` em `backend/tests/Dokpod.ControlPlane.Application.Tests/ChangeWindows/ChangeWindowCalendarTests.cs`, com instantes UTC fixos e sem depender do fuso do host:
   - seg-sex 22:00-06:00 em `America/Sao_Paulo`: terça 15:00 fechado com `nextOpensAt` terça 22:00; sábado 03:00 aberto (faixa de sexta); sábado 07:00 fechado com `nextOpensAt` segunda 22:00;
   - faixas sobrepostas valem como união; faixas contíguas (22:00-00:00 e 00:00-06:00 no dia seguinte) dão um só `closesAt`;
   - horário de verão: entrada e saída em `Europe/Lisbon` e numa data histórica com horário de verão em `America/Sao_Paulo`, com início no buraco (primeiro instante válido depois) e fim no horário repetido (segunda ocorrência), conforme [D-004](research.md#d-004-fuso-e-cálculo-da-janela);
   - estágio sem janela dá `none`; a busca de `nextOpensAt` cobre 8 dias locais.
-- [ ] T005 `ChangeWindowCalendar` (função pura, `Evaluate(ChangeWindow?, DateTimeOffset utc)` → `ChangeWindowStatus(State, ClosesAt, NextOpensAt, TimeZone)`, com `State` igual a `Open`, `Closed` ou `None`) em `backend/libs/Dokpod.ControlPlane.Application/ChangeWindows/ChangeWindowCalendar.cs`, até T004 passar.
-- [ ] T006 Portas em `backend/libs/Dokpod.ControlPlane.Application/ChangeWindows/ChangeWindowPorts.cs`:
+- [x] T005 `ChangeWindowCalendar` (função pura, `Evaluate(ChangeWindow?, DateTimeOffset utc)` → `ChangeWindowStatus(State, ClosesAt, NextOpensAt, TimeZone)`, com `State` igual a `Open`, `Closed` ou `None`) em `backend/libs/Dokpod.ControlPlane.Application/ChangeWindows/ChangeWindowCalendar.cs`, até T004 passar.
+- [x] T006 Portas em `backend/libs/Dokpod.ControlPlane.Application/ChangeWindows/ChangeWindowPorts.cs`:
   - `IChangeWindowSchedule.GetAsync(EnvironmentStage, CancellationToken)` → `ChangeWindow?` e `ListAsync(CancellationToken)`;
   - `NoChangeWindows`, que sempre devolve nulo, registrado na composição da CE em `ControlPlaneInfrastructureServiceCollectionExtensions` (o módulo Business o substitui);
   - `IChangeWindowStore` (só Business): `SaveAsync(window, expectedVersion | criar)` e `DeleteAsync(stage, expectedVersion)`, com o conflito de versão como resultado, não como exceção.
-- [ ] T007 Guard e liberação em `backend/libs/Dokpod.ControlPlane.Application/ChangeWindows/ChangeWindowGuard.cs`:
+- [x] T007 Guard e liberação em `backend/libs/Dokpod.ControlPlane.Application/ChangeWindows/ChangeWindowGuard.cs`:
   - `ChangeWindowClearance` com `EnvironmentId`, `Kind` (`AgentCommandKind` ou o marcador de terminal), `Mode` (`NoWindow`, `Open`, `Override`, `Replay`) e `OverrideAuditEvent?`. O construtor é privado e a única fábrica fica no `ChangeWindowGuard`: um construtor `internal` não basta, porque a fila e os serviços estão no mesmo assembly;
   - antes de avaliar a janela, o guard procura o comando com `IAgentCommandStore.GetAsync(environmentId, commandId)`. Se ele existe, a liberação sai em `Replay`, sem avaliar a janela nem consultar o Keycloak ([D-001](research.md#d-001-ponto-único-de-aplicação), princípio IV);
   - `ChangeWindowGuard.EvaluateAsync(registration, kind, commandId, actor, accessToken, correlationId, ChangeWindowOverrideRequest?, ct)` → liberação ou recusa (`change_window_closed` com `nextWindowStartsAt`, `justification_required` ou `change_override_denied`, e `authorization_unavailable` quando o Keycloak não responde), conforme [D-005](research.md#d-005-exceção-de-emergência);
   - host sem estágio, estágio sem janela ou janela aberta: liberação sem consultar o Keycloak; com janela aberta, a liberação leva o prazo máximo (`closesAt` + 5 min), e o serviço encurta o `deadlineUtc` pedido para ele antes de montar o comando (threat model L1);
   - a busca do `commandId` (`Replay`) acontece dentro do guard, depois da autorização da ação e da checagem do ambiente feitas pelo serviço (threat model L6);
   - nenhuma lista de ações liberadas: todo `AgentCommandKind` é controlado ([D-001](research.md#d-001-ponto-único-de-aplicação)).
-- [ ] T008 Fila exige a liberação:
+- [x] T008 Fila exige a liberação:
   - `AgentCommandQueueService.EnqueueAsync(command, auditEvent, ChangeWindowClearance clearance, ct)` em `backend/libs/Dokpod.ControlPlane.Application/Commands/AgentCommandQueueService.cs` recusa (`ArgumentException`) liberação de outro ambiente ou de outro tipo. Com `Replay`, devolve só `Duplicate` ou `ConflictingPayload` e nunca cria comando. Se a linha sumiu (expurgo), devolve um resultado que leva o serviço a pedir nova avaliação ao guard como pedido novo;
   - `IAgentCommandStore.EnqueueAuditedAsync` em `backend/libs/Dokpod.ControlPlane.Application/Commands/IAgentCommandStore.cs` e `backend/libs/Dokpod.ControlPlane.Infrastructure/PostgresAgentCommandStore.cs` recebe a lista de eventos (o da ação e, com `Override`, o `change_window.override`) e grava todos na mesma transação do comando ([D-006](research.md#d-006-auditoria));
   - ajustar os seis chamadores (`ContainerCommandService`, `ContainerCreationService`, `ImagePullService`, `VolumeRemovalService`, `NetworkRemovalService`, `PodActionService`) para compilar, pedindo a liberação ao guard logo depois da autorização e da checagem do ambiente, antes da justificativa da 016. Nesta tarefa, o pedido de exceção ainda é nulo.
-- [ ] T009 [P] Teste de arquitetura em `backend/tests/Dokpod.Architecture.Tests/ChangeWindowGuardTests.cs`:
+- [x] T009 [P] Teste de arquitetura em `backend/tests/Dokpod.Architecture.Tests/ChangeWindowGuardTests.cs`:
   - todo tipo de `backend/libs/Dokpod.ControlPlane.Application` que depende de `AgentCommandQueueService` também depende de `ChangeWindowGuard`, e o `TerminalSessionService` depende de `ChangeWindowGuard`;
   - nenhum tipo além do `ChangeWindowGuard` cria `ChangeWindowClearance` (por reflexão: o tipo só tem construtores privados e as fábricas estáticas só aparecem no guard);
   - inclui o caso negativo (um tipo de teste sem o guard reprova).
-- [ ] T010 [P] Categoria `governance` em `backend/libs/Dokpod.Domain/Auditing/AuditCategories.cs` com `change_window.updated`, `change_window.removed`, `change_window.denied` e `change_window.override`.
-- [ ] T011 Migration `backend/libs/Dokpod.ControlPlane.Infrastructure/Migrations/Script/<AAAAMMDDNNNN>_ChangeWindows/Up/01-ChangeWindows.sql` e `Down/01-ChangeWindows.sql`:
+- [x] T010 [P] Categoria `governance` em `backend/libs/Dokpod.Domain/Auditing/AuditCategories.cs` com `change_window.updated`, `change_window.removed`, `change_window.denied` e `change_window.override`.
+- [x] T011 Migration `backend/libs/Dokpod.ControlPlane.Infrastructure/Migrations/Script/<AAAAMMDDNNNN>_ChangeWindows/Up/01-ChangeWindows.sql` e `Down/01-ChangeWindows.sql`:
   - tabela `dokpod.change_windows` com `stage text PRIMARY KEY CHECK (stage IN ('production','staging','development'))`, `time_zone text NOT NULL CHECK (length(time_zone) BETWEEN 1 AND 64)`, `ranges jsonb NOT NULL CHECK (jsonb_typeof(ranges) = 'array' AND jsonb_array_length(ranges) BETWEEN 1 AND 14)`, `version integer NOT NULL CHECK (version >= 1)`, `updated_by text NOT NULL`, `updated_at_utc timestamptz NOT NULL`;
   - `GRANT SELECT, INSERT, UPDATE, DELETE` ao `dokpod_runtime`;
   - acrescentar `change:override` ao `scopes` de todos os ambientes cadastrados, no padrão de `202610150004_NetworkInventory` (a concessão por usuário continua no Keycloak); o `Down` remove a tabela e o scope;
   - `change:override` em `EnvironmentResourceScopes` (`ChangeOverride`, e em `Supported`) em `backend/libs/Dokpod.Domain/Environments/EnvironmentRegistration.cs`, e no cadastro de ambientes novos.
-- [ ] T012 [P] Teste da migration em `backend/tests/Dokpod.ControlPlane.Api.Tests/ChangeWindows/ChangeWindowMigrationTests.cs`, com PostgreSQL real: `Up` cria a tabela e os `CHECK` recusam estágio, fuso e faixas inválidos; ambientes existentes ganham `change:override` sem duplicar; `Down` validado via `psql` numa transação (EF não reverte migrations neste repositório).
-- [ ] T013 Store `ChangeWindowStore` (implementa `IChangeWindowSchedule` e `IChangeWindowStore`) em `backend/libs/Dokpod.ControlPlane.Infrastructure/ChangeWindows/ChangeWindowStore.cs`: leitura por chave primária, `INSERT` só sem linha, `UPDATE`/`DELETE ... WHERE version = @expected`, serialização das faixas com dias `mon`…`sun` e horas `HH:mm`.
-- [ ] T014 Módulo `ChangeWindowModule` em `backend/apps/Dokpod.ControlPlane.Api/ChangeWindows/ChangeWindowModule.cs`, registrado só em `backend/apps/Dokpod.ControlPlane.Api/ProductEdition.cs` sob `DOKPOD_BUSINESS`: substitui `IChangeWindowSchedule` pelo `ChangeWindowStore` e mapeia as rotas. Estender o teste de composição da CE para confirmar que `/api/v1/change-windows` não existe e que o `IChangeWindowSchedule` da CE é o `NoChangeWindows`.
-- [ ] T015 Contrato OpenAPI em `contracts/openapi/dokpod-control-plane.v1.yaml`, conforme [contracts/api.md](contracts/api.md):
+- [x] T012 [P] Teste da migration em `backend/tests/Dokpod.ControlPlane.Api.Tests/ChangeWindows/ChangeWindowMigrationTests.cs`, com PostgreSQL real: `Up` cria a tabela e os `CHECK` recusam estágio, fuso e faixas inválidos; ambientes existentes ganham `change:override` sem duplicar; `Down` validado via `psql` numa transação (EF não reverte migrations neste repositório).
+- [x] T013 Store `ChangeWindowStore` (implementa `IChangeWindowSchedule` e `IChangeWindowStore`) em `backend/libs/Dokpod.ControlPlane.Infrastructure/ChangeWindows/ChangeWindowStore.cs`: leitura por chave primária, `INSERT` só sem linha, `UPDATE`/`DELETE ... WHERE version = @expected`, serialização das faixas com dias `mon`…`sun` e horas `HH:mm`.
+- [x] T014 Módulo `ChangeWindowModule` em `backend/apps/Dokpod.ControlPlane.Api/ChangeWindows/ChangeWindowModule.cs`, registrado só em `backend/apps/Dokpod.ControlPlane.Api/ProductEdition.cs` sob `DOKPOD_BUSINESS`: substitui `IChangeWindowSchedule` pelo `ChangeWindowStore` e mapeia as rotas. Estender o teste de composição da CE para confirmar que `/api/v1/change-windows` não existe e que o `IChangeWindowSchedule` da CE é o `NoChangeWindows`.
+- [x] T015 Contrato OpenAPI em `contracts/openapi/dokpod-control-plane.v1.yaml`, conforme [contracts/api.md](contracts/api.md):
   - rotas `GET /api/v1/change-windows`, `PUT` e `DELETE /api/v1/change-windows/{stage}` com `x-dokpod-edition: business`, `ETag`, `If-Match`, `If-None-Match`, `400 change_window_invalid`, `403 license_*` e `412`;
   - `changeWindowOverride` opcional nos corpos das seis ações e em `OpenTerminalRequest`;
   - `409 change_window_closed` (com `nextWindowStartsAt` e `timeZone`) e `403 change_override_denied` nas respostas dessas ações;
@@ -110,6 +110,18 @@ Esses três gates valem a partir da T003. `/speckit-implement` exige autorizaç�
   Regenerar o cliente do frontend com `npm run generate:api` no container `angular-cli` e conferir o teste de contrato existente.
 
 **Checkpoint**: o guard compila em todos os caminhos, a CE libera tudo e a Business tem persistência.
+
+**Execução da fundação (2026-11-22, IA assistida)**: T003–T015 validadas com a suíte do backend contra PostgreSQL 17.6 real (migrations aplicadas por `dotnet ef database update`; Application 304, Architecture 34, Api 432 com 1 falha da própria expectativa, corrigida e reexecutada no recorte da 026: 26 aprovados), o build da edição Business e os testes do frontend (201). Diferenças em relação ao texto das tarefas, para a revisão humana:
+
+- A liberação é o tipo aninhado `ChangeWindowGuard.Clearance`: em C#, só um tipo aninhado deixa o construtor privado e a fábrica no guard ao mesmo tempo.
+- A recusa por horário e a exceção negada gravam `change_window.denied` no próprio guard, para não repetir a regra nos sete pontos; a T025 só monta a resposta `409`/`403`.
+- No `Replay`, a fila compara o comando lido pelo guard e não toca o store, então não existe o caso "a linha sumiu"; o snapshot ganhou `PayloadHash` e o prazo gravado menor que o pedido (encurtado pela L1) conta como duplicado.
+- O `NoChangeWindows` e o guard são registrados no `ApiHost`, e não em `ControlPlaneInfrastructureServiceCollectionExtensions`, para valer também sem banco.
+- O terminal já consulta o guard (exigido pelo teste da T009); a exceção no terminal e o motivo no hub seguem na T024/T031.
+- As rotas Business entram com a T018; o `ChangeWindowModule` desta fase só troca o calendário.
+- Os serviços ganharam o resultado `ChangeWindowDenied`, que as rotas só mapeiam na T025; até lá ele é inalcançável, porque sem a T018 nenhuma janela pode ser gravada.
+- O contrato não tem `OpenTerminalRequest` (o terminal é SignalR); o pedido de exceção do terminal fica documentado em `contracts/api.md`.
+- A migration só converte `scopes` que são listas JSON, como o cadastro grava; `manifest.json` e `expected-schema.json` do catálogo SQL foram regravados com `DOKPOD_UPDATE_SQL_CATALOG=1`.
 
 ---
 

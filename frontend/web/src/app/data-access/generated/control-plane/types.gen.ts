@@ -5,6 +5,10 @@ export type ClientOptions = {
 };
 
 export type SubmitContainerCommandRequest = {
+    /**
+     * Spec 026. Pede a exceção de emergência fora da janela de mudança, só para esta ação; exige change:override no host e justification de 10 a 500 caracteres. Ignorado com a janela aberta, no estágio sem janela e na CE.
+     */
+    changeWindowOverride?: boolean;
     action: 'start' | 'stop' | 'restart' | 'delete' | 'pause' | 'unpause';
     expectedContainerRevision: string;
     deadlineUtc: string;
@@ -61,6 +65,14 @@ export type ImageLookup = {
 };
 
 export type PullImageRequest = {
+    /**
+     * Spec 026. Pede a exceção de emergência fora da janela de mudança, só para esta ação; exige change:override no host e justification de 10 a 500 caracteres. Ignorado com a janela aberta, no estágio sem janela e na CE.
+     */
+    changeWindowOverride?: boolean;
+    /**
+     * Spec 026. Obrigatória com changeWindowOverride.
+     */
+    justification?: string;
     reference: string;
     deadlineUtc: string;
 };
@@ -74,6 +86,14 @@ export type PullImageAccepted = {
  * Allowlist fechada (spec 013); qualquer outro campo resulta em 400.
  */
 export type ContainerCreationRequest = {
+    /**
+     * Spec 026. Pede a exceção de emergência fora da janela de mudança, só para esta ação; exige change:override no host e justification de 10 a 500 caracteres. Ignorado com a janela aberta, no estágio sem janela e na CE.
+     */
+    changeWindowOverride?: boolean;
+    /**
+     * Spec 026. Obrigatória com changeWindowOverride.
+     */
+    justification?: string;
     image: string;
     name: string;
     ports?: Array<{
@@ -238,6 +258,7 @@ export type EnvironmentState = {
     stage?: Stage | null;
     situation?: HostSituation;
     containerCount?: number | null;
+    changeWindow?: ChangeWindowStatus;
     agent?: HostAgentView | null;
 };
 
@@ -349,6 +370,7 @@ export type ContainerListItem = ContainerInventory & {
     engine?: 'docker' | 'podman' | null;
     engineVersion?: string | null;
     hostConnected: boolean;
+    changeWindow?: ChangeWindowStatus;
     allowedActions: Array<'start' | 'stop' | 'restart' | 'delete' | 'pause' | 'unpause' | 'exec'>;
     intentional?: IntentionalAction;
     /**
@@ -783,6 +805,10 @@ export type VolumeUsage = {
 };
 
 export type RemoveVolumeRequest = {
+    /**
+     * Spec 026. Pede a exceção de emergência fora da janela de mudança, só para esta ação; exige change:override no host e justification de 10 a 500 caracteres. Ignorado com a janela aberta, no estágio sem janela e na CE.
+     */
+    changeWindowOverride?: boolean;
     deadlineUtc: string;
     justification?: string;
 };
@@ -839,6 +865,10 @@ export type NetworkListPage = {
 };
 
 export type RemoveNetworkRequest = {
+    /**
+     * Spec 026. Pede a exceção de emergência fora da janela de mudança, só para esta ação; exige change:override no host e justification de 10 a 500 caracteres. Ignorado com a janela aberta, no estágio sem janela e na CE.
+     */
+    changeWindowOverride?: boolean;
     deadlineUtc: string;
     justification?: string;
 };
@@ -970,12 +1000,16 @@ export type PodListPage = {
 };
 
 export type PodActionRequest = {
+    /**
+     * Spec 026. Pede a exceção de emergência fora da janela de mudança, só para esta ação; exige change:override no host e justification de 10 a 500 caracteres. Ignorado com a janela aberta, no estágio sem janela e na CE.
+     */
+    changeWindowOverride?: boolean;
     action: PodAction;
     deadlineUtc: string;
     justification?: string;
 };
 
-export type ResourceScope = 'environment:read' | 'environment:manage' | 'container:start' | 'container:stop' | 'container:restart' | 'container:delete' | 'audit:read' | 'container:pause' | 'container:inspect' | 'container:logs' | 'image:pull' | 'container:create' | 'container:exec' | 'alert:read' | 'alert:manage' | 'volume:delete' | 'network:delete';
+export type ResourceScope = 'environment:read' | 'environment:manage' | 'container:start' | 'container:stop' | 'container:restart' | 'container:delete' | 'audit:read' | 'container:pause' | 'container:inspect' | 'container:logs' | 'image:pull' | 'container:create' | 'container:exec' | 'alert:read' | 'alert:manage' | 'volume:delete' | 'network:delete' | 'change:override';
 
 export type Stage = 'production' | 'staging' | 'development';
 
@@ -1176,6 +1210,91 @@ export type ImageUpdateCheckRequested = {
 export type ImageUpdateProblemCode = 'rate_limited' | 'agent_unsupported' | 'environment_disconnected' | 'alert_condition_unavailable';
 
 export type AuditExportProblemCode = 'audit_export_invalid_destination' | 'audit_export_invalid_secret_ref' | 'audit_export_limit_reached' | 'audit_export_name_taken' | 'audit_export_version_conflict' | 'audit_export_address_blocked' | 'audit_export_not_found' | 'rate_limited' | 'idempotency_key_required' | 'if_match_required';
+
+/**
+ * Spec 026. none quando o estágio não tem janela, o host não tem estágio ou a edição é a CE.
+ */
+export type ChangeWindowState = 'none' | 'open' | 'closed';
+
+/**
+ * Spec 026. Estado da janela de mudança do estágio do host no momento da resposta.
+ */
+export type ChangeWindowStatus = {
+    state: ChangeWindowState;
+    /**
+     * Com open, o fim da união contígua das faixas abertas.
+     */
+    closesAt: string | null;
+    /**
+     * Com closed, a próxima abertura nos 8 dias seguintes.
+     */
+    nextOpensAt: string | null;
+    /**
+     * Fuso IANA do estágio, para exibição.
+     */
+    timeZone?: string | null;
+};
+
+export type ChangeWindowDay = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun';
+
+/**
+ * Faixa semanal; com end menor que start, cruza a meia-noite e pertence ao dia de início. start e end diferentes.
+ */
+export type ChangeWindowRange = {
+    days: Array<ChangeWindowDay>;
+    start: string;
+    end: string;
+};
+
+export type ChangeWindowRequest = {
+    /**
+     * Identificador IANA, por exemplo America/Sao_Paulo.
+     */
+    timeZone: string;
+    ranges: Array<ChangeWindowRange>;
+};
+
+/**
+ * Janela de um estágio; sem janela, ranges vazio, version nulo e status.state none.
+ */
+export type ChangeWindowItem = {
+    stage: Stage;
+    timeZone: string | null;
+    ranges: Array<ChangeWindowRange>;
+    updatedBy: string | null;
+    updatedAt: string | null;
+    version: number | null;
+    /**
+     * Verdadeiro com environment:manage em todos os hosts legíveis do estágio.
+     */
+    editable: boolean;
+    status: ChangeWindowStatus;
+};
+
+export type ChangeWindowList = {
+    stages: Array<ChangeWindowItem>;
+};
+
+/**
+ * Spec 026. ProblemDetails de 409 change_window_closed, com a próxima abertura.
+ */
+export type ChangeWindowClosedProblem = ProblemDetails & {
+    nextWindowStartsAt?: string | null;
+    timeZone?: string;
+};
+
+/**
+ * Spec 026. ProblemDetails de 400 change_window_invalid, com o campo recusado.
+ */
+export type ChangeWindowInvalidProblem = ProblemDetails & {
+    errors: Array<{
+        /**
+         * timeZone, ranges, ranges[i].days, ranges[i].start ou ranges[i].end.
+         */
+        field: string;
+        code: string;
+    }>;
+};
 
 export type ProblemDetails = {
     type: string;
@@ -1400,7 +1519,7 @@ export type SubmitContainerCommandErrors = {
      */
     401: ProblemDetails;
     /**
-     * Decisão do Keycloak negou o cadastro.
+     * A decisão do Keycloak negou a ação. Spec 026: fora da janela de mudança, com changeWindowOverride, a negação de change:override no host responde change_override_denied.
      */
     403: ProblemDetails;
     /**
@@ -1408,9 +1527,9 @@ export type SubmitContainerCommandErrors = {
      */
     404: ProblemDetails;
     /**
-     * O ambiente já existe.
+     * Conflito do comando (command_id_conflict, ambiente ou agente indisponível). Spec 026: fora da janela de mudança e sem exceção, change_window_closed com nextWindowStartsAt e timeZone; o comando não chega à fila.
      */
-    409: ProblemDetails;
+    409: ChangeWindowClosedProblem;
     /**
      * Justificativa obrigatória pela política do estágio (justification_required).
      */
@@ -1513,7 +1632,7 @@ export type CreateContainerErrors = {
      */
     401: ProblemDetails;
     /**
-     * Decisão do Keycloak negou o cadastro.
+     * A decisão do Keycloak negou a ação. Spec 026: fora da janela de mudança, com changeWindowOverride, a negação de change:override no host responde change_override_denied.
      */
     403: ProblemDetails;
     /**
@@ -1521,9 +1640,9 @@ export type CreateContainerErrors = {
      */
     404: ProblemDetails;
     /**
-     * O ambiente já existe.
+     * Conflito do comando (command_id_conflict, ambiente ou agente indisponível). Spec 026: fora da janela de mudança e sem exceção, change_window_closed com nextWindowStartsAt e timeZone; o comando não chega à fila.
      */
-    409: ProblemDetails;
+    409: ChangeWindowClosedProblem;
     /**
      * Requisição inválida.
      */
@@ -2187,7 +2306,7 @@ export type PullImageErrors = {
      */
     401: ProblemDetails;
     /**
-     * Decisão do Keycloak negou o cadastro.
+     * A decisão do Keycloak negou a ação. Spec 026: fora da janela de mudança, com changeWindowOverride, a negação de change:override no host responde change_override_denied.
      */
     403: ProblemDetails;
     /**
@@ -2195,9 +2314,9 @@ export type PullImageErrors = {
      */
     404: ProblemDetails;
     /**
-     * O ambiente já existe.
+     * Conflito do comando (command_id_conflict, ambiente ou agente indisponível). Spec 026: fora da janela de mudança e sem exceção, change_window_closed com nextWindowStartsAt e timeZone; o comando não chega à fila.
      */
-    409: ProblemDetails;
+    409: ChangeWindowClosedProblem;
     /**
      * Requisição inválida.
      */
@@ -3857,7 +3976,7 @@ export type RemoveVolumeErrors = {
      */
     401: ProblemDetails;
     /**
-     * Decisão do Keycloak negou o cadastro.
+     * A decisão do Keycloak negou a ação. Spec 026: fora da janela de mudança, com changeWindowOverride, a negação de change:override no host responde change_override_denied.
      */
     403: ProblemDetails;
     /**
@@ -3865,9 +3984,9 @@ export type RemoveVolumeErrors = {
      */
     404: ProblemDetails;
     /**
-     * O ambiente já existe.
+     * Conflito do comando (command_id_conflict, ambiente ou agente indisponível). Spec 026: fora da janela de mudança e sem exceção, change_window_closed com nextWindowStartsAt e timeZone; o comando não chega à fila.
      */
-    409: ProblemDetails;
+    409: ChangeWindowClosedProblem;
     /**
      * Justificativa obrigatória pela política do estágio.
      */
@@ -4015,7 +4134,7 @@ export type RemoveNetworkErrors = {
      */
     401: ProblemDetails;
     /**
-     * Decisão do Keycloak negou o cadastro.
+     * A decisão do Keycloak negou a ação. Spec 026: fora da janela de mudança, com changeWindowOverride, a negação de change:override no host responde change_override_denied.
      */
     403: ProblemDetails;
     /**
@@ -4023,9 +4142,9 @@ export type RemoveNetworkErrors = {
      */
     404: ProblemDetails;
     /**
-     * O ambiente já existe.
+     * Conflito do comando (command_id_conflict, ambiente ou agente indisponível). Spec 026: fora da janela de mudança e sem exceção, change_window_closed com nextWindowStartsAt e timeZone; o comando não chega à fila.
      */
-    409: ProblemDetails;
+    409: ChangeWindowClosedProblem;
     /**
      * Justificativa obrigatória pela política do estágio.
      */
@@ -4372,7 +4491,7 @@ export type SubmitPodActionErrors = {
      */
     401: ProblemDetails;
     /**
-     * Decisão do Keycloak negou o cadastro.
+     * A decisão do Keycloak negou a ação. Spec 026: fora da janela de mudança, com changeWindowOverride, a negação de change:override no host responde change_override_denied.
      */
     403: ProblemDetails;
     /**
@@ -4380,9 +4499,9 @@ export type SubmitPodActionErrors = {
      */
     404: ProblemDetails;
     /**
-     * O ambiente já existe.
+     * Conflito do comando (command_id_conflict, ambiente ou agente indisponível). Spec 026: fora da janela de mudança e sem exceção, change_window_closed com nextWindowStartsAt e timeZone; o comando não chega à fila.
      */
-    409: ProblemDetails;
+    409: ChangeWindowClosedProblem;
     /**
      * Justificativa obrigatória pela política do estágio.
      */
@@ -4403,6 +4522,170 @@ export type SubmitPodActionResponses = {
 };
 
 export type SubmitPodActionResponse = SubmitPodActionResponses[keyof SubmitPodActionResponses];
+
+export type ListChangeWindowsData = {
+    body?: never;
+    headers?: {
+        /**
+         * Identificador técnico opcional para correlação server-side.
+         */
+        'X-Correlation-Id'?: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/change-windows';
+};
+
+export type ListChangeWindowsErrors = {
+    /**
+     * Autenticação ausente ou inválida.
+     */
+    401: ProblemDetails;
+    /**
+     * Decisão do Keycloak negou o cadastro.
+     */
+    403: ProblemDetails;
+    /**
+     * Autorização ou persistência indisponível.
+     */
+    503: ProblemDetails;
+};
+
+export type ListChangeWindowsError = ListChangeWindowsErrors[keyof ListChangeWindowsErrors];
+
+export type ListChangeWindowsResponses = {
+    /**
+     * Os três estágios; os sem janela vêm com ranges vazio e status.state none.
+     */
+    200: ChangeWindowList;
+};
+
+export type ListChangeWindowsResponse = ListChangeWindowsResponses[keyof ListChangeWindowsResponses];
+
+export type DeleteChangeWindowData = {
+    body?: never;
+    headers: {
+        'If-Match': string;
+        /**
+         * Identificador técnico opcional para correlação server-side.
+         */
+        'X-Correlation-Id'?: string;
+    };
+    path: {
+        /**
+         * production, staging ou development; outro valor responde 404.
+         */
+        stage: string;
+    };
+    query?: never;
+    url: '/api/v1/change-windows/{stage}';
+};
+
+export type DeleteChangeWindowErrors = {
+    /**
+     * Autenticação ausente ou inválida.
+     */
+    401: ProblemDetails;
+    /**
+     * Decisão do Keycloak negou o cadastro.
+     */
+    403: ProblemDetails;
+    /**
+     * O ambiente não foi encontrado após autorização.
+     */
+    404: ProblemDetails;
+    /**
+     * A versão em If-Match não é a atual (precondition_failed).
+     */
+    412: ProblemDetails;
+    /**
+     * Falta If-Match (precondition_required).
+     */
+    428: ProblemDetails;
+    /**
+     * Autorização ou persistência indisponível.
+     */
+    503: ProblemDetails;
+};
+
+export type DeleteChangeWindowError = DeleteChangeWindowErrors[keyof DeleteChangeWindowErrors];
+
+export type DeleteChangeWindowResponses = {
+    /**
+     * Janela removida.
+     */
+    204: void;
+};
+
+export type DeleteChangeWindowResponse = DeleteChangeWindowResponses[keyof DeleteChangeWindowResponses];
+
+export type PutChangeWindowData = {
+    body: ChangeWindowRequest;
+    headers?: {
+        /**
+         * Versão atual (ETag) para editar.
+         */
+        'If-Match'?: string;
+        /**
+         * Cria só se o estágio ainda não tem janela.
+         */
+        'If-None-Match'?: '*';
+        /**
+         * Identificador técnico opcional para correlação server-side.
+         */
+        'X-Correlation-Id'?: string;
+    };
+    path: {
+        /**
+         * production, staging ou development; outro valor responde 404.
+         */
+        stage: string;
+    };
+    query?: never;
+    url: '/api/v1/change-windows/{stage}';
+};
+
+export type PutChangeWindowErrors = {
+    /**
+     * Janela inválida (change_window_invalid), com o campo em errors.
+     */
+    400: ChangeWindowInvalidProblem;
+    /**
+     * Autenticação ausente ou inválida.
+     */
+    401: ProblemDetails;
+    /**
+     * Autorização negada pelo Keycloak (authorization_denied) ou recusa por licença (license_expired, license_capacity_exceeded, license_revoked, license_state_indeterminate); nunca encerra a sessão.
+     */
+    403: ProblemDetails;
+    /**
+     * O ambiente não foi encontrado após autorização.
+     */
+    404: ProblemDetails;
+    /**
+     * A versão em If-Match não é a atual, ou a janela já existe com If-None-Match (precondition_failed).
+     */
+    412: ProblemDetails;
+    /**
+     * Falta If-Match ou If-None-Match (precondition_required).
+     */
+    428: ProblemDetails;
+    /**
+     * Autorização ou persistência indisponível.
+     */
+    503: ProblemDetails;
+};
+
+export type PutChangeWindowError = PutChangeWindowErrors[keyof PutChangeWindowErrors];
+
+export type PutChangeWindowResponses = {
+    /**
+     * Janela gravada.
+     */
+    200: ChangeWindowItem;
+};
+
+export type PutChangeWindowResponse = PutChangeWindowResponses[keyof PutChangeWindowResponses];
 
 export type GetLicensingStatusData = {
     body?: never;
