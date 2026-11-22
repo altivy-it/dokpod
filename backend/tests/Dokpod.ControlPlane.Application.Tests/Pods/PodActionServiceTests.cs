@@ -6,6 +6,7 @@ using Dokpod.ControlPlane.Application.Tests.Alerts;
 using Dokpod.Domain.Commands;
 using Dokpod.Domain.Environments;
 using Dokpod.Domain.Pods;
+using Dokpod.ControlPlane.Application.Tests.ChangeWindows;
 using Xunit;
 
 namespace Dokpod.ControlPlane.Application.Tests.Pods;
@@ -90,6 +91,7 @@ public sealed class PodActionServiceTests
             new Registrations(stage),
             new Sessions(new AgentSession(EnvironmentId, Guid.NewGuid(), 17)),
             new AgentCommandQueueService(store, new Delivery(), TimeProvider.System),
+            ChangeWindowTestGuard.Unrestricted(),
             new FakeHostStore(capabilities ?? ["PodInventory", "PodActions"], EnvironmentId, "podman"),
             new Pods(),
             new JustifiedCommandTests.Justifications(),

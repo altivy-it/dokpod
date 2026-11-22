@@ -21,18 +21,25 @@ public enum ContainerCommandSubmissionOutcome
     AgentOffline,
     JustificationRequired,
     JustificationInvalid,
+    /// <summary>Recusa da janela de mudança (spec 026); o código está em <c>FailureCode</c>.</summary>
+    ChangeWindowDenied,
 }
 
 public sealed record ContainerCommandSubmissionResult(
     ContainerCommandSubmissionOutcome Outcome,
     Guid CommandId,
-    string? FailureCode);
+    string? FailureCode)
+{
+    /// <summary>A recusa da janela, com a próxima abertura (spec 026).</summary>
+    public ChangeWindows.ChangeWindowDecision? ChangeWindow { get; init; }
+}
 
 public sealed class ContainerCommandService(
     IEnvironmentAuthorizationDecider authorizationDecider,
     IEnvironmentRegistrationStore registrationStore,
     IAgentSessionStore sessionStore,
     AgentCommandQueueService queueService,
+    ChangeWindows.ChangeWindowGuard changeWindows,
     Alerts.IActionJustificationStore? justifications = null,
     Inventory.IContainerSearchStore? containers = null,
     TimeProvider? timeProvider = null)
@@ -98,6 +105,18 @@ public sealed class ContainerCommandService(
                 environmentAccess.Reason);
         }
 
+        // Spec 026: a janela de mudança vem depois da autorização e do ambiente, antes da justificativa da 016.
+        var changeWindow = await changeWindows.EvaluateCommandAsync(
+            registration, kind, commandId, AuditActionFor(kind), containerId, actor, accessToken, correlationId, null, cancellationToken)
+            .ConfigureAwait(false);
+        if (changeWindow.Clearance is not { } clearance)
+        {
+            return new ContainerCommandSubmissionResult(ContainerCommandSubmissionOutcome.ChangeWindowDenied, commandId, changeWindow.FailureCode)
+            {
+                ChangeWindow = changeWindow,
+            };
+        }
+
         // Spec 016: parar, pausar e remover exigem justificativa onde a política do estágio manda (FR-015/FR-017).
         var justifiedAction = JustifiedActionFor(kind);
         string? maskedJustification = null;
@@ -140,7 +159,7 @@ public sealed class ContainerCommandService(
             containerId,
             expectedContainerRevision,
             ComputePayloadHash(kind, containerId, expectedContainerRevision),
-            deadlineUtc,
+            clearance.LimitDeadline(deadlineUtc),
             (long)session.FencingToken);
         var auditEvent = AuditEvent.Create(
             Guid.NewGuid(),
@@ -157,7 +176,7 @@ public sealed class ContainerCommandService(
             containerId,
             maskedJustification is null ? null : new Dictionary<string, string> { ["justification"] = maskedJustification });
 
-        var enqueueResult = await queueService.EnqueueAsync(command, auditEvent, cancellationToken)
+        var enqueueResult = await queueService.EnqueueAsync(command, auditEvent, clearance, cancellationToken)
             .ConfigureAwait(false);
         if (maskedJustification is not null && justifiedAction is { } action && enqueueResult != AgentCommandEnqueueResult.ConflictingPayload)
         {

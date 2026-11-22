@@ -1,5 +1,6 @@
 #if DOKPOD_BUSINESS
 using Dokpod.ControlPlane.Api.AuditExport;
+using Dokpod.ControlPlane.Api.ChangeWindows;
 using Dokpod.ControlPlane.Api.ImageUpdates;
 using Dokpod.ControlPlane.Api.Licensing;
 #endif
@@ -55,6 +56,7 @@ public static class ProductEdition
         services.AddDokpodBusinessLicensing();
         services.AddDokpodAuditExport();
         services.AddDokpodImageUpdates();
+        services.AddDokpodChangeWindows();
 #endif
     }
 

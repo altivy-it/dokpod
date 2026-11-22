@@ -54,9 +54,15 @@ public enum ImagePullOutcome
     EnvironmentUnavailable,
     AgentOffline,
     NotSupported,
+    /// <summary>Recusa da janela de mudança (spec 026); o código está em <c>FailureCode</c>.</summary>
+    ChangeWindowDenied,
 }
 
-public sealed record ImagePullResult(ImagePullOutcome Outcome, Guid CommandId, string? FailureCode, string? Reference = null);
+public sealed record ImagePullResult(ImagePullOutcome Outcome, Guid CommandId, string? FailureCode, string? Reference = null)
+{
+    /// <summary>A recusa da janela, com a próxima abertura (spec 026).</summary>
+    public ChangeWindows.ChangeWindowDecision? ChangeWindow { get; init; }
+}
 
 /// <summary>Pull por host (spec 012 T009): autoriza `image:pull`, aplica a política de registros e reutiliza a fila de comandos.</summary>
 public sealed class ImagePullService(
@@ -64,6 +70,7 @@ public sealed class ImagePullService(
     IEnvironmentRegistrationStore registrationStore,
     IAgentSessionStore sessionStore,
     AgentCommandQueueService queueService,
+    ChangeWindows.ChangeWindowGuard changeWindows,
     Dokpod.ControlPlane.Application.Hosts.IAgentHostStore hostStore,
     ImagePullPolicy policy)
 {
@@ -131,6 +138,15 @@ public sealed class ImagePullService(
             return new ImagePullResult(ImagePullOutcome.EnvironmentUnavailable, commandId, access.Reason);
         }
 
+        // Spec 026: a janela de mudança vem logo depois da autorização e do ambiente, antes da justificativa da 016.
+        var changeWindow = await changeWindows.EvaluateCommandAsync(
+            registration, AgentCommandKind.PullImage, commandId, "image.pull", parsed.Canonical, actor, accessToken, correlationId, null, cancellationToken)
+            .ConfigureAwait(false);
+        if (changeWindow.Clearance is not { } clearance)
+        {
+            return new ImagePullResult(ImagePullOutcome.ChangeWindowDenied, commandId, changeWindow.FailureCode) { ChangeWindow = changeWindow };
+        }
+
         if (!policy.Allows(registration.Stage, parsed))
         {
             return new ImagePullResult(ImagePullOutcome.RegistryNotAllowed, commandId, "registry_not_allowed", parsed.Canonical);
@@ -156,7 +172,7 @@ public sealed class ImagePullService(
             string.Empty,
             string.Empty,
             AgentCommandKinds.PayloadHash(AgentCommandKind.PullImage, string.Empty, string.Empty, parameters),
-            deadlineUtc,
+            clearance.LimitDeadline(deadlineUtc),
             (long)session.FencingToken)
         {
             Parameters = parameters,
@@ -171,7 +187,7 @@ public sealed class ImagePullService(
             environmentId,
             AuditOutcome.Succeeded,
             commandId: commandId);
-        var result = await queueService.EnqueueAsync(command, auditEvent, cancellationToken).ConfigureAwait(false);
+        var result = await queueService.EnqueueAsync(command, auditEvent, clearance, cancellationToken).ConfigureAwait(false);
         return new ImagePullResult(
             result switch
             {

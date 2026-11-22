@@ -18,6 +18,8 @@ public static class AuditCategories
         [
             "alert.rule_created", "alert.rule_updated", "alert.rule_deleted", "alert.acknowledged", "alert.resolved", "alert.silenced",
             "alert.silence_created", "alert.silence_ended", "container.justification_policy_changed", "registry.policy_changed",
+            // Spec 026: janelas de mudança e exceção de emergência.
+            "change_window.updated", "change_window.removed", "change_window.denied", "change_window.override",
         ],
         ["audit"] = ["audit.exported"],
         // Spec 027: destinos de exportação para SIEM; obrigatória em todo destino (threat model L7).

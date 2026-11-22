@@ -1,5 +1,5 @@
 {
-  "sha256": "84ac97166b88c112ba6bd38446513c754d033b9b1af3b4fd3faaab5a13463080",
+  "sha256": "32371132d383eaf70c3845501fd1a22bb741f71ae947cec53cfe3ffcd34442d9",
   "objects": [
     {
       "kind": "column",
@@ -745,6 +745,36 @@
       "kind": "column",
       "name": "audit_export_destinations.version",
       "definitionSha256": "95494c5fc55e3e0ed1ada847910148b3b18787f596ff2e88b3f60d95ac72c19c"
+    },
+    {
+      "kind": "column",
+      "name": "change_windows.ranges",
+      "definitionSha256": "ed79c2719a35e5a705bad0a7a914c105531a0b0b0b9c3449d9a9853e0e1a0587"
+    },
+    {
+      "kind": "column",
+      "name": "change_windows.stage",
+      "definitionSha256": "10900deec3c16c954c7e1be26a3c3d78d770003d82f23717d3f2cadfc3fb9222"
+    },
+    {
+      "kind": "column",
+      "name": "change_windows.time_zone",
+      "definitionSha256": "10900deec3c16c954c7e1be26a3c3d78d770003d82f23717d3f2cadfc3fb9222"
+    },
+    {
+      "kind": "column",
+      "name": "change_windows.updated_at_utc",
+      "definitionSha256": "fc8baddb2954376ab7b4d482f52e6263296ac98917cb16270605005518b3e716"
+    },
+    {
+      "kind": "column",
+      "name": "change_windows.updated_by",
+      "definitionSha256": "10900deec3c16c954c7e1be26a3c3d78d770003d82f23717d3f2cadfc3fb9222"
+    },
+    {
+      "kind": "column",
+      "name": "change_windows.version",
+      "definitionSha256": "aa97aea3761297c85be5327c3e17a16c76759df84af1a4804ec5cd03882fc4c2"
     },
     {
       "kind": "column",
@@ -2058,6 +2088,31 @@
     },
     {
       "kind": "constraint",
+      "name": "change_windows.ck_change_windows_ranges",
+      "definitionSha256": "110cf71ecc4f6bed533fe6654bcf1bff72951f839e2965e034f78c015975abd1"
+    },
+    {
+      "kind": "constraint",
+      "name": "change_windows.ck_change_windows_stage",
+      "definitionSha256": "ccc300dff6aa92820b07bdc75c35503a44ce381b6cd68fe753e63c1829fd3f38"
+    },
+    {
+      "kind": "constraint",
+      "name": "change_windows.ck_change_windows_time_zone",
+      "definitionSha256": "e273f002ce13404126dbe943d6878d7457b3341bddf4932808c6ab8fb08577b5"
+    },
+    {
+      "kind": "constraint",
+      "name": "change_windows.ck_change_windows_version",
+      "definitionSha256": "073a21bed5ad8ae63878966709e2d068493b653b768916e27bd7f642a9bd6558"
+    },
+    {
+      "kind": "constraint",
+      "name": "change_windows.pk_change_windows",
+      "definitionSha256": "d55d74c198341573d8485fcc1d6640f1149aa0865b1de4f738a8fecefd3c122a"
+    },
+    {
+      "kind": "constraint",
       "name": "container_action_justifications.ck_container_action_justifications_action",
       "definitionSha256": "7698c5af2518a64c3f8d3392936eae8c4fcbbe1442f55899bf76c7a5a5abf2a0"
     },
@@ -2778,6 +2833,11 @@
     },
     {
       "kind": "index",
+      "name": "change_windows.pk_change_windows",
+      "definitionSha256": "d2b2411281a1c0199d5d6308619e9e3e5251fed1bdad5b270602f13d0f1c91a2"
+    },
+    {
+      "kind": "index",
       "name": "container_action_justifications.ix_container_action_justifications_container",
       "definitionSha256": "11fc848cd3c561570ab765cb34c35ac9b9bef071cd6baa7b2ba91f260c993edf"
     },
@@ -3099,6 +3159,11 @@
     {
       "kind": "table",
       "name": "audit_export_destinations",
+      "definitionSha256": "454349e422f05297191ead13e21d3db520e5abef52055e4964b82fb213f593a1"
+    },
+    {
+      "kind": "table",
+      "name": "change_windows",
       "definitionSha256": "454349e422f05297191ead13e21d3db520e5abef52055e4964b82fb213f593a1"
     },
     {

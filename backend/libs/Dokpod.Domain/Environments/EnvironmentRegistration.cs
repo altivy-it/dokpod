@@ -22,6 +22,9 @@ public static class EnvironmentResourceScopes
     public const string DeleteVolume = "volume:delete";
     public const string DeleteNetwork = "network:delete";
 
+    /// <summary>Spec 026: exceção de emergência fora da janela de mudança; nenhum papel o recebe por padrão.</summary>
+    public const string ChangeOverride = "change:override";
+
     public static IReadOnlySet<string> Supported { get; } = new HashSet<string>(
     [
         Read,
@@ -41,6 +44,7 @@ public static class EnvironmentResourceScopes
         ManageAlerts,
         DeleteVolume,
         DeleteNetwork,
+        ChangeOverride,
     ], StringComparer.Ordinal).ToFrozenSet(StringComparer.Ordinal);
 }
 

@@ -14,7 +14,8 @@ namespace Dokpod.ControlPlane.Api.Tests.Admin;
 [Collection(AgentCommandsPostgresCollection.Name)]
 public sealed class AdminMigrationsTests
 {
-    private const string LastMigration = "202611080001_GrantRuntimeEnvironments";
+    private const string LastMigration = "202611220001_ChangeWindows";
+    private const string GrantRuntime = "202611080001_GrantRuntimeEnvironments";
     private const string ImageUpdate = "202611010002_ImageUpdateCheck";
     private const string Before = "202611010001_AuditExport";
     private const string LastUpFile = "Migrations/Script/202611010002_ImageUpdateCheck/Up/01-ImageUpdateCheck.sql";
@@ -93,21 +94,21 @@ public sealed class AdminMigrationsTests
         await database.MigrateToAsync(Before);
 
         var status = await database.RunAsync("migrations", "status");
-        Assert.Equal([ImageUpdate, LastMigration], status.Strings("pending"));
+        Assert.Equal([ImageUpdate, GrantRuntime, LastMigration], status.Strings("pending"));
         Assert.Equal(Before, status.Output.GetProperty("databaseVersion").GetString());
         var plan = await database.RunAsync("migrations", "plan");
-        Assert.Equal(2, plan.Output.GetProperty("migrations").GetArrayLength());
+        Assert.Equal(3, plan.Output.GetProperty("migrations").GetArrayLength());
         var migration = plan.Output.GetProperty("migrations")[0];
         Assert.False(migration.GetProperty("overridden").GetBoolean());
         Assert.Contains("table dokpod.image_update_checks", migration.GetProperty("objects").GetProperty("created").EnumerateArray().Select(item => item.GetString()));
 
         var wrong = await database.RunAsync("migrations", "apply", "--confirm", new string('0', 64));
         Assert.Equal(AdminExitCodes.MigrationDivergence, wrong.ExitCode);
-        Assert.Equal([ImageUpdate, LastMigration], (await database.RunAsync("migrations", "status")).Strings("pending"));
+        Assert.Equal([ImageUpdate, GrantRuntime, LastMigration], (await database.RunAsync("migrations", "status")).Strings("pending"));
 
         var applied = await database.RunAsync("migrations", "apply", "--confirm", plan.Output.GetProperty("planHash").GetString()!);
         Assert.Equal(AdminExitCodes.Success, applied.ExitCode);
-        Assert.Equal([ImageUpdate, LastMigration], applied.Strings("applied"));
+        Assert.Equal([ImageUpdate, GrantRuntime, LastMigration], applied.Strings("applied"));
         Assert.Equal(AdminExitCodes.Success, (await database.RunAsync("migrations", "verify")).ExitCode);
     }
 

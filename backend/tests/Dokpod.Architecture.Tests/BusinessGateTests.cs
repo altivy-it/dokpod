@@ -61,12 +61,18 @@ public sealed partial class BusinessGateTests
         Assert.Matches(LicensingModuleReference(), "Dokpod.ControlPlane.Api.ImageUpdates.ImageUpdateModule");
         Assert.Matches(LicensingModuleReference(), "using Dokpod.ControlPlane.Application.ImageUpdates;");
         Assert.DoesNotMatch(LicensingModuleReference(), "using Dokpod.ControlPlane.Application.Images;");
+        // Spec 026 T014: o store e o módulo das janelas são Business; o guard e o calendário ficam na CE.
+        Assert.Matches(LicensingModuleReference(), "using Dokpod.ControlPlane.Infrastructure.ChangeWindows;");
+        Assert.Matches(LicensingModuleReference(), "Dokpod.ControlPlane.Api.ChangeWindows.ChangeWindowModule");
+        Assert.DoesNotMatch(LicensingModuleReference(), "using Dokpod.ControlPlane.Application.ChangeWindows;");
     }
 
     private static bool IsLicensingSource(string file) =>
         file.Contains($"{Path.DirectorySeparatorChar}Licensing{Path.DirectorySeparatorChar}", StringComparison.Ordinal)
         || file.Contains($"{Path.DirectorySeparatorChar}AuditExport{Path.DirectorySeparatorChar}", StringComparison.Ordinal)
-        || file.Contains($"{Path.DirectorySeparatorChar}ImageUpdates{Path.DirectorySeparatorChar}", StringComparison.Ordinal);
+        || file.Contains($"{Path.DirectorySeparatorChar}ImageUpdates{Path.DirectorySeparatorChar}", StringComparison.Ordinal)
+        // Spec 026: o store e o módulo das janelas são Business; o guard (Application.ChangeWindows) é da CE.
+        || file.Contains($"{Path.DirectorySeparatorChar}ChangeWindows{Path.DirectorySeparatorChar}", StringComparison.Ordinal);
 
     private static IEnumerable<string> ProductSources() =>
         ProductProjects
@@ -78,6 +84,6 @@ public sealed partial class BusinessGateTests
     [GeneratedRegex(@"\[BusinessCapability(Attribute)?\(")]
     private static partial Regex BusinessCapabilityMarker();
 
-    [GeneratedRegex(@"Dokpod\.ControlPlane\.(Infrastructure|Api)\.(Licensing|AuditExport|ImageUpdates)\b|Dokpod\.ControlPlane\.Application\.(AuditExport|ImageUpdates)\b|\busing\s+Dokpod\.Licensing\s*;|\bDokpod\.Licensing\.[A-Z]")]
+    [GeneratedRegex(@"Dokpod\.ControlPlane\.(Infrastructure|Api)\.(Licensing|AuditExport|ImageUpdates|ChangeWindows)\b|Dokpod\.ControlPlane\.Application\.(AuditExport|ImageUpdates)\b|\busing\s+Dokpod\.Licensing\s*;|\bDokpod\.Licensing\.[A-Z]")]
     private static partial Regex LicensingModuleReference();
 }

@@ -8,6 +8,7 @@ using Dokpod.ControlPlane.Application.Queries;
 using Dokpod.Domain.Commands;
 using Dokpod.Domain.Containers;
 using Dokpod.Domain.Environments;
+using Dokpod.ControlPlane.Application.Tests.ChangeWindows;
 using Xunit;
 
 namespace Dokpod.ControlPlane.Application.Tests.Containers;
@@ -40,6 +41,7 @@ public sealed class ContainerCreationServiceTests
                     new Registrations(stage),
                     new Sessions(connected ? new AgentSession(EnvironmentId, Guid.NewGuid(), 9) : null),
                     new AgentCommandQueueService(Store, new Delivery(), TimeProvider.System),
+                    ChangeWindowTestGuard.Unrestricted(),
                     new FakeHostStore(capabilities ?? ["Inventory", "ContainerCreate"], EnvironmentId, engine),
                     policy ?? new ImagePullPolicy(),
                     new AgentQueryDispatcher(TimeProvider.System),

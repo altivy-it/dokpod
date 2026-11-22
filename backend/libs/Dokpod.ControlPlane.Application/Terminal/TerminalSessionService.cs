@@ -30,7 +30,8 @@ public sealed class TerminalSessionService(
     TerminalSessionRegistry registry,
     IAuditEventWriter auditWriter,
     TerminalOptions options,
-    TimeProvider timeProvider)
+    TimeProvider timeProvider,
+    ChangeWindows.ChangeWindowGuard changeWindows)
 {
     public const int MinJustification = 10;
     public const int MaxJustification = 500;
@@ -130,6 +131,14 @@ public sealed class TerminalSessionService(
 
         var (reason, registration) = await CheckAsync(request.EnvironmentId, container, actor, accessToken, user, correlationId, cancellationToken).ConfigureAwait(false);
         if (reason is null && request.Cols is < 10 or > 1000 || request.Rows is < 2 or > 500) reason ??= "invalid_request";
+        // Spec 026: a janela de mudança, depois da autorização e do ambiente e antes da justificativa (D-001).
+        if (reason is null && registration is not null)
+        {
+            var changeWindow = await changeWindows.EvaluateTerminalAsync(registration, container, actor, accessToken, correlationId, null, cancellationToken)
+                .ConfigureAwait(false);
+            if (!changeWindow.Allowed) reason = changeWindow.FailureCode;
+        }
+
         var justification = request.Justification?.Trim();
         if (reason is null && RequiresJustification(registration) && justification is not { Length: >= MinJustification and <= MaxJustification })
         {

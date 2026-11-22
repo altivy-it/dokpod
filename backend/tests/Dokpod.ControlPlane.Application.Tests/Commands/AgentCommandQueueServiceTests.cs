@@ -1,6 +1,7 @@
 using Dokpod.ControlPlane.Application.Commands;
 using Dokpod.Domain.Auditing;
 using Dokpod.Domain.Commands;
+using Dokpod.ControlPlane.Application.Tests.ChangeWindows;
 using Xunit;
 
 namespace Dokpod.ControlPlane.Application.Tests.Commands;
@@ -20,7 +21,7 @@ public sealed class AgentCommandQueueServiceTests
 
         var auditEvent = CreateAuditEvent(command);
 
-        var result = await service.EnqueueAsync(command, auditEvent, TestContext.Current.CancellationToken);
+        var result = await service.EnqueueAsync(command, auditEvent, ChangeWindowTestGuard.ClearanceFor(command), TestContext.Current.CancellationToken);
 
         Assert.Equal(AgentCommandEnqueueResult.Created, result);
         Assert.NotNull(store.Command);
@@ -46,6 +47,7 @@ public sealed class AgentCommandQueueServiceTests
         var result = await service.EnqueueAsync(
             command,
             CreateAuditEvent(command),
+            ChangeWindowTestGuard.ClearanceFor(command),
             TestContext.Current.CancellationToken);
 
         Assert.Equal(storeResult, result);
@@ -63,6 +65,7 @@ public sealed class AgentCommandQueueServiceTests
             () => service.EnqueueAsync(
                 command,
                 CreateAuditEvent(command),
+                ChangeWindowTestGuard.ClearanceFor(command),
                 TestContext.Current.CancellationToken));
 
         Assert.Equal("command", exception.ParamName);
@@ -80,6 +83,7 @@ public sealed class AgentCommandQueueServiceTests
             () => service.EnqueueAsync(
                 command,
                 CreateAuditEvent(command),
+                ChangeWindowTestGuard.ClearanceFor(command),
                 TestContext.Current.CancellationToken));
 
         Assert.Equal("command", exception.ParamName);

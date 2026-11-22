@@ -30,9 +30,15 @@ public enum NetworkRemovalOutcome
     EnvironmentUnavailable,
     AgentOffline,
     NotSupported,
+    /// <summary>Recusa da janela de mudança (spec 026); o código está em <c>FailureCode</c>.</summary>
+    ChangeWindowDenied,
 }
 
-public sealed record NetworkRemovalResult(NetworkRemovalOutcome Outcome, Guid CommandId, string? FailureCode);
+public sealed record NetworkRemovalResult(NetworkRemovalOutcome Outcome, Guid CommandId, string? FailureCode)
+{
+    /// <summary>A recusa da janela, com a próxima abertura (spec 026).</summary>
+    public ChangeWindows.ChangeWindowDecision? ChangeWindow { get; init; }
+}
 
 /// <summary>
 /// Remoção de rede sem uso (spec 019 D-004): `network:delete`, rede conhecida, local, fora do sistema e sem conexões na
@@ -44,6 +50,7 @@ public sealed class NetworkRemovalService(
     IEnvironmentRegistrationStore registrationStore,
     IAgentSessionStore sessionStore,
     AgentCommandQueueService queueService,
+    ChangeWindows.ChangeWindowGuard changeWindows,
     Dokpod.ControlPlane.Application.Hosts.IAgentHostStore hostStore,
     INetworkInventoryStore networks,
     IActionJustificationStore justifications,
@@ -97,6 +104,15 @@ public sealed class NetworkRemovalService(
         var access = EnvironmentAccessDecision.Evaluate(registration, EnvironmentResourceScopes.DeleteNetwork);
         if (!access.Allowed) return new NetworkRemovalResult(NetworkRemovalOutcome.EnvironmentUnavailable, commandId, access.Reason);
 
+        // Spec 026: a janela de mudança vem logo depois da autorização e do ambiente, antes da justificativa da 016.
+        var changeWindow = await changeWindows.EvaluateCommandAsync(
+            registration, AgentCommandKind.RemoveNetwork, commandId, "network.remove", networkId, actor, accessToken, correlationId, null, cancellationToken)
+            .ConfigureAwait(false);
+        if (changeWindow.Clearance is not { } clearance)
+        {
+            return new NetworkRemovalResult(NetworkRemovalOutcome.ChangeWindowDenied, commandId, changeWindow.FailureCode) { ChangeWindow = changeWindow };
+        }
+
         // A projeção evita enfileirar o que já se sabe recusado; a decisão final é do agente (D-004).
         var known = await networks.GetAsync(environmentId, networkId, cancellationToken).ConfigureAwait(false);
         if (known is null) return new NetworkRemovalResult(NetworkRemovalOutcome.NotFound, commandId, NetworkRemovalCodes.NotFound);
@@ -140,7 +156,7 @@ public sealed class NetworkRemovalService(
             string.Empty,
             string.Empty,
             AgentCommandKinds.PayloadHash(AgentCommandKind.RemoveNetwork, string.Empty, string.Empty, parameters),
-            deadlineUtc,
+            clearance.LimitDeadline(deadlineUtc),
             (long)session.FencingToken)
         {
             Parameters = parameters,
@@ -151,7 +167,7 @@ public sealed class NetworkRemovalService(
                 Guid.NewGuid(), timeProvider.GetUtcNow(), correlationId, AuditActorKind.User, actor.Subject, "network.remove", environmentId, AuditOutcome.Succeeded, commandId: commandId)
             .WithActorName(actor.DisplayName)
             .WithSubject(network.Name, details);
-        var result = await queueService.EnqueueAsync(command, auditEvent, cancellationToken).ConfigureAwait(false);
+        var result = await queueService.EnqueueAsync(command, auditEvent, clearance, cancellationToken).ConfigureAwait(false);
         return new NetworkRemovalResult(
             result switch
             {

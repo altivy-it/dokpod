@@ -7,6 +7,7 @@ using Dokpod.ControlPlane.Application.Images;
 using Dokpod.Domain.Auditing;
 using Dokpod.Domain.Commands;
 using Dokpod.Domain.Environments;
+using Dokpod.ControlPlane.Application.Tests.ChangeWindows;
 using Xunit;
 
 namespace Dokpod.ControlPlane.Application.Tests.Images;
@@ -127,6 +128,7 @@ public sealed class ImagePullServiceTests
                     new Registrations(stage),
                     new Sessions(connected ? new AgentSession(EnvironmentId, Guid.NewGuid(), 5) : null),
                     new AgentCommandQueueService(Store, new Delivery(), TimeProvider.System),
+                    ChangeWindowTestGuard.Unrestricted(),
                     new FakeHostStore(capabilities ?? ["Inventory", "ImagePull"], EnvironmentId),
                     policy ?? new ImagePullPolicy())
                 .PullAsync(EnvironmentId, Guid.NewGuid(), reference, Now.AddMinutes(5).ToUniversalTime(), AuthenticatedActor.FromSubject("user-1"), "token", Guid.NewGuid(), TestContext.Current.CancellationToken);

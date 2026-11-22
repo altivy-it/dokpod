@@ -115,7 +115,9 @@ public sealed class AuditExportCanaryTests : IAsyncLifetime
         var inbox = Channel.CreateUnbounded<ControlPlaneMessage>();
         dispatcher.Register(Env, Guid.NewGuid(), [Dokpod.Agent.Contracts.V1.Capability.ContainerExec], inbox.Writer);
         var service = new TerminalSessionService(
-            new AllowAll(), new ProductionRegistration(), new RunningContainer(), dispatcher, registry, new PostgresAuditEventWriter(context), options, TimeProvider.System);
+            new AllowAll(), new ProductionRegistration(), new RunningContainer(), dispatcher, registry, new PostgresAuditEventWriter(context), options, TimeProvider.System,
+            new Dokpod.ControlPlane.Application.ChangeWindows.ChangeWindowGuard(
+                new Dokpod.ControlPlane.Application.ChangeWindows.NoChangeWindows(), new PostgresAgentCommandStore(context), new AllowAll(), new PostgresAuditEventWriter(context), TimeProvider.System));
 
         var agent = EchoAgentAsync(inbox.Reader, registry);
         var output = Channel.CreateUnbounded<TerminalOutputFrame>();
