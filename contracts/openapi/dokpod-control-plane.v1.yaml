@@ -2801,7 +2801,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ChangeWindowItem'
         '400':
-          description: Janela inválida (change_window_invalid), com o campo em errors.
+          description: Janela inválida (change_window_invalid), com o campo em errors, ou falta If-Match e If-None-Match (if_match_required).
           content:
             application/problem+json:
               schema:
@@ -2814,12 +2814,6 @@ paths:
           $ref: '#/components/responses/NotFound'
         '412':
           description: A versão em If-Match não é a atual, ou a janela já existe com If-None-Match (precondition_failed).
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/ProblemDetails'
-        '428':
-          description: Falta If-Match ou If-None-Match (precondition_required).
           content:
             application/problem+json:
               schema:
@@ -2845,6 +2839,12 @@ paths:
       responses:
         '204':
           description: Janela removida.
+        '400':
+          description: Falta If-Match com a versão lida (if_match_required).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
         '401':
           $ref: '#/components/responses/AuthenticationRequired'
         '403':
@@ -2853,12 +2853,6 @@ paths:
           $ref: '#/components/responses/NotFound'
         '412':
           description: A versão em If-Match não é a atual (precondition_failed).
-          content:
-            application/problem+json:
-              schema:
-                $ref: '#/components/schemas/ProblemDetails'
-        '428':
-          description: Falta If-Match (precondition_required).
           content:
             application/problem+json:
               schema:

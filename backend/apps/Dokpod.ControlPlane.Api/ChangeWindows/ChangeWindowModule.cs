@@ -6,7 +6,7 @@ namespace Dokpod.ControlPlane.Api.ChangeWindows;
 
 /// <summary>
 /// Composição Business das janelas de mudança (spec 026 T014, D-002). Só o <c>ProductEdition</c> da Business a registra:
-/// troca o calendário vazio da CE pelo store sobre o PostgreSQL. O guard continua o da CE e não depende da licença.
+/// troca o calendário vazio da CE pelo store sobre o PostgreSQL e mapeia as rotas de configuração. O guard continua o da CE e não depende da licença.
 /// </summary>
 public static class ChangeWindowModule
 {
@@ -17,6 +17,13 @@ public static class ChangeWindowModule
         services.AddScoped<ChangeWindowStore>();
         services.AddScoped<IChangeWindowSchedule>(provider => provider.GetRequiredService<ChangeWindowStore>());
         services.AddScoped<IChangeWindowStore>(provider => provider.GetRequiredService<ChangeWindowStore>());
+        services.AddScoped<ChangeWindowSettingsService>();
         return services;
+    }
+
+    public static IEndpointRouteBuilder MapChangeWindowEndpoints(this IEndpointRouteBuilder endpoints)
+    {
+        ChangeWindowEndpoints.Map(endpoints);
+        return endpoints;
     }
 }
