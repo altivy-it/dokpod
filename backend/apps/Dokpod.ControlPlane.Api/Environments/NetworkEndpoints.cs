@@ -168,6 +168,7 @@ public static partial class NetworkEndpoints
             NetworkRemovalOutcome.EnvironmentNotFound => Problem(context, StatusCodes.Status404NotFound, "environment_not_found", "O ambiente não foi encontrado."),
             NetworkRemovalOutcome.AgentOffline or NetworkRemovalOutcome.EnvironmentUnavailable =>
                 Problem(context, StatusCodes.Status409Conflict, result.FailureCode ?? "command_unavailable", "O ambiente não está disponível para executar o comando."),
+            NetworkRemovalOutcome.ChangeWindowDenied => ChangeWindowProblems.Denied(context, result.ChangeWindow),
             NetworkRemovalOutcome.NotSupported => Problem(context, StatusCodes.Status409Conflict, "not_supported", "O agente do host não remove redes."),
             _ => Problem(context, StatusCodes.Status409Conflict, result.FailureCode ?? "command_id_conflict", "A chave idempotente já identifica outro comando."),
         };

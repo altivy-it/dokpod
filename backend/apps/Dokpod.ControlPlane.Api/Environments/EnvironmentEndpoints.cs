@@ -88,9 +88,10 @@ public static class EnvironmentEndpoints
                 .Where(host => afterEnvironmentId is null || host.Registration.EnvironmentId.CompareTo(afterEnvironmentId.Value) > 0)
                 .ToArray();
             var pageHosts = hosts.Take(pageLimit).ToArray();
+            var pageWindows = await ChangeWindowsAsync(context, cancellationToken).ConfigureAwait(false);
             return Results.Ok(new
             {
-                environments = pageHosts.Select(HostResponses.ToEnvironment),
+                environments = pageHosts.Select(host => HostResponses.ToEnvironment(host, pageWindows(host.Registration.Stage))),
                 nextCursor = hosts.Length > pageLimit ? EncodeCursor(pageHosts[^1].Registration.EnvironmentId) : null,
             });
         }
@@ -123,9 +124,10 @@ public static class EnvironmentEndpoints
         }
 
         var described = await hostQuery.DescribeAsync(result.Registrations, cancellationToken).ConfigureAwait(false);
+        var windows = await ChangeWindowsAsync(context, cancellationToken).ConfigureAwait(false);
         return Results.Ok(new
         {
-            environments = described.Select(HostResponses.ToEnvironment),
+            environments = described.Select(host => HostResponses.ToEnvironment(host, windows(host.Registration.Stage))),
             nextCursor = EncodeCursor(result.NextCursor),
         });
     }
@@ -191,7 +193,8 @@ public static class EnvironmentEndpoints
         }
 
         var view = (await hostQuery.DescribeAsync([result.Registration], cancellationToken).ConfigureAwait(false))[0];
-        return Results.Ok(HostResponses.ToEnvironment(view));
+        var changeWindow = (await ChangeWindowsAsync(context, cancellationToken).ConfigureAwait(false))(view.Registration.Stage);
+        return Results.Ok(HostResponses.ToEnvironment(view, changeWindow));
     }
 
     private static async Task<IResult> RegisterAsync(
@@ -426,4 +429,8 @@ public static class EnvironmentEndpoints
         Guid.TryParse(context.Request.Headers["X-Correlation-Id"], out var correlationId)
             ? correlationId
             : Guid.NewGuid();
+
+    /// <summary>Spec 026 D-008: uma leitura do calendário por resposta.</summary>
+    private static Task<Func<EnvironmentStage?, Dokpod.ControlPlane.Application.ChangeWindows.ChangeWindowStatus>> ChangeWindowsAsync(HttpContext context, CancellationToken cancellationToken) =>
+        context.RequestServices.GetRequiredService<Dokpod.ControlPlane.Application.ChangeWindows.ChangeWindowStatusReader>().SnapshotAsync(cancellationToken);
 }

@@ -88,3 +88,19 @@ public static class ChangeWindowCalendar
         return new DateTimeOffset(local.Ticks - utcOffset.Ticks, TimeSpan.Zero);
     }
 }
+
+/// <summary>
+/// Estado da janela para as respostas de host (spec 026 D-008): lê o calendário uma vez por resposta e calcula uma vez
+/// por estágio. Na CE o calendário é vazio e tudo sai <see cref="ChangeWindowState.None"/>.
+/// </summary>
+public sealed class ChangeWindowStatusReader(IChangeWindowSchedule schedule, TimeProvider timeProvider)
+{
+    public async Task<Func<Dokpod.Domain.Environments.EnvironmentStage?, ChangeWindowStatus>> SnapshotAsync(CancellationToken cancellationToken)
+    {
+        var windows = await schedule.ListAsync(cancellationToken).ConfigureAwait(false);
+        if (windows.Count == 0) return _ => ChangeWindowStatus.None;
+        var now = timeProvider.GetUtcNow();
+        var byStage = windows.ToDictionary(window => window.Stage, window => ChangeWindowCalendar.Evaluate(window, now));
+        return stage => stage is { } value && byStage.TryGetValue(value, out var status) ? status : ChangeWindowStatus.None;
+    }
+}

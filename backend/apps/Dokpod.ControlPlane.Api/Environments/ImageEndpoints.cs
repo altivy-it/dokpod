@@ -237,6 +237,7 @@ public static class ImageEndpoints
             ImagePullOutcome.EnvironmentNotFound => Problem(context, StatusCodes.Status404NotFound, "environment_not_found", "O ambiente não foi encontrado."),
             ImagePullOutcome.EnvironmentUnavailable or ImagePullOutcome.AgentOffline => Problem(context, StatusCodes.Status409Conflict, result.FailureCode ?? "agent_disconnected", "O host não está disponível para baixar a imagem."),
             ImagePullOutcome.ConflictingPayload => Problem(context, StatusCodes.Status409Conflict, "command_id_conflict", "A chave idempotente já identifica outro comando."),
+            ImagePullOutcome.ChangeWindowDenied => ChangeWindowProblems.Denied(context, result.ChangeWindow),
             ImagePullOutcome.NotSupported => Problem(context, StatusCodes.Status422UnprocessableEntity, "not_supported", "O agente deste host não suporta download de imagens."),
             _ => throw new ArgumentOutOfRangeException(nameof(result)),
         };

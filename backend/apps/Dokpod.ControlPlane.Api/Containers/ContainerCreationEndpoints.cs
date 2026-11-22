@@ -71,6 +71,7 @@ public static class ContainerCreationEndpoints
             ContainerCreationOutcome.EnvironmentNotFound => Problem(context, StatusCodes.Status404NotFound, "environment_not_found", "O ambiente não foi encontrado."),
             ContainerCreationOutcome.EnvironmentUnavailable or ContainerCreationOutcome.AgentOffline => Problem(context, StatusCodes.Status409Conflict, result.FailureCode ?? "agent_disconnected", "O host não está disponível para criar containers."),
             ContainerCreationOutcome.ConflictingPayload => Problem(context, StatusCodes.Status409Conflict, "command_id_conflict", "A chave idempotente já identifica outro comando."),
+            ContainerCreationOutcome.ChangeWindowDenied => ChangeWindowProblems.Denied(context, result.ChangeWindow),
             ContainerCreationOutcome.NotSupported => Problem(context, StatusCodes.Status422UnprocessableEntity, "not_supported", "O agente deste host não suporta criação de containers."),
             _ => throw new ArgumentOutOfRangeException(nameof(result)),
         };

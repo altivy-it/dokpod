@@ -8,7 +8,7 @@ namespace Dokpod.ControlPlane.Api.Endpoints;
 /// <summary>Formas JSON dos ambientes/hosts (contrato OpenAPI v1, spec 008).</summary>
 internal static class HostResponses
 {
-    public static object ToEnvironment(HostView view)
+    public static object ToEnvironment(HostView view, Dokpod.ControlPlane.Application.ChangeWindows.ChangeWindowStatus changeWindow)
     {
         var registration = view.Registration;
         var descriptor = view.Descriptor;
@@ -22,6 +22,8 @@ internal static class HostResponses
             stage = registration.Stage is null ? null : EnvironmentStages.ToValue(registration.Stage.Value),
             situation = HostSituations.ToValue(view.Situation),
             containerCount = view.Inventory?.Total,
+            // Spec 026 D-008: estado da janela do estágio no momento da resposta; `none` na CE.
+            changeWindow = ChangeWindowJson.Status(changeWindow),
             agent = descriptor is null && view.Connection is null
                 ? null
                 : new
@@ -43,6 +45,13 @@ internal static class HostResponses
                     capabilities = descriptor?.Capabilities ?? [],
                 },
         };
+    }
+
+    /// <summary>Spec 026 D-008: estado da janela do estágio do host do container.</summary>
+    public static IDictionary<string, object?> WithChangeWindow(IDictionary<string, object?> json, Dokpod.ControlPlane.Application.ChangeWindows.ChangeWindowStatus changeWindow)
+    {
+        json["changeWindow"] = ChangeWindowJson.Status(changeWindow);
+        return json;
     }
 
     public static IDictionary<string, object?> ToContainerListItem(Dokpod.ControlPlane.Application.Inventory.ContainerListItem item)

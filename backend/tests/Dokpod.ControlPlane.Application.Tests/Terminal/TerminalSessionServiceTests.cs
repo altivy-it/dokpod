@@ -33,6 +33,7 @@ public sealed class TerminalSessionServiceTests
         public Channel<ControlPlaneMessage> AgentInbox { get; } = Channel.CreateUnbounded<ControlPlaneMessage>();
         public EnvironmentStage? Stage { get; init; }
         public string State { get; init; } = "running";
+        public Func<IAuditEventWriter, Dokpod.ControlPlane.Application.ChangeWindows.ChangeWindowGuard> ChangeWindows { get; init; } = _ => ChangeWindowTestGuard.Unrestricted();
 
         public Harness(TerminalOptions? options = null, bool connected = true, bool exec = true)
         {
@@ -50,7 +51,7 @@ public sealed class TerminalSessionServiceTests
             Audit,
             Options,
             TimeProvider.System,
-            ChangeWindowTestGuard.Unrestricted());
+            ChangeWindows(Audit));
 
         /// <summary>Simula o agente: lê o ExecOpen, vincula, abre e devolve eco do que receber.</summary>
         public async Task<List<ExecFrame>> AgentAsync(string? refuse = null, bool echo = true)
@@ -182,6 +183,52 @@ public sealed class TerminalSessionServiceTests
         Assert.Equal("container.exec.denied", denied.Action);
         Assert.Equal(expected, denied.Details!["reason"]);
         Assert.Equal(0, harness.Registry.Count);
+    }
+
+    /// <summary>Spec 026 T023: fora da janela, a abertura é recusada com o motivo e auditada nas duas trilhas.</summary>
+    [Fact]
+    public async Task Open_OutsideTheChangeWindow_IsDeniedWithTheReason()
+    {
+        // Terça 24/11/2026, 15:00 em São Paulo: fora da janela seg-sex 22:00-06:00.
+        var clock = new MutableTime(new DateTimeOffset(2026, 11, 24, 18, 0, 0, TimeSpan.Zero));
+        var harness = new Harness { Stage = EnvironmentStage.Production, ChangeWindows = audit => ChangeWindowTestGuard.WeekdayNights(clock, audit) };
+
+        var output = await harness.RunAsync(Input(), justification: "Investigar incidente INC-42");
+
+        Assert.Equal(new TerminalStatus("error", "change_window_closed"), Assert.Single(output).Status);
+        Assert.Equal(["change_window.denied", "container.exec.denied"], harness.Audit.Events.Select(e => e.Action));
+        Assert.Equal("change_window_closed", harness.Audit.Events[1].Details!["reason"]);
+        Assert.Equal(0, harness.Registry.Count);
+    }
+
+    /// <summary>Spec 026 T023 (L5): a sessão aberta dentro da janela continua depois do fechamento.</summary>
+    [Fact]
+    public async Task SessionOpenedInsideTheWindow_ContinuesAfterItCloses()
+    {
+        var clock = new MutableTime(new DateTimeOffset(2026, 11, 25, 2, 0, 0, TimeSpan.Zero));
+        var harness = new Harness { Stage = EnvironmentStage.Production, ChangeWindows = audit => ChangeWindowTestGuard.WeekdayNights(clock, audit) };
+        var agent = harness.AgentAsync();
+
+        async IAsyncEnumerable<TerminalInputFrame> CloseThenType()
+        {
+            await Task.Delay(100);
+            clock.Now = new DateTimeOffset(2026, 11, 25, 9, 30, 0, TimeSpan.Zero);
+            yield return new TerminalInputFrame(Encoding.UTF8.GetBytes("echo " + Canary + "\n"), null, null);
+            await Task.Delay(300);
+        }
+
+        var output = await harness.RunAsync(CloseThenType(), justification: "Investigar incidente INC-42");
+
+        await agent;
+        Assert.Contains(Canary, string.Concat(output.Where(o => o.Data is not null).Select(o => Encoding.UTF8.GetString(o.Data!))));
+        Assert.DoesNotContain(harness.Audit.Events, e => e.Action is "change_window.denied" or "container.exec.denied");
+    }
+
+    private sealed class MutableTime(DateTimeOffset now) : TimeProvider
+    {
+        public DateTimeOffset Now { get; set; } = now;
+
+        public override DateTimeOffset GetUtcNow() => Now;
     }
 
     [Fact]
