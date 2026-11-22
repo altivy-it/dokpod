@@ -1,4 +1,10 @@
-import type { SettingsDependency, SettingsParameter, Stage } from '../../data-access/generated/control-plane';
+import type {
+  ChangeWindowDay,
+  ChangeWindowState,
+  SettingsDependency,
+  SettingsParameter,
+  Stage,
+} from '../../data-access/generated/control-plane';
 
 export const STAGES: { id: Stage; label: string }[] = [
   { id: 'production', label: 'Produção' },
@@ -82,6 +88,41 @@ export function auditExportFailureMessage(code: string | null, status: number): 
     default:
       if (code?.startsWith('license_'))
         return 'A licença não permite criar, editar, reativar ou testar destinos agora.';
+      return status === 503
+        ? 'A autorização está indisponível. Tente de novo.'
+        : 'Não foi possível concluir a operação.';
+  }
+}
+
+/** Dias das faixas da janela de mudança (spec 026), na ordem do contrato. */
+export const CHANGE_WINDOW_DAYS: { id: ChangeWindowDay; label: string; short: string }[] = [
+  { id: 'mon', label: 'Segunda', short: 'seg' },
+  { id: 'tue', label: 'Terça', short: 'ter' },
+  { id: 'wed', label: 'Quarta', short: 'qua' },
+  { id: 'thu', label: 'Quinta', short: 'qui' },
+  { id: 'fri', label: 'Sexta', short: 'sex' },
+  { id: 'sat', label: 'Sábado', short: 'sáb' },
+  { id: 'sun', label: 'Domingo', short: 'dom' },
+];
+
+export const CHANGE_WINDOW_STATE: Record<ChangeWindowState, { label: string; tone: 'success' | 'warning' | 'neutral' }> = {
+  open: { label: 'Janela aberta', tone: 'success' },
+  closed: { label: 'Fora da janela de mudança', tone: 'warning' },
+  none: { label: 'Sem janela', tone: 'neutral' },
+};
+
+/** Mensagem da recusa ao salvar ou remover uma janela (spec 026 contracts/api.md). */
+export function changeWindowFailureMessage(code: string | null, status: number): string {
+  switch (code) {
+    case 'change_window_invalid':
+      return 'Revise o fuso e as faixas: dias sem repetição, horários HH:mm e início diferente do fim.';
+    case 'precondition_failed':
+      return 'A janela mudou desde a leitura. A lista foi atualizada; tente de novo.';
+    case 'authorization_denied':
+      return 'Editar a janela exige environment:manage em todos os hosts do estágio.';
+    default:
+      if (code?.startsWith('license_'))
+        return 'A licença não permite editar janelas agora. Remover continua disponível, e as janelas gravadas seguem valendo.';
       return status === 503
         ? 'A autorização está indisponível. Tente de novo.'
         : 'Não foi possível concluir a operação.';

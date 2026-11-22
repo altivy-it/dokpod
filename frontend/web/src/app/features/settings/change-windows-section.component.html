@@ -1,0 +1,166 @@
+@if (available()) {
+  <section class="st-card alt-glass" aria-labelledby="st-change-windows">
+    <h2 class="st-card__title" id="st-change-windows">Janelas de mudança</h2>
+    @if (loadStatus() !== null) {
+      <dok-empty-state
+        [kind]="loadStatus() === 403 ? 'forbidden' : 'error'"
+        [title]="
+          loadStatus() === 403
+            ? 'Ver as janelas exige administração de algum host.'
+            : 'Não foi possível ler as janelas de mudança.'
+        "
+      >
+        <button dok-button variant="outline" size="sm" startIcon="refresh" type="button" (click)="load()">
+          Tentar novamente
+        </button>
+      </dok-empty-state>
+    } @else if (windows(); as items) {
+      <div class="dok-stack">
+        <p class="app-small st-muted">
+          Fora da janela do estágio, iniciar, parar, remover, criar, baixar imagem e abrir terminal são recusados pela
+          tela e pela API. Leituras, logs, alertas e auditoria continuam. Sem janela, tudo é aceito a qualquer hora.
+        </p>
+        @if (restricted()) {
+          <div class="dok-stack" role="status">
+            <p><dok-status-chip size="sm" color="warning" label="Licença restrita" /></p>
+            <p class="app-small">
+              As janelas gravadas continuam valendo, mas criar e editar estão bloqueados. Remover segue disponível.
+            </p>
+          </div>
+        }
+
+        @for (item of items; track item.stage) {
+          <div class="st-block" [attr.data-stage]="item.stage">
+            <div class="st-block__head">
+              <h3 class="st-block__title">{{ stageLabel(item) }}</h3>
+              <dok-status-chip
+                size="sm"
+                [color]="stateLabel[item.status.state].tone"
+                [label]="stateLabel[item.status.state].label"
+              />
+            </div>
+
+            @if (form()?.item?.stage === item.stage) {
+              @let current = form()!;
+              <form class="dok-stack" (ngSubmit)="save()" [attr.aria-label]="'Janela de ' + stageLabel(item)">
+                <dok-field
+                  label="Fuso horário (IANA)"
+                  placeholder="America/Sao_Paulo"
+                  [mono]="true"
+                  help="Um fuso por estágio; o horário de verão segue o fuso."
+                  name="timeZone"
+                  [(ngModel)]="current.timeZone"
+                />
+                @for (range of current.ranges; track $index; let i = $index) {
+                  <fieldset class="dok-stack" [attr.aria-label]="'Faixa ' + (i + 1)">
+                    <legend class="app-caption st-muted">Faixa {{ i + 1 }}</legend>
+                    <div class="st-chips">
+                      @for (day of days; track day.id) {
+                        <dok-checkbox [label]="day.short" [name]="'day-' + i + '-' + day.id" [(ngModel)]="range.days[day.id]" />
+                      }
+                    </div>
+                    <dok-field label="Início" placeholder="22:00" [mono]="true" [name]="'start-' + i" [(ngModel)]="range.start" />
+                    <dok-field
+                      label="Fim"
+                      placeholder="06:00"
+                      [mono]="true"
+                      help="Fim menor que o início cruza a meia-noite e pertence ao dia de início."
+                      [name]="'end-' + i"
+                      [(ngModel)]="range.end"
+                    />
+                    @if (rangeError(range); as message) {
+                      <p class="app-caption" role="alert">{{ message }}</p>
+                    }
+                    @if (current.ranges.length > 1) {
+                      <div class="dok-actions">
+                        <button dok-button variant="ghost" size="xs" type="button" (click)="removeRange(current, i)">
+                          Remover faixa
+                        </button>
+                      </div>
+                    }
+                  </fieldset>
+                }
+                <div class="dok-actions">
+                  <button
+                    dok-button
+                    variant="outline"
+                    size="xs"
+                    type="button"
+                    [disabled]="current.ranges.length >= maxRanges"
+                    (click)="addRange(current)"
+                  >
+                    Adicionar faixa
+                  </button>
+                </div>
+                <div class="dok-actions">
+                  <button dok-button size="sm" type="submit" [loading]="busy()" [disabled]="!valid(current) || restricted()">
+                    Salvar
+                  </button>
+                  <button dok-button variant="ghost" size="sm" type="button" (click)="cancel()">Cancelar</button>
+                </div>
+              </form>
+            } @else {
+              @if (item.ranges.length) {
+                <ul class="st-list" [attr.aria-label]="'Faixas de ' + stageLabel(item)">
+                  @for (range of item.ranges; track $index) {
+                    <li class="st-list__row">{{ describe(range) }}</li>
+                  }
+                </ul>
+                <p class="app-caption st-muted">
+                  {{ item.timeZone }}
+                  @if (statusDetail(item.status); as detail) {
+                    · {{ detail }}
+                  }
+                </p>
+                <p class="app-caption st-muted">
+                  Alterada por {{ item.updatedBy }} em {{ formatDateTime(item.updatedAt ?? '') }}
+                  @if (!item.editable) {
+                    · somente leitura
+                  }
+                </p>
+              } @else {
+                <p class="app-small st-muted">
+                  Sem janela: ações aceitas a qualquer hora.
+                  @if (!item.editable) {
+                    Somente leitura.
+                  }
+                </p>
+              }
+              @if (item.editable) {
+                <div class="dok-actions">
+                  <button
+                    dok-button
+                    variant="outline"
+                    size="xs"
+                    startIcon="settings"
+                    type="button"
+                    [disabled]="restricted() || busy()"
+                    [attr.aria-label]="(item.ranges.length ? 'Editar a janela de ' : 'Definir a janela de ') + stageLabel(item)"
+                    (click)="startEdit(item)"
+                  >
+                    {{ item.ranges.length ? 'Editar' : 'Definir janela' }}
+                  </button>
+                  @if (item.ranges.length) {
+                    <button
+                      dok-button
+                      variant="ghost"
+                      size="xs"
+                      type="button"
+                      [loading]="busy()"
+                      [attr.aria-label]="'Remover a janela de ' + stageLabel(item)"
+                      (click)="remove(item)"
+                    >
+                      Remover
+                    </button>
+                  }
+                </div>
+              } @else {
+                <p class="app-caption st-muted">Editar exige environment:manage em todos os hosts do estágio.</p>
+              }
+            }
+          </div>
+        }
+      </div>
+    }
+  </section>
+}

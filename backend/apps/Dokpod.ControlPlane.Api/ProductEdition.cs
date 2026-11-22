@@ -67,6 +67,7 @@ public static class ProductEdition
         endpoints.MapLicensingEndpoints();
         endpoints.MapAuditExportEndpoints();
         endpoints.MapImageUpdateEndpoints();
+        endpoints.MapChangeWindowEndpoints();
 #endif
     }
 }

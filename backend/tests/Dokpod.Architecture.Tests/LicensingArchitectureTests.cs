@@ -36,10 +36,12 @@ public sealed partial class LicensingArchitectureTests
         var auditExportRoot = Path.Combine(applicationRoot, "AuditExport") + Path.DirectorySeparatorChar;
         // Spec 025: o aviso de nova versão também é exclusivo Business (T007), registrado só pelo ProductEdition.
         var imageUpdatesRoot = Path.Combine(applicationRoot, "ImageUpdates") + Path.DirectorySeparatorChar;
+        // Spec 026: só a configuração das janelas é Business; o guard e o calendário da mesma pasta são da CE.
+        var changeWindowSettings = Path.Combine(applicationRoot, "ChangeWindows", "ChangeWindowSettingsService.cs");
 
         var offenders = SourceFiles(applicationRoot)
             .Where(file => !file.StartsWith(licensingRoot, StringComparison.Ordinal) && !file.StartsWith(auditExportRoot, StringComparison.Ordinal) &&
-                !file.StartsWith(imageUpdatesRoot, StringComparison.Ordinal))
+                !file.StartsWith(imageUpdatesRoot, StringComparison.Ordinal) && file != changeWindowSettings)
             .Where(file => File.ReadAllText(file).Contains("IBusinessCapabilityGate", StringComparison.Ordinal))
             .ToArray();
 

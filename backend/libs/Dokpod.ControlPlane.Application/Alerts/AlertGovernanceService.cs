@@ -312,13 +312,35 @@ public sealed class AlertGovernanceService(
     public async Task<IReadOnlyList<(JustificationPolicyEntry Policy, bool CanEdit)>> ListPoliciesAsync(AlertCaller caller, CancellationToken cancellationToken)
     {
         var entries = await justifications.ListPolicyEntriesAsync(cancellationToken).ConfigureAwait(false);
+        var editable = await StageEditorAsync(caller, cancellationToken).ConfigureAwait(false);
+        return entries.Select(entry => (entry, editable(entry.Stage))).ToArray();
+    }
+
+    /// <summary>
+    /// Regra de edição por estágio (D-007) pela leitura de grants, para a tela: verdadeiro se o chamador tem
+    /// `environment:manage` em todos os hosts que decidem o estágio. Também usada pelas janelas de mudança (spec 026).
+    /// </summary>
+    public async Task<Func<EnvironmentStage, bool>> StageEditorAsync(AlertCaller caller, CancellationToken cancellationToken)
+    {
         var managed = (await ReadableWithAsync(caller, EnvironmentResourceScopes.Manage, null, cancellationToken).ConfigureAwait(false))
             .Select(r => r.EnvironmentId).ToHashSet();
-        return entries.Select(entry =>
+        return stage =>
         {
-            var candidates = PolicyCandidates(caller, entry.Stage);
-            return (entry, candidates.Length > 0 && candidates.All(r => managed.Contains(r.EnvironmentId)));
-        }).ToArray();
+            var candidates = PolicyCandidates(caller, stage);
+            return candidates.Length > 0 && candidates.All(r => managed.Contains(r.EnvironmentId));
+        };
+    }
+
+    /// <summary>
+    /// Regra de edição por estágio (D-007) pela decisão do Keycloak, para gravar: os hosts que decidem o estágio, ou nulo
+    /// se faltar `environment:manage` em algum. Também usada pelas janelas de mudança (spec 026).
+    /// </summary>
+    public async Task<IReadOnlyList<EnvironmentRegistration>?> AuthorizeStageAsync(AlertCaller caller, EnvironmentStage stage, CancellationToken cancellationToken)
+    {
+        var candidates = PolicyCandidates(caller, stage);
+        if (candidates.Length == 0) return null;
+        var allowed = await FilterAsync(caller, EnvironmentResourceScopes.Manage, candidates, cancellationToken).ConfigureAwait(false);
+        return allowed.Count == candidates.Length ? candidates : null;
     }
 
     /// <summary>Hosts que decidem a política: os legíveis do estágio ou, sem nenhum, todos os legíveis habilitados.</summary>
@@ -331,10 +353,8 @@ public sealed class AlertGovernanceService(
     /// <summary>Política de justificativa (D-007): `environment:manage` em todos os hosts legíveis do estágio.</summary>
     public async Task<GovernanceResult> SetPolicyAsync(AlertCaller caller, EnvironmentStage stage, bool required, CancellationToken cancellationToken)
     {
-        var candidates = PolicyCandidates(caller, stage);
-        if (candidates.Length == 0) return new GovernanceResult(GovernanceOutcome.Forbidden, "authorization_denied");
-        var allowed = await FilterAsync(caller, EnvironmentResourceScopes.Manage, candidates, cancellationToken).ConfigureAwait(false);
-        if (allowed.Count != candidates.Length) return new GovernanceResult(GovernanceOutcome.Forbidden, "authorization_denied");
+        var candidates = await AuthorizeStageAsync(caller, stage, cancellationToken).ConfigureAwait(false);
+        if (candidates is null) return new GovernanceResult(GovernanceOutcome.Forbidden, "authorization_denied");
         await justifications.SetPolicyAsync(stage, required, caller.Actor.Label, timeProvider.GetUtcNow(), cancellationToken).ConfigureAwait(false);
         foreach (var host in candidates)
         {
