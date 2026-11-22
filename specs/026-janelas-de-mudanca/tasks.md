@@ -174,8 +174,8 @@ Esses três gates valem a partir da T003. `/speckit-implement` exige autorizaç�
 
 ### Testes da História 2
 
-- [ ] T021 [P] [US2] Testes do guard em `backend/tests/Dokpod.ControlPlane.Application.Tests/ChangeWindows/ChangeWindowGuardTests.cs`: cada valor de `AgentCommandKind` (iteração sobre o enum, para um tipo novo entrar sozinho) e o terminal são recusados fora da janela e liberados dentro; host sem estágio e estágio sem janela liberam; `NoChangeWindows` libera tudo.
-- [ ] T022 [P] [US2] Testes de integração em `backend/tests/Dokpod.ControlPlane.Api.Tests/ChangeWindows/ChangeWindowEnforcementTests.cs`, com PostgreSQL real e `TimeProvider` falso:
+- [x] T021 [P] [US2] Testes do guard em `backend/tests/Dokpod.ControlPlane.Application.Tests/ChangeWindows/ChangeWindowGuardTests.cs`: cada valor de `AgentCommandKind` (iteração sobre o enum, para um tipo novo entrar sozinho) e o terminal são recusados fora da janela e liberados dentro; host sem estágio e estágio sem janela liberam; `NoChangeWindows` libera tudo.
+- [x] T022 [P] [US2] Testes de integração em `backend/tests/Dokpod.ControlPlane.Api.Tests/ChangeWindows/ChangeWindowEnforcementTests.cs`, com PostgreSQL real e `TimeProvider` falso:
   - fora da janela, as rotas de comando de container, criação, pull, remoção de volume e de rede e ações de pod dão `409 change_window_closed` com `nextWindowStartsAt`, sem linha nova em `agent_commands`, e com `change_window.denied`;
   - quem não tem o scope da ação recebe `403` da ação, e não `409`, inclusive com um `commandId` existente (threat model L6);
   - com o servidor fora da janela e cabeçalhos de data do cliente (`Date`) dentro dela, a recusa vale (threat model L4);
@@ -183,21 +183,30 @@ Esses três gates valem a partir da T003. `/speckit-implement` exige autorizaç�
   - logs, inspeção, alertas, auditoria e listas respondem `200` (SC-003);
   - comando aceito dentro da janela continua `Pending` depois do fechamento, e o reenvio com o mesmo `commandId` e o mesmo payload depois do fechamento devolve o resultado de duplicado (e não `409`), sem nova linha nem `change_window.denied`; com payload diferente, devolve o conflito de hoje ([D-010](research.md#d-010-relógio-e-comandos-em-andamento));
   - com licença restrita, a recusa continua (FR-007).
-- [ ] T023 [P] [US2] Teste do terminal em `backend/tests/Dokpod.ControlPlane.Api.Tests/ChangeWindows/ChangeWindowTerminalTests.cs`: `OpenTerminal` fora da janela termina com `change_window_closed` e `container.exec.denied` com esse motivo; uma sessão aberta antes do fechamento continua.
+- [x] T023 [P] [US2] Teste do terminal em `backend/tests/Dokpod.ControlPlane.Api.Tests/ChangeWindows/ChangeWindowTerminalTests.cs`: `OpenTerminal` fora da janela termina com `change_window_closed` e `container.exec.denied` com esse motivo; uma sessão aberta antes do fechamento continua.
 
 ### Implementação da História 2
 
-- [ ] T024 [US2] Guard no terminal em `backend/libs/Dokpod.ControlPlane.Application/Terminal/TerminalSessionService.cs` e `backend/apps/Dokpod.ControlPlane.Api/Realtime/ControlPlaneHub.cs` (`OpenTerminal`), na mesma ordem das ações: autorização, ambiente, janela, justificativa.
-- [ ] T025 [US2] Respostas `409 change_window_closed` e auditoria `change_window.denied` nas rotas de `backend/apps/Dokpod.ControlPlane.Api/Endpoints/ContainerCommandEndpoints.cs`, `backend/apps/Dokpod.ControlPlane.Api/Environments/{ContainerDetailEndpoints,VolumeEndpoints,NetworkEndpoints,PodEndpoints,ImageEndpoints}.cs` e `backend/apps/Dokpod.ControlPlane.Api/Containers/ContainerCreationEndpoints.cs`, com o texto "Fora da janela de mudança" e `nextWindowStartsAt`.
-- [ ] T026 [US2] `changeWindow` nas respostas de `backend/apps/Dokpod.ControlPlane.Api/Environments/HostResponses.cs`, calculado uma vez por estágio por resposta, com `state: none` na CE.
-- [ ] T027 [US2] Aviso nos botões:
+- [x] T024 [US2] Guard no terminal em `backend/libs/Dokpod.ControlPlane.Application/Terminal/TerminalSessionService.cs` e `backend/apps/Dokpod.ControlPlane.Api/Realtime/ControlPlaneHub.cs` (`OpenTerminal`), na mesma ordem das ações: autorização, ambiente, janela, justificativa.
+- [x] T025 [US2] Respostas `409 change_window_closed` e auditoria `change_window.denied` nas rotas de `backend/apps/Dokpod.ControlPlane.Api/Endpoints/ContainerCommandEndpoints.cs`, `backend/apps/Dokpod.ControlPlane.Api/Environments/{ContainerDetailEndpoints,VolumeEndpoints,NetworkEndpoints,PodEndpoints,ImageEndpoints}.cs` e `backend/apps/Dokpod.ControlPlane.Api/Containers/ContainerCreationEndpoints.cs`, com o texto "Fora da janela de mudança" e `nextWindowStartsAt`.
+- [x] T026 [US2] `changeWindow` nas respostas de `backend/apps/Dokpod.ControlPlane.Api/Environments/HostResponses.cs`, calculado uma vez por estágio por resposta, com `state: none` na CE.
+- [x] T027 [US2] Aviso nos botões:
   - componente compartilhado em `frontend/web/src/app/features/change-window/` que, a partir de `changeWindow`, mostra o texto "Fora da janela de mudança" e a próxima abertura no fuso do estágio, desabilita a ação e agenda a troca de estado para `closesAt` e `nextOpensAt` (sem polling);
   - aplicar nas ações de container (lista e detalhe), criação, pull de imagem, remoção de volume e de rede, ações de pod e terminal, com o texto visível e não só cor (FR-006);
   - num lote misto, só os itens fora da janela são recusados, cada um com o motivo;
   - testes `.spec.ts` das features afetadas.
-- [ ] T028 [US2] E2E com respostas simuladas em `frontend/tests/e2e/mock_ui/test_026_change_windows.py`: botão com o aviso antes do clique, recusa `409` mostrada com a próxima janela e lote misto com recusa por item (SC-004).
+- [x] T028 [US2] E2E com respostas simuladas em `frontend/tests/e2e/mock_ui/test_026_change_windows.py`: botão com o aviso antes do clique, recusa `409` mostrada com a próxima janela e lote misto com recusa por item (SC-004).
 
 **Checkpoint**: a janela é aplicada de ponta a ponta; MVP da feature junto com a US1.
+
+**Execução da US2 (2026-11-22, IA assistida)**: T021–T028 validadas com a suíte do backend contra PostgreSQL 17.6 real, os testes do frontend (212), o build de produção do Angular e a E2E simulada completa pela borda nginx (128 aprovados, incluindo os 3 da História 2 em `test_026_change_windows.py`). Diferenças em relação ao texto das tarefas, para a revisão humana:
+
+- O repositório não tem teste HTTP em processo; a T022 monta os seis serviços reais de ação sobre PostgreSQL real e confere a resposta `409` pelo `ChangeWindowProblems`, o mesmo usado pelas rotas. A L4 é coberta pelo prazo do cliente dentro da janela com o relógio do servidor fora dela: o guard só usa o `TimeProvider` da API.
+- "Leituras respondem `200`" (SC-003) e "a licença restrita não desliga a recusa" (FR-007) viraram regras de arquitetura: só os sete casos de uso que mudam o host dependem do guard, e o guard não depende do gate da licença.
+- A T023 ficou em `Dokpod.ControlPlane.Application.Tests/Terminal/TerminalSessionServiceTests.cs`, ao lado dos demais testes do terminal; o hub não mudou, porque a recusa já chega como o erro do terminal com o motivo `change_window_closed`.
+- O estado da janela por host fica em `frontend/web/src/app/core/change-window.ts`, porque o serviço de ações de container (em `core`) também o usa; o componente do aviso fica em `features/change-window/`. O diretório de ambientes publica o estado, e um único temporizador troca a tela em `closesAt` ou `nextOpensAt`.
+- Fora da janela, criar, baixar imagem, remover volume e rede e as ações de pod aparecem como inelegíveis com o motivo e a próxima abertura, no padrão de "host desconectado"; o detalhe do container desabilita as ações e o terminal com o aviso visível.
+- O bundle inicial do Angular passou de 422,2 kB (já acima do aviso de 420 kB no `main`) para 423,5 kB; o limite de erro é 500 kB.
 
 ---
 

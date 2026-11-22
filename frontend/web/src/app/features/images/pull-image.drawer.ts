@@ -1,3 +1,4 @@
+import { changeWindowReason } from '../../core/change-window';
 import { ChangeDetectionStrategy, Component, computed, effect, inject, input, output, signal, untracked } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { EnvironmentDirectoryService } from '../../core/environment-directory.service';
@@ -33,7 +34,7 @@ export function pullIneligibility(env: EnvironmentState): string | null {
   if (!env.scopes.includes('image:pull')) return 'sem permissão image:pull';
   if (!env.agent?.connected) return 'agente desconectado';
   if (!env.agent.capabilities.includes('ImagePull')) return 'agente sem suporte a download';
-  return null;
+  return changeWindowReason(env.changeWindow);
 }
 
 /**

@@ -106,21 +106,7 @@ public static class ChangeWindowEndpoints
         updatedAt = view.Window?.UpdatedAtUtc,
         version = view.Window?.Version,
         editable = view.Editable,
-        status = ToStatus(view.Status),
-    };
-
-    /// <summary>Estado no formato do contrato (<c>ChangeWindowStatus</c>), também usado nas respostas de host.</summary>
-    public static object ToStatus(ChangeWindowStatus status) => new
-    {
-        state = status.State switch
-        {
-            ChangeWindowState.Open => "open",
-            ChangeWindowState.Closed => "closed",
-            _ => "none",
-        },
-        closesAt = status.ClosesAt,
-        nextOpensAt = status.NextOpensAt,
-        timeZone = status.TimeZone,
+        status = Endpoints.ChangeWindowJson.Status(view.Status),
     };
 
     private sealed record Body(string? TimeZone, IReadOnlyList<ChangeWindowRange>? Ranges);

@@ -237,6 +237,7 @@ public static class ContainerCommandEndpoints
                 StatusCodes.Status400BadRequest,
                 "justification_invalid",
                 "A justificativa deve ter entre 10 e 500 caracteres."),
+            ContainerCommandSubmissionOutcome.ChangeWindowDenied => ChangeWindowProblems.Denied(context, result.ChangeWindow),
             _ => throw new ArgumentOutOfRangeException(nameof(result)),
         };
     }

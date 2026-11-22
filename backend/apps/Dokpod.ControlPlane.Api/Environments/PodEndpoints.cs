@@ -158,6 +158,7 @@ public static class PodEndpoints
             PodActionOutcome.EnvironmentNotFound => Problem(context, StatusCodes.Status404NotFound, "environment_not_found", "O ambiente não foi encontrado."),
             PodActionOutcome.AgentOffline or PodActionOutcome.EnvironmentUnavailable =>
                 Problem(context, StatusCodes.Status409Conflict, result.FailureCode ?? "command_unavailable", "O ambiente não está disponível para executar o comando."),
+            PodActionOutcome.ChangeWindowDenied => ChangeWindowProblems.Denied(context, result.ChangeWindow),
             PodActionOutcome.NotSupported => Problem(context, StatusCodes.Status409Conflict, "not_supported", "O agente do host não executa ações de pod."),
             _ => Problem(context, StatusCodes.Status409Conflict, result.FailureCode ?? "command_id_conflict", "A chave idempotente já identifica outro comando."),
         };

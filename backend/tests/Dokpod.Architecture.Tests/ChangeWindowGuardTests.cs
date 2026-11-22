@@ -36,6 +36,23 @@ public sealed class ChangeWindowGuardTests
         Assert.True(DependsOn<ChangeWindowGuard>(typeof(TerminalSessionService)));
     }
 
+    /// <summary>
+    /// SC-003 (FR-003): só os casos de uso que mudam o host dependem do guard; leituras, logs, inspeção, alertas e
+    /// auditoria nunca passam por ele. E o guard não depende do gate da licença (FR-007).
+    /// </summary>
+    [Fact]
+    public void OnlyTheMutatingUseCases_DependOnTheGuard_AndTheGuardIgnoresTheLicense()
+    {
+        var dependents = Application.GetTypes().Where(DependsOn<ChangeWindowGuard>).Select(type => type.Name).Order(StringComparer.Ordinal).ToArray();
+
+        Assert.Equal(
+            ["ContainerCommandService", "ContainerCreationService", "ImagePullService", "NetworkRemovalService", "PodActionService", "TerminalSessionService", "VolumeRemovalService"],
+            dependents);
+        Assert.DoesNotContain(
+            typeof(ChangeWindowGuard).GetConstructors().SelectMany(constructor => constructor.GetParameters()),
+            parameter => parameter.ParameterType == typeof(Dokpod.ControlPlane.Application.Licensing.IBusinessCapabilityGate));
+    }
+
     [Fact]
     public void OnlyTheGuard_IssuesClearances()
     {

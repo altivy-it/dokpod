@@ -1,3 +1,4 @@
+import { changeWindowReasonFor } from '../../core/change-window';
 import { computed, inject, Injectable, signal } from '@angular/core';
 import { newUuid } from '../../core/uuid';
 import { ControlPlaneApiService } from '../../data-access/control-plane-api.service';
@@ -41,7 +42,7 @@ export function networkIneligibleReason(item: NetworkItem): string | null {
   if (item.inUse) return item.containers.length === 1 ? 'em uso por 1 container' : `em uso por ${item.containers.length} containers`;
   if (!item.hostConnected) return 'host desconectado';
   if (!item.canRemove) return 'sem permissão ou agente sem suporte';
-  return null;
+  return changeWindowReasonFor(item.environmentId);
 }
 
 export function evaluateNetworkEligibility(items: NetworkItem[]): NetworkEligibility {
@@ -72,6 +73,8 @@ export function networkFailureText(code: string | null): string {
       return 'justificativa obrigatória neste estágio';
     case 'justification_invalid':
       return 'justificativa inválida';
+    case 'change_window_closed':
+      return 'fora da janela de mudança';
     case 'authorization_denied':
       return 'sem permissão';
     case 'agent_disconnected':

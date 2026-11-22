@@ -70,19 +70,19 @@
           Abrir terminal
         </button>
         @if (allowed().has('start')) {
-          <button dok-button variant="outline" size="sm" startIcon="play" type="button" (click)="run('start')">Iniciar</button>
+          <button dok-button variant="outline" size="sm" startIcon="play" type="button" [disabled]="windowClosed()" [attr.title]="windowTitle()" (click)="run('start')">Iniciar</button>
         }
         @if (allowed().has('restart')) {
-          <button dok-button variant="outline" size="sm" startIcon="refresh" type="button" (click)="run('restart')">Reiniciar</button>
+          <button dok-button variant="outline" size="sm" startIcon="refresh" type="button" [disabled]="windowClosed()" [attr.title]="windowTitle()" (click)="run('restart')">Reiniciar</button>
         }
         @if (allowed().has('unpause')) {
-          <button dok-button variant="outline" size="sm" startIcon="play" type="button" (click)="run('unpause')">Retomar</button>
+          <button dok-button variant="outline" size="sm" startIcon="play" type="button" [disabled]="windowClosed()" [attr.title]="windowTitle()" (click)="run('unpause')">Retomar</button>
         }
         @if (allowed().has('pause')) {
-          <button dok-button variant="outline" size="sm" startIcon="pause" type="button" (click)="run('pause')">Pausar</button>
+          <button dok-button variant="outline" size="sm" startIcon="pause" type="button" [disabled]="windowClosed()" [attr.title]="windowTitle()" (click)="run('pause')">Pausar</button>
         }
         @if (allowed().has('stop')) {
-          <button dok-button variant="outline" size="sm" startIcon="stop" type="button" (click)="run('stop')">Parar</button>
+          <button dok-button variant="outline" size="sm" startIcon="stop" type="button" [disabled]="windowClosed()" [attr.title]="windowTitle()" (click)="run('stop')">Parar</button>
         }
         <button
           dok-button
@@ -90,14 +90,16 @@
           size="sm"
           startIcon="trash"
           type="button"
-          [disabled]="!allowed().has('delete')"
-          [attr.title]="allowed().has('delete') ? null : 'Pare o container antes de remover, ou verifique sua permissão'"
+          [disabled]="!allowed().has('delete') || windowClosed()"
+          [attr.title]="windowTitle() ?? (allowed().has('delete') ? null : 'Pare o container antes de remover, ou verifique sua permissão')"
           (click)="run('delete')"
         >
           Remover container
         </button>
       </div>
     </section>
+
+    <app-change-window-notice [status]="changeWindow()" />
 
     <div class="dok-row" style="align-items: flex-start">
       <div class="dok-row__main cd-main">
@@ -147,7 +149,7 @@
             }
             @case ('terminal') {
               @if (terminalView(); as blocked) {
-                <dok-empty-state kind="forbidden" icon="command" [title]="blocked" detail="O terminal exige a permissão container:exec, agente com suporte e container em execução." [compact]="true" />
+                <dok-empty-state kind="forbidden" icon="command" [title]="blocked" [detail]="windowClosed() ? 'Abrir terminal muda o host e fica bloqueado até a próxima janela de mudança.' : 'O terminal exige a permissão container:exec, agente com suporte e container em execução.'" [compact]="true" />
               } @else {
                 <app-terminal-tab [environmentId]="environmentId()" [containerId]="containerId()" />
               }

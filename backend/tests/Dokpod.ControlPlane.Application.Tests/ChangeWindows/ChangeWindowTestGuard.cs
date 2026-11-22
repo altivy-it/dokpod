@@ -17,6 +17,13 @@ internal static class ChangeWindowTestGuard
     public static ChangeWindowGuard Unrestricted() =>
         new(new NoChangeWindows(), new UnusedCommandStore(), new UnusedDecider(), new UnusedAuditWriter(), TimeProvider.System);
 
+    /// <summary>
+    /// Guard com a janela seg-sex 22:00-06:00 de São Paulo na Produção e o relógio de <paramref name="clock"/>; sem
+    /// pedido de exceção, nunca consulta o Keycloak nem a fila.
+    /// </summary>
+    public static ChangeWindowGuard WeekdayNights(TimeProvider clock, IAuditEventWriter audit) =>
+        new(new WeekdayNightSchedule(), new UnusedCommandStore(), new UnusedDecider(), audit, clock);
+
     /// <summary>Liberação de um comando sem janela, para os testes que chamam a fila diretamente.</summary>
     public static ChangeWindowGuard.Clearance ClearanceFor(AgentCommand command) =>
         Unrestricted().EvaluateCommandAsync(
@@ -33,6 +40,23 @@ internal static class ChangeWindowTestGuard
             .GetAwaiter()
             .GetResult()
             .Clearance!;
+
+    private sealed class WeekdayNightSchedule : IChangeWindowSchedule
+    {
+        private static readonly Dokpod.Domain.ChangeWindows.ChangeWindow Production = new(
+            EnvironmentStage.Production,
+            "America/Sao_Paulo",
+            [new Dokpod.Domain.ChangeWindows.ChangeWindowRange(new HashSet<DayOfWeek> { DayOfWeek.Monday, DayOfWeek.Tuesday, DayOfWeek.Wednesday, DayOfWeek.Thursday, DayOfWeek.Friday }, new TimeOnly(22, 0), new TimeOnly(6, 0))],
+            1,
+            "Ana",
+            DateTimeOffset.UnixEpoch);
+
+        public Task<Dokpod.Domain.ChangeWindows.ChangeWindow?> GetAsync(EnvironmentStage stage, CancellationToken cancellationToken) =>
+            Task.FromResult(stage == EnvironmentStage.Production ? Production : null);
+
+        public Task<IReadOnlyList<Dokpod.Domain.ChangeWindows.ChangeWindow>> ListAsync(CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<Dokpod.Domain.ChangeWindows.ChangeWindow>>([Production]);
+    }
 
     private sealed class UnusedDecider : IEnvironmentAuthorizationDecider
     {

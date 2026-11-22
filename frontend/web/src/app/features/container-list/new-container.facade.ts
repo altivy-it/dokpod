@@ -1,3 +1,4 @@
+import { changeWindowReason } from '../../core/change-window';
 import { computed, inject, Injectable, signal } from '@angular/core';
 import { EnvironmentDirectoryService } from '../../core/environment-directory.service';
 import { newUuid } from '../../core/uuid';
@@ -53,7 +54,7 @@ export function createIneligibility(env: EnvironmentState): string | null {
   if (!env.scopes.includes('container:create')) return 'sem permissão container:create';
   if (!env.agent?.capabilities.includes('ContainerCreate')) return 'agente sem suporte a criação';
   if (!env.agent.connected) return 'agente desconectado';
-  return null;
+  return changeWindowReason(env.changeWindow);
 }
 
 const TERMINAL: CreationState[] = ['succeeded', 'failed', 'indeterminate'];

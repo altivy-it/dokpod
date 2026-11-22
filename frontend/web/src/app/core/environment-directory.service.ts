@@ -1,6 +1,7 @@
-import { computed, inject, Injectable, signal } from '@angular/core';
+import { computed, effect, inject, Injectable, signal } from '@angular/core';
 import { ControlPlaneApiService } from '../data-access/control-plane-api.service';
 import type { EnvironmentState } from '../data-access/generated/control-plane';
+import { publishChangeWindows } from './change-window';
 
 /** Ambientes autorizados ao usuário (todas as páginas), usados para scopes do menu e seletores de host. */
 @Injectable({ providedIn: 'root' })
@@ -11,6 +12,11 @@ export class EnvironmentDirectoryService {
   readonly environments = signal<EnvironmentState[]>([]);
   readonly loaded = signal(false);
   readonly scopes = computed(() => new Set(this.environments().flatMap(e => e.scopes as string[])));
+
+  constructor() {
+    // Spec 026: o estado da janela de cada host alimenta os avisos das ações em todas as telas.
+    effect(() => publishChangeWindows(this.environments().map(e => [e.environmentId, e.changeWindow])));
+  }
 
   load(force = false): Promise<void> {
     if (this.loadingPromise && !force) return this.loadingPromise;

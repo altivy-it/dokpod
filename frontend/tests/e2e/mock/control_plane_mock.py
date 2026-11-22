@@ -218,6 +218,23 @@ def alert_summary(stage: str | None) -> dict:
     return {"open": len(rows), "bySeverity": by, "recent": [alert_view(a) for a in rows[:10]]}
 
 
+def change_window(stage: str | None) -> dict:
+    """Spec 026 (T028): estado da janela do estágio. "business-cw-closed": Produção fora da janela, abrindo em 10 h;
+    "business-cw-race": a tela vê Produção aberta, mas a API recusa (a janela fechou entre a leitura e o clique)."""
+    if stage == "production" and STATE["scenario"] == "business-cw-closed":
+        return {"state": "closed", "closesAt": None, "nextOpensAt": iso(-600), "timeZone": "America/Sao_Paulo"}
+    if stage == "production" and STATE["scenario"] == "business-cw-race":
+        return {"state": "open", "closesAt": iso(-600), "nextOpensAt": None, "timeZone": "America/Sao_Paulo"}
+    return {"state": "none", "closesAt": None, "nextOpensAt": None, "timeZone": None}
+
+
+def change_window_refusal(stage: str | None) -> dict | None:
+    """O 409 do contrato quando a API recusa a ação pela janela."""
+    if stage != "production" or STATE["scenario"] not in ("business-cw-closed", "business-cw-race"):
+        return None
+    return {**problem(409, "Fora da janela de mudança", "change_window_closed"), "nextWindowStartsAt": iso(-600), "timeZone": "America/Sao_Paulo"}
+
+
 def host_view(h) -> dict:
     n, name, stage, engine, version, situation, cpus, mem, rootless = h
     connected = situation not in ("disconnected", "disabled")
@@ -230,6 +247,7 @@ def host_view(h) -> dict:
         "stage": stage,
         "situation": situation,
         "containerCount": sum(1 for c in all_containers() if c[1] == n),
+        "changeWindow": change_window(stage),
         "agent": {
             "connected": connected,
             "sessionStartedAt": iso(60 * 26) if connected else None,
@@ -313,6 +331,7 @@ def container_item(c) -> dict:
         "engine": h[3],
         "engineVersion": h[4],
         "hostConnected": connected,
+        "changeWindow": change_window(h[2]),
         **({"updateCheck": image_update_check(image, not connected, True)} if image_updates_enabled() else {}),
         **({"intentional": ALERTS["intentional"][(env_id(n), cid)]} if (env_id(n), cid) in ALERTS["intentional"] and status in ("stopped", "paused") else {}),
         "allowedActions": ([a for a in ACTIONS_FOR[status] if f"container:{a if a != 'unpause' else 'pause'}" in scopes()]
@@ -1580,6 +1599,9 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_json(200, {"lines": lines, "truncated": False, "omittedLines": 0})
         if sub == "/commands" and method == "POST":
             body = self.read_body()
+            if (refusal := change_window_refusal(host["stage"])) is not None:
+                STATE.setdefault("submitted", []).append(("change_window_denied", body.get("action"), container["name"]))
+                return self.send_json(409, refusal, "application/problem+json")
             justification = (body.get("justification") or "").strip()
             if body.get("action") in ("stop", "pause", "delete"):
                 if not justification and ALERTS["policies"].get(host["stage"]):

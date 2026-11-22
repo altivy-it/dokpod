@@ -51,6 +51,8 @@ public static class ContainerDetailEndpoints
         item["restartsLast24h"] = restarts;
         item["hostName"] = host.Descriptor?.HostName ?? registration.Host;
         item["capabilities"] = host.Descriptor?.Capabilities ?? [];
+        HostResponses.WithChangeWindow(item, (await context.RequestServices.GetRequiredService<Dokpod.ControlPlane.Application.ChangeWindows.ChangeWindowStatusReader>()
+            .SnapshotAsync(cancellationToken))(registration.Stage));
         HostResponses.WithResources(item, access.Container!.DisplayStatus, metrics.GetContainerResources(environmentId, containerId));
         if (context.RequestServices.GetService<Dokpod.ControlPlane.Application.Alerts.IActionJustificationStore>() is { } justifications)
         {

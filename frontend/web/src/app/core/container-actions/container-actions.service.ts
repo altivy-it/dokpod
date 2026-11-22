@@ -1,4 +1,5 @@
 import { computed, inject, Injectable, signal } from '@angular/core';
+import { changeWindowOf, changeWindowReason } from '../change-window';
 import { ControlPlaneApiService, type ContainerAction } from '../../data-access/control-plane-api.service';
 import type { ContainerCommandStatus, ContainerListItem } from '../../data-access/generated/control-plane';
 import { newUuid } from '../uuid';
@@ -48,7 +49,8 @@ export interface Eligibility {
 /** Motivo pelo qual um container não entra na ação (spec 010 FR-006). */
 export function ineligibleReason(item: ContainerListItem, action: ContainerAction): string | null {
   if (!item.hostConnected) return 'host desconectado';
-  if (item.allowedActions.includes(action)) return null;
+  // Spec 026: a janela vale para toda ação que muda o host; o item traz o estado do estágio do host.
+  if (item.allowedActions.includes(action)) return changeWindowReason(item.changeWindow ?? changeWindowOf(item.environmentId));
   const state = (item.state ?? '').toLowerCase();
   if (action === 'pause' && state !== 'running') return 'não está em execução';
   if (action === 'unpause' && state !== 'paused') return 'não está pausado';

@@ -82,11 +82,13 @@ public static class ConsoleEndpoints
         var updates = context.RequestServices.GetService<Dokpod.ControlPlane.Application.Images.IImageUpdateAnnotations>() is { } reader
             ? await reader.LoadAsync(result.Items.Select(i => i.Host.Registration.EnvironmentId), result.Items.Select(i => i.Container.ImageReference), cancellationToken)
             : null;
+        var windows = await context.RequestServices.GetRequiredService<Dokpod.ControlPlane.Application.ChangeWindows.ChangeWindowStatusReader>()
+            .SnapshotAsync(cancellationToken);
         return Results.Ok(new
         {
             containers = result.Items.Select(item => HostResponses.WithUpdateCheck(HostResponses.WithIntentional(
                 HostResponses.WithResources(
-                    HostResponses.ToContainerListItem(item),
+                    HostResponses.WithChangeWindow(HostResponses.ToContainerListItem(item), windows(item.Host.Registration.Stage)),
                     item.Container.DisplayStatus,
                     metrics.GetContainerResources(item.Host.Registration.EnvironmentId, item.Container.ContainerId)),
                 item.Container.DisplayStatus,

@@ -361,6 +361,8 @@ export class ContainersPage {
   protected failureText(code: string): string {
     if (code === 'justification_required') return 'justificativa obrigatória neste estágio';
     if (code === 'justification_invalid') return 'justificativa inválida';
+    // Spec 026: a janela fechou entre o aviso da tela e o envio; a API decide de novo em toda tentativa.
+    if (code === 'change_window_closed') return 'fora da janela de mudança';
     return code;
   }
 
