@@ -26,6 +26,7 @@ import { toLoadError, type LoadError } from '../overview/overview.facade';
 import { RegistriesApiService } from '../registries/registries-api.service';
 import { RegistryPolicyDrawer } from '../registries/registry-policy.drawer';
 import { AuditExportSection } from './audit-export-section.component';
+import { ChangeWindowsSection } from './change-windows-section.component';
 import { LicensingSection } from './licensing-section.component';
 import { CONSOLE_VERSION, SettingsApiService } from './settings-api.service';
 import { DEPENDENCY_LABEL, DEPENDENCY_STATUS, migrationLabel, PARAMETER_GROUPS, SOURCE_LABEL, STAGES } from './settings-labels';
@@ -59,7 +60,7 @@ export function changedBy(updatedBy: string | null | undefined, updatedAt: strin
 @Component({
   selector: 'app-settings-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [DokButton, DokCheckbox, DokEmptyState, DokKeyValue, DokStatusChip, DokTabs, AuditExportSection, FormsModule, LicensingSection, RegistryPolicyDrawer, RouterLink],
+  imports: [DokButton, DokCheckbox, DokEmptyState, DokKeyValue, DokStatusChip, DokTabs, AuditExportSection, ChangeWindowsSection, FormsModule, LicensingSection, RegistryPolicyDrawer, RouterLink],
   styleUrl: './settings.page.css',
   templateUrl: './settings.page.html',
 })
@@ -177,8 +178,14 @@ export class SettingsPage {
     this.loading.set(true);
     try {
       if (view === 'politicas') {
-        const [justifications, registries] = await Promise.all([this.api.justificationPolicies(), this.api.registryPolicies()]);
+        // Spec 026: a edição decide se a seção de janelas de mudança aparece; sem ela, a vista segue como na CE.
+        const [justifications, registries, installation] = await Promise.all([
+          this.api.justificationPolicies(),
+          this.api.registryPolicies(),
+          this.installation() ?? Promise.resolve().then(() => this.api.installation()).catch(() => null),
+        ]);
         this.policies.set(stagePolicies(justifications, registries));
+        if (installation) this.installation.set(installation);
       } else if (view === 'instalacao') {
         const [installation, bff] = await Promise.all([this.api.installation(), this.api.bffVersion()]);
         this.installation.set(installation);

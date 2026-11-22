@@ -759,6 +759,10 @@ def audit_export_destination(item: dict) -> dict:
             **(item.get("health") or {})}
 
 
+CHANGE_WINDOWS_ROUTE = "/api/v1/change-windows"
+CHANGE_WINDOW_STAGES = ("production", "staging", "development")
+
+
 class Handler(BaseHTTPRequestHandler):
     server_version = "DokpodMock/1"
 
@@ -882,6 +886,56 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_json(200, audit_export_destination(current), headers={"ETag": f'"{current["version"]}"'})
         return self.send_json(404, problem(404, "Não encontrado"), "application/problem+json")
 
+    def change_windows(self, method: str, path: str) -> None:
+        """Spec 026 (T020): janelas de mudança por estágio conforme contracts/api.md. Cálculo da janela, gate da
+        licença, regra de edição e auditoria são cobertos pelos testes da API com PostgreSQL (T016); aqui fica a
+        jornada pela borda. No cenário "business-cw-readonly", Produção é só leitura."""
+        if not is_business():
+            return self.send_json(404, problem(404, "Não encontrado"), "application/problem+json")
+        windows: dict = STATE.setdefault("change_windows", {})
+        restricted = STATE.get("licensing", {}).get("entitlement") == "restricted"
+        readonly = {"production"} if STATE["scenario"] == "business-cw-readonly" else set()
+        denied = lambda code, status=403: self.send_json(status, problem(status, "Recusado", code), "application/problem+json")  # noqa: E731
+
+        def item(stage: str) -> dict:
+            window = windows.get(stage)
+            if window is None:
+                return {"stage": stage, "timeZone": None, "ranges": [], "updatedBy": None, "updatedAt": None, "version": None,
+                        "editable": stage not in readonly, "status": {"state": "none", "closesAt": None, "nextOpensAt": None, "timeZone": None}}
+            return {"stage": stage, **window, "editable": stage not in readonly,
+                    "status": {"state": "closed", "closesAt": None, "nextOpensAt": "2026-11-25T01:00:00Z", "timeZone": window["timeZone"]}}
+
+        if path == CHANGE_WINDOWS_ROUTE and method == "GET":
+            return self.send_json(200, {"stages": [item(stage) for stage in CHANGE_WINDOW_STAGES]})
+        stage = path[len(CHANGE_WINDOWS_ROUTE):].strip("/")
+        if stage not in CHANGE_WINDOW_STAGES or method not in ("PUT", "DELETE"):
+            return denied("not_found", 404)
+        if self.headers.get("X-Dokpod-Antiforgery") != "mock-antiforgery":
+            return self.send_json(400, problem(400, "Token antiforgery ausente ou inválido"), "application/problem+json")
+        if stage in readonly:
+            return denied("authorization_denied")
+        current = windows.get(stage)
+        if method == "PUT" and restricted:
+            return denied("license_expired")
+        if self.headers.get("If-None-Match") == "*" and method == "PUT":
+            if current is not None:
+                return denied("precondition_failed", 412)
+        elif current is None or self.headers.get("If-Match") != f'"{current["version"]}"':
+            return denied("precondition_failed", 412)
+        if method == "DELETE":
+            windows.pop(stage)
+            STATE.setdefault("submitted", []).append(("change_window_remove", stage))
+            return self.send_json(204, None)
+        body = self.read_body()
+        ranges = body.get("ranges") or []
+        if set(body) - {"timeZone", "ranges"} or not body.get("timeZone") or not 1 <= len(ranges) <= 14 \
+                or any(not r.get("days") or r.get("start") == r.get("end") for r in ranges):
+            return denied("change_window_invalid", 400)
+        windows[stage] = {"timeZone": body["timeZone"], "ranges": ranges, "updatedBy": "Mariana Costa",
+                          "updatedAt": "2026-11-22T18:00:00Z", "version": (current or {"version": 0})["version"] + 1}
+        STATE.setdefault("submitted", []).append(("change_window_save", stage, windows[stage]["version"], body["timeZone"]))
+        return self.send_json(200, item(stage), headers={"ETag": f'"{windows[stage]["version"]}"'})
+
     def route(self, method: str) -> None:
         url = urlparse(self.path)
         path = url.path
@@ -906,6 +960,14 @@ class Handler(BaseHTTPRequestHandler):
             if STATE["scenario"].startswith("business-siem"):
                 STATE["licensing"].update(license=True, slot="prd", capabilities=["change-windows", "audit-siem-export"],
                                           entitlement="restricted" if STATE["scenario"].endswith("restricted") else "granted")
+            if STATE["scenario"].startswith("business-cw"):
+                STATE["licensing"].update(license=True, slot="prd", capabilities=["change-windows"],
+                                          entitlement="restricted" if STATE["scenario"].endswith("restricted") else "granted")
+            STATE["change_windows"] = {}
+            if STATE["scenario"] in ("business-cw-readonly", "business-cw-restricted"):
+                STATE["change_windows"]["production"] = {
+                    "timeZone": "America/Sao_Paulo", "ranges": [{"days": ["mon", "tue", "wed", "thu", "fri"], "start": "22:00", "end": "06:00"}],
+                    "updatedBy": "Ana", "updatedAt": "2026-11-20T18:00:00Z", "version": 3}
             STATE["audit_export"] = []
             if STATE["scenario"] == "business-siem-gap":
                 STATE["audit_export"].append({
@@ -940,6 +1002,8 @@ class Handler(BaseHTTPRequestHandler):
             return self.licensing(method, path, q)
         if path.startswith("/api/v1/settings/audit-export/"):
             return self.audit_export(method, path)
+        if path == CHANGE_WINDOWS_ROUTE or path.startswith(CHANGE_WINDOWS_ROUTE + "/"):
+            return self.change_windows(method, path)
         if path == "/bff/logout" and method == "POST":
             # Como o BFF real: POST de formulário com o token antiforgery no campo padrão do ASP.NET Core e
             # redirecionamento de página (o encerramento no Keycloak volta ao console). Sem o token, 400.

@@ -4583,6 +4583,10 @@ export type DeleteChangeWindowData = {
 
 export type DeleteChangeWindowErrors = {
     /**
+     * Falta If-Match com a versão lida (if_match_required).
+     */
+    400: ProblemDetails;
+    /**
      * Autenticação ausente ou inválida.
      */
     401: ProblemDetails;
@@ -4598,10 +4602,6 @@ export type DeleteChangeWindowErrors = {
      * A versão em If-Match não é a atual (precondition_failed).
      */
     412: ProblemDetails;
-    /**
-     * Falta If-Match (precondition_required).
-     */
-    428: ProblemDetails;
     /**
      * Autorização ou persistência indisponível.
      */
@@ -4647,7 +4647,7 @@ export type PutChangeWindowData = {
 
 export type PutChangeWindowErrors = {
     /**
-     * Janela inválida (change_window_invalid), com o campo em errors.
+     * Janela inválida (change_window_invalid), com o campo em errors, ou falta If-Match e If-None-Match (if_match_required).
      */
     400: ChangeWindowInvalidProblem;
     /**
@@ -4666,10 +4666,6 @@ export type PutChangeWindowErrors = {
      * A versão em If-Match não é a atual, ou a janela já existe com If-None-Match (precondition_failed).
      */
     412: ProblemDetails;
-    /**
-     * Falta If-Match ou If-None-Match (precondition_required).
-     */
-    428: ProblemDetails;
     /**
      * Autorização ou persistência indisponível.
      */

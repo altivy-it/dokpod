@@ -133,7 +133,7 @@ Esses três gates valem a partir da T003. `/speckit-implement` exige autorizaç�
 
 ### Testes da História 1
 
-- [ ] T016 [P] [US1] Testes das rotas em `backend/tests/Dokpod.ControlPlane.Api.Tests/ChangeWindows/ChangeWindowEndpointsTests.cs`, com PostgreSQL real e a composição Business:
+- [x] T016 [P] [US1] Testes das rotas em `backend/tests/Dokpod.ControlPlane.Api.Tests/ChangeWindows/ChangeWindowEndpointsTests.cs`, com PostgreSQL real e a composição Business:
   - `PUT` com `If-None-Match: *` cria (`200`, `ETag: "1"`); com `If-Match` errado dá `412`; corpo com propriedade desconhecida, fuso inválido, `start == end`, 15 faixas ou dia repetido dá `400 change_window_invalid` com o campo;
   - sem `environment:manage` em algum host legível do estágio, `PUT` e `DELETE` dão `403`; o `GET` mostra `editable: false`;
   - licença restrita ou sem `change-windows`: `PUT` dá `403 license_*`; `DELETE` dá `204`; `GET` responde;
@@ -141,19 +141,28 @@ Esses três gates valem a partir da T003. `/speckit-implement` exige autorizaç�
 
 ### Implementação da História 1
 
-- [ ] T017 [US1] `ChangeWindowSettingsService` em `backend/libs/Dokpod.ControlPlane.Application/ChangeWindows/ChangeWindowSettingsService.cs`:
+- [x] T017 [US1] `ChangeWindowSettingsService` em `backend/libs/Dokpod.ControlPlane.Application/ChangeWindows/ChangeWindowSettingsService.cs`:
   - `[BusinessCapability(LicenseCapabilities.ChangeWindows)]`, com o gate só em `SaveAsync` ([D-007](research.md#d-007-licença));
   - autorização "`environment:manage` em todos os hosts legíveis do estágio", reaproveitando a regra de `AlertGovernanceService.SetPolicyAsync` (016 D-007) sem duplicá-la;
   - auditoria por host do estágio, como o `registry.policy_changed`.
-- [ ] T018 [US1] Rotas em `backend/apps/Dokpod.ControlPlane.Api/ChangeWindows/ChangeWindowEndpoints.cs`, seguindo `backend/apps/Dokpod.ControlPlane.Api/AuditExport/AuditExportEndpoints.cs`: `ETag` com a versão, `problem+json`, `404` para estágio desconhecido e `status` calculado com o `ChangeWindowCalendar` no `GET`.
-- [ ] T019 [US1] Seção de janelas na vista Políticas:
+- [x] T018 [US1] Rotas em `backend/apps/Dokpod.ControlPlane.Api/ChangeWindows/ChangeWindowEndpoints.cs`, seguindo `backend/apps/Dokpod.ControlPlane.Api/AuditExport/AuditExportEndpoints.cs`: `ETag` com a versão, `problem+json`, `404` para estágio desconhecido e `status` calculado com o `ChangeWindowCalendar` no `GET`.
+- [x] T019 [US1] Seção de janelas na vista Políticas:
   - `frontend/web/src/app/features/settings/change-windows-api.service.ts` sobre o cliente gerado;
   - `frontend/web/src/app/features/settings/change-windows-section.component.{ts,html}`, com faixas (dias, início, fim), um fuso por estágio, autor e horário, edição só com `editable`, aviso de licença restrita (editar bloqueado, remover permitido) e textos em `settings-labels.ts`;
   - exibida só com `edition` Business e a capability, como a seção de exportação da 027;
   - `change-windows-section.spec.ts` com edição, leitura, `412` e licença restrita.
-- [ ] T020 [US1] E2E pela borda nginx com respostas simuladas em `frontend/tests/e2e/mock_ui/test_026_change_windows.py` e rotas em `frontend/tests/e2e/mock/control_plane_mock.py`: criar, editar e remover a janela; usuário sem permissão vê só para leitura.
+- [x] T020 [US1] E2E pela borda nginx com respostas simuladas em `frontend/tests/e2e/mock_ui/test_026_change_windows.py` e rotas em `frontend/tests/e2e/mock/control_plane_mock.py`: criar, editar e remover a janela; usuário sem permissão vê só para leitura.
 
 **Checkpoint**: janelas configuráveis e auditadas; nenhuma ação é recusada ainda além do que a Fase 2 já faz.
+
+**Execução da US1 (2026-11-22, IA assistida)**: T016–T020 validadas com a suíte do backend contra PostgreSQL 17.6 real (Api 442 aprovados e 3 pulados; Application 304; Architecture 34), o build Business, os testes do frontend (208), o build de produção do Angular e a E2E simulada completa pela borda nginx (125 aprovados, incluindo os 4 da `test_026`). Diferenças em relação ao texto das tarefas, para a revisão humana:
+
+- A regra de edição da 016 virou dois métodos públicos do `AlertGovernanceService` (`StageEditorAsync` para a tela e `AuthorizeStageAsync` para gravar), usados pela política de justificativa e pelas janelas; o comportamento da 016 não mudou. Num estágio sem host legível, a regra herdada decide pelos hosts legíveis e audita neles, como a política de justificativa.
+- Sem `If-Match` nem `If-None-Match`, a resposta é `400 if_match_required`, como na exportação da 027; o contrato foi ajustado (o rascunho tinha `428`).
+- O alvo dos eventos `change_window.updated` e `change_window.removed` é o estágio, e as faixas vão em texto (`mon,tue 22:00-06:00`).
+- A vista Políticas passou a ler a instalação para saber a edição, porque antes só a aba Instalação a lia; na CE nada muda.
+- O mock da E2E ganhou os cenários `business-cw`, `business-cw-readonly` e `business-cw-restricted`.
+- O build de produção do Angular avisa que o bundle inicial passou 2 kB do orçamento de 420 kB; o aviso já existe no `main` (422,18 kB) e não vem desta história.
 
 ---
 
