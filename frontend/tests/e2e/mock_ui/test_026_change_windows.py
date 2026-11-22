@@ -3,6 +3,8 @@ edita e remove a janela de mudança de um estágio. Sem environment:manage em to
 só para leitura; com a licença restrita, editar fica bloqueado e remover continua. Na Community Edition a seção não
 existe e nenhuma rota de janelas é chamada. Cálculo, gate e auditoria são cobertos pelos testes da API (T016)."""
 
+import re
+
 from playwright.sync_api import Page, Request, expect
 
 from conftest import BASE_URL, axe_violations, goto, screenshot
@@ -97,3 +99,64 @@ def test_community_edition_has_no_change_window_section(page: Page, scenario) ->
     expect(page.locator("#dok-main").get_by_role("heading", name="Configurações")).to_be_visible()
     expect(section(page)).to_have_count(0)
     assert calls == []
+
+
+# História 2 (T028): fora da janela, o aviso aparece antes do clique; num lote misto, só os itens fora da janela ficam
+# de fora, cada um com o motivo; e a recusa 409 da API aparece quando a janela fecha entre a leitura e o clique.
+
+def container_row(page: Page, name: str):
+    return page.get_by_role("table").locator("tr", has=page.get_by_text(name, exact=True))
+
+
+def select_containers(page: Page, *names: str) -> None:
+    for name in names:
+        page.get_by_role("checkbox", name=re.compile(f"^Selecionar {re.escape(name)} em")).click()
+
+
+def all_submitted(page: Page) -> list:
+    return [list(item) for item in page.request.get(f"{BASE_URL}__mock/submitted").json()]
+
+
+def test_detail_warns_before_the_click_and_disables_the_actions(page: Page, scenario) -> None:
+    scenario("business-cw-closed")
+    goto(page, "containers")
+    container_row(page, "checkout-web").get_by_text("checkout-web", exact=True).click()
+
+    notice = page.get_by_role("status").filter(has_text="Fora da janela de mudança")
+    expect(notice).to_be_visible()
+    expect(notice).to_contain_text("(America/Sao_Paulo)")
+    expect(page.get_by_role("button", name="Reiniciar", exact=True)).to_be_disabled()
+    expect(page.get_by_role("button", name="Parar", exact=True)).to_be_disabled()
+    expect(page.get_by_role("button", name="Abrir terminal")).to_be_disabled()
+    expect(page.get_by_role("button", name="Remover container")).to_be_disabled()
+    screenshot(page, "026-fora-da-janela-1440")
+    assert axe_violations(page) == []
+
+
+def test_mixed_batch_skips_only_the_hosts_outside_the_window(page: Page, scenario) -> None:
+    scenario("business-cw-closed")
+    goto(page, "containers")
+    select_containers(page, "checkout-web", "api-pedidos-hml")
+    page.get_by_role("button", name="Reiniciar", exact=True).first.click()
+
+    drawer = page.get_by_role("dialog")
+    expect(drawer.get_by_text("Container afetado", exact=True)).to_be_visible()
+    expect(drawer.get_by_text("1 ignorado")).to_be_visible()
+    expect(drawer.get_by_text(re.compile("fora da janela de mudança \\(abre em .*America/Sao_Paulo"))).to_be_visible()
+    drawer.get_by_role("button", name="Reiniciar").click()
+
+    progress = page.get_by_role("region", name="Andamento do lote")
+    expect(progress.get_by_text("Concluído", exact=True)).to_have_count(1, timeout=15_000)
+    assert all_submitted(page) == [["restart", "api-pedidos-hml"]]
+
+
+def test_refusal_from_the_api_is_shown_with_the_reason(page: Page, scenario) -> None:
+    scenario("business-cw-race")
+    goto(page, "containers")
+    select_containers(page, "checkout-web")
+    page.get_by_role("button", name="Reiniciar", exact=True).first.click()
+    page.get_by_role("dialog").get_by_role("button", name="Reiniciar").click()
+
+    progress = page.get_by_role("region", name="Andamento do lote")
+    expect(progress.get_by_text("Falhou: fora da janela de mudança")).to_be_visible(timeout=15_000)
+    assert all_submitted(page) == [["change_window_denied", "restart", "checkout-web"]]

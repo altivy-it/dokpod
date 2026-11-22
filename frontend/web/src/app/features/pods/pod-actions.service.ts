@@ -1,3 +1,4 @@
+import { changeWindowReasonFor } from '../../core/change-window';
 import { computed, inject, Injectable, signal } from '@angular/core';
 import { newUuid } from '../../core/uuid';
 import { ControlPlaneApiService } from '../../data-access/control-plane-api.service';
@@ -39,7 +40,7 @@ export interface PodEligibility {
 
 /** Motivo pelo qual o pod fica fora da ação (lista de afetados e ignorados). */
 export function podIneligibleReason(item: PodItem, action: PodAction): string | null {
-  if (item.allowedActions.includes(action)) return null;
+  if (item.allowedActions.includes(action)) return changeWindowReasonFor(item.environmentId);
   if (item.agentPod && action !== 'start' && action !== 'unpause') return 'pod do agente (protegido)';
   if (!item.hostConnected) return 'host desconectado';
   if (action === 'start' && item.status === 'running') return 'já está em execução';
@@ -75,6 +76,8 @@ export function podFailureText(code: string | null): string {
       return 'justificativa obrigatória neste estágio';
     case 'justification_invalid':
       return 'justificativa inválida';
+    case 'change_window_closed':
+      return 'fora da janela de mudança';
     case 'authorization_denied':
       return 'sem permissão';
     case 'agent_disconnected':

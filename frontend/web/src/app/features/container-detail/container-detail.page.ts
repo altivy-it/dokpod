@@ -31,6 +31,8 @@ import { toLoadError, type LoadError } from '../overview/overview.facade';
 import { ContainerMetricsFacade } from './container-metrics.facade';
 import { LogsPanel } from './logs.panel';
 import { TerminalTab } from './terminal.tab';
+import { changeWindowOf, isChangeWindowClosed } from '../../core/change-window';
+import { ChangeWindowNotice } from '../change-window/change-window-notice.component';
 import { EnvironmentDirectoryService } from '../../core/environment-directory.service';
 import { PodsApiService } from '../pods/pods-api.service';
 import { canPullNewVersion, hasImageUpdateCheck, IMAGE_UPDATE_STATE_TONE, imageUpdateDescription, imageUpdateStateLabel } from '../images/image-update-labels';
@@ -46,6 +48,7 @@ const HEALTH: Record<string, string> = { healthy: 'saudável', unhealthy: 'não 
   selector: 'app-container-detail-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    ChangeWindowNotice,
     ConfirmActionDrawer,
     DokButton,
     DokCard,
@@ -129,11 +132,15 @@ export class ContainerDetailPage {
   });
   protected readonly allowed = computed(() => new Set<string>(this.detail()?.allowedActions ?? []));
   private readonly directory = inject(EnvironmentDirectoryService);
+  /** Spec 026: estado da janela do estágio do host; fora dela, as ações que mudam o host ficam desabilitadas. */
+  protected readonly changeWindow = computed(() => this.detail()?.changeWindow ?? changeWindowOf(this.environmentId()));
+  protected readonly windowClosed = computed(() => isChangeWindowClosed(this.changeWindow()));
+  protected readonly windowTitle = computed(() => (this.windowClosed() ? 'Fora da janela de mudança' : null));
   /** Motivo de o terminal estar indisponível (spec 014 T012): sem permissão, sem suporte no agente ou parado. */
   protected readonly terminalBlocked = computed(() => {
     const d = this.detail();
     if (!d) return 'Carregando';
-    if (this.allowed().has('exec')) return null;
+    if (this.allowed().has('exec')) return this.windowClosed() ? 'Fora da janela de mudança' : null;
     const env = this.directory.byId(this.environmentId());
     if (env && !env.scopes.includes('container:exec')) return 'Sem permissão para abrir terminal';
     if (!(d.capabilities ?? []).includes('ContainerExec')) return 'Terminal não suportado pelo agente deste host';

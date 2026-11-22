@@ -1,3 +1,4 @@
+import { changeWindowReasonFor } from '../../core/change-window';
 import { computed, inject, Injectable, signal } from '@angular/core';
 import { newUuid } from '../../core/uuid';
 import { ControlPlaneApiService } from '../../data-access/control-plane-api.service';
@@ -38,7 +39,7 @@ export function volumeIneligibleReason(item: VolumeItem): string | null {
   if (item.inUse) return item.mounts.length === 1 ? 'em uso por 1 container' : `em uso por ${item.mounts.length} containers`;
   if (!item.hostConnected) return 'host desconectado';
   if (!item.canRemove) return 'sem permissão ou agente sem suporte';
-  return null;
+  return changeWindowReasonFor(item.environmentId);
 }
 
 export function evaluateVolumeEligibility(items: VolumeItem[]): VolumeEligibility {
@@ -65,6 +66,8 @@ export function volumeFailureText(code: string | null): string {
       return 'justificativa obrigatória neste estágio';
     case 'justification_invalid':
       return 'justificativa inválida';
+    case 'change_window_closed':
+      return 'fora da janela de mudança';
     case 'authorization_denied':
       return 'sem permissão';
     case 'agent_disconnected':
