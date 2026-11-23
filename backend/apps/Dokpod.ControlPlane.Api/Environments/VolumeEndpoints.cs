@@ -13,7 +13,7 @@ using static Dokpod.ControlPlane.Api.Endpoints.ConsoleEndpoints;
 
 namespace Dokpod.ControlPlane.Api.Endpoints;
 
-public sealed record RemoveVolumeRequest(DateTimeOffset DeadlineUtc, string? Justification);
+public sealed record RemoveVolumeRequest(DateTimeOffset DeadlineUtc, string? Justification, bool? ChangeWindowOverride = null);
 
 /// <summary>Inventário de volumes, detalhe, uso sob demanda e remoção de volume sem uso (spec 018, contracts/volumes-api.md).</summary>
 public static class VolumeEndpoints
@@ -166,7 +166,8 @@ public static class VolumeEndpoints
         VolumeRemovalResult result;
         try
         {
-            result = await service.RemoveAsync(environmentId, commandId, name, request.DeadlineUtc, request.Justification, actor!, token!, GetCorrelationId(context), cancellationToken);
+            result = await service.RemoveAsync(environmentId, commandId, name, request.DeadlineUtc, request.Justification, actor!, token!, GetCorrelationId(context), cancellationToken,
+                ChangeWindowProblems.Override(request.ChangeWindowOverride, request.Justification));
         }
         catch (InvalidOperationException)
         {

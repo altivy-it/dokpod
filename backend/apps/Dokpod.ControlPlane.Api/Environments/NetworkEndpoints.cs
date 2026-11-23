@@ -11,7 +11,7 @@ using static Dokpod.ControlPlane.Api.Endpoints.ConsoleEndpoints;
 
 namespace Dokpod.ControlPlane.Api.Endpoints;
 
-public sealed record RemoveNetworkRequest(DateTimeOffset DeadlineUtc, string? Justification);
+public sealed record RemoveNetworkRequest(DateTimeOffset DeadlineUtc, string? Justification, bool? ChangeWindowOverride = null);
 
 /// <summary>Inventário de redes, detalhe e remoção de rede sem uso (spec 019, contracts/networks-api.md).</summary>
 public static partial class NetworkEndpoints
@@ -146,7 +146,8 @@ public static partial class NetworkEndpoints
         NetworkRemovalResult result;
         try
         {
-            result = await service.RemoveAsync(environmentId, commandId, networkId, request.DeadlineUtc, request.Justification, actor!, token!, GetCorrelationId(context), cancellationToken);
+            result = await service.RemoveAsync(environmentId, commandId, networkId, request.DeadlineUtc, request.Justification, actor!, token!, GetCorrelationId(context), cancellationToken,
+                ChangeWindowProblems.Override(request.ChangeWindowOverride, request.Justification));
         }
         catch (InvalidOperationException)
         {

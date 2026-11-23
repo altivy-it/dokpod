@@ -9,7 +9,7 @@ using static Dokpod.ControlPlane.Api.Endpoints.ConsoleEndpoints;
 
 namespace Dokpod.ControlPlane.Api.Endpoints;
 
-public sealed record PullImageRequest(string? Reference, DateTimeOffset DeadlineUtc);
+public sealed record PullImageRequest(string? Reference, DateTimeOffset DeadlineUtc, bool? ChangeWindowOverride = null, string? Justification = null);
 
 /// <summary>Inventário de imagens, consulta por referência e pull por host (spec 012).</summary>
 public static class ImageEndpoints
@@ -216,7 +216,8 @@ public static class ImageEndpoints
         {
             result = await pullService.PullAsync(
                 environmentId, commandId, request.Reference ?? string.Empty, request.DeadlineUtc,
-                actor!, token!, GetCorrelationId(context), cancellationToken);
+                actor!, token!, GetCorrelationId(context), cancellationToken,
+                ChangeWindowProblems.Override(request.ChangeWindowOverride, request.Justification));
         }
         catch (ArgumentException)
         {

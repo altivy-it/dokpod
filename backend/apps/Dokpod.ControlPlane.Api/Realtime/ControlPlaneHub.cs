@@ -217,7 +217,7 @@ public sealed class ControlPlaneHub(
             try
             {
                 await service.RunAsync(
-                    new Dokpod.ControlPlane.Application.Terminal.TerminalOpenRequest(envId, request.ContainerId.ToLowerInvariant(), request.Cols, request.Rows, request.Justification),
+                    new Dokpod.ControlPlane.Application.Terminal.TerminalOpenRequest(envId, request.ContainerId.ToLowerInvariant(), request.Cols, request.Rows, request.Justification, request.ChangeWindowOverride == true),
                     AuthenticatedActor.FromSubject(subject),
                     accessToken,
                     TokenExpiresAt(Context.User),
@@ -308,7 +308,7 @@ public sealed class ControlPlaneHub(
             : Guid.NewGuid();
 }
 
-public sealed record OpenTerminalRequest(string EnvironmentId, string ContainerId, int Cols, int Rows, string? Justification);
+public sealed record OpenTerminalRequest(string EnvironmentId, string ContainerId, int Cols, int Rows, string? Justification, bool? ChangeWindowOverride = null);
 
 public sealed record TerminalResize(int Cols, int Rows);
 

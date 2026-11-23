@@ -10,7 +10,7 @@ using static Dokpod.ControlPlane.Api.Endpoints.ConsoleEndpoints;
 
 namespace Dokpod.ControlPlane.Api.Endpoints;
 
-public sealed record PodActionRequest(string? Action, DateTimeOffset DeadlineUtc, string? Justification);
+public sealed record PodActionRequest(string? Action, DateTimeOffset DeadlineUtc, string? Justification, bool? ChangeWindowOverride = null);
 
 /// <summary>Pods do Podman, detalhe e ações sobre o pod inteiro (spec 021, contracts/pods-api.md).</summary>
 public static class PodEndpoints
@@ -138,7 +138,8 @@ public static class PodEndpoints
         PodActionResult result;
         try
         {
-            result = await service.ExecuteAsync(environmentId, commandId, podId, action, request.DeadlineUtc, request.Justification, actor!, token!, GetCorrelationId(context), cancellationToken);
+            result = await service.ExecuteAsync(environmentId, commandId, podId, action, request.DeadlineUtc, request.Justification, actor!, token!, GetCorrelationId(context), cancellationToken,
+                ChangeWindowProblems.Override(request.ChangeWindowOverride, request.Justification));
         }
         catch (InvalidOperationException)
         {

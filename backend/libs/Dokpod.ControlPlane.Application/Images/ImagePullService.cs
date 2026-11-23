@@ -82,7 +82,8 @@ public sealed class ImagePullService(
         AuthenticatedActor actor,
         string accessToken,
         Guid correlationId,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        ChangeWindows.ChangeWindowOverrideRequest? changeWindowOverride = null)
     {
         ArgumentNullException.ThrowIfNull(actor);
         if (environmentId == Guid.Empty || commandId == Guid.Empty || correlationId == Guid.Empty ||
@@ -140,7 +141,7 @@ public sealed class ImagePullService(
 
         // Spec 026: a janela de mudança vem logo depois da autorização e do ambiente, antes da justificativa da 016.
         var changeWindow = await changeWindows.EvaluateCommandAsync(
-            registration, AgentCommandKind.PullImage, commandId, "image.pull", parsed.Canonical, actor, accessToken, correlationId, null, cancellationToken)
+            registration, AgentCommandKind.PullImage, commandId, "image.pull", parsed.Canonical, actor, accessToken, correlationId, changeWindowOverride, cancellationToken)
             .ConfigureAwait(false);
         if (changeWindow.Clearance is not { } clearance)
         {

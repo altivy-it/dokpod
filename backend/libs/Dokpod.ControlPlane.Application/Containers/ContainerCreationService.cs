@@ -131,7 +131,8 @@ public sealed class ContainerCreationService(
 
         // Spec 026: a janela de mudança vem logo depois da autorização e do ambiente.
         var changeWindow = await changeWindows.EvaluateCommandAsync(
-            registration, AgentCommandKind.CreateContainer, commandId, "container.create.requested", spec.Name, actor, accessToken, correlationId, null, cancellationToken)
+            registration, AgentCommandKind.CreateContainer, commandId, "container.create.requested", spec.Name, actor, accessToken, correlationId,
+            request.ChangeWindowOverride == true ? new ChangeWindows.ChangeWindowOverrideRequest(request.Justification) : null, cancellationToken)
             .ConfigureAwait(false);
         if (changeWindow.Clearance is not { } clearance)
         {

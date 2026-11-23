@@ -43,6 +43,7 @@ public sealed class ChangeWindowGuardTests
         Assert.Equal(new DateTimeOffset(2026, 11, 25, 1, 0, 0, TimeSpan.Zero), refused.NextWindowStartsAt);
         Assert.Equal("America/Sao_Paulo", refused.TimeZone);
         Assert.Equal("change_window.denied", Assert.Single(outside.Audit.Events).Action);
+        Assert.Equal(0, outside.Decider.Calls);
 
         var inside = new Fixture(Inside);
         var allowed = await inside.EvaluateAsync(kind);
@@ -90,20 +91,113 @@ public sealed class ChangeWindowGuardTests
         }
     }
 
+    [Theory]
+    [InlineData(null)]
+    [InlineData("   ")]
+    [InlineData("curta")]
+    public async Task Override_WithoutAValidJustification_IsJustificationRequired_WithoutAskingTheKeycloak(string? justification)
+    {
+        var fixture = new Fixture(Outside, AuthorizationDecisionOutcome.Allowed);
+
+        var decision = await fixture.EvaluateAsync(AgentCommandKind.StopContainer, overrideRequest: new ChangeWindowOverrideRequest(justification));
+
+        Assert.Equal(ChangeWindowGuard.JustificationRequired, decision.FailureCode);
+        Assert.Equal(0, fixture.Decider.Calls);
+        Assert.Empty(fixture.Audit.Events);
+    }
+
+    [Fact]
+    public async Task Override_WithAJustificationLongerThan500_IsRefused()
+    {
+        var fixture = new Fixture(Outside, AuthorizationDecisionOutcome.Allowed);
+
+        var decision = await fixture.EvaluateAsync(AgentCommandKind.StopContainer, overrideRequest: new ChangeWindowOverrideRequest(new string('x', 501)));
+
+        Assert.Equal(ChangeWindowGuard.JustificationRequired, decision.FailureCode);
+    }
+
+    [Fact]
+    public async Task Override_WithoutTheScope_IsChangeOverrideDenied_AndAudited()
+    {
+        var fixture = new Fixture(Outside, AuthorizationDecisionOutcome.Denied);
+
+        var decision = await fixture.EvaluateAsync(AgentCommandKind.StopContainer, overrideRequest: new ChangeWindowOverrideRequest(Justification));
+
+        Assert.Equal(ChangeWindowGuard.OverrideDenied, decision.FailureCode);
+        Assert.Equal(EnvironmentResourceScopes.ChangeOverride, fixture.Decider.LastScope);
+        var denied = Assert.Single(fixture.Audit.Events);
+        Assert.Equal(("change_window.denied", ChangeWindowGuard.OverrideDenied), (denied.Action, denied.FailureCode));
+    }
+
+    [Fact]
+    public async Task Override_WhenTheKeycloakIsUnavailable_FailsClosed()
+    {
+        var fixture = new Fixture(Outside, outcome: null);
+
+        var decision = await fixture.EvaluateAsync(AgentCommandKind.StopContainer, overrideRequest: new ChangeWindowOverrideRequest(Justification));
+
+        Assert.Equal(ChangeWindowGuard.AuthorizationUnavailable, decision.FailureCode);
+        Assert.Null(decision.Clearance);
+    }
+
+    [Fact]
+    public async Task Override_IsIgnoredInsideTheWindow_WithoutAskingTheKeycloak()
+    {
+        var fixture = new Fixture(Inside, AuthorizationDecisionOutcome.Allowed);
+
+        var decision = await fixture.EvaluateAsync(AgentCommandKind.StopContainer, overrideRequest: new ChangeWindowOverrideRequest(Justification));
+
+        Assert.Equal(ChangeWindowClearanceMode.Open, decision.Clearance!.Mode);
+        Assert.Null(decision.Clearance.OverrideAuditEvent);
+        Assert.Equal(0, fixture.Decider.Calls);
+    }
+
+    [Fact]
+    public async Task Override_WithTheScope_IssuesAnOverrideClearance_WithTheMaskedJustification()
+    {
+        var fixture = new Fixture(Outside, AuthorizationDecisionOutcome.Allowed);
+
+        var decision = await fixture.EvaluateAsync(AgentCommandKind.StopContainer, overrideRequest: new ChangeWindowOverrideRequest("Incidente INC-123 " + "tok" + "en=abc123segredo"));
+
+        Assert.Equal(ChangeWindowClearanceMode.Override, decision.Clearance!.Mode);
+        Assert.Null(decision.Clearance.MaxDeadlineUtc);
+        var overrideEvent = decision.Clearance.OverrideAuditEvent!;
+        Assert.Equal("change_window.override", overrideEvent.Action);
+        Assert.Contains("token=***", overrideEvent.Details!["justification"]);
+        Assert.DoesNotContain("abc123segredo", overrideEvent.Details["justification"]);
+        Assert.Equal("container.stop", overrideEvent.Details["action"]);
+        Assert.Empty(fixture.Audit.Events);
+    }
+
+    [Fact]
+    public async Task Override_ForTheTerminal_IsRecordedBeforeTheSessionOpens()
+    {
+        var fixture = new Fixture(Outside, AuthorizationDecisionOutcome.Allowed);
+
+        var decision = await fixture.Guard.EvaluateTerminalAsync(fixture.Registration(EnvironmentStage.Production), new string('a', 64), Actor, "token", Guid.NewGuid(), new ChangeWindowOverrideRequest(Justification), TestContext.Current.CancellationToken);
+
+        Assert.True(decision.Allowed);
+        var recorded = Assert.Single(fixture.Audit.Events);
+        Assert.Equal(("change_window.override", "container.exec.requested"), (recorded.Action, recorded.Details!["action"]));
+    }
+
+    private const string Justification = "Incidente INC-123: container travado";
+
     private static AuthenticatedActor Actor => AuthenticatedActor.FromSubject("user-1");
 
-    private sealed class Fixture(DateTimeOffset now)
+    private sealed class Fixture(DateTimeOffset now, AuthorizationDecisionOutcome? outcome = AuthorizationDecisionOutcome.Allowed)
     {
         public RecordingCommands Commands { get; } = new();
         public RecordingAudit Audit { get; } = new();
+        public RecordingDecider Decider { get; } = new(outcome);
 
-        public ChangeWindowGuard Guard => new(new Schedule(), Commands, new DenyingDecider(), Audit, new FixedTime(now));
+        public ChangeWindowGuard Guard => new(new Schedule(), Commands, Decider, Audit, new FixedTime(now));
 
         public EnvironmentRegistration Registration(EnvironmentStage? stage) =>
-            EnvironmentRegistration.Create(EnvironmentId, "prod-1", "srv-1", true, [EnvironmentResourceScopes.Read], stage);
+            EnvironmentRegistration.Create(EnvironmentId, "prod-1", "srv-1", true, [EnvironmentResourceScopes.Read, EnvironmentResourceScopes.ChangeOverride], stage);
 
-        public Task<ChangeWindowDecision> EvaluateAsync(AgentCommandKind kind, EnvironmentStage? stage = EnvironmentStage.Production) =>
-            Guard.EvaluateCommandAsync(Registration(stage), kind, Guid.NewGuid(), "container.stop", new string('a', 64), Actor, "token", Guid.NewGuid(), null, TestContext.Current.CancellationToken);
+        public Task<ChangeWindowDecision> EvaluateAsync(AgentCommandKind kind, EnvironmentStage? stage = EnvironmentStage.Production, ChangeWindowOverrideRequest? overrideRequest = null) =>
+            Guard.EvaluateCommandAsync(Registration(stage), kind, Guid.NewGuid(), "container.stop", new string('a', 64), Actor, "token", Guid.NewGuid(), overrideRequest, TestContext.Current.CancellationToken);
     }
 
     private sealed class Schedule : IChangeWindowSchedule
@@ -122,11 +216,20 @@ public sealed class ChangeWindowGuardTests
         public Task<IReadOnlyList<ChangeWindow>> ListAsync(CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<ChangeWindow>>([Production]);
     }
 
-    /// <summary>Sem pedido de exceção, o guard nunca consulta o Keycloak.</summary>
-    private sealed class DenyingDecider : IEnvironmentAuthorizationDecider
+    /// <summary>Decisão do Keycloak para `change:override`; nulo simula o provedor indisponível.</summary>
+    private sealed class RecordingDecider(AuthorizationDecisionOutcome? outcome) : IEnvironmentAuthorizationDecider
     {
-        public Task<EnvironmentAuthorizationDecision> DecideAsync(string resource, string scope, AuthenticatedActor actor, string accessToken, Guid correlationId, CancellationToken cancellationToken) =>
-            throw new InvalidOperationException("O guard não deveria consultar o Keycloak sem pedido de exceção.");
+        public int Calls { get; private set; }
+        public string? LastScope { get; private set; }
+
+        public Task<EnvironmentAuthorizationDecision> DecideAsync(string resource, string scope, AuthenticatedActor actor, string accessToken, Guid correlationId, CancellationToken cancellationToken)
+        {
+            Calls++;
+            LastScope = scope;
+            return outcome is { } value
+                ? Task.FromResult(new EnvironmentAuthorizationDecision(value, value == AuthorizationDecisionOutcome.Allowed ? null : "denied"))
+                : throw new HttpRequestException("keycloak indisponível");
+        }
     }
 
     private sealed class RecordingAudit : IAuditEventWriter

@@ -11,6 +11,10 @@ public static class ChangeWindowProblems
 {
     public const string ClosedDetail = "Fora da janela de mudança.";
 
+    /// <summary>Pedido de exceção do corpo da ação (<c>changeWindowOverride</c> com a <c>justification</c> do mesmo corpo).</summary>
+    public static ChangeWindowOverrideRequest? Override(bool? changeWindowOverride, string? justification) =>
+        changeWindowOverride == true ? new ChangeWindowOverrideRequest(justification) : null;
+
     public static IResult Denied(HttpContext context, ChangeWindowDecision? decision)
     {
         ArgumentNullException.ThrowIfNull(context);
