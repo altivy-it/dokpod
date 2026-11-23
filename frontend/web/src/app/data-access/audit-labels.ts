@@ -39,6 +39,11 @@ export const AUDIT_ACTION: Record<string, string> = {
   'volume.remove': 'Remover volume',
   'network.remove': 'Remover rede',
   'registry.policy_changed': 'Política de registros alterada',
+  // Spec 026: janelas de mudança e exceção de emergência.
+  'change_window.updated': 'Janela de mudança alterada',
+  'change_window.removed': 'Janela de mudança removida',
+  'change_window.denied': 'Ação recusada fora da janela de mudança',
+  'change_window.override': 'Exceção de emergência fora da janela',
   'pod.start': 'Iniciar pod',
   'pod.stop': 'Parar pod',
   'pod.restart': 'Reiniciar pod',
