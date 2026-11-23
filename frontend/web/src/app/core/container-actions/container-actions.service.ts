@@ -1,7 +1,7 @@
 import { computed, inject, Injectable, signal } from '@angular/core';
-import { changeWindowOf, changeWindowReason } from '../change-window';
 import { ControlPlaneApiService, type ContainerAction } from '../../data-access/control-plane-api.service';
 import type { ContainerCommandStatus, ContainerListItem } from '../../data-access/generated/control-plane';
+import { changeWindowOf, changeWindowReasonWithOverride } from '../change-window';
 import { newUuid } from '../uuid';
 
 export const ACTION_LABEL: Record<ContainerAction, { verb: string; done: string; icon: string }> = {
@@ -37,6 +37,8 @@ export interface Batch {
   action: ContainerAction;
   /** Justificativa da ação (spec 016), reenviada com a mesma chave na retomada. */
   justification?: string | null;
+  /** Spec 026: exceção de emergência pedida em cada item, com a mesma justificativa. */
+  changeWindowOverride?: boolean;
   startedAt: string;
   items: BatchItem[];
 }
@@ -47,10 +49,12 @@ export interface Eligibility {
 }
 
 /** Motivo pelo qual um container não entra na ação (spec 010 FR-006). */
-export function ineligibleReason(item: ContainerListItem, action: ContainerAction): string | null {
+export function ineligibleReason(item: ContainerListItem, action: ContainerAction, changeWindowOverride = false): string | null {
   if (!item.hostConnected) return 'host desconectado';
   // Spec 026: a janela vale para toda ação que muda o host; o item traz o estado do estágio do host.
-  if (item.allowedActions.includes(action)) return changeWindowReason(item.changeWindow ?? changeWindowOf(item.environmentId));
+  if (item.allowedActions.includes(action)) {
+    return changeWindowReasonWithOverride(item.changeWindow ?? changeWindowOf(item.environmentId), item.environmentId, changeWindowOverride);
+  }
   const state = (item.state ?? '').toLowerCase();
   if (action === 'pause' && state !== 'running') return 'não está em execução';
   if (action === 'unpause' && state !== 'paused') return 'não está pausado';
@@ -60,15 +64,22 @@ export function ineligibleReason(item: ContainerListItem, action: ContainerActio
   return 'sem permissão ou não suportado pelo agente';
 }
 
-export function evaluateEligibility(items: ContainerListItem[], action: ContainerAction): Eligibility {
+/** Com `changeWindowOverride`, os hosts fora da janela com `change:override` entram no lote (spec 026 US3). */
+export function evaluateEligibility(items: ContainerListItem[], action: ContainerAction, changeWindowOverride = false): Eligibility {
   const eligible: ContainerListItem[] = [];
   const skipped: Eligibility['skipped'] = [];
   for (const item of items) {
-    const reason = ineligibleReason(item, action);
+    const reason = ineligibleReason(item, action, changeWindowOverride);
     if (reason) skipped.push({ item, reason });
     else eligible.push(item);
   }
   return { eligible, skipped };
+}
+
+/** A mesma seleção no modo exceção de emergência; nulo quando ele não acrescenta nenhum container (spec 026 US3). */
+export function overrideEligibility(items: ContainerListItem[], action: ContainerAction): Eligibility | null {
+  const withOverride = evaluateEligibility(items, action, true);
+  return withOverride.eligible.length > evaluateEligibility(items, action).eligible.length ? withOverride : null;
 }
 
 /**
@@ -96,13 +107,14 @@ export class ContainerActionsService {
     if (this.batch() && this.running()) void this.track();
   }
 
-  async run(action: ContainerAction, items: ContainerListItem[], justification: string | null = null): Promise<Batch> {
+  async run(action: ContainerAction, items: ContainerListItem[], justification: string | null = null, changeWindowOverride = false): Promise<Batch> {
     if (items.length === 0) throw new Error('Nenhum container elegível.');
     if (items.length > BATCH_LIMIT) throw new Error(`O lote aceita no máximo ${BATCH_LIMIT} containers.`);
     const batch: Batch = {
       id: newUuid(),
       action,
       justification,
+      changeWindowOverride,
       startedAt: new Date().toISOString(),
       items: items.map(item => ({
         environmentId: item.environmentId,
@@ -149,6 +161,7 @@ export class ContainerActionsService {
             this.batch()!.action,
             item.idempotencyKey,
             this.batch()!.justification ?? null,
+            this.batch()!.changeWindowOverride ?? false,
           );
           this.patch(item.containerId, item.environmentId, { commandId, state: 'pending' });
         } catch (error: unknown) {

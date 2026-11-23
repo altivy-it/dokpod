@@ -29,3 +29,6 @@
   .nc-grid2, .nc-grid3 { grid-template-columns: minmax(0, 1fr); }
   .nc-port { grid-template-columns: minmax(0, 1fr) 12px minmax(0, 1fr) 76px 32px; gap: 6px; }
 }
+.nc-justify { display: flex; flex-direction: column; gap: 6px; }
+.nc-textarea { width: 100%; box-sizing: border-box; resize: vertical; padding: 10px 12px; border-radius: var(--radius-md); border: 1px solid var(--glass-border-strong); background: var(--input-fill); color: var(--foreground); font: inherit; }
+.nc-textarea:focus-visible { outline: 2px solid var(--teal-light); outline-offset: 1px; }

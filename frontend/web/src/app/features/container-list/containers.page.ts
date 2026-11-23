@@ -6,6 +6,7 @@ import {
   ACTION_LABEL,
   ContainerActionsService,
   evaluateEligibility,
+  overrideEligibility,
   type Eligibility,
 } from '../../core/container-actions/container-actions.service';
 import { intentionalLabel } from '../../data-access/alert-labels';
@@ -110,7 +111,7 @@ export class ContainersPage {
   protected readonly selection = signal<string[]>([]);
   protected readonly search = signal('');
   protected readonly gridSort = signal<GridSort | null>(null);
-  protected readonly pending = signal<{ action: ContainerAction; eligibility: Eligibility } | null>(null);
+  protected readonly pending = signal<{ action: ContainerAction; eligibility: Eligibility; overrideEligibility: Eligibility | null } | null>(null);
   protected readonly submitting = signal(false);
   protected readonly moreOpen = signal(false);
   /** Drawer "Novo container" (spec 013), também aberto por `?novo=1` vindo da Visão geral. */
@@ -354,7 +355,7 @@ export class ContainersPage {
       this.toast.notify('warning', { message: 'Aguarde o lote em andamento terminar.' });
       return;
     }
-    this.pending.set({ action, eligibility: evaluateEligibility(items, action) });
+    this.pending.set({ action, eligibility: evaluateEligibility(items, action), overrideEligibility: overrideEligibility(items, action) });
   }
 
   /** Falhas de envio com texto do operador; demais códigos aparecem como vieram. */
@@ -363,6 +364,7 @@ export class ContainersPage {
     if (code === 'justification_invalid') return 'justificativa inválida';
     // Spec 026: a janela fechou entre o aviso da tela e o envio; a API decide de novo em toda tentativa.
     if (code === 'change_window_closed') return 'fora da janela de mudança';
+    if (code === 'change_override_denied') return 'exceção negada: sem change:override neste host';
     return code;
   }
 
@@ -370,12 +372,13 @@ export class ContainersPage {
     this.pending()?.eligibility.eligible.some(item => item.stage === 'production') ?? false,
   );
 
-  protected async confirm(justification: string | null = null): Promise<void> {
+  protected async confirm(justification: string | null = null, changeWindowOverride = false): Promise<void> {
     const pending = this.pending();
     if (!pending) return;
     this.submitting.set(true);
     try {
-      await this.actions.run(pending.action, pending.eligibility.eligible, justification);
+      const eligible = changeWindowOverride && pending.overrideEligibility ? pending.overrideEligibility.eligible : pending.eligibility.eligible;
+      await this.actions.run(pending.action, eligible, justification, changeWindowOverride);
       this.pending.set(null);
       this.selection.set([]);
     } catch (error: unknown) {

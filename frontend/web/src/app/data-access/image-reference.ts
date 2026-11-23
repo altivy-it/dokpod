@@ -71,6 +71,10 @@ export const PULL_FAILURE: Record<string, string> = {
   image_pull_failed: 'O engine não conseguiu baixar a imagem.',
   authorization_denied: 'Sem permissão para baixar imagens neste host.',
   command_id_conflict: 'A chave do pedido já foi usada com outra imagem.',
+  // Spec 026: janela de mudança e exceção de emergência.
+  change_window_closed: 'Fora da janela de mudança neste host.',
+  change_override_denied: 'Exceção negada: sem change:override neste host.',
+  justification_required: 'A exceção de emergência exige uma justificativa de 10 a 500 caracteres.',
 };
 
 export function pullFailureLabel(code: string | null | undefined): string {

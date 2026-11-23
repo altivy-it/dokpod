@@ -221,7 +221,7 @@ def alert_summary(stage: str | None) -> dict:
 def change_window(stage: str | None) -> dict:
     """Spec 026 (T028): estado da janela do estágio. "business-cw-closed": Produção fora da janela, abrindo em 10 h;
     "business-cw-race": a tela vê Produção aberta, mas a API recusa (a janela fechou entre a leitura e o clique)."""
-    if stage == "production" and STATE["scenario"] == "business-cw-closed":
+    if stage == "production" and STATE["scenario"] in ("business-cw-closed", "business-cw-override"):
         return {"state": "closed", "closesAt": None, "nextOpensAt": iso(-600), "timeZone": "America/Sao_Paulo"}
     if stage == "production" and STATE["scenario"] == "business-cw-race":
         return {"state": "open", "closesAt": iso(-600), "nextOpensAt": None, "timeZone": "America/Sao_Paulo"}
@@ -230,9 +230,14 @@ def change_window(stage: str | None) -> dict:
 
 def change_window_refusal(stage: str | None) -> dict | None:
     """O 409 do contrato quando a API recusa a ação pela janela."""
-    if stage != "production" or STATE["scenario"] not in ("business-cw-closed", "business-cw-race"):
+    if stage != "production" or STATE["scenario"] not in ("business-cw-closed", "business-cw-race", "business-cw-override"):
         return None
     return {**problem(409, "Fora da janela de mudança", "change_window_closed"), "nextWindowStartsAt": iso(-600), "timeZone": "America/Sao_Paulo"}
+
+
+def can_override(n: int) -> bool:
+    """Spec 026 (T034): no cenário "business-cw-override", o usuário tem change:override em srv-prod-01, não em srv-prod-02."""
+    return STATE["scenario"] == "business-cw-override" and n == 1
 
 
 def host_view(h) -> dict:
@@ -243,7 +248,7 @@ def host_view(h) -> dict:
         "name": name,
         "host": f"{name}.empresa.local",
         "enabled": situation != "disabled",
-        "scopes": scopes(),
+        "scopes": scopes() + (["change:override"] if can_override(n) else []),
         "stage": stage,
         "situation": situation,
         "containerCount": sum(1 for c in all_containers() if c[1] == n),
@@ -1431,6 +1436,15 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send_json(409, problem(409, "O volume está em uso por um container.", "volume_in_use"), "application/problem+json")
             if not host["agent"]["connected"]:
                 return self.send_json(409, problem(409, "Agente desconectado", "agent_disconnected"), "application/problem+json")
+            if (refusal := change_window_refusal(host["stage"])) is not None:
+                if not body.get("changeWindowOverride"):
+                    STATE.setdefault("submitted", []).append(("change_window_denied", "remove_volume", name))
+                    return self.send_json(409, refusal, "application/problem+json")
+                if not 10 <= len(justification) <= 500:
+                    return self.send_json(422, problem(422, "Justificativa obrigatória", "justification_required"), "application/problem+json")
+                if "change:override" not in host["scopes"]:
+                    return self.send_json(403, problem(403, "Exceção não autorizada", "change_override_denied"), "application/problem+json")
+                STATE.setdefault("submitted", []).append(("change_window_override", "remove_volume", name, justification))
             if not justification and ALERTS["policies"].get(host["stage"]):
                 return self.send_json(422, problem(422, "Informe a justificativa para remover o volume (política do estágio).", "justification_required"), "application/problem+json")
             if justification and not 10 <= len(justification) <= 500:
@@ -1600,8 +1614,16 @@ class Handler(BaseHTTPRequestHandler):
         if sub == "/commands" and method == "POST":
             body = self.read_body()
             if (refusal := change_window_refusal(host["stage"])) is not None:
-                STATE.setdefault("submitted", []).append(("change_window_denied", body.get("action"), container["name"]))
-                return self.send_json(409, refusal, "application/problem+json")
+                justification = (body.get("justification") or "").strip()
+                if body.get("changeWindowOverride") and not 10 <= len(justification) <= 500:
+                    return self.send_json(422, problem(422, "Justificativa obrigatória", "justification_required"), "application/problem+json")
+                if body.get("changeWindowOverride") and "change:override" not in host["scopes"]:
+                    STATE.setdefault("submitted", []).append(("change_override_denied", body.get("action"), container["name"]))
+                    return self.send_json(403, problem(403, "Exceção não autorizada", "change_override_denied"), "application/problem+json")
+                if not body.get("changeWindowOverride"):
+                    STATE.setdefault("submitted", []).append(("change_window_denied", body.get("action"), container["name"]))
+                    return self.send_json(409, refusal, "application/problem+json")
+                STATE.setdefault("submitted", []).append(("change_window_override", body.get("action"), container["name"], justification))
             justification = (body.get("justification") or "").strip()
             if body.get("action") in ("stop", "pause", "delete"):
                 if not justification and ALERTS["policies"].get(host["stage"]):

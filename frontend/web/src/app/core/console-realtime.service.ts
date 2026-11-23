@@ -90,7 +90,7 @@ export class ConsoleRealtimeService {
    * completa a entrada (o servidor encerra a sessão com `user_closed`) e cancela a assinatura.
    */
   async openTerminal(
-    request: { environmentId: string; containerId: string; cols: number; rows: number; justification: string | null },
+    request: { environmentId: string; containerId: string; cols: number; rows: number; justification: string | null; changeWindowOverride?: boolean },
     handlers: { next: (frame: TerminalOutput) => void; error: (error: unknown) => void; complete: () => void },
   ): Promise<{ send: (input: TerminalInput) => void; dispose: () => void } | null> {
     const connection = await this.ensureConnected();

@@ -7,7 +7,9 @@ import {
   isChangeWindowClosed,
   publishChangeWindows,
 } from './change-window';
-import { evaluateEligibility } from './container-actions/container-actions.service';
+import { ConfirmActionDrawer } from './container-actions/confirm-action.drawer';
+import { evaluateEligibility, overrideEligibility } from './container-actions/container-actions.service';
+import { JustificationPolicyService } from './justification-policy.service';
 
 const closed: ChangeWindowStatus = {
   state: 'closed',
@@ -83,5 +85,52 @@ describe('Janela de mudança na tela (spec 026 T027)', () => {
     vi.advanceTimersByTime(7 * 3600_000 + 1000);
     fixture.detectChanges();
     expect(fixture.nativeElement.textContent.trim()).toBe('');
+  });
+
+  it('no modo exceção, entra o host com change:override e o outro mostra o motivo (US3)', () => {
+    publishChangeWindows([
+      ['host-a', closed, ['container:stop', 'change:override']],
+      ['host-c', closed, ['container:stop']],
+    ]);
+    const items = [item('host-a', closed), item('host-c', closed)];
+
+    expect(evaluateEligibility(items, 'stop').eligible).toEqual([]);
+    const withOverride = overrideEligibility(items, 'stop')!;
+    expect(withOverride.eligible.map(entry => entry.environmentId)).toEqual(['host-a']);
+    expect(withOverride.skipped[0].reason).toContain('sem change:override neste host');
+    expect(overrideEligibility([item('host-c', closed)], 'stop')).toBeNull();
+  });
+
+  it('o drawer oferece a exceção, exige a justificativa e confirma no modo exceção', async () => {
+    publishChangeWindows([['host-a', closed, ['container:stop', 'change:override']]]);
+    const items = [item('host-a', closed)];
+    TestBed.configureTestingModule({
+      providers: [{ provide: JustificationPolicyService, useValue: { required: () => ({}), load: () => Promise.resolve() } }],
+    });
+    const fixture = TestBed.createComponent(ConfirmActionDrawer);
+    fixture.componentRef.setInput('open', true);
+    fixture.componentRef.setInput('action', 'restart');
+    fixture.componentRef.setInput('eligibility', evaluateEligibility(items, 'restart'));
+    fixture.componentRef.setInput('overrideEligibility', overrideEligibility(items, 'restart'));
+    const confirmed: string[] = [];
+    fixture.componentInstance.overrideConfirmed.subscribe(text => confirmed.push(text));
+    fixture.detectChanges();
+
+    const root = document.body;
+    const checkbox = [...root.querySelectorAll('input[type="checkbox"]')].find(input =>
+      input.closest('label')?.textContent?.includes('Executar fora da janela (exceção de emergência)'),
+    ) as HTMLInputElement;
+    expect(checkbox).toBeTruthy();
+    checkbox.click();
+    fixture.detectChanges();
+    expect(root.textContent).toContain('Justificativa da exceção (obrigatória)');
+
+    const textarea = root.querySelector('#ca-justification') as HTMLTextAreaElement;
+    textarea.value = 'Incidente INC-123: container travado';
+    textarea.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+    (fixture.componentInstance as unknown as { confirm: () => void }).confirm();
+
+    expect(confirmed).toEqual(['Incidente INC-123: container travado']);
   });
 });

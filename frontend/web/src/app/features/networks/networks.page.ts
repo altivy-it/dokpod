@@ -19,7 +19,7 @@ import {
 import { ShellContextService } from '../../shell/shell-context.service';
 import { StageFilterService, stageLabel } from '../../shell/stage-filter.service';
 import { NetworkDetailDrawer } from './network-detail.drawer';
-import { evaluateNetworkEligibility, NetworkRemovalService, networkFailureText, type NetworkEligibility } from './network-removal.service';
+import { evaluateNetworkEligibility, overrideNetworkEligibility, NetworkRemovalService, networkFailureText, type NetworkEligibility } from './network-removal.service';
 import { NetworksApiService } from './networks-api.service';
 import { NetworksFacade, networkKey, type NetworkFilters, type NetworkSort } from './networks.facade';
 import { RemoveNetworksDrawer } from './remove-networks.drawer';
@@ -86,6 +86,8 @@ export class NetworksPage {
   protected readonly gridSort = signal<GridSort | null>(null);
   protected readonly selection = signal<string[]>([]);
   protected readonly pending = signal<NetworkEligibility | null>(null);
+  /** Spec 026: a mesma seleção no modo exceção de emergência, quando ele acrescenta algum item. */
+  protected readonly pendingOverride = signal<NetworkEligibility | null>(null);
   protected readonly submitting = signal(false);
   protected readonly detail = signal<NetworkItem | null>(null);
   protected readonly detailError = signal<string | null>(null);
@@ -257,15 +259,16 @@ export class NetworksPage {
       this.toast.notify('info', { message: 'Aguarde a remoção em andamento terminar.' });
       return;
     }
+    this.pendingOverride.set(overrideNetworkEligibility(items));
     this.pending.set(evaluateNetworkEligibility(items));
   }
 
-  protected async confirm(justification: string | null): Promise<void> {
-    const pending = this.pending();
+  protected async confirm(justification: string | null, changeWindowOverride = false): Promise<void> {
+    const pending = changeWindowOverride ? this.pendingOverride() : this.pending();
     if (!pending) return;
     this.submitting.set(true);
     try {
-      await this.removal.run(pending.eligible, justification);
+      await this.removal.run(pending.eligible, justification, changeWindowOverride);
       this.pending.set(null);
       this.selection.set([]);
       if (this.detail()) this.closeDetail();

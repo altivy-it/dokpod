@@ -4,6 +4,7 @@ import { FormArray, FormBuilder, ReactiveFormsModule, Validators } from '@angula
 import { RouterLink } from '@angular/router';
 import { debounceTime } from 'rxjs';
 import { EnvironmentDirectoryService } from '../../core/environment-directory.service';
+import { JUSTIFICATION_MAX, JUSTIFICATION_MIN } from '../../core/justification-policy.service';
 import type { ContainerCreationRequest } from '../../data-access/generated/control-plane';
 import { renderEquivalentCommand } from '../../data-access/equivalent-command';
 import { parseImageReference } from '../../data-access/image-reference';
@@ -14,6 +15,7 @@ import { DokField } from '../../design-system/field/dok-field';
 import { DokIcon } from '../../design-system/icon/dok-icon';
 import { DokSelect } from '../../design-system/select/dok-select';
 import { StageFilterService, stageLabel } from '../../shell/stage-filter.service';
+import { ChangeWindowOverrideOption } from '../change-window/change-window-override.component';
 import { createFailureLabel, createIneligibility, NewContainerFacade, type CreationState } from './new-container.facade';
 
 const NAME = /^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,62}$/;
@@ -41,7 +43,7 @@ export function healthPreset(port: number): string[] {
 @Component({
   selector: 'app-new-container-drawer',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [DokButton, DokCheckbox, DokDrawer, DokField, DokIcon, DokSelect, DokStatusChip, ReactiveFormsModule, RouterLink],
+  imports: [ChangeWindowOverrideOption, DokButton, DokCheckbox, DokDrawer, DokField, DokIcon, DokSelect, DokStatusChip, ReactiveFormsModule, RouterLink],
   providers: [NewContainerFacade],
   styleUrl: './new-container.drawer.css',
   templateUrl: './new-container.drawer.html',
@@ -110,7 +112,7 @@ export class NewContainerDrawer {
       .hosts()
       .filter(env => !engine || env.agent?.engine === engine)
       .map(env => {
-        const reason = createIneligibility(env);
+        const reason = createIneligibility(env, this.override());
         const cpu = this.facade.cpu()[env.environmentId];
         return { value: env.environmentId, label: env.name, caption: reason ?? (cpu == null ? 'CPU indisponível' : `${Math.round(cpu)}% CPU`), disabled: reason !== null };
       });
@@ -118,7 +120,19 @@ export class NewContainerDrawer {
   protected readonly selectedHost = computed(() => (this.value().host ? this.directory.byId(this.value().host!) : undefined));
   protected readonly hostBlocked = computed(() => {
     const env = this.selectedHost();
-    return env ? createIneligibility(env) : null;
+    return env ? createIneligibility(env, this.override()) : null;
+  });
+  /** Spec 026: exceção de emergência para o host fora da janela em que o usuário tem `change:override`. */
+  protected readonly override = signal(false);
+  protected readonly justification = signal('');
+  protected readonly justificationMin = JUSTIFICATION_MIN;
+  protected readonly justificationMax = JUSTIFICATION_MAX;
+  protected readonly overrideAvailable = computed(() =>
+    this.facade.hosts().some(env => createIneligibility(env) !== null && createIneligibility(env, true) === null),
+  );
+  private readonly justificationOk = computed(() => {
+    const length = this.justification().trim().length;
+    return !this.override() || (length >= this.justificationMin && length <= this.justificationMax);
   });
   protected readonly engine = computed<'docker' | 'podman'>(() => (this.selectedHost()?.agent?.engine ?? this.value().engine ?? 'docker') === 'podman' ? 'podman' : 'docker');
   protected readonly chips = computed<DrawerChip[]>(() => {
@@ -265,7 +279,9 @@ export class NewContainerDrawer {
     if (this.hostBlocked()) return `Não é possível criar neste host: ${this.hostBlocked()}.`;
     return null;
   });
-  protected readonly canSubmit = computed(() => !this.blockingReason() && Object.values(this.errors()).every(e => !e) && !!this.request() && !this.facade.running());
+  protected readonly canSubmit = computed(
+    () => !this.blockingReason() && Object.values(this.errors()).every(e => !e) && !!this.request() && !this.facade.running() && this.justificationOk(),
+  );
 
   private toRequest(): ContainerCreationRequest | null {
     const v = this.value();
@@ -319,7 +335,10 @@ export class NewContainerDrawer {
     this.submitted.set(true);
     const request = this.request();
     if (!this.canSubmit() || !request) return;
-    await this.facade.submit(this.form.controls.host.value, request);
+    await this.facade.submit(
+      this.form.controls.host.value,
+      this.override() ? { ...request, changeWindowOverride: true, justification: this.justification().trim() } : request,
+    );
   }
 
   protected close(): void {

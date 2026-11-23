@@ -144,6 +144,7 @@ export class ControlPlaneApiService {
     action: ContainerAction,
     idempotencyKey: string,
     justification: string | null = null,
+    changeWindowOverride = false,
   ): Promise<string> {
     const requestToken = await this.antiforgery();
     const accepted = await submitContainerCommand({
@@ -154,6 +155,7 @@ export class ControlPlaneApiService {
         expectedContainerRevision,
         deadlineUtc: new Date(Date.now() + 2 * 60_000).toISOString(),
         ...(justification ? { justification } : {}),
+        ...(changeWindowOverride ? { changeWindowOverride: true } : {}),
       },
       throwOnError: true,
     });
@@ -197,12 +199,17 @@ export class ControlPlaneApiService {
   }
 
   /** Pull por host; uma chave de idempotência por host torna o retry seguro (spec 012 D-002). */
-  async pullImage(environmentId: string, reference: string, idempotencyKey: string): Promise<string> {
+  async pullImage(environmentId: string, reference: string, idempotencyKey: string, justification: string | null = null, changeWindowOverride = false): Promise<string> {
     const requestToken = await this.antiforgery();
     const accepted = await pullImage({
       path: { environmentId },
       headers: { 'Idempotency-Key': idempotencyKey, 'X-Dokpod-Antiforgery': requestToken },
-      body: { reference, deadlineUtc: new Date(Date.now() + 10 * 60_000).toISOString() },
+      body: {
+        reference,
+        deadlineUtc: new Date(Date.now() + 10 * 60_000).toISOString(),
+        // Spec 026: exceção de emergência fora da janela de mudança, com a justificativa.
+        ...(changeWindowOverride ? { changeWindowOverride: true, justification: justification ?? '' } : {}),
+      },
       throwOnError: true,
     });
     return accepted.data.commandId;

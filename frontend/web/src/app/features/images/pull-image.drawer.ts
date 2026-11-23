@@ -1,7 +1,8 @@
-import { changeWindowReason } from '../../core/change-window';
 import { ChangeDetectionStrategy, Component, computed, effect, inject, input, output, signal, untracked } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { changeWindowReasonWithOverride } from '../../core/change-window';
 import { EnvironmentDirectoryService } from '../../core/environment-directory.service';
+import { JUSTIFICATION_MAX, JUSTIFICATION_MIN } from '../../core/justification-policy.service';
 import type { EnvironmentState } from '../../data-access/generated/control-plane';
 import { parseImageReference } from '../../data-access/image-reference';
 import { DokButton, DokStatusChip, formatBytes, ToastService } from '../../design-system';
@@ -10,6 +11,7 @@ import { DokDrawer } from '../../design-system/drawer/dok-drawer';
 import { DokField } from '../../design-system/field/dok-field';
 import { DokIcon } from '../../design-system/icon/dok-icon';
 import { StageFilterService, stageLabel } from '../../shell/stage-filter.service';
+import { ChangeWindowOverrideOption } from '../change-window/change-window-override.component';
 import { ImagePullService, type PullState } from './image-pull.service';
 
 interface HostOption {
@@ -29,12 +31,12 @@ const STATE_LABEL: Record<PullState, { label: string; tone: 'success' | 'error' 
 };
 
 /** Motivo pelo qual o host não aceita pull agora; nulo quando elegível (scope × capability × conexão). */
-export function pullIneligibility(env: EnvironmentState): string | null {
+export function pullIneligibility(env: EnvironmentState, changeWindowOverride = false): string | null {
   if (!env.enabled) return 'host desabilitado';
   if (!env.scopes.includes('image:pull')) return 'sem permissão image:pull';
   if (!env.agent?.connected) return 'agente desconectado';
   if (!env.agent.capabilities.includes('ImagePull')) return 'agente sem suporte a download';
-  return changeWindowReason(env.changeWindow);
+  return changeWindowReasonWithOverride(env.changeWindow, env.environmentId, changeWindowOverride);
 }
 
 /**
@@ -44,7 +46,7 @@ export function pullIneligibility(env: EnvironmentState): string | null {
 @Component({
   selector: 'app-pull-image-drawer',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [DokButton, DokCheckbox, DokDrawer, DokField, DokIcon, DokStatusChip, FormsModule],
+  imports: [ChangeWindowOverrideOption, DokButton, DokCheckbox, DokDrawer, DokField, DokIcon, DokStatusChip, FormsModule],
   styleUrl: './pull-image.drawer.css',
   templateUrl: './pull-image.drawer.html',
 })
@@ -65,6 +67,11 @@ export class PullImageDrawer {
   protected readonly touched = signal(false);
   protected readonly selected = signal<ReadonlySet<string>>(new Set());
   protected readonly submitting = signal(false);
+  /** Spec 026: exceção de emergência para os hosts fora da janela em que o usuário tem `change:override`. */
+  protected readonly override = signal(false);
+  protected readonly justification = signal('');
+  protected readonly min = JUSTIFICATION_MIN;
+  protected readonly max = JUSTIFICATION_MAX;
 
   protected readonly parsed = computed(() => parseImageReference(this.reference().trim()));
   protected readonly referenceError = computed(() =>
@@ -78,15 +85,25 @@ export class PullImageDrawer {
       .environments()
       .filter(env => !this.stageFilter.stage() || env.stage === this.stageFilter.stage())
       .map(env => {
-        const reason = pullIneligibility(env);
+        const reason = pullIneligibility(env, this.override());
         return { env, eligible: reason === null, reason };
       })
       .sort((a, b) => Number(b.eligible) - Number(a.eligible) || a.env.name.localeCompare(b.env.name)),
   );
   protected readonly eligibleCount = computed(() => this.hosts().filter(h => h.eligible).length);
+  protected readonly overrideAvailable = computed(() =>
+    this.directory
+      .environments()
+      .filter(env => !this.stageFilter.stage() || env.stage === this.stageFilter.stage())
+      .some(env => pullIneligibility(env) !== null && pullIneligibility(env, true) === null),
+  );
+  private readonly justificationOk = computed(() => {
+    const length = this.justification().trim().length;
+    return !this.override() || (length >= this.min && length <= this.max);
+  });
   protected readonly selectedHosts = computed(() => this.hosts().filter(h => h.eligible && this.selected().has(h.env.environmentId)));
   protected readonly tracking = computed(() => this.pulls.run() !== null);
-  protected readonly canSubmit = computed(() => !!this.parsed() && this.selectedHosts().length > 0 && !this.pulls.running());
+  protected readonly canSubmit = computed(() => !!this.parsed() && this.selectedHosts().length > 0 && !this.pulls.running() && this.justificationOk());
   protected readonly chips = computed(() => [{ label: this.stageName() }]);
   protected readonly elapsed = computed(() => {
     const ms = this.pulls.elapsedMs();
@@ -102,6 +119,8 @@ export class PullImageDrawer {
         void this.directory.load();
         if (!this.pulls.running()) {
           this.touched.set(false);
+          this.override.set(false);
+          this.justification.set('');
           this.reference.set(reference);
           const eligible = this.hosts().filter(h => h.eligible).map(h => h.env.environmentId);
           this.selected.set(new Set(pre.length ? pre.filter(id => eligible.includes(id)) : eligible.length === 1 ? eligible : []));
@@ -134,6 +153,8 @@ export class PullImageDrawer {
       await this.pulls.start(
         parsed.canonical,
         this.selectedHosts().map(h => ({ environmentId: h.env.environmentId, name: h.env.name })),
+        this.override() ? this.justification().trim() : null,
+        this.override(),
       );
     } catch (error: unknown) {
       this.toast.error(error instanceof Error ? error.message : 'Não foi possível solicitar o download.');

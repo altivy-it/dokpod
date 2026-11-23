@@ -60,6 +60,26 @@
         <span>A tag <strong>{{ parsed()!.tag }}</strong> é mutável: hosts diferentes podem receber conteúdos diferentes se a tag mudar no registro. Para garantir a mesma imagem, use o digest.</span>
       </div>
     }
+    @if (overrideAvailable()) {
+      <app-change-window-override [(checked)]="override" />
+      @if (override()) {
+        <div class="pi-justify">
+          <label for="pi-justification" class="alt-field__label">Justificativa da exceção (obrigatória)</label>
+          <textarea
+            id="pi-justification"
+            class="pi-textarea"
+            rows="3"
+            [attr.maxlength]="max"
+            aria-required="true"
+            aria-describedby="pi-justification-help"
+            [ngModel]="justification()"
+            (ngModelChange)="justification.set($event)"
+            name="justification"
+          ></textarea>
+          <span id="pi-justification-help" class="app-caption pi-muted">De {{ min }} a {{ max }} caracteres. Vale para cada host e fica na auditoria como exceção de janela.</span>
+        </div>
+      }
+    }
     <div class="pi-hosts-head">
       <h3>Hosts de {{ stageName() }}</h3>
       @if (eligibleCount() > 1) {

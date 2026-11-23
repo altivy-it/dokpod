@@ -20,12 +20,12 @@ export class NetworksApiService {
   }
 
   /** Um comando por rede; a mesma chave de idempotência torna o reenvio seguro (FR-007). */
-  async removeNetwork(environmentId: string, networkId: string, idempotencyKey: string, justification: string | null): Promise<string> {
+  async removeNetwork(environmentId: string, networkId: string, idempotencyKey: string, justification: string | null, changeWindowOverride = false): Promise<string> {
     const { requestToken } = await firstValueFrom(this.http.get<{ requestToken: string }>('bff/antiforgery'));
     const accepted = await removeNetwork({
       path: { environmentId, networkId },
       headers: { 'Idempotency-Key': idempotencyKey, 'X-Dokpod-Antiforgery': requestToken },
-      body: { deadlineUtc: new Date(Date.now() + 2 * 60_000).toISOString(), ...(justification ? { justification } : {}) },
+      body: { deadlineUtc: new Date(Date.now() + 2 * 60_000).toISOString(), ...(justification ? { justification } : {}), ...(changeWindowOverride ? { changeWindowOverride: true } : {}) },
       throwOnError: true,
     });
     return accepted.data.commandId;

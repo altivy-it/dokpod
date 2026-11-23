@@ -108,5 +108,5 @@
 }
 
 @if (pending(); as p) {
-  <app-remove-volumes-drawer [open]="true" [eligibility]="p" [busy]="submitting()" (cancelled)="pending.set(null)" (confirmed)="confirm($event)" />
+  <app-remove-volumes-drawer [open]="true" [eligibility]="p" [overrideEligibility]="pendingOverride()" [busy]="submitting()" (cancelled)="pending.set(null)" (confirmed)="confirm($event)" (overrideConfirmed)="confirm($event, true)" />
 }
