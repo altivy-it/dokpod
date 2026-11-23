@@ -30,15 +30,15 @@
     "tslib": "^2.9.1"
   },
   "devDependencies": {
-    "@angular/build": "^22.2.7",
-    "@angular/cli": "^22.2.7",
-    "@angular/compiler-cli": "^22.2.6",
+    "@angular/build": "^22.3.0",
+    "@angular/cli": "^22.3.0",
+    "@angular/compiler-cli": "^22.3.0",
     "@hey-api/openapi-ts": "0.99.0",
-    "axe-core": "4.14.0",
+    "axe-core": "4.14.1",
     "jsdom": "^31.0.0",
     "prettier": "^3.10.1",
     "typescript": "~6.0.2",
-    "vitest": "^5.1.0"
+    "vitest": "^5.1.1"
   },
   "overrides": {
     "js-yaml": "4.3.2",
