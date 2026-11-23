@@ -49,6 +49,15 @@ if missing:
 PY
 }
 
+# Lista materializada antes dos laços: numa substituição de processo (`done < <(entries)`) o bash descarta o código de
+# saída, e um SERVICES que não bate com o manifesto virava "nenhum serviço" com apply e check aprovados.
+entries_or_fail() {
+  local list
+  list=$(entries) || { echo "Mapeamento SERVICES não corresponde ao manifesto; nada aplicado." >&2; exit 3; }
+  [[ -n "$list" ]] || { echo "Nenhum serviço de SERVICES encontrado no manifesto; nada aplicado." >&2; exit 3; }
+  printf '%s\n' "$list"
+}
+
 container() { echo "${PROJECT}_${1}_1"; }
 # Compara pelo ID da imagem: a mesma imagem pode estar no host com mais de um digest (por exemplo, após
 # podman load), e o container reporta só um deles.
@@ -58,12 +67,13 @@ image_id() { podman image inspect -f '{{.Id}}' "$1" 2>/dev/null || true; }
 compose() {
   local args=(--env-file "$ENV_FILE" -f "$COMPOSE_FILE" -f compose-release.yaml)
   local profile
-  for profile in ${PROFILES//,/ }; do args=(--profile "$profile" "${args[@]}"); done
+  for profile in ${PROFILES:+${PROFILES//,/ }}; do args=(--profile "$profile" "${args[@]}"); done
   (cd "$COMPOSE_DIR" && podman-compose "${args[@]}" "$@")
 }
 
 apply() {
-  local token=$1 user=$2 auth stale=() service reference version
+  local token=$1 user=$2 auth stale=() service reference version list
+  list=$(entries_or_fail) || exit
   auth=$(dirname "$token")/auth.json
   podman login ghcr.io --username "$user" --password-stdin --authfile "$auth" < "$token" > /dev/null
   trap 'rm -f "$auth"' RETURN
@@ -74,7 +84,7 @@ apply() {
       podman pull --quiet --authfile "$auth" "$reference" > /dev/null
       printf '  %s:\n    image: %s\n' "$service" "$reference"
       [[ "$(running_image "$service")" == "$(image_id "$reference")" ]] || stale+=("$service")
-    done < <(entries)
+    done <<< "$list"
   } > "$COMPOSE_DIR/compose-release.yaml.new"
   mv "$COMPOSE_DIR/compose-release.yaml.new" "$COMPOSE_DIR/compose-release.yaml"
 
@@ -90,7 +100,8 @@ apply() {
 }
 
 check() {
-  local expected=$1 service reference version failed=0 status image label
+  local expected=$1 service reference version failed=0 status image label list
+  list=$(entries_or_fail) || exit
   while read -r service reference version; do
     [[ "$version" == "$expected" ]] || { echo "manifesto é da versão $version, esperado $expected"; failed=1; }
     for _ in $(seq 1 60); do
@@ -106,7 +117,7 @@ check() {
     else
       echo "OK $service: $status, ${reference#*@}, versão $label"
     fi
-  done < <(entries)
+  done <<< "$list"
   return "$failed"
 }
 

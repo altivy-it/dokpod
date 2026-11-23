@@ -30,6 +30,11 @@ configurado no host por `~/.config/dokpod-deploy/deploy.env` (pasta e arquivos d
 projeto, perfis e mapa imagem → serviço). Idempotência: aplicar a mesma release de novo não recria
 nada, porque a comparação é pelo ID da imagem resolvido do digest.
 
+O mapa `SERVICES` usa os nomes das imagens do manifesto (`dokpod-ce-api`, `dokpod-ce-bff`, `dokpod-ce-web`,
+`dokpod-ce-agent`, ou `dokpod-api-business` na API Business). Se algum nome do mapa não estiver no manifesto, ou se
+nenhum serviço sobrar, `apply` e `check` saem com código 3 sem aplicar nada, e o deploy falha. Ao renomear uma imagem,
+atualize o `deploy.env` de cada host antes da próxima release.
+
 Credenciais, todas no Environment (nunca no repositório):
 
 | Nome | Tipo | Conteúdo |
