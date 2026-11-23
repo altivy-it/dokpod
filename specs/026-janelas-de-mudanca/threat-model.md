@@ -129,6 +129,26 @@ CLIENTE (instalação)
 - **Dados**: a justificativa da exceção é mascarada; nada novo vai para logs, métricas ou traces além do código da recusa.
 - **Auditoria**: mudança de janela, recusa e exceção viram eventos na trilha.
 
+## Revisão de segurança (T037)
+
+**Data**: 2026-11-22 · **Origem**: IA assistida, sobre o código integrado (#165, #167, #168, #169) · **Revisor humano**: pendente.
+
+| Ponto | Verificação no código | Resultado |
+| --- | --- | --- |
+| Ordem das verificações | Nos seis serviços de ação, o guard vem depois da autorização da ação e da checagem do ambiente e antes da justificativa da 016; no terminal, depois de autorização, cadastro, MFA, agente e container. A busca do `commandId` (L6) fica dentro do guard e só com a janela fechada | Conforme; `ChangeWindowEnforcementTests` prova o `403` antes do `409` com `commandId` existente |
+| Falha fechada | Decisão de `change:override` indisponível ou negação sem código vira `authorization_unavailable` (`503`); falha ao gravar `change_window.denied` não libera a ação; erro ao ler `change_windows` interrompe o pedido sem enfileirar | Conforme; o último caso responde `500`, e não `503`, como as demais falhas de banco das rotas de ação |
+| Ponto único | Só os sete casos de uso que mudam o host dependem do guard; a liberação só é criada por ele; o guard não depende do gate da licença | Conforme (`ChangeWindowGuardTests` de arquitetura) |
+| Prazo (L1) e relógio (L4) | Prazo encurtado para o fechamento mais 5 minutos com a janela aberta; a decisão usa só o `TimeProvider` da API | Conforme (`ChangeWindowEnforcementTests`) |
+| Justificativa | Mascarada pelo `JustificationMasker` antes de entrar em `change_window.override`; recusas e respostas de erro não a repetem; o guard não registra logs | Conforme (`ChangeWindowGuardTests` com `token=***`) |
+| Logs, métricas e traces | A 026 não acrescenta log, métrica nem span; a resposta `409` leva só o código, a próxima abertura e o fuso | Conforme |
+| Exposição no console | A opção de exceção só aparece com `change:override` na leitura de grants; a API decide de novo | Conforme (E2E `test_026_change_windows.py`) |
+
+Achados da revisão, para a decisão do revisor humano:
+
+- **A1 (baixo)**: com a janela aberta, o reenvio de um comando aceito numa janela anterior, com prazo encurtado, é comparado pela fila com o prazo exato e pode voltar como `command_id_conflict` em vez de duplicado. Só acontece se o mesmo `Idempotency-Key` for reenviado numa janela seguinte, depois do prazo do comando original. Recomendação: aceitar e registrar no runbook.
+- **A2 (baixo)**: falha de banco ao ler a janela responde `500`, e não `503`. Nenhuma ação é aceita. Recomendação: aceitar.
+- **A3 (corrigido)**: as ações `change_window.*` não tinham rótulo na auditoria do console; os rótulos foram acrescentados junto com esta revisão.
+
 ## Decisão do revisor
 
 | Campo | Valor |

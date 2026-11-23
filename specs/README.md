@@ -147,7 +147,7 @@ Dependências: 007 → 008 → {009, 010, 012} → 011 → 013 → 014 (013 usa 
 | Ordem | Conjunto | Onde aparece | Gates humanos antes de implementar |
 | --- | --- | --- | --- |
 | 1 | [025 - Aviso de nova versão de imagem](025-aviso-nova-versao-imagem/spec.md) | Imagens, Containers, detalhe e alertas | aprovação da spec; capability de verificação no agente |
-| 2 | [026 - Janelas de mudança por estágio](026-janelas-de-mudanca/spec.md) | Configurações → Políticas e ações controladas | aprovação da spec; scope `change:override` |
+| 2 | [026 - Janelas de mudança por estágio](026-janelas-de-mudanca/spec.md) | Configurações → Políticas e ações controladas | aprovada (2026-11-20); histórias 1 a 3 integradas (#165, #167, #168, #169); validação com agentes reais (T038) pendente |
 | 3 | [027 - Exportação de auditoria para SIEM](027-exportacao-auditoria-siem/spec.md) | Configurações e Auditoria | aprovação da spec; threat model do canal de saída |
 | 4 | [028 - Implantação somente por código](028-implantacao-somente-por-codigo/spec.md) | Configurações → Políticas, Novo container e pull | aprovação da spec; 026 (exceção); jornada 2 depende de spec futura de stacks e GitOps |
 | 5 | [029 - Modelos de SSO prontos](029-modelos-sso/spec.md) | Login e Configurações → Instalação | aprovação da spec; aplicativos de teste no Entra ID, Google e GitHub |

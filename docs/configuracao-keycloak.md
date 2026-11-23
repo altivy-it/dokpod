@@ -75,6 +75,7 @@ Scopes iniciais:
 | `alert:manage` | reconhecer, resolver e silenciar alertas e gerenciar regras e silenciamentos do ambiente (spec 016) |
 | `volume:delete` | remover volume sem uso do host; nunca forçado (spec 018) |
 | `network:delete` | remover rede sem uso, local e fora do sistema; nunca desconecta containers (spec 019) |
+| `change:override` | exceção de emergência fora da janela de mudança, uma ação por vez e com justificativa (spec 026, Business) |
 
 O licenciamento da edição Business (spec 031) usa um recurso único da instalação, `urn:dokpod:installation`, e não um recurso por ambiente:
 
@@ -85,7 +86,9 @@ O licenciamento da edição Business (spec 031) usa um recurso único da instala
 
 O `configure-keycloak.ps1` cria os dois scopes e o recurso, de forma idempotente. A concessão é feita por permission do tipo `scope` no Authorization Services do `dokpod-api`, ligada a um grupo restrito (por exemplo `/dokpod/administrators`); o Dokpod não cria roles locais nem trata licença válida como permissão (FR-022). A imagem CE não expõe rotas que usem esses scopes.
 
-Os scopes são criados por `tools/scripts/configure-keycloak.ps1` no resource server `dokpod-api` e concedidos por ambiente com `tools/scripts/provision-environment-authorization.ps1 -Scope <scope>`. Scopes de operações privilegiadas (`container:create`, `container:exec`, `volume:delete`, `network:delete`) devem ser concedidos a grupos restritos e revisados periodicamente.
+Os scopes são criados por `tools/scripts/configure-keycloak.ps1` no resource server `dokpod-api` e concedidos por ambiente com `tools/scripts/provision-environment-authorization.ps1 -Scope <scope>`. Scopes de operações privilegiadas (`container:create`, `container:exec`, `volume:delete`, `network:delete`, `change:override`) devem ser concedidos a grupos restritos e revisados periodicamente.
+
+`change:override` (spec 026) não é concedido a ninguém por padrão: o `configure-keycloak.ps1` só cria o scope. Conceda por ambiente, ao grupo de plantão, com `provision-environment-authorization.ps1 -EnvironmentId <id> -GroupPath /dokpod/plantao -Scope change:override`. Instalações anteriores à 026 acusam o scope ausente no `-Drift` até a próxima reconciliação. Cada uso exige justificativa e fica na auditoria como `change_window.override` ([runbook](runbooks/janelas-de-mudanca.md)).
 
 Roles podem agrupar permissões para administração, operação e auditoria, mas a decisão final continua associada ao recurso e scope. O Dokpod não persiste cópia de role ou membership como autorização local.
 

@@ -289,6 +289,30 @@ Logs, métricas e traces da exportação não levam host, resposta do coletor ne
 
 **Risco residual**: as redes privadas do cliente são permitidas como destino, então quem tem `audit-export:manage` alcança serviços internos nelas (só por TLS, com teste limitado e auditado); aceito no threat model da spec (R6).
 
+## Threat model: janelas de mudança por estágio (spec 026)
+
+**Fronteira nova**: um controle de governança na API. Fora da janela do estágio, toda ação que muda o host é recusada
+antes de chegar à fila; o scope `change:override` permite uma exceção por ação, com justificativa. Nenhuma porta nova e
+nenhuma mudança no protocolo do agente. Detalhes no [threat model da spec](../specs/026-janelas-de-mudanca/threat-model.md)
+e no [runbook](runbooks/janelas-de-mudanca.md).
+
+| Ameaça | Mitigação | Teste negativo |
+| --- | --- | --- |
+| Cliente da API ignora a tela e age fora da janela | A decisão é da API, no aceite, com o relógio do servidor; a tela só avisa | `ChangeWindowEnforcementTests` (seis ações sem comando na fila e com `change_window.denied`; prazo do cliente dentro da janela não muda a recusa) |
+| Ação nova ou terminal escapa da janela | A fila exige a liberação, cujo construtor é privado e só o guard emite; o terminal consulta o guard | `ChangeWindowGuardTests` (arquitetura, com caso negativo), `TerminalSessionServiceTests` |
+| Reenvio de `commandId` existente para burlar a janela | O `Replay` só devolve duplicado ou conflito e nunca cria comando | `ChangeWindowQueueTests`, `ChangeWindowEnforcementTests` |
+| Comando aceito na janela com prazo longo executa muito depois | Prazo encurtado para o fechamento mais 5 minutos | `ChangeWindowEnforcementTests` |
+| Quem não pode agir descobre a janela ou se um `commandId` existe | Ordem fixa: autorização da ação, ambiente, janela; o `403` da ação vem antes do `409` | `ChangeWindowEnforcementTests` |
+| Exceção sem o scope, com Keycloak fora do ar ou sem rastro | `change:override` decidido no Keycloak a cada tentativa, falha fechada (`503`); `change_window.override` na mesma transação do comando; justificativa mascarada | `ChangeWindowGuardTests` (aplicação), `ChangeWindowOverrideTests` |
+| Licença restrita desliga a governança | A aplicação e a exceção não passam pelo gate; só criar e editar janela passam | `ChangeWindowGuardTests` (arquitetura: o guard não depende do gate), `ChangeWindowEndpointsTests` |
+| Usuário sem permissão altera a janela | `environment:manage` em todos os hosts legíveis do estágio (016 D-007), `If-Match`, contrato fechado, `CHECK` no banco | `ChangeWindowEndpointsTests`, `ChangeWindowMigrationTests` |
+
+Logs, métricas e traces não ganham nada além do código da recusa; a justificativa só vai, mascarada, para a trilha.
+
+**Riscos residuais** (aceitos no threat model, R1–R7): trocar a imagem Business pela CE desliga as janelas; justificativas
+triviais só são vistas na revisão da auditoria; NTP e `tzdata` são premissas; quem tem acesso direto ao engine não é
+contido.
+
 ## Threat model: aviso de nova versão de imagem (spec 025)
 
 **Fronteira nova**: o agente Linux passa a abrir **conexões de saída** do host para os registros OCI das imagens que o host já usa, além do engine local: `HEAD` (e `GET` só quando o índice mudou) de manifesto em HTTPS, com a credencial do `config.json` do host (`DOKPOD_AGENT_REGISTRY_AUTH_FILE`). O plano de controle só escolhe as referências (do inventário do host, filtradas pela política de registros do estágio) e recebe estado, motivo e digests pelo canal mTLS existente. Decisão em [ADR 2026-0009](adr/2026-0009-agente-consulta-registros-oci.md); detalhes no [threat model da spec](../specs/025-aviso-nova-versao-imagem/threat-model.md) e no [runbook](runbooks/imagens-aviso-nova-versao.md).
