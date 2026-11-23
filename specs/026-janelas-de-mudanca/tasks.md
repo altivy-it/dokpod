@@ -247,15 +247,15 @@ Esses três gates valem a partir da T003. `/speckit-implement` exige autorizaç�
 
 ## Fase Final: Refinamento e Aspectos Transversais
 
-- [ ] T035 [P] Medição de desempenho em `backend/tests/Dokpod.ControlPlane.Api.Tests/ChangeWindows/ChangeWindowGuardImpactTests.cs`: p95 de 30 execuções de uma ação com e sem janela configurada, falhando acima de 5 ms de diferença ([D-011](research.md#d-011-desempenho)); fora do CI, com a variável `DOKPOD_TEST_026_IMPACT=1`, como a SC-004 da 027.
-- [ ] T036 Documentação:
+- [x] T035 [P] Medição de desempenho em `backend/tests/Dokpod.ControlPlane.Api.Tests/ChangeWindows/ChangeWindowGuardImpactTests.cs`: p95 de 30 execuções de uma ação com e sem janela configurada, falhando acima de 5 ms de diferença ([D-011](research.md#d-011-desempenho)); fora do CI, com a variável `DOKPOD_TEST_026_IMPACT=1`, como a SC-004 da 027. Nota (2026-11-22): 0,16 ms depois de a busca do `commandId` passar a acontecer só com a janela fechada (antes, 10,7 ms); ver D-001 e D-011.
+- [x] T036 Documentação:
   - `docs/seguranca.md`: seção da fronteira nova com a tabela de controles, apontando para o threat model;
   - `docs/configuracao-keycloak.md`: scope `change:override` e como concedê-lo por ambiente;
   - `docs/runbooks/janelas-de-mudanca.md`: configurar, exceção de emergência, licença restrita, tzdata da imagem e troca de edição para a CE;
   - `docs/licenciamento.md`: comportamento de `change-windows` com a licença restrita;
   - `specs/README.md`: estado da 026.
-- [ ] T037 Revisão de segurança contra o T001 (ordem das verificações, falha fechada, ausência de segredo e de justificativa sem máscara em logs, métricas e traces), registrada em `specs/026-janelas-de-mudanca/threat-model.md`.
-- [ ] T038 Executar os cinco cenários de [quickstart.md](quickstart.md) com agentes reais e registrar as evidências em `specs/026-janelas-de-mudanca/validation.md`, com `NOT RUN` explícito no que faltar.
+- [x] T037 Revisão de segurança contra o T001 (ordem das verificações, falha fechada, ausência de segredo e de justificativa sem máscara em logs, métricas e traces), registrada em `specs/026-janelas-de-mudanca/threat-model.md`. Nota (2026-11-22): revisão feita por IA assistida, com os achados A1 e A2 para a decisão do revisor humano e o A3 corrigido (rótulos na auditoria do console).
+- [ ] T038 Executar os cinco cenários de [quickstart.md](quickstart.md) com agentes reais e registrar as evidências em `specs/026-janelas-de-mudanca/validation.md`, com `NOT RUN` explícito no que faltar. Nota (2026-11-22): `validation.md` registra a cobertura automatizada de cada cenário; a parte com agentes reais está NOT RUN, aguardando o solicitante decidir entre a stack E2E local e o quality com a `v0.12.0-rc.N`.
 
 ---
 
