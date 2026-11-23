@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, effect, inject, input, si
 import { Router, RouterLink } from '@angular/router';
 import { AuditAccessService } from '../../core/audit-access.service';
 import { ConfirmActionDrawer } from '../../core/container-actions/confirm-action.drawer';
-import { ACTION_LABEL, ContainerActionsService, evaluateEligibility, type Eligibility } from '../../core/container-actions/container-actions.service';
+import { ACTION_LABEL, ContainerActionsService, evaluateEligibility, overrideEligibility, type Eligibility } from '../../core/container-actions/container-actions.service';
 import { ConsoleRealtimeService } from '../../core/console-realtime.service';
 import { intentionalLabel } from '../../data-access/alert-labels';
 import { formatDateTime } from '../../design-system/format/format';
@@ -31,7 +31,7 @@ import { toLoadError, type LoadError } from '../overview/overview.facade';
 import { ContainerMetricsFacade } from './container-metrics.facade';
 import { LogsPanel } from './logs.panel';
 import { TerminalTab } from './terminal.tab';
-import { changeWindowOf, isChangeWindowClosed } from '../../core/change-window';
+import { canOverrideChangeWindow, changeWindowOf, isChangeWindowClosed } from '../../core/change-window';
 import { ChangeWindowNotice } from '../change-window/change-window-notice.component';
 import { EnvironmentDirectoryService } from '../../core/environment-directory.service';
 import { PodsApiService } from '../pods/pods-api.service';
@@ -90,7 +90,7 @@ export class ContainerDetailPage {
   protected readonly removed = signal(false);
   protected readonly summary = signal<Loadable<ContainerConfigSummary>>({ state: 'idle', value: null });
   protected readonly inspection = signal<Loadable<ContainerInspection>>({ state: 'idle', value: null });
-  protected readonly pending = signal<{ action: ContainerAction; eligibility: Eligibility } | null>(null);
+  protected readonly pending = signal<{ action: ContainerAction; eligibility: Eligibility; overrideEligibility: Eligibility | null } | null>(null);
   protected readonly submitting = signal(false);
 
   protected readonly tabs: TabItem[] = [
@@ -135,12 +135,17 @@ export class ContainerDetailPage {
   /** Spec 026: estado da janela do estágio do host; fora dela, as ações que mudam o host ficam desabilitadas. */
   protected readonly changeWindow = computed(() => this.detail()?.changeWindow ?? changeWindowOf(this.environmentId()));
   protected readonly windowClosed = computed(() => isChangeWindowClosed(this.changeWindow()));
-  protected readonly windowTitle = computed(() => (this.windowClosed() ? 'Fora da janela de mudança' : null));
+  /** Com `change:override` no host, as ações continuam disponíveis no modo exceção de emergência (spec 026 US3). */
+  protected readonly canOverride = computed(() => canOverrideChangeWindow(this.environmentId()));
+  protected readonly actionsBlocked = computed(() => this.windowClosed() && !this.canOverride());
+  protected readonly windowTitle = computed(() =>
+    this.actionsBlocked() ? 'Fora da janela de mudança' : this.windowClosed() ? 'Fora da janela de mudança: exige exceção de emergência' : null,
+  );
   /** Motivo de o terminal estar indisponível (spec 014 T012): sem permissão, sem suporte no agente ou parado. */
   protected readonly terminalBlocked = computed(() => {
     const d = this.detail();
     if (!d) return 'Carregando';
-    if (this.allowed().has('exec')) return this.windowClosed() ? 'Fora da janela de mudança' : null;
+    if (this.allowed().has('exec')) return this.actionsBlocked() ? 'Fora da janela de mudança' : null;
     const env = this.directory.byId(this.environmentId());
     if (env && !env.scopes.includes('container:exec')) return 'Sem permissão para abrir terminal';
     if (!(d.capabilities ?? []).includes('ContainerExec')) return 'Terminal não suportado pelo agente deste host';
@@ -296,15 +301,16 @@ export class ContainerDetailPage {
   protected run(action: ContainerAction): void {
     const d = this.detail();
     if (!d) return;
-    this.pending.set({ action, eligibility: evaluateEligibility([d], action) });
+    this.pending.set({ action, eligibility: evaluateEligibility([d], action), overrideEligibility: overrideEligibility([d], action) });
   }
 
-  protected async confirm(justification: string | null = null): Promise<void> {
+  protected async confirm(justification: string | null = null, changeWindowOverride = false): Promise<void> {
     const pending = this.pending();
     if (!pending) return;
     this.submitting.set(true);
     try {
-      await this.actions.run(pending.action, pending.eligibility.eligible, justification);
+      const eligible = changeWindowOverride && pending.overrideEligibility ? pending.overrideEligibility.eligible : pending.eligibility.eligible;
+      await this.actions.run(pending.action, eligible, justification, changeWindowOverride);
       this.pending.set(null);
       this.toast.notify('info', { message: `${ACTION_LABEL[pending.action].verb}: comando enviado. O resultado aparece em instantes.` });
     } catch (error: unknown) {

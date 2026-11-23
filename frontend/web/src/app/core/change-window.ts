@@ -8,16 +8,42 @@ import type { ChangeWindowStatus } from '../data-access/generated/control-plane'
  */
 const clock = signal(Date.now());
 const byEnvironment = signal<ReadonlyMap<string, ChangeWindowStatus>>(new Map());
+/** Hosts em que o usuário tem `change:override` (leitura de grants, spec 026 T032). */
+const overridable = signal<ReadonlySet<string>>(new Set());
 let timer: ReturnType<typeof setTimeout> | null = null;
 /** `setTimeout` aceita no máximo ~24,8 dias; a próxima abertura está sempre a menos de 8 dias. */
 const MAX_DELAY = 2_147_483_647;
 
-export function publishChangeWindows(entries: Iterable<[string, ChangeWindowStatus | null | undefined]>): void {
+export function publishChangeWindows(
+  entries: Iterable<[string, ChangeWindowStatus | null | undefined, (readonly string[])?]>,
+): void {
   const map = new Map<string, ChangeWindowStatus>();
-  for (const [environmentId, status] of entries) if (status) map.set(environmentId, status);
+  const canOverride = new Set<string>();
+  for (const [environmentId, status, scopes] of entries) {
+    if (status) map.set(environmentId, status);
+    if (scopes?.includes(CHANGE_OVERRIDE)) canOverride.add(environmentId);
+  }
   byEnvironment.set(map);
+  overridable.set(canOverride);
   clock.set(Date.now());
   schedule();
+}
+
+export const CHANGE_OVERRIDE = 'change:override';
+
+/** A tela só oferece a exceção de emergência a quem tem o scope no host; a API decide de novo em toda tentativa. */
+export function canOverrideChangeWindow(environmentId: string): boolean {
+  return overridable().has(environmentId);
+}
+
+/**
+ * Motivo com o modo exceção: fora da janela, o host com `change:override` entra (com justificativa); sem o scope, o
+ * motivo diz que a exceção não está disponível ali.
+ */
+export function changeWindowReasonWithOverride(status: ChangeWindowStatus | null | undefined, environmentId: string, override: boolean): string | null {
+  const reason = changeWindowReason(status);
+  if (!reason || !override) return reason;
+  return canOverrideChangeWindow(environmentId) ? null : `${reason}; sem change:override neste host`;
 }
 
 export function changeWindowOf(environmentId: string): ChangeWindowStatus | undefined {

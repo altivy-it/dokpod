@@ -1,5 +1,5 @@
-import { changeWindowReasonFor } from '../../core/change-window';
 import { computed, inject, Injectable, signal } from '@angular/core';
+import { changeWindowOf, changeWindowReasonWithOverride } from '../../core/change-window';
 import { newUuid } from '../../core/uuid';
 import { ControlPlaneApiService } from '../../data-access/control-plane-api.service';
 import type { ContainerCommandStatus, PodAction, PodItem } from '../../data-access/generated/control-plane';
@@ -29,6 +29,8 @@ export interface PodBatch {
   id: string;
   action: PodAction;
   justification: string | null;
+  /** Spec 026: exceção de emergência pedida em cada item, com a mesma justificativa. */
+  changeWindowOverride?: boolean;
   startedAt: string;
   items: PodBatchItem[];
 }
@@ -39,8 +41,8 @@ export interface PodEligibility {
 }
 
 /** Motivo pelo qual o pod fica fora da ação (lista de afetados e ignorados). */
-export function podIneligibleReason(item: PodItem, action: PodAction): string | null {
-  if (item.allowedActions.includes(action)) return changeWindowReasonFor(item.environmentId);
+export function podIneligibleReason(item: PodItem, action: PodAction, changeWindowOverride = false): string | null {
+  if (item.allowedActions.includes(action)) return changeWindowReasonWithOverride(changeWindowOf(item.environmentId), item.environmentId, changeWindowOverride);
   if (item.agentPod && action !== 'start' && action !== 'unpause') return 'pod do agente (protegido)';
   if (!item.hostConnected) return 'host desconectado';
   if (action === 'start' && item.status === 'running') return 'já está em execução';
@@ -50,11 +52,12 @@ export function podIneligibleReason(item: PodItem, action: PodAction): string | 
   return 'sem permissão ou agente sem suporte';
 }
 
-export function evaluatePodEligibility(items: PodItem[], action: PodAction): PodEligibility {
+/** Com `changeWindowOverride`, os hosts fora da janela com `change:override` entram no lote (spec 026 US3). */
+export function evaluatePodEligibility(items: PodItem[], action: PodAction, changeWindowOverride = false): PodEligibility {
   const eligible: PodItem[] = [];
   const skipped: PodEligibility['skipped'] = [];
   for (const item of items) {
-    const reason = podIneligibleReason(item, action);
+    const reason = podIneligibleReason(item, action, changeWindowOverride);
     if (reason) skipped.push({ item, reason });
     else eligible.push(item);
   }
@@ -78,6 +81,8 @@ export function podFailureText(code: string | null): string {
       return 'justificativa inválida';
     case 'change_window_closed':
       return 'fora da janela de mudança';
+    case 'change_override_denied':
+      return 'exceção negada: sem change:override neste host';
     case 'authorization_denied':
       return 'sem permissão';
     case 'agent_disconnected':
@@ -90,6 +95,12 @@ export function podFailureText(code: string | null): string {
     default:
       return code;
   }
+}
+
+/** A mesma seleção no modo exceção de emergência; nulo quando ele não acrescenta nenhum item (spec 026 US3). */
+export function overridePodEligibility(items: PodItem[], action: PodAction): PodEligibility | null {
+  const withOverride = evaluatePodEligibility(items, action, true);
+  return withOverride.eligible.length > evaluatePodEligibility(items, action).eligible.length ? withOverride : null;
 }
 
 /**
@@ -121,7 +132,7 @@ export class PodActionsService {
     if (this.running()) void this.track();
   }
 
-  async run(action: PodAction, items: PodItem[], justification: string | null): Promise<PodBatch> {
+  async run(action: PodAction, items: PodItem[], justification: string | null, changeWindowOverride = false): Promise<PodBatch> {
     if (items.length === 0) throw new Error('Nenhum pod elegível.');
     if (items.length > POD_BATCH_LIMIT) throw new Error(`O lote aceita no máximo ${POD_BATCH_LIMIT} pods.`);
     if (this.running()) throw new Error('Aguarde a remoção em andamento terminar.');
@@ -129,6 +140,7 @@ export class PodActionsService {
       id: newUuid(),
       action,
       justification,
+      changeWindowOverride,
       startedAt: new Date().toISOString(),
       items: items.map(item => ({
         environmentId: item.environmentId,
@@ -167,7 +179,7 @@ export class PodActionsService {
         if (this.batch()?.id !== batch.id) return;
         this.patch(item, { state: 'submitting' });
         try {
-          const commandId = await this.api.submitAction(item.environmentId, item.podId, batch.action, item.idempotencyKey, batch.justification);
+          const commandId = await this.api.submitAction(item.environmentId, item.podId, batch.action, item.idempotencyKey, batch.justification, batch.changeWindowOverride ?? false);
           this.patch(item, { commandId, state: 'pending' });
         } catch (error: unknown) {
           const problem = error as { code?: string; status?: number } | null;

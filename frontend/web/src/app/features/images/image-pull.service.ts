@@ -19,6 +19,9 @@ export interface PullTarget {
 
 export interface PullRun {
   reference: string;
+  /** Spec 026: exceção de emergência pedida em cada host, com a mesma justificativa. */
+  changeWindowOverride?: boolean;
+  justification?: string | null;
   startedAt: number;
   targets: PullTarget[];
 }
@@ -49,11 +52,13 @@ export class ImagePullService {
   /** Tempo do envio até o último host terminar (medição de SC-002). */
   readonly elapsedMs = signal<number | null>(null);
 
-  async start(reference: string, hosts: { environmentId: string; name: string }[]): Promise<void> {
+  async start(reference: string, hosts: { environmentId: string; name: string }[], justification: string | null = null, changeWindowOverride = false): Promise<void> {
     if (this.running()) throw new Error('Aguarde o download em andamento terminar.');
     this.elapsedMs.set(null);
     this.run.set({
       reference,
+      changeWindowOverride,
+      justification,
       startedAt: Date.now(),
       targets: hosts.map(h => ({
         environmentId: h.environmentId,
@@ -90,7 +95,7 @@ export class ImagePullService {
         .filter(t => t.state === 'queued')
         .map(async target => {
           try {
-            const commandId = await this.api.pullImage(target.environmentId, run.reference, target.key);
+            const commandId = await this.api.pullImage(target.environmentId, run.reference, target.key, run.justification ?? null, run.changeWindowOverride ?? false);
             this.patch(target.key, { commandId, state: 'pending' });
           } catch (error: unknown) {
             const code = (error as { code?: string; status?: number } | null)?.code;

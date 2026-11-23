@@ -134,7 +134,9 @@ public sealed class TerminalSessionService(
         // Spec 026: a janela de mudança, depois da autorização e do ambiente e antes da justificativa (D-001).
         if (reason is null && registration is not null)
         {
-            var changeWindow = await changeWindows.EvaluateTerminalAsync(registration, container, actor, accessToken, correlationId, null, cancellationToken)
+            var changeWindow = await changeWindows.EvaluateTerminalAsync(
+                    registration, container, actor, accessToken, correlationId,
+                    request.ChangeWindowOverride ? new ChangeWindows.ChangeWindowOverrideRequest(request.Justification) : null, cancellationToken)
                 .ConfigureAwait(false);
             if (!changeWindow.Allowed) reason = changeWindow.FailureCode;
         }

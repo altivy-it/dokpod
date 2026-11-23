@@ -55,7 +55,8 @@ public sealed class ContainerCommandService(
         string accessToken,
         Guid correlationId,
         CancellationToken cancellationToken,
-        string? justification = null)
+        string? justification = null,
+        ChangeWindows.ChangeWindowOverrideRequest? changeWindowOverride = null)
     {
         ValidateRequest(
             environmentId,
@@ -107,7 +108,7 @@ public sealed class ContainerCommandService(
 
         // Spec 026: a janela de mudança vem depois da autorização e do ambiente, antes da justificativa da 016.
         var changeWindow = await changeWindows.EvaluateCommandAsync(
-            registration, kind, commandId, AuditActionFor(kind), containerId, actor, accessToken, correlationId, null, cancellationToken)
+            registration, kind, commandId, AuditActionFor(kind), containerId, actor, accessToken, correlationId, changeWindowOverride, cancellationToken)
             .ConfigureAwait(false);
         if (changeWindow.Clearance is not { } clearance)
         {

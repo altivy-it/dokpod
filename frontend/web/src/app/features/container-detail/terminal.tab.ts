@@ -23,6 +23,8 @@ import { TerminalFacade, terminalReason } from './terminal.facade';
 export class TerminalTab implements AfterViewInit {
   readonly environmentId = input.required<string>();
   readonly containerId = input.required<string>();
+  /** Spec 026: fora da janela, com `change:override` no host, a sessão abre como exceção de emergência. */
+  readonly changeWindowOverride = input(false);
 
   protected readonly facade = inject(TerminalFacade);
   protected readonly reasonText = terminalReason;
@@ -98,14 +100,16 @@ export class TerminalTab implements AfterViewInit {
     this.resizeObserver.observe(this.host().nativeElement);
     this.host().nativeElement.addEventListener('paste', event => this.onPaste(event), { capture: true });
     this.safeFit();
-    if (await this.facade.prepare(this.environmentId(), this.containerId())) await this.connect(null);
+    if (await this.facade.prepare(this.environmentId(), this.containerId(), this.changeWindowOverride())) await this.connect(null);
   }
 
   protected async connect(justification: string | null): Promise<void> {
     if (!this.terminal) return;
     this.terminal.reset();
     this.safeFit();
-    await this.facade.open(this.environmentId(), this.containerId(), this.terminal.cols, this.terminal.rows, justification, bytes => this.terminal?.write(bytes));
+    await this.facade.open(
+      this.environmentId(), this.containerId(), this.terminal.cols, this.terminal.rows, justification, bytes => this.terminal?.write(bytes), this.changeWindowOverride(),
+    );
     this.terminal.focus();
   }
 
@@ -114,7 +118,7 @@ export class TerminalTab implements AfterViewInit {
   }
 
   protected async reopen(): Promise<void> {
-    if (await this.facade.prepare(this.environmentId(), this.containerId())) await this.connect(null);
+    if (await this.facade.prepare(this.environmentId(), this.containerId(), this.changeWindowOverride())) await this.connect(null);
   }
 
   protected toggleScreenReader(value: boolean): void {

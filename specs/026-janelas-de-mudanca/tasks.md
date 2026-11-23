@@ -218,8 +218,8 @@ Esses três gates valem a partir da T003. `/speckit-implement` exige autorizaç�
 
 ### Testes da História 3
 
-- [ ] T029 [P] [US3] Testes de unidade no `ChangeWindowGuardTests.cs`: exceção sem justificativa dá `justification_required`; justificativa com menos de 10 ou mais de 500 caracteres é recusada; scope negado dá `change_override_denied`; Keycloak indisponível dá `authorization_unavailable`; dentro da janela, o pedido de exceção é ignorado sem chamada ao Keycloak.
-- [ ] T030 [P] [US3] Testes de integração em `backend/tests/Dokpod.ControlPlane.Api.Tests/ChangeWindows/ChangeWindowOverrideTests.cs`, com PostgreSQL real:
+- [x] T029 [P] [US3] Testes de unidade no `ChangeWindowGuardTests.cs`: exceção sem justificativa dá `justification_required`; justificativa com menos de 10 ou mais de 500 caracteres é recusada; scope negado dá `change_override_denied`; Keycloak indisponível dá `authorization_unavailable`; dentro da janela, o pedido de exceção é ignorado sem chamada ao Keycloak.
+- [x] T030 [P] [US3] Testes de integração em `backend/tests/Dokpod.ControlPlane.Api.Tests/ChangeWindows/ChangeWindowOverrideTests.cs`, com PostgreSQL real:
   - exceção aceita grava o evento da ação e `change_window.override` com o mesmo `commandId`, autor e justificativa mascarada, na mesma transação (falha simulada no `INSERT` do comando não deixa nenhum dos dois);
   - repetição idempotente com o mesmo `commandId` não duplica o `change_window.override`;
   - a ação seguinte, sem novo pedido, dá `409`;
@@ -228,12 +228,20 @@ Esses três gates valem a partir da T003. `/speckit-implement` exige autorizaç�
 
 ### Implementação da História 3
 
-- [ ] T031 [US3] Pedido de exceção nas seis ações e no terminal: ler `changeWindowOverride` e `justification` dos corpos e de `OpenTerminalRequest`, repassar ao guard como `ChangeWindowOverrideRequest`, e responder `403 change_override_denied` e `422 justification_required` nas rotas da T025.
-- [ ] T032 [US3] `change:override` na leitura de grants (`IEnvironmentGrantReader` e `EnvironmentGrants.Restrict`) para o console saber quando oferecer a exceção, sem substituir a decisão da API.
-- [ ] T033 [US3] Confirmação da exceção no console: no componente da T027, para quem tem `change:override` no host, um diálogo "Executar fora da janela (exceção de emergência)" com justificativa obrigatória de 10 a 500 caracteres; num lote, uma justificativa enviada em cada item, e os hosts sem o scope mostrados como recusados. Testes `.spec.ts`.
-- [ ] T034 [US3] E2E com respostas simuladas em `frontend/tests/e2e/mock_ui/test_026_change_windows.py`: a exceção não aparece sem o scope; com o scope, a ação é executada e a ação seguinte pede nova exceção; lote com hosts com e sem o scope.
+- [x] T031 [US3] Pedido de exceção nas seis ações e no terminal: ler `changeWindowOverride` e `justification` dos corpos e de `OpenTerminalRequest`, repassar ao guard como `ChangeWindowOverrideRequest`, e responder `403 change_override_denied` e `422 justification_required` nas rotas da T025.
+- [x] T032 [US3] `change:override` na leitura de grants (`IEnvironmentGrantReader` e `EnvironmentGrants.Restrict`) para o console saber quando oferecer a exceção, sem substituir a decisão da API.
+- [x] T033 [US3] Confirmação da exceção no console: no componente da T027, para quem tem `change:override` no host, um diálogo "Executar fora da janela (exceção de emergência)" com justificativa obrigatória de 10 a 500 caracteres; num lote, uma justificativa enviada em cada item, e os hosts sem o scope mostrados como recusados. Testes `.spec.ts`.
+- [x] T034 [US3] E2E com respostas simuladas em `frontend/tests/e2e/mock_ui/test_026_change_windows.py`: a exceção não aparece sem o scope; com o scope, a ação é executada e a ação seguinte pede nova exceção; lote com hosts com e sem o scope.
 
 **Checkpoint**: as três histórias funcionam de forma independente.
+
+**Execução da US3 (2026-11-22, IA assistida)**: T029–T034 validadas com a suíte do backend contra PostgreSQL 17.6 real, os testes do frontend (214), o build de produção do Angular e a E2E simulada completa (131 aprovados, incluindo os 3 da História 3, um deles na remoção de volume). Diferenças em relação ao texto das tarefas, para a revisão humana:
+
+- **T033**: a exceção aparece nas ações de container (lista e detalhe), no terminal, na remoção de volume e de rede, nas ações de pod, no download de imagem e na criação de container. Decisão do solicitante (2026-11-22, "Siga com a recomendação 1"): completar todas as telas nesta história, antes do PR. A opção é o componente compartilhado `features/change-window/change-window-override.component.ts`.
+- A exceção aparece no drawer de confirmação como "Executar fora da janela (exceção de emergência)", só quando algum host fora da janela tem `change:override` (leitura de grants). Marcada, a justificativa fica obrigatória, os hosts sem o scope aparecem como ignorados com o motivo, e cada item do lote leva o pedido e a mesma justificativa. A exceção nunca fica marcada na abertura seguinte do drawer.
+- A falha simulada no `INSERT` do comando (T030) usa a chave estrangeira de `agent_commands`: o comando aponta para um host que só o cadastro em memória conhece, e nem o evento da ação nem o `change_window.override` ficam gravados.
+- "Com licença restrita, a exceção continua" é coberto pela regra de arquitetura da US2: o guard não depende do gate da licença.
+- Na lista de ignorados do drawer, o motivo passou a quebrar a linha; antes ele rolava na horizontal, e o axe acusava `scrollable-region-focusable` com o motivo longo da exceção.
 
 ---
 

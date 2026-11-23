@@ -1,5 +1,5 @@
-import { changeWindowReason } from '../../core/change-window';
 import { computed, inject, Injectable, signal } from '@angular/core';
+import { changeWindowReasonWithOverride } from '../../core/change-window';
 import { EnvironmentDirectoryService } from '../../core/environment-directory.service';
 import { newUuid } from '../../core/uuid';
 import { ControlPlaneApiService } from '../../data-access/control-plane-api.service';
@@ -20,6 +20,10 @@ export interface CreationTracking {
 }
 
 export const CREATE_FAILURE: Record<string, string> = {
+  // Spec 026: janela de mudança e exceção de emergência.
+  change_window_closed: 'Fora da janela de mudança neste host.',
+  change_override_denied: 'Exceção negada: sem change:override neste host.',
+  justification_required: 'A exceção de emergência exige uma justificativa de 10 a 500 caracteres.',
   name_conflict: 'Já existe um container com esse nome no host.',
   port_conflict: 'A porta do host já está em uso; o container criado foi removido.',
   privileged_port: 'O Podman rootless não publica portas abaixo de 1024; use uma porta maior. O container criado foi removido.',
@@ -49,12 +53,12 @@ export function createFailureLabel(code: string | null | undefined): string {
 }
 
 /** Motivo para o host não aceitar criação agora; nulo quando elegível (scope × capability × conexão). */
-export function createIneligibility(env: EnvironmentState): string | null {
+export function createIneligibility(env: EnvironmentState, changeWindowOverride = false): string | null {
   if (!env.enabled) return 'host desabilitado';
   if (!env.scopes.includes('container:create')) return 'sem permissão container:create';
   if (!env.agent?.capabilities.includes('ContainerCreate')) return 'agente sem suporte a criação';
   if (!env.agent.connected) return 'agente desconectado';
-  return changeWindowReason(env.changeWindow);
+  return changeWindowReasonWithOverride(env.changeWindow, env.environmentId, changeWindowOverride);
 }
 
 const TERMINAL: CreationState[] = ['succeeded', 'failed', 'indeterminate'];
@@ -109,7 +113,8 @@ export class NewContainerFacade {
     this.optionsError.set(null);
     this.inventory.set([]);
     const env = this.directory.byId(environmentId);
-    if (!env || createIneligibility(env)) return;
+    // Fora da janela, o formulário ainda carrega para quem pode pedir a exceção de emergência (spec 026).
+    if (!env || createIneligibility(env, true)) return;
     const [options, inventory] = await Promise.allSettled([
       this.api.getContainerCreateOptions(environmentId),
       this.api.listAllContainers({ environmentId: [environmentId], limit: 100 }),

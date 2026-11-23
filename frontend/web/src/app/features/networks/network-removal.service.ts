@@ -1,5 +1,5 @@
-import { changeWindowReasonFor } from '../../core/change-window';
 import { computed, inject, Injectable, signal } from '@angular/core';
+import { changeWindowOf, changeWindowReasonWithOverride } from '../../core/change-window';
 import { newUuid } from '../../core/uuid';
 import { ControlPlaneApiService } from '../../data-access/control-plane-api.service';
 import type { ContainerCommandStatus, NetworkItem } from '../../data-access/generated/control-plane';
@@ -26,6 +26,8 @@ export interface NetworkBatchItem {
 export interface NetworkBatch {
   id: string;
   justification: string | null;
+  /** Spec 026: exceção de emergência pedida em cada item, com a mesma justificativa. */
+  changeWindowOverride?: boolean;
   startedAt: string;
   items: NetworkBatchItem[];
 }
@@ -36,20 +38,21 @@ export interface NetworkEligibility {
 }
 
 /** Motivo pelo qual a rede fica fora da remoção (FR-006: listar afetadas e ignoradas). */
-export function networkIneligibleReason(item: NetworkItem): string | null {
+export function networkIneligibleReason(item: NetworkItem, changeWindowOverride = false): string | null {
   if (item.system) return 'rede do sistema';
   if (item.scope !== 'local') return 'rede de cluster';
   if (item.inUse) return item.containers.length === 1 ? 'em uso por 1 container' : `em uso por ${item.containers.length} containers`;
   if (!item.hostConnected) return 'host desconectado';
   if (!item.canRemove) return 'sem permissão ou agente sem suporte';
-  return changeWindowReasonFor(item.environmentId);
+  return changeWindowReasonWithOverride(changeWindowOf(item.environmentId), item.environmentId, changeWindowOverride);
 }
 
-export function evaluateNetworkEligibility(items: NetworkItem[]): NetworkEligibility {
+/** Com `changeWindowOverride`, os hosts fora da janela com `change:override` entram no lote (spec 026 US3). */
+export function evaluateNetworkEligibility(items: NetworkItem[], changeWindowOverride = false): NetworkEligibility {
   const eligible: NetworkItem[] = [];
   const skipped: NetworkEligibility['skipped'] = [];
   for (const item of items) {
-    const reason = networkIneligibleReason(item);
+    const reason = networkIneligibleReason(item, changeWindowOverride);
     if (reason) skipped.push({ item, reason });
     else eligible.push(item);
   }
@@ -75,6 +78,8 @@ export function networkFailureText(code: string | null): string {
       return 'justificativa inválida';
     case 'change_window_closed':
       return 'fora da janela de mudança';
+    case 'change_override_denied':
+      return 'exceção negada: sem change:override neste host';
     case 'authorization_denied':
       return 'sem permissão';
     case 'agent_disconnected':
@@ -87,6 +92,12 @@ export function networkFailureText(code: string | null): string {
     default:
       return code;
   }
+}
+
+/** A mesma seleção no modo exceção de emergência; nulo quando ele não acrescenta nenhum item (spec 026 US3). */
+export function overrideNetworkEligibility(items: NetworkItem[]): NetworkEligibility | null {
+  const withOverride = evaluateNetworkEligibility(items, true);
+  return withOverride.eligible.length > evaluateNetworkEligibility(items).eligible.length ? withOverride : null;
 }
 
 /**
@@ -118,13 +129,14 @@ export class NetworkRemovalService {
     if (this.running()) void this.track();
   }
 
-  async run(items: NetworkItem[], justification: string | null): Promise<NetworkBatch> {
+  async run(items: NetworkItem[], justification: string | null, changeWindowOverride = false): Promise<NetworkBatch> {
     if (items.length === 0) throw new Error('Nenhuma rede elegível.');
     if (items.length > NETWORK_BATCH_LIMIT) throw new Error(`O lote aceita no máximo ${NETWORK_BATCH_LIMIT} redes.`);
     if (this.running()) throw new Error('Aguarde a remoção em andamento terminar.');
     this.save({
       id: newUuid(),
       justification,
+      changeWindowOverride,
       startedAt: new Date().toISOString(),
       items: items.map(item => ({
         environmentId: item.environmentId,
@@ -162,7 +174,7 @@ export class NetworkRemovalService {
         if (this.batch()?.id !== batch.id) return;
         this.patch(item, { state: 'submitting' });
         try {
-          const commandId = await this.api.removeNetwork(item.environmentId, item.networkId, item.idempotencyKey, batch.justification);
+          const commandId = await this.api.removeNetwork(item.environmentId, item.networkId, item.idempotencyKey, batch.justification, batch.changeWindowOverride ?? false);
           this.patch(item, { commandId, state: 'pending' });
         } catch (error: unknown) {
           const problem = error as { code?: string; status?: number } | null;

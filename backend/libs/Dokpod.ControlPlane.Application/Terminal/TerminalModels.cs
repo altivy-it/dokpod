@@ -30,7 +30,8 @@ public sealed class TerminalOptions
         MaxOutputBytesPerSecond is >= 4096 and <= 4 * 1024 * 1024 && AuthorizationRecheckInterval >= TimeSpan.FromSeconds(10);
 }
 
-public sealed record TerminalOpenRequest(Guid EnvironmentId, string ContainerId, int Cols, int Rows, string? Justification);
+/// <summary>`ChangeWindowOverride` pede a exceção de emergência fora da janela de mudança (spec 026), com a mesma justificativa.</summary>
+public sealed record TerminalOpenRequest(Guid EnvironmentId, string ContainerId, int Cols, int Rows, string? Justification, bool ChangeWindowOverride = false);
 
 /// <summary>Entrada do navegador: dados (texto já decodificado) ou redimensionamento.</summary>
 public sealed record TerminalInputFrame(byte[]? Data, int? Cols, int? Rows);

@@ -23,6 +23,12 @@ public sealed record ContainerCreationRequest(
     bool AutoRemove,
     DateTimeOffset? DeadlineUtc)
 {
+    /// <summary>Spec 026: pede a exceção de emergência fora da janela de mudança, só para esta criação.</summary>
+    public bool? ChangeWindowOverride { get; init; }
+
+    /// <summary>Spec 026: justificativa da exceção (10 a 500 caracteres); não faz parte da especificação.</summary>
+    public string? Justification { get; init; }
+
     /// <summary>Forma JSON da especificação (sem `deadlineUtc`); usada para persistir parâmetros sem valores.</summary>
     public static ContainerCreationRequest FromSpec(ContainerCreationSpec spec) => new(
         spec.Image.Canonical,

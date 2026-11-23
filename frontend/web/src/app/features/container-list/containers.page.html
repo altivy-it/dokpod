@@ -133,10 +133,12 @@
     [open]="true"
     [action]="p.action"
     [eligibility]="p.eligibility"
+    [overrideEligibility]="p.overrideEligibility"
     [production]="pendingProduction()"
     [busy]="submitting()"
     (cancelled)="pending.set(null)"
     (confirmed)="confirm($event)"
+    (overrideConfirmed)="confirm($event, true)"
   />
 }
 

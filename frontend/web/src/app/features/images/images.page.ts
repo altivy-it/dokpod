@@ -139,7 +139,8 @@ export class ImagesPage {
   private readonly stageHosts = computed(() =>
     this.directory.environments().filter(env => !this.stageFilter.stage() || env.stage === this.stageFilter.stage()),
   );
-  protected readonly canPullAnywhere = computed(() => this.stageHosts().some(env => pullIneligibility(env) === null));
+  // Spec 026: fora da janela, quem tem change:override ainda baixa como exceção de emergência.
+  protected readonly canPullAnywhere = computed(() => this.stageHosts().some(env => pullIneligibility(env) === null || pullIneligibility(env, true) === null));
 
   protected readonly facets = computed<Record<string, GridFacet[]>>(() => ({
     usage: [

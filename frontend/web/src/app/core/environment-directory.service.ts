@@ -15,7 +15,7 @@ export class EnvironmentDirectoryService {
 
   constructor() {
     // Spec 026: o estado da janela de cada host alimenta os avisos das ações em todas as telas.
-    effect(() => publishChangeWindows(this.environments().map(e => [e.environmentId, e.changeWindow])));
+    effect(() => publishChangeWindows(this.environments().map(e => [e.environmentId, e.changeWindow, e.scopes as string[]])));
   }
 
   load(force = false): Promise<void> {

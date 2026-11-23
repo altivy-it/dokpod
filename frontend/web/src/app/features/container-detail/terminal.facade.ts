@@ -31,6 +31,10 @@ export const TERMINAL_REASON: Record<string, string> = {
   not_found: 'Container não encontrado.',
   error: 'Erro no terminal.',
   realtime_unavailable: 'Tempo real indisponível: não foi possível abrir o terminal.',
+  // Spec 026: janela de mudança e exceção de emergência.
+  change_window_closed: 'Fora da janela de mudança: abrir terminal fica bloqueado até a próxima janela.',
+  change_override_denied: 'Exceção negada: você não tem change:override neste host.',
+  justification_required: 'A exceção de emergência exige uma justificativa de 10 a 500 caracteres.',
 };
 
 export function terminalReason(code: string | null | undefined): string {
@@ -76,7 +80,8 @@ export class TerminalFacade {
   }
 
   /** Carrega a política; devolve se a sessão pode abrir já (sem justificativa). */
-  async prepare(environmentId: string, containerId: string): Promise<boolean> {
+  /** Com `changeWindowOverride`, a sessão sempre pede a justificativa da exceção de emergência (spec 026). */
+  async prepare(environmentId: string, containerId: string, changeWindowOverride = false): Promise<boolean> {
     this.state.set('loading');
     this.reason.set(null);
     try {
@@ -87,7 +92,7 @@ export class TerminalFacade {
         this.state.set('blocked');
         return false;
       }
-      if (policy.requiresJustification) {
+      if (policy.requiresJustification || changeWindowOverride) {
         this.state.set('justification');
         return false;
       }
@@ -101,14 +106,22 @@ export class TerminalFacade {
   }
 
   /** Abre a sessão; `write` recebe os bytes do TTY para o emulador. */
-  async open(environmentId: string, containerId: string, cols: number, rows: number, justification: string | null, write: (bytes: Uint8Array) => void): Promise<void> {
+  async open(
+    environmentId: string,
+    containerId: string,
+    cols: number,
+    rows: number,
+    justification: string | null,
+    write: (bytes: Uint8Array) => void,
+    changeWindowOverride = false,
+  ): Promise<void> {
     this.close();
     this.writer = write;
     this.state.set('connecting');
     this.reason.set(null);
     this.warning.set(null);
     const handle = await this.realtime.openTerminal(
-      { environmentId, containerId, cols, rows, justification },
+      { environmentId, containerId, cols, rows, justification, ...(changeWindowOverride ? { changeWindowOverride: true } : {}) },
       {
         next: frame => this.onFrame(frame),
         error: () => this.finish(this.state() === 'connected' ? 'client_disconnected' : 'realtime_unavailable', 'error'),

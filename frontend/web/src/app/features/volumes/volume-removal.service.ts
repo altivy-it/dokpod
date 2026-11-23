@@ -1,5 +1,5 @@
-import { changeWindowReasonFor } from '../../core/change-window';
 import { computed, inject, Injectable, signal } from '@angular/core';
+import { changeWindowOf, changeWindowReasonWithOverride } from '../../core/change-window';
 import { newUuid } from '../../core/uuid';
 import { ControlPlaneApiService } from '../../data-access/control-plane-api.service';
 import type { ContainerCommandStatus, VolumeItem } from '../../data-access/generated/control-plane';
@@ -25,6 +25,8 @@ export interface VolumeBatchItem {
 export interface VolumeBatch {
   id: string;
   justification: string | null;
+  /** Spec 026: exceção de emergência pedida em cada item, com a mesma justificativa. */
+  changeWindowOverride?: boolean;
   startedAt: string;
   items: VolumeBatchItem[];
 }
@@ -35,18 +37,19 @@ export interface VolumeEligibility {
 }
 
 /** Motivo pelo qual o volume fica fora da remoção (FR-006: listar afetados e ignorados). */
-export function volumeIneligibleReason(item: VolumeItem): string | null {
+export function volumeIneligibleReason(item: VolumeItem, changeWindowOverride = false): string | null {
   if (item.inUse) return item.mounts.length === 1 ? 'em uso por 1 container' : `em uso por ${item.mounts.length} containers`;
   if (!item.hostConnected) return 'host desconectado';
   if (!item.canRemove) return 'sem permissão ou agente sem suporte';
-  return changeWindowReasonFor(item.environmentId);
+  return changeWindowReasonWithOverride(changeWindowOf(item.environmentId), item.environmentId, changeWindowOverride);
 }
 
-export function evaluateVolumeEligibility(items: VolumeItem[]): VolumeEligibility {
+/** Com `changeWindowOverride`, os hosts fora da janela com `change:override` entram no lote (spec 026 US3). */
+export function evaluateVolumeEligibility(items: VolumeItem[], changeWindowOverride = false): VolumeEligibility {
   const eligible: VolumeItem[] = [];
   const skipped: VolumeEligibility['skipped'] = [];
   for (const item of items) {
-    const reason = volumeIneligibleReason(item);
+    const reason = volumeIneligibleReason(item, changeWindowOverride);
     if (reason) skipped.push({ item, reason });
     else eligible.push(item);
   }
@@ -68,6 +71,8 @@ export function volumeFailureText(code: string | null): string {
       return 'justificativa inválida';
     case 'change_window_closed':
       return 'fora da janela de mudança';
+    case 'change_override_denied':
+      return 'exceção negada: sem change:override neste host';
     case 'authorization_denied':
       return 'sem permissão';
     case 'agent_disconnected':
@@ -80,6 +85,12 @@ export function volumeFailureText(code: string | null): string {
     default:
       return code;
   }
+}
+
+/** A mesma seleção no modo exceção de emergência; nulo quando ele não acrescenta nenhum item (spec 026 US3). */
+export function overrideVolumeEligibility(items: VolumeItem[]): VolumeEligibility | null {
+  const withOverride = evaluateVolumeEligibility(items, true);
+  return withOverride.eligible.length > evaluateVolumeEligibility(items).eligible.length ? withOverride : null;
 }
 
 /**
@@ -111,13 +122,14 @@ export class VolumeRemovalService {
     if (this.running()) void this.track();
   }
 
-  async run(items: VolumeItem[], justification: string | null): Promise<VolumeBatch> {
+  async run(items: VolumeItem[], justification: string | null, changeWindowOverride = false): Promise<VolumeBatch> {
     if (items.length === 0) throw new Error('Nenhum volume elegível.');
     if (items.length > VOLUME_BATCH_LIMIT) throw new Error(`O lote aceita no máximo ${VOLUME_BATCH_LIMIT} volumes.`);
     if (this.running()) throw new Error('Aguarde a remoção em andamento terminar.');
     this.save({
       id: newUuid(),
       justification,
+      changeWindowOverride,
       startedAt: new Date().toISOString(),
       items: items.map(item => ({
         environmentId: item.environmentId,
@@ -154,7 +166,7 @@ export class VolumeRemovalService {
         if (this.batch()?.id !== batch.id) return;
         this.patch(item, { state: 'submitting' });
         try {
-          const commandId = await this.api.removeVolume(item.environmentId, item.name, item.idempotencyKey, batch.justification);
+          const commandId = await this.api.removeVolume(item.environmentId, item.name, item.idempotencyKey, batch.justification, batch.changeWindowOverride ?? false);
           this.patch(item, { commandId, state: 'pending' });
         } catch (error: unknown) {
           const problem = error as { code?: string; status?: number } | null;

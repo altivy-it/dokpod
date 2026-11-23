@@ -160,3 +160,77 @@ def test_refusal_from_the_api_is_shown_with_the_reason(page: Page, scenario) -> 
     progress = page.get_by_role("region", name="Andamento do lote")
     expect(progress.get_by_text("Falhou: fora da janela de mudança")).to_be_visible(timeout=15_000)
     assert all_submitted(page) == [["change_window_denied", "restart", "checkout-web"]]
+
+
+# História 3 (T034): a exceção de emergência só aparece para quem tem change:override no host, vale para uma ação e,
+# num lote, os hosts sem o scope ficam de fora com o motivo.
+
+OVERRIDE = "Executar fora da janela (exceção de emergência)"
+REASON = "Incidente INC-123: container travado"
+
+
+def test_without_the_scope_the_exception_is_not_offered(page: Page, scenario) -> None:
+    scenario("business-cw-closed")
+    goto(page, "containers")
+    select_containers(page, "checkout-web")
+    page.get_by_role("button", name="Reiniciar", exact=True).first.click()
+
+    drawer = page.get_by_role("dialog")
+    expect(drawer.get_by_text("1 ignorado")).to_be_visible()
+    expect(drawer.get_by_text(OVERRIDE)).to_have_count(0)
+
+
+def test_exception_runs_the_action_with_justification_and_skips_hosts_without_the_scope(page: Page, scenario) -> None:
+    scenario("business-cw-override")
+    goto(page, "containers")
+    select_containers(page, "checkout-web", "postgres-principal")
+    page.get_by_role("button", name="Reiniciar", exact=True).first.click()
+
+    drawer = page.get_by_role("dialog")
+    expect(drawer.get_by_text("2 ignorados")).to_be_visible()
+    drawer.get_by_text(OVERRIDE).click()
+    expect(drawer.get_by_text("Container afetado", exact=True)).to_be_visible()
+    expect(drawer.get_by_text(re.compile("sem change:override neste host"))).to_be_visible()
+    confirm = drawer.get_by_role("button", name="Reiniciar")
+    expect(confirm).to_be_disabled()
+    drawer.get_by_label(re.compile("Justificativa da exceção")).fill(REASON)
+    assert axe_violations(page) == []
+    screenshot(page, "026-excecao-1440")
+    confirm.click()
+
+    progress = page.get_by_role("region", name="Andamento do lote")
+    expect(progress.get_by_text("Concluído", exact=True)).to_have_count(1, timeout=15_000)
+    assert all_submitted(page) == [["change_window_override", "restart", "checkout-web", REASON], ["restart", "checkout-web", REASON]]
+
+    # A exceção vale para aquela ação: a próxima começa sem ela.
+    page.get_by_role("button", name="Fechar andamento").click() if page.get_by_role("button", name="Fechar andamento").count() else None
+    select_containers(page, "checkout-web")
+    page.get_by_role("button", name="Reiniciar", exact=True).first.click()
+    drawer = page.get_by_role("dialog")
+    expect(drawer.get_by_text("1 ignorado")).to_be_visible()
+    expect(drawer.get_by_role("checkbox", name=re.compile("Executar fora da janela"))).not_to_be_checked()
+
+
+def test_exception_also_covers_destructive_actions_like_volume_removal(page: Page, scenario) -> None:
+    scenario("business-cw-override")
+    goto(page, "volumes?q=dados-srv-prod-01")
+    page.get_by_role("table").get_by_text("dados-srv-prod-01").first.click()
+    page.get_by_role("dialog", name="dados-srv-prod-01").get_by_role("button", name="Remover").click()
+
+    confirm = page.get_by_role("dialog").last
+    expect(confirm.get_by_text("1 ignorado")).to_be_visible()
+    expect(confirm.get_by_text(re.compile("fora da janela de mudança"))).to_be_visible()
+    confirm.get_by_text(OVERRIDE).click()
+    expect(confirm.get_by_text("Volume afetado", exact=True)).to_be_visible()
+    remove = confirm.get_by_role("button", name="Remover", exact=True)
+    confirm.get_by_label(re.compile("Digite o nome do volume")).fill("dados-srv-prod-01")
+    expect(remove).to_be_disabled()
+    confirm.get_by_label("Justificativa da exceção (obrigatória)").fill(REASON)
+    assert axe_violations(page) == []
+    remove.click()
+
+    progress = page.get_by_role("region", name="Andamento da remoção de volumes")
+    expect(progress.get_by_text("Removido", exact=True)).to_be_visible(timeout=15_000)
+    events = all_submitted(page)
+    assert ["change_window_override", "remove_volume", "dados-srv-prod-01", REASON] in events
+    assert ["remove_volume", "srv-prod-01", "dados-srv-prod-01", REASON] in events

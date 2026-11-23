@@ -18,7 +18,7 @@ import {
 import { ShellContextService } from '../../shell/shell-context.service';
 import { StageFilterService, stageLabel } from '../../shell/stage-filter.service';
 import { PodActionDrawer } from './pod-action.drawer';
-import { evaluatePodEligibility, PodActionsService, podFailureText, type PodEligibility } from './pod-actions.service';
+import { evaluatePodEligibility, overridePodEligibility, PodActionsService, podFailureText, type PodEligibility } from './pod-actions.service';
 import { PodDetailDrawer } from './pod-detail.drawer';
 import { POD_ACTION, POD_STATUS } from './pod-labels';
 import { PodsApiService } from './pods-api.service';
@@ -81,7 +81,7 @@ export class PodsPage {
   protected readonly search = signal('');
   protected readonly gridSort = signal<GridSort | null>(null);
   protected readonly selection = signal<string[]>([]);
-  protected readonly pending = signal<{ action: PodAction; eligibility: PodEligibility } | null>(null);
+  protected readonly pending = signal<{ action: PodAction; eligibility: PodEligibility; overrideEligibility: PodEligibility | null } | null>(null);
   protected readonly submitting = signal(false);
   protected readonly detail = signal<PodItem | null>(null);
   protected readonly detailError = signal<string | null>(null);
@@ -238,15 +238,16 @@ export class PodsPage {
       this.toast.notify('info', { message: 'Aguarde a ação em andamento terminar.' });
       return;
     }
-    this.pending.set({ action, eligibility: evaluatePodEligibility(items, action) });
+    this.pending.set({ action, eligibility: evaluatePodEligibility(items, action), overrideEligibility: overridePodEligibility(items, action) });
   }
 
-  protected async confirm(justification: string | null): Promise<void> {
+  protected async confirm(justification: string | null, changeWindowOverride = false): Promise<void> {
     const pending = this.pending();
     if (!pending) return;
     this.submitting.set(true);
     try {
-      await this.actions.run(pending.action, pending.eligibility.eligible, justification);
+      const eligible = changeWindowOverride && pending.overrideEligibility ? pending.overrideEligibility.eligible : pending.eligibility.eligible;
+      await this.actions.run(pending.action, eligible, justification, changeWindowOverride);
       this.pending.set(null);
       this.selection.set([]);
     } catch (error: unknown) {

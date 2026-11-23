@@ -15,3 +15,6 @@ h3 { margin: 0; font-size: 13px; font-weight: 600; color: var(--muted); }
 .pi-note { display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; border-radius: var(--radius-md); font-size: 13px; color: var(--foreground); }
 .pi-note--warn { background: var(--warning-tint); }
 .pi-note dok-icon { display: flex; margin-top: 1px; }
+.pi-justify { display: flex; flex-direction: column; gap: 6px; }
+.pi-textarea { width: 100%; box-sizing: border-box; resize: vertical; padding: 10px 12px; border-radius: var(--radius-md); border: 1px solid var(--glass-border-strong); background: var(--input-fill); color: var(--foreground); font: inherit; }
+.pi-textarea:focus-visible { outline: 2px solid var(--teal-light); outline-offset: 1px; }

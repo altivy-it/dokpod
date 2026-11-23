@@ -23,12 +23,12 @@ export class PodsApiService {
   }
 
   /** Um comando por pod; a mesma chave de idempotência torna o reenvio seguro. */
-  async submitAction(environmentId: string, podId: string, action: PodAction, idempotencyKey: string, justification: string | null): Promise<string> {
+  async submitAction(environmentId: string, podId: string, action: PodAction, idempotencyKey: string, justification: string | null, changeWindowOverride = false): Promise<string> {
     const { requestToken } = await firstValueFrom(this.http.get<{ requestToken: string }>('bff/antiforgery'));
     const accepted = await submitPodAction({
       path: { environmentId, podId },
       headers: { 'Idempotency-Key': idempotencyKey, 'X-Dokpod-Antiforgery': requestToken },
-      body: { action, deadlineUtc: new Date(Date.now() + 2 * 60_000).toISOString(), ...(justification ? { justification } : {}) },
+      body: { action, deadlineUtc: new Date(Date.now() + 2 * 60_000).toISOString(), ...(justification ? { justification } : {}), ...(changeWindowOverride ? { changeWindowOverride: true } : {}) },
       throwOnError: true,
     });
     return accepted.data.commandId;

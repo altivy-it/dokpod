@@ -21,7 +21,9 @@
 
   @if (facade.state() === 'justification') {
     <form class="tt-justify alt-panel" (submit)="$event.preventDefault(); submitJustification()">
-      <label for="tt-justification" class="alt-field__label">Justificativa (obrigatória em Produção)</label>
+      <label for="tt-justification" class="alt-field__label">
+        {{ changeWindowOverride() ? 'Justificativa da exceção de emergência (fora da janela de mudança)' : 'Justificativa (obrigatória em Produção)' }}
+      </label>
       <textarea
         id="tt-justification"
         class="tt-textarea"

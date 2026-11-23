@@ -129,5 +129,5 @@
 }
 
 @if (pending(); as p) {
-  <app-pod-action-drawer [open]="true" [action]="p.action" [eligibility]="p.eligibility" [busy]="submitting()" (cancelled)="pending.set(null)" (confirmed)="confirm($event)" />
+  <app-pod-action-drawer [open]="true" [action]="p.action" [eligibility]="p.eligibility" [overrideEligibility]="p.overrideEligibility" [busy]="submitting()" (cancelled)="pending.set(null)" (confirmed)="confirm($event)" (overrideConfirmed)="confirm($event, true)" />
 }

@@ -10,7 +10,8 @@ public sealed record SubmitContainerCommandRequest(
     string Action,
     string ExpectedContainerRevision,
     DateTimeOffset DeadlineUtc,
-    string? Justification = null);
+    string? Justification = null,
+    bool? ChangeWindowOverride = null);
 
 public static class ContainerCommandEndpoints
 {
@@ -175,7 +176,8 @@ public static class ContainerCommandEndpoints
                 accessToken,
                 GetCorrelationId(context),
                 cancellationToken,
-                request.Justification).ConfigureAwait(false);
+                request.Justification,
+                ChangeWindowProblems.Override(request.ChangeWindowOverride, request.Justification)).ConfigureAwait(false);
         }
         catch (ArgumentException)
         {

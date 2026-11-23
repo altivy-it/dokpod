@@ -45,6 +45,25 @@
         <dok-select formControlName="engine" label="Engine" [options]="engineOptions()" />
         <dok-select formControlName="host" label="Host" [options]="hostOptions()" placeholder="Selecione o host" />
       </div>
+      @if (overrideAvailable()) {
+        <app-change-window-override [checked]="override()" (checkedChange)="override.set($event)" />
+        @if (override()) {
+          <div class="nc-justify">
+            <label for="nc-justification" class="alt-field__label">Justificativa da exceção (obrigatória)</label>
+            <textarea
+              id="nc-justification"
+              class="nc-textarea"
+              rows="3"
+              [attr.maxlength]="justificationMax"
+              aria-required="true"
+              aria-describedby="nc-justification-help"
+              [value]="justification()"
+              (input)="justification.set($any($event.target).value)"
+            ></textarea>
+            <span id="nc-justification-help" class="app-caption">De {{ justificationMin }} a {{ justificationMax }} caracteres. Fica na auditoria como exceção de janela.</span>
+          </div>
+        }
+      }
       @if (blockingReason(); as reason) {
         <p class="app-small nc-error" role="status">{{ reason }}</p>
       }

@@ -4,6 +4,7 @@ import { JUSTIFICATION_MAX, JUSTIFICATION_MIN, JustificationPolicyService, justi
 import { DokDrawer } from '../../design-system/drawer/dok-drawer';
 import { DokField } from '../../design-system/field/dok-field';
 import { DokIcon } from '../../design-system/icon/dok-icon';
+import { ChangeWindowOverrideOption } from '../change-window/change-window-override.component';
 import { NETWORK_BATCH_LIMIT, type NetworkEligibility } from './network-removal.service';
 
 /** Remover rede não apaga dados (D-005): digitar a quantidade só em lote com rede de Produção, como no lote de containers. */
@@ -22,13 +23,13 @@ export function typedConfirmation(eligibility: NetworkEligibility): { label: str
 @Component({
   selector: 'app-remove-networks-drawer',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [DokDrawer, DokField, DokIcon, FormsModule],
+  imports: [ChangeWindowOverrideOption, DokDrawer, DokField, DokIcon, FormsModule],
   styles: `
     .rv-list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; max-height: 240px; overflow: auto; border: 1px solid var(--hairline); border-radius: var(--radius-sm); }
     .rv-list li { display: flex; justify-content: space-between; gap: 12px; padding: 7px 10px; border-top: 1px solid var(--hairline); font-size: 13px; }
     .rv-list li:first-child { border-top: 0; }
     .rv-name { color: var(--text-strong); font-weight: 500; font-family: var(--font-mono, monospace); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .rv-meta { color: var(--muted); white-space: nowrap; }
+    .rv-meta { color: var(--muted); text-align: right; overflow-wrap: anywhere; }
     .rv-note { display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; border-radius: var(--radius-md); font-size: 13px; color: var(--foreground); }
     .rv-note--info { background: var(--info-tint); }
     .rv-note--warn { background: var(--warning-tint); }
@@ -44,9 +45,9 @@ export function typedConfirmation(eligibility: NetworkEligibility): { label: str
       [open]="open()"
       eyebrow="Ação destrutiva"
       [title]="title()"
-      [subtitle]="eligibility().eligible.length ? 'Cada rede recebe um comando individual, com auditoria. Redes em uso nunca são removidas.' : 'Nenhuma rede selecionada pode ser removida.'"
+      [subtitle]="shown().eligible.length ? 'Cada rede recebe um comando individual, com auditoria. Redes em uso nunca são removidas.' : 'Nenhuma rede selecionada pode ser removida.'"
       [chips]="production() ? [{ tone: 'warning', icon: 'shield', label: 'Produção' }] : []"
-      [primaryLabel]="eligibility().eligible.length ? 'Remover' : null"
+      [primaryLabel]="shown().eligible.length ? 'Remover' : null"
       primaryIcon="trash"
       primaryVariant="danger"
       [primaryDisabled]="!canConfirm()"
@@ -55,30 +56,33 @@ export function typedConfirmation(eligibility: NetworkEligibility): { label: str
       (closed)="cancelled.emit()"
       (primary)="confirm()"
     >
-      @if (eligibility().eligible.length) {
+      @if (overrideAvailable()) {
+        <app-change-window-override [(checked)]="override" />
+      }
+      @if (shown().eligible.length) {
         <div class="rv-note rv-note--info" role="note">
           <dok-icon name="info" [size]="16" />
           Containers não são desconectados: o agente confere o uso de novo e recusa rede em uso.
         </div>
       }
-      @if (eligibility().eligible.length > limit) {
+      @if (shown().eligible.length > limit) {
         <div class="rv-note rv-note--warn" role="alert">
           <dok-icon name="alert" [size]="16" />
           O lote aceita no máximo {{ limit }} redes. Reduza a seleção.
         </div>
       }
-      @if (eligibility().eligible.length) {
-        <h3>{{ eligibility().eligible.length === 1 ? 'Rede afetada' : eligibility().eligible.length + ' redes afetadas' }}</h3>
+      @if (shown().eligible.length) {
+        <h3>{{ shown().eligible.length === 1 ? 'Rede afetada' : shown().eligible.length + ' redes afetadas' }}</h3>
         <ul class="rv-list">
-          @for (item of eligibility().eligible; track item.environmentId + '/' + item.networkId) {
+          @for (item of shown().eligible; track item.environmentId + '/' + item.networkId) {
             <li><span class="rv-name" [title]="item.name">{{ item.name }}</span><span class="rv-meta">{{ item.environmentName }}</span></li>
           }
         </ul>
       }
-      @if (eligibility().skipped.length) {
-        <h3>{{ eligibility().skipped.length === 1 ? '1 ignorada' : eligibility().skipped.length + ' ignoradas' }}</h3>
+      @if (shown().skipped.length) {
+        <h3>{{ shown().skipped.length === 1 ? '1 ignorada' : shown().skipped.length + ' ignoradas' }}</h3>
         <ul class="rv-list">
-          @for (entry of eligibility().skipped; track entry.item.environmentId + '/' + entry.item.networkId) {
+          @for (entry of shown().skipped; track entry.item.environmentId + '/' + entry.item.networkId) {
             <li><span class="rv-name" [title]="entry.item.name">{{ entry.item.name }} · {{ entry.item.environmentName }}</span><span class="rv-meta">{{ entry.reason }}</span></li>
           }
         </ul>
@@ -86,10 +90,10 @@ export function typedConfirmation(eligibility: NetworkEligibility): { label: str
       @if (typed(); as t) {
         <dok-field [label]="t.label" [ngModel]="typedValue()" (ngModelChange)="typedValue.set($event)" [mono]="true" />
       }
-      @if (eligibility().eligible.length) {
+      @if (shown().eligible.length) {
         <div class="rv-justify">
           <label for="rv-justification" class="alt-field__label">
-            {{ mode() === 'required' ? 'Justificativa (obrigatória pela política do estágio)' : 'Justificativa (opcional)' }}
+            {{ override() ? 'Justificativa da exceção (obrigatória)' : mode() === 'required' ? 'Justificativa (obrigatória pela política do estágio)' : 'Justificativa (opcional)' }}
           </label>
           <textarea
             id="rv-justification"
@@ -115,9 +119,13 @@ export function typedConfirmation(eligibility: NetworkEligibility): { label: str
 export class RemoveNetworksDrawer {
   readonly open = input(false);
   readonly eligibility = input.required<NetworkEligibility>();
+  /** Spec 026: a mesma seleção no modo exceção; nulo quando nenhum host fora da janela tem `change:override`. */
+  readonly overrideEligibility = input<NetworkEligibility | null>(null);
   readonly busy = input(false);
   /** Emite a justificativa informada (aparada) ou null quando vazia. */
   readonly confirmed = output<string | null>();
+  /** Spec 026: confirmação no modo exceção de emergência, sempre com justificativa. */
+  readonly overrideConfirmed = output<string>();
   readonly cancelled = output<void>();
 
   private readonly policy = inject(JustificationPolicyService);
@@ -126,15 +134,20 @@ export class RemoveNetworksDrawer {
   protected readonly max = JUSTIFICATION_MAX;
   protected readonly typedValue = signal('');
   protected readonly justification = signal('');
-  protected readonly production = computed(() => this.eligibility().eligible.some(item => item.stage === 'production'));
-  protected readonly typed = computed(() => typedConfirmation(this.eligibility()));
-  protected readonly mode = computed(() => justificationMode('delete', this.eligibility().eligible.map(item => item.stage), this.policy.required()));
+  protected readonly production = computed(() => this.shown().eligible.some(item => item.stage === 'production'));
+  protected readonly typed = computed(() => typedConfirmation(this.shown()));
+  protected readonly override = signal(false);
+  protected readonly shown = computed(() => (this.override() && this.overrideEligibility()) || this.eligibility());
+  protected readonly overrideAvailable = computed(
+    () => (this.overrideEligibility()?.eligible.length ?? 0) > this.eligibility().eligible.length,
+  );
+  protected readonly mode = computed(() => this.override() ? ('required' as const) : justificationMode('delete', this.shown().eligible.map(item => item.stage), this.policy.required()));
   protected readonly title = computed(() => {
-    const eligible = this.eligibility().eligible;
+    const eligible = this.shown().eligible;
     return eligible.length === 1 ? `Remover ${eligible[0].name}?` : `Remover ${eligible.length} redes?`;
   });
   protected readonly canConfirm = computed(() => {
-    const count = this.eligibility().eligible.length;
+    const count = this.shown().eligible.length;
     if (count === 0 || count > this.limit) return false;
     if (!justificationValid(this.justification(), this.mode())) return false;
     const typed = this.typed();
@@ -146,6 +159,7 @@ export class RemoveNetworksDrawer {
       if (this.open()) {
         this.typedValue.set('');
         this.justification.set('');
+        this.override.set(false);
         void this.policy.load();
       }
     });
@@ -154,6 +168,7 @@ export class RemoveNetworksDrawer {
   protected confirm(): void {
     if (!this.canConfirm()) return;
     const text = this.justification().trim();
-    this.confirmed.emit(text.length ? text : null);
+    if (this.override()) this.overrideConfirmed.emit(text);
+    else this.confirmed.emit(text.length ? text : null);
   }
 }
