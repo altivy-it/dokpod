@@ -37,7 +37,8 @@ public sealed record ChangeWindowDecision(
 /// Ponto único da janela de mudança (spec 026 D-001, CE). Toda ação que enfileira comando precisa de uma
 /// <see cref="Clearance"/>, que só este guard emite; o terminal, que não usa a fila, chama
 /// <see cref="EvaluateTerminalAsync"/>. A ordem do serviço é autorização da ação, ambiente, janela e justificativa da
-/// 016: a busca do <c>commandId</c> fica aqui dentro, depois das duas primeiras (threat model L6).
+/// 016: a busca do <c>commandId</c> fica aqui dentro, depois das duas primeiras (threat model L6), e só com a janela
+/// fechada (T035).
 /// </summary>
 public sealed class ChangeWindowGuard(
     IChangeWindowSchedule schedule,
@@ -127,10 +128,6 @@ public sealed class ChangeWindowGuard(
             : null;
         if (window is null) return Allow(registration.EnvironmentId, kind, ChangeWindowClearanceMode.NoWindow, null, null, null);
 
-        // Repetição idempotente (princípio IV): o comando aceito recebe o mesmo resultado depois que a janela fecha.
-        var existing = await commands.GetAsync(registration.EnvironmentId, commandId, cancellationToken).ConfigureAwait(false);
-        if (existing is not null) return Allow(registration.EnvironmentId, kind, ChangeWindowClearanceMode.Replay, null, null, existing);
-
         var now = timeProvider.GetUtcNow();
         var status = ChangeWindowCalendar.Evaluate(window, now);
         if (status.State != ChangeWindowState.Closed)
@@ -139,6 +136,12 @@ public sealed class ChangeWindowGuard(
                 ? Allow(registration.EnvironmentId, kind, ChangeWindowClearanceMode.Open, status.ClosesAt!.Value + DeadlineGrace, null, null)
                 : Allow(registration.EnvironmentId, kind, ChangeWindowClearanceMode.NoWindow, null, null, null);
         }
+
+        // Repetição idempotente (princípio IV): o comando aceito recebe o mesmo resultado depois que a janela fecha. A busca
+        // só acontece com a janela fechada: sem a chave de partição, ela custa uma consulta sobre todas as partições de
+        // agent_commands (T035), e com a janela aberta a fila já trata o duplicado como antes da spec 026.
+        var existing = await commands.GetAsync(registration.EnvironmentId, commandId, cancellationToken).ConfigureAwait(false);
+        if (existing is not null) return Allow(registration.EnvironmentId, kind, ChangeWindowClearanceMode.Replay, null, null, existing);
 
         var refusal = await EvaluateOverrideAsync(registration, status, auditAction, subjectId, commandId, actor, accessToken, correlationId, overrideRequest, cancellationToken)
             .ConfigureAwait(false);
