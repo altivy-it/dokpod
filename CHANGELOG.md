@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.12.0](https://github.com/altivy-it/dokpod/compare/v0.11.0...v0.12.0) (2026-11-23)
+
+
+### Adicionado
+
+* **api:** aceite a exceção de emergência fora da janela de mudança (spec 026 US3) ([#169](https://github.com/altivy-it/dokpod/issues/169)) ([fd0005f](https://github.com/altivy-it/dokpod/commit/fd0005ff4b9a561cd50bd9047812b4b864399de6))
+* **api:** configure as janelas de mudança por estágio em Configurações (spec 026 US1) ([#167](https://github.com/altivy-it/dokpod/issues/167)) ([cfa1dec](https://github.com/altivy-it/dokpod/commit/cfa1dec2caefa198b5ee3d8a00cc998c1ac57029))
+* **api:** exija a liberação da janela de mudança para enfileirar comandos (spec 026) ([#165](https://github.com/altivy-it/dokpod/issues/165)) ([8ff1dda](https://github.com/altivy-it/dokpod/commit/8ff1ddaf6f9c177d84dea0287c7613d3270e50d4))
+* **api:** recuse fora da janela de mudança as ações que mudam o host (spec 026 US2) ([#168](https://github.com/altivy-it/dokpod/issues/168)) ([ae4feb4](https://github.com/altivy-it/dokpod/commit/ae4feb48226a7aab47e276703a57c685f19a55c3))
+
+
+### Corrigido
+
+* **deps:** atualize o Angular para 22.3.0 junto com as ferramentas ([#173](https://github.com/altivy-it/dokpod/issues/173)) ([b5b1b51](https://github.com/altivy-it/dokpod/commit/b5b1b5123cbad8b9731d53615fa58d9a0f134082))
+
+
+### Desempenho
+
+* **api:** conclua a spec 026 com medição, documentação e revisão de segurança (spec 026 T035–T037) ([#172](https://github.com/altivy-it/dokpod/issues/172)) ([7ecd797](https://github.com/altivy-it/dokpod/commit/7ecd797fe3f16b371668a2f57638a3e37ca48669))
+
 ## [0.11.0](https://github.com/altivy-it/dokpod/compare/v0.10.0...v0.11.0) (2026-11-21)
 
 
