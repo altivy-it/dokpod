@@ -188,6 +188,12 @@ jobs:
           [ "$code" -eq 3 ] || { echo "::error::plan --dry-run sem engine rootless devia sair com 3, saiu com $code."; exit 1; }
           grep -q 'nada foi alterado' plan.txt
 
+      # Bug deploy-hook-falso-sucesso: o hook de deploy falha fechado quando SERVICES não bate com o manifesto.
+      - name: Deploy hook tests
+        run: >
+          docker run --rm -v "$PWD/deploy/hooks:/h:ro" docker.io/library/python:3.13.7-slim-bookworm
+          bash /h/tests/compose-deploy-hook.test.sh
+
   # Spec 031 História 1 (T013 a T015): a CE continua sem licença. T013 roda no job Backend; aqui ficam a tela
   # de Configurações sem seção Licença (E2E com respostas simuladas pela borda nginx) e a prova de que a API CE não
   # tenta nenhuma comunicação externa durante início, operação e reinício (D-012, SC-002).
