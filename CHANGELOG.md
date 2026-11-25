@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.12.3](https://github.com/altivy-it/dokpod/compare/v0.12.2...v0.12.3) (2026-11-25)
+
+
+### Corrigido
+
+* **deps:** force versões corrigidas das dependências transitivas do portal ([#180](https://github.com/altivy-it/dokpod/issues/180)) ([f8d9f88](https://github.com/altivy-it/dokpod/commit/f8d9f88bcc74abe9bba689649956a3cf48d45eac))
+
 ## [0.12.2](https://github.com/altivy-it/dokpod/compare/v0.12.1...v0.12.2) (2026-11-25)
 
 
