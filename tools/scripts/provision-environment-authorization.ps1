@@ -21,7 +21,8 @@ GUID opaco e estável do ambiente Dokpod.
 Usuário existente no realm que receberá a policy. Exclusivo com GroupPath.
 
 .PARAMETER GroupPath
-Grupo existente, por exemplo `/dokpod/administrators`. Exclusivo com OwnerUsername.
+Grupo existente, filho direto de `/dokpod`, por exemplo `/dokpod/administrators` ou `/dokpod/plantao-2`: letras
+minúsculas, dígitos e hífens entre eles. Exclusivo com OwnerUsername.
 
 .PARAMETER Scope
 Scope a conceder. Padrão: environment:read.
@@ -73,7 +74,7 @@ param(
     [ValidatePattern('^[^\s]+$')]
     [string] $OwnerUsername,
 
-    [ValidatePattern('^/dokpod/[a-z]+$')]
+    [ValidatePattern('^/dokpod/[a-z0-9]+(?:-[a-z0-9]+)*$')]
     [string] $GroupPath,
 
     [ValidateSet('environment:read', 'environment:manage', 'container:start', 'container:stop', 'container:restart', 'container:delete', 'audit:read', 'container:pause', 'container:inspect', 'container:logs', 'image:pull', 'container:create', 'container:exec', 'alert:read', 'alert:manage', 'volume:delete', 'network:delete', 'change:override')]
@@ -168,13 +169,14 @@ function Invoke-Api {
     $parameters = @{ Method = $Method; Uri = $Uri; Headers = @{ Authorization = "Bearer $script:accessToken" }; ErrorAction = 'Stop' }
     if ($null -ne $Body) { $parameters.ContentType = 'application/json'; $parameters.Body = $Body | ConvertTo-Json -Depth 10 -Compress }
     if ($useNoProxy) { $parameters.NoProxy = $true }
-    try { Invoke-RestMethod @parameters }
+    # Invoke-RestMethod escreve o array JSON como um único objeto; devolvê-lo pela variável enumera os itens.
+    try { $response = Invoke-RestMethod @parameters; $response }
     catch { throw "Falha na API UMA em $Method ${Uri}: $($_.Exception.Message)" }
 }
 
 function Find-One {
     param([object[]] $Items, [string] $Description)
-    $matches = @($Items)
+    $matches = @($Items | Where-Object { $null -ne $_ })
     if ($matches.Count -ne 1) { throw "$Description deve resolver exatamente um resultado; encontrados $($matches.Count)." }
     $matches[0]
 }

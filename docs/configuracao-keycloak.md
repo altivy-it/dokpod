@@ -218,7 +218,10 @@ Para liberar diretamente um usuário:
 ```
 
 Use `-DryRun` antes da alteração. O script é idempotente e não aceita
-simultaneamente `OwnerUsername` e `GroupPath`.
+simultaneamente `OwnerUsername` e `GroupPath`. O grupo é filho direto de
+`/dokpod`, com letras minúsculas, dígitos e hífens entre eles (por exemplo,
+`/dokpod/plantao-2`). Cada scope é uma execução; as seguintes para o mesmo
+grupo ou usuário reaproveitam a policy.
 
 ### Divergências do realm
 
