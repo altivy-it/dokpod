@@ -138,7 +138,7 @@ Sem violações a justificar.
 ## Itens para a revisão humana
 
 - **Aprovação da spec**: a spec continua `draft`, e as respostas da sessão de 2026-10-27 estão "sujeitas à aprovação". A implementação só começa depois da aprovação explícita do solicitante, incluindo essas respostas.
-- **Edição por hosts legíveis**: a spec passou a dizer "todos os hosts do estágio que o usuário enxerga", a mesma regra da política de justificativa (016 D-007). Um host que o administrador não enxerga não impede a edição, mas fica sujeito à janela.
+- **Edição por hosts legíveis**: a spec passou a dizer "todos os hosts do estágio que o usuário enxerga", a mesma regra da política de justificativa (016 D-007). Um host que o administrador não enxerga não impede a edição, mas fica sujeito à janela. Emenda de 2026-11-24 ([D-007a](research.md#d-007a-permissão-de-edição)): é preciso ler ao menos um host do estágio; sem nenhum, o estágio fica só para leitura.
 
 - **Host sem estágio ([D-007a](research.md#d-007a-permissão-de-edição))**: o estágio do host é opcional, e um host sem estágio não fica sujeito a nenhuma janela. A spec não fala desse caso.
 - **Catálogo ([D-001](research.md#d-001-ponto-único-de-aplicação))**: "remover imagem" e "criar volume ou rede", citados no esclarecimento de 2026-11-20, ainda não existem no produto. Corrigi o texto do esclarecimento para "quando existirem".

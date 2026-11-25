@@ -159,7 +159,7 @@ A telemetria usa allowlist de campos, limites e normalização de caracteres de 
 | Ver alertas, regras ou silenciamentos de host sem leitura | Filtro por `alert:read` em cada consulta; detalhe de alerta sem leitura responde 404 (indistinguível); regras e silenciamentos com host restrito não aparecem (FR-023) | usuário somente leitura não recebe ações; alerta de outro host → 404 |
 | Silenciar ou desativar regras para esconder incidentes | `alert:manage` em **todos** os hosts abrangidos; janela máxima de 7 dias; justificativa de 10 a 500 caracteres; alertas silenciados ficam registrados (estado `silenced`); toda criação, alteração, encerramento e resolução manual é auditada por host | silenciamento > 7 dias → 400; sem `alert:manage` → 403 |
 | Parada "intencional" usada para encobrir falha | Justificativa obrigatória onde a política do estágio manda, recusada pela API (`422 justification_required`) mesmo para clientes que não conhecem a política (FR-017); autor (nome do token) e horário gravados; a marcação termina quando o container volta a executar | comando sem justificativa em estágio com política → 422 (stack real) |
-| Mudar a política de justificativa | `environment:manage` em todos os hosts do estágio (D-007), auditado em cada host | sem o scope → 403 |
+| Mudar a política de justificativa | Ao menos um host legível no estágio e `environment:manage` em todos os legíveis (016 D-007, emenda de 2026-11-24), auditado em cada host | sem o scope ou sem host legível no estágio → 403 |
 | Segredo digitado em justificativa ou comentário | Mascaramento (`JustificationMasker`) antes de persistir e auditar (FR-020) | canário de senha no formato chave=valor não aparece no registro (teste de aplicação) |
 | Alerta forjado por evento repetido ou reenvio | Avaliação só dos eventos efetivamente gravados (deduplicação por `source_key`); um alerta ativo por regra e alvo (índice único parcial); 100 repetições = 1 alerta (SC-002) | teste em PostgreSQL real |
 | Inundação de alertas | Deduplicação por regra e alvo, regras com mínimo de ocorrências e janela, silenciamentos por padrão de nome | — |
@@ -222,7 +222,7 @@ A telemetria usa allowlist de campos, limites e normalização de caracteres de 
 | Ameaça | Mitigação | Teste negativo |
 | --- | --- | --- |
 | Vazar credencial de registro | O agente lê só as chaves de `auths` do arquivo (nunca os valores) e publica "credencial: sim/não"; o banco guarda só o booleano | `RegistryAgentTests` (canário fora da mensagem); stack real: canário ausente de 38 respostas da API, do banco e dos logs da API, BFF, agente e web (SC-002) |
-| Afrouxar a política sem rastro | Edição exige `environment:manage` em todos os hosts habilitados e legíveis do estágio (decisão do Keycloak); auditoria `registry.policy_changed` com as listas anterior e nova em cada host do estágio | `RegistryCatalogTests` (negado sem permissão); stack real: evento com `previousRegistries`/`registries` |
+| Afrouxar a política sem rastro | Edição exige ao menos um host habilitado e legível no estágio e `environment:manage` em todos eles (decisão do Keycloak; 020 D-004, emenda de 2026-11-24); auditoria `registry.policy_changed` com as listas anterior e nova em cada host do estágio | `RegistryCatalogTests` (negado sem permissão); stack real: evento com `previousRegistries`/`registries` |
 | Registro mal formado ou com credencial na política | Só host[:porta]; esquema, caminho e `@` são recusados (não removidos); até 100 por estágio | `RegistryCatalogTests` e Vitest (`https://`, `user:pass@`) → `registry_invalid` |
 | Política desatualizada em outra instância da API | Recarga do banco a cada 3 s e aplicação imediata na instância que salvou | stack real: download de registro removido recusado em 0,1 s (SC-003) |
 | Uso do host como proxy para registros arbitrários | Fora do escopo por decisão: o console não testa acesso a registros nem altera `daemon.json`/`registries.conf` | — |
@@ -305,7 +305,7 @@ e no [runbook](runbooks/janelas-de-mudanca.md).
 | Quem não pode agir descobre a janela ou se um `commandId` existe | Ordem fixa: autorização da ação, ambiente, janela; o `403` da ação vem antes do `409` | `ChangeWindowEnforcementTests` |
 | Exceção sem o scope, com Keycloak fora do ar ou sem rastro | `change:override` decidido no Keycloak a cada tentativa, falha fechada (`503`); `change_window.override` na mesma transação do comando; justificativa mascarada | `ChangeWindowGuardTests` (aplicação), `ChangeWindowOverrideTests` |
 | Licença restrita desliga a governança | A aplicação e a exceção não passam pelo gate; só criar e editar janela passam | `ChangeWindowGuardTests` (arquitetura: o guard não depende do gate), `ChangeWindowEndpointsTests` |
-| Usuário sem permissão altera a janela | `environment:manage` em todos os hosts legíveis do estágio (016 D-007), `If-Match`, contrato fechado, `CHECK` no banco | `ChangeWindowEndpointsTests`, `ChangeWindowMigrationTests` |
+| Usuário sem permissão altera a janela | Ao menos um host legível no estágio e `environment:manage` em todos os legíveis (026 D-007a), `If-Match`, contrato fechado, `CHECK` no banco | `ChangeWindowEndpointsTests`, `ChangeWindowMigrationTests` |
 
 Logs, métricas e traces não ganham nada além do código da recusa; a justificativa só vai, mascarada, para a trilha.
 

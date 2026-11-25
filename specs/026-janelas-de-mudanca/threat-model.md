@@ -118,7 +118,7 @@ CLIENTE (instalação)
 | R3 | Relógio sem NTP ou `tzdata` antigo desloca a janela | B4 | Premissa de NTP; regras da imagem base; runbook | Aceito (2026-11-20) |
 | R4 | Um administrador remove a janela, executa e recria | B1 | Remoção e recriação auditadas em cada host do estágio | Aceito (2026-11-20) |
 | R5 | Repetição de tentativas recusadas enche a trilha de `change_window.denied` | B2 | Trilha particionada por mês; recusa custa uma consulta e nenhuma chamada ao Keycloak | Aceito (2026-11-20) |
-| R6 | Um host que o administrador não enxerga fica sujeito a uma janela que ele editou | B1 | Mesma regra da política de justificativa (016 D-007); evento no host afetado | Aceito (2026-11-20) |
+| R6 | Um host que o administrador não enxerga fica sujeito a uma janela que ele editou | B1 | Mesma regra da política de justificativa (016 D-007); evento no host afetado. Desde 2026-11-24 (D-007: B), exige ao menos um host legível no estágio: o caso extremo, editar um estágio sem enxergar nenhum host dele, deixa de existir | Aceito (2026-11-20); mitigação reforçada em 2026-11-24 |
 | R7 | Ações feitas direto no engine ou no host não são bloqueadas | — | Fora do alcance do Dokpod; o engine é a fonte de verdade e o inventário mostra a mudança | Aceito (2026-11-20) |
 
 ## Controles transversais
