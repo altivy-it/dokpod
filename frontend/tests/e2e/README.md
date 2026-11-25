@@ -25,6 +25,20 @@ Variáveis:
   revogação. A operação encerra a sessão ativa e exige reprovisionar a identidade
   sintética antes de reutilizar o laboratório.
 
+As janelas de mudança (spec 026) têm duas suítes próprias:
+
+- `test_change_windows_ce.py`, contra a imagem CE: usa `DOKPOD_E2E_ENVIRONMENT_ID`
+  e, opcionalmente, `DOKPOD_E2E_PULL_REFERENCE` (padrão
+  `docker.io/library/busybox:1.37.0`);
+- `test_change_windows_business.py`, contra a API Business com licença que traga
+  `change-windows`: exige `DOKPOD_E2E_PRD_ENVIRONMENT_ID` e
+  `DOKPOD_E2E_HML_ENVIRONMENT_ID` (hosts de Produção e Homologação com agentes
+  reais), `DOKPOD_E2E_CONTAINERS` (três containers descartáveis presentes nos
+  dois hosts, separados por vírgula) e as credenciais `T038_ADMIN_*`,
+  `T038_OPERADOR_*` e `T038_PLANTAO_*` (`_USERNAME` e `_PASSWORD`) dos usuários
+  do quickstart da spec. A suíte para e inicia esses containers e remove as
+  janelas no fim; sem as variáveis, é ignorada.
+
 ## Execução containerizada
 
 Na raiz do repositório, com a stack já iniciada:

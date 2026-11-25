@@ -25,6 +25,13 @@ def browser(playwright: Playwright) -> Browser:
 @pytest.fixture
 def authenticated_page(browser: Browser) -> Page:
     username, password = require_credentials()
+    page = login(browser, username, password)
+    yield page
+    page.context.close()
+
+
+def login(browser: Browser, username: str, password: str) -> Page:
+    """Abre um contexto novo e entra pelo BFF e pelo Keycloak; quem chama fecha o contexto."""
     context = browser.new_context(ignore_https_errors=True)
     page = context.new_page()
     page.goto(BASE_URL, wait_until="domcontentloaded")
@@ -32,12 +39,12 @@ def authenticated_page(browser: Browser) -> Page:
     if page.get_by_role("button", name="Entrar com Keycloak").is_visible():
         page.get_by_role("button", name="Entrar com Keycloak").click()
 
+    # Pelos nomes dos campos, para valer com o Keycloak em qualquer idioma (o quality está em pt-BR).
     if "/realms/" in page.url or "protocol/openid-connect" in page.url:
-        page.get_by_label("Username").fill(username)
-        page.get_by_label("Password", exact=True).fill(password)
-        page.get_by_role("button", name="Sign In").click()
+        page.locator("input[name=username]").fill(username)
+        page.locator("input[name=password]").fill(password)
+        page.locator("#kc-login, button[type=submit]").first.click()
 
     page.wait_for_load_state("networkidle")
     expect(page).not_to_have_url(re.compile(r"/bff/login"))
-    yield page
-    context.close()
+    return page
