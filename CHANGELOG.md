@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.12.2](https://github.com/altivy-it/dokpod/compare/v0.12.1...v0.12.2) (2026-11-25)
+
+
+### Corrigido
+
+* **api:** recuse a edição de estágio sem host legível (spec 026 T039–T044) ([#178](https://github.com/altivy-it/dokpod/issues/178)) ([1a44d15](https://github.com/altivy-it/dokpod/commit/1a44d158371f089adb2a7f3fa897df5eeac0888e))
+* **tooling:** reaproveite a policy UMA existente no provisionamento de autorização ([#177](https://github.com/altivy-it/dokpod/issues/177)) ([aeaf415](https://github.com/altivy-it/dokpod/commit/aeaf41542533f51752c9e5c167809fbc11b3b669))
+
 ## [0.12.1](https://github.com/altivy-it/dokpod/compare/v0.12.0...v0.12.1) (2026-11-24)
 
 
