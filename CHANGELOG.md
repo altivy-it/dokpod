@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.12.1](https://github.com/altivy-it/dokpod/compare/v0.12.0...v0.12.1) (2026-11-24)
+
+
+### Corrigido
+
+* **deploy:** falhe o deploy quando SERVICES não corresponder ao manifesto ([#174](https://github.com/altivy-it/dokpod/issues/174)) ([0e5fbd7](https://github.com/altivy-it/dokpod/commit/0e5fbd7b4236056fb88dce2aec655d1caa3d3ab1))
+
 ## [0.12.0](https://github.com/altivy-it/dokpod/compare/v0.11.0...v0.12.0) (2026-11-23)
 
 
