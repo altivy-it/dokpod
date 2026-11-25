@@ -90,12 +90,12 @@ public sealed class RegistryPolicyService(
         return RegistryPolicyOutcome.Saved;
     }
 
-    /// <summary>Hosts habilitados e legíveis do estágio; sem nenhum, todos os legíveis (mesma regra da spec 016).</summary>
-    private static IReadOnlyList<EnvironmentRegistration> Candidates(AlertCaller caller, EnvironmentStage? stage)
-    {
-        var inStage = caller.Readable.Where(r => r.Enabled && r.Stage == stage).ToArray();
-        return inStage.Length > 0 ? inStage : caller.Readable.Where(r => r.Enabled).ToArray();
-    }
+    /// <summary>
+    /// Hosts habilitados e legíveis do estágio; sem nenhum, o estágio não é editável (mesma regra da spec 016, decisão
+    /// humana de 2026-11-24, D-007: B).
+    /// </summary>
+    private static IReadOnlyList<EnvironmentRegistration> Candidates(AlertCaller caller, EnvironmentStage? stage) =>
+        caller.Readable.Where(r => r.Enabled && r.Stage == stage).ToArray();
 
     private async Task<IReadOnlySet<Guid>> ManagedAsync(AlertCaller caller, IEnumerable<EnvironmentRegistration> candidates, CancellationToken cancellationToken)
     {

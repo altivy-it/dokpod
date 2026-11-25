@@ -343,12 +343,12 @@ public sealed class AlertGovernanceService(
         return allowed.Count == candidates.Length ? candidates : null;
     }
 
-    /// <summary>Hosts que decidem a política: os legíveis do estágio ou, sem nenhum, todos os legíveis habilitados.</summary>
-    private static EnvironmentRegistration[] PolicyCandidates(AlertCaller caller, EnvironmentStage stage)
-    {
-        var inStage = caller.Readable.Where(r => r.Enabled && r.Stage == stage).ToArray();
-        return inStage.Length > 0 ? inStage : caller.Readable.Where(r => r.Enabled).ToArray();
-    }
+    /// <summary>
+    /// Hosts que decidem a política: os legíveis e habilitados do estágio. Sem nenhum, o estágio não é editável, para a
+    /// regra não valer em hosts que o chamador não vê (decisão humana de 2026-11-24, D-007: B).
+    /// </summary>
+    private static EnvironmentRegistration[] PolicyCandidates(AlertCaller caller, EnvironmentStage stage) =>
+        caller.Readable.Where(r => r.Enabled && r.Stage == stage).ToArray();
 
     /// <summary>Política de justificativa (D-007): `environment:manage` em todos os hosts legíveis do estágio.</summary>
     public async Task<GovernanceResult> SetPolicyAsync(AlertCaller caller, EnvironmentStage stage, bool required, CancellationToken cancellationToken)

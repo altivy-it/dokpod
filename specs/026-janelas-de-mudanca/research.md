@@ -65,6 +65,7 @@ Cada decisão resolve um ponto do contexto técnico do [plano](plan.md). As deci
 
 - **Decisão**: `PUT` e `DELETE` exigem `environment:manage` em todos os hosts legíveis do estágio, a mesma regra da política de justificativa (016 D-007). O `GET` devolve `editable` por estágio. A edição usa `If-Match` com a versão (`412` em conflito) e `If-None-Match: *` para criar.
 - **Host sem estágio**: o `EnvironmentRegistration.Stage` é opcional, e um host sem estágio não fica sujeito a nenhuma janela. A spec não trata esse caso; ele vai para a revisão humana.
+- **Emenda (decisão humana de 2026-11-24 ("D-007: B", revisor @lzocateli), a partir do achado 3 da T038 da spec 026)**: a edição exige ao menos um host legível e habilitado no estágio e `environment:manage` em todos eles. Sem host legível no estágio, `editable` é falso e `PUT`/`DELETE` respondem `403 authorization_denied`, sem revelar se o estágio tem hosts. Deixa de valer o fallback para "todos os hosts legíveis", herdado da 016 D-007, que permitia editar a janela de um estágio cujos hosts o usuário não vê. Tarefas T039–T041.
 
 ## D-008: Estado para a tela
 

@@ -38,6 +38,7 @@
 ## D-007 - Quem edita a política de justificativa
 
 - **Decisão**: `PUT /api/v1/action-justification-policies/{stage}` exige `environment:manage` em todos os hosts habilitados do estágio (e ao menos um host legível); sem host no estágio, exige `environment:manage` em todos os hosts legíveis.
+- **Emenda (decisão humana de 2026-11-24 ("D-007: B", revisor @lzocateli), a partir do achado 3 da T038 da spec 026)**: sem host legível e habilitado no estágio, a política não é editável (`canEdit` falso e `403`). O fallback para todos os hosts legíveis deixava quem não vê nenhum host de um estágio mudar a regra desses hosts. A mesma regra vale para a janela de mudança (026 D-007a) e para a política de registros (020 D-004).
 - **Justificativa**: a API autoriza só por scopes UMA; o grupo `/dokpod/administrators` é quem recebe `environment:manage`, o que equivale ao "administrador" da spec sem mecanismo novo de papéis.
 - **Alternativas**: verificar papel do token (mecanismo novo de autorização).
 

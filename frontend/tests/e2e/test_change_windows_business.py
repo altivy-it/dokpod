@@ -182,9 +182,11 @@ def test_1_admin_defines_the_production_window(admin_026: Page, admin: Page) -> 
     assert item["ranges"] == ranges
     assert item["updatedBy"] and item["updatedAt"]
     assert item["status"]["state"] in ("open", "closed")
-    # D-007: sem nenhum host legível em Homologação, a regra usa todos os hosts legíveis (só o de Produção, que
-    # admin-026 gerencia); por isso Homologação também é editável para ele.
-    assert window(admin_026, "staging")["editable"] is True
+    # Decisão humana de 2026-11-24 (D-007: B): admin-026 não lê nenhum host de Homologação, então não edita a janela
+    # dela, mesmo gerenciando todos os hosts que lê.
+    assert window(admin_026, "staging")["editable"] is False
+    staging = save_window(admin_026, "staging", ranges)
+    assert staging.status == 403 and staging.json()["code"] == "authorization_denied", staging.text()
     assert audit(admin, "change_window.updated", PRD), "sem change_window.updated no host de Produção"
 
 

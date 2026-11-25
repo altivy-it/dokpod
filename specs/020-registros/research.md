@@ -22,6 +22,7 @@
 - `registry_policies (stage, registries jsonb, updated_by, updated_at)`. Sem linha para o estágio, vale `Images:AllowedRegistriesByStage` (valor inicial).
 - `ImagePullPolicy` passa a ter sobreposição carregada do banco: na alteração (na própria instância) e a cada 3 segundos (demais instâncias), o que cumpre a SC-003.
 - Edição: `environment:manage` em todos os hosts habilitados e legíveis do estágio (regra da spec 016); auditoria `registry.policy_changed` (categoria governança) em cada host do estágio, com `stage`, `previousRegistries` e `registries`.
+- Emenda (decisão humana de 2026-11-24 ("D-007: B", revisor @lzocateli), a partir do achado 3 da T038 da spec 026): sem host legível e habilitado no estágio (ou sem estágio, para `none`), a política não é editável (`canEdit` falso e recusa da gravação); deixa de valer o fallback para todos os hosts legíveis. Tarefa T044 da spec 026.
 - Impacto: imagens e hosts do estágio cujos registros ficariam fora da nova lista.
 
 ## D-005 - Alocação no contrato do agente

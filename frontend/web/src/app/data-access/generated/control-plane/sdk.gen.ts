@@ -443,7 +443,7 @@ export const listActionJustificationPolicies = <ThrowOnError extends boolean = f
 });
 
 /**
- * Liga ou desliga a justificativa obrigatória no estágio (environment:manage em todos os hosts do estágio)
+ * Liga ou desliga a justificativa obrigatória no estágio (ao menos um host legível no estágio e environment:manage em todos os legíveis)
  */
 export const setActionJustificationPolicy = <ThrowOnError extends boolean = false>(options: Options<SetActionJustificationPolicyData, ThrowOnError>): RequestResult<SetActionJustificationPolicyResponses, SetActionJustificationPolicyErrors, ThrowOnError> => (options.client ?? client).put<SetActionJustificationPolicyResponses, SetActionJustificationPolicyErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
@@ -617,7 +617,7 @@ export const getRegistryPolicyImpact = <ThrowOnError extends boolean = false>(op
 });
 
 /**
- * Define os registros permitidos do estágio (environment:manage em todos os hosts do estágio)
+ * Define os registros permitidos do estágio (ao menos um host legível no estágio e environment:manage em todos os legíveis)
  */
 export const setRegistryPolicy = <ThrowOnError extends boolean = false>(options: Options<SetRegistryPolicyData, ThrowOnError>): RequestResult<SetRegistryPolicyResponses, SetRegistryPolicyErrors, ThrowOnError> => (options.client ?? client).put<SetRegistryPolicyResponses, SetRegistryPolicyErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
@@ -672,7 +672,7 @@ export const listChangeWindows = <ThrowOnError extends boolean = false>(options?
 });
 
 /**
- * Remove a janela de um estágio (environment:manage em todos os hosts legíveis do estágio)
+ * Remove a janela de um estágio (ao menos um host legível no estágio e environment:manage em todos os legíveis)
  *
  * Spec 026. Não passa pelo gate da licença, para o cliente nunca ficar preso a uma regra que não consegue mudar. Grava change_window.removed em cada host do estágio.
  */
@@ -683,7 +683,7 @@ export const deleteChangeWindow = <ThrowOnError extends boolean = false>(options
 });
 
 /**
- * Cria ou edita a janela de um estágio (environment:manage em todos os hosts legíveis do estágio)
+ * Cria ou edita a janela de um estágio (ao menos um host legível no estágio e environment:manage em todos os legíveis)
  *
  * Spec 026. If-None-Match: * cria; If-Match com a versão edita. Passa pelo gate da capability change-windows (403 license_*). Grava change_window.updated em cada host do estágio.
  */

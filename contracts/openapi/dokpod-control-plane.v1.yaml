@@ -1658,7 +1658,7 @@ paths:
   /api/v1/action-justification-policies/{stage}:
     put:
       operationId: setActionJustificationPolicy
-      summary: Liga ou desliga a justificativa obrigatória no estágio (environment:manage em todos os hosts do estágio)
+      summary: Liga ou desliga a justificativa obrigatória no estágio (ao menos um host legível no estágio e environment:manage em todos os legíveis)
       security:
         - bearerAuth: []
       parameters:
@@ -2534,7 +2534,7 @@ paths:
   /api/v1/registry-policies/{stage}:
     put:
       operationId: setRegistryPolicy
-      summary: Define os registros permitidos do estágio (environment:manage em todos os hosts do estágio)
+      summary: Define os registros permitidos do estágio (ao menos um host legível no estágio e environment:manage em todos os legíveis)
       security:
         - bearerAuth: []
       parameters:
@@ -2760,7 +2760,7 @@ paths:
         description: production, staging ou development; outro valor responde 404.
     put:
       operationId: putChangeWindow
-      summary: Cria ou edita a janela de um estágio (environment:manage em todos os hosts legíveis do estágio)
+      summary: Cria ou edita a janela de um estágio (ao menos um host legível no estágio e environment:manage em todos os legíveis)
       description: >-
         Spec 026. If-None-Match: * cria; If-Match com a versão edita. Passa pelo gate da capability change-windows
         (403 license_*). Grava change_window.updated em cada host do estágio.
@@ -2822,7 +2822,7 @@ paths:
           $ref: '#/components/responses/DependencyUnavailable'
     delete:
       operationId: deleteChangeWindow
-      summary: Remove a janela de um estágio (environment:manage em todos os hosts legíveis do estágio)
+      summary: Remove a janela de um estágio (ao menos um host legível no estágio e environment:manage em todos os legíveis)
       description: >-
         Spec 026. Não passa pelo gate da licença, para o cliente nunca ficar preso a uma regra que não consegue mudar.
         Grava change_window.removed em cada host do estágio.
@@ -4752,7 +4752,7 @@ components:
           format: date-time
         canEdit:
           type: boolean
-          description: environment:manage em todos os hosts legíveis do estágio (spec 022 D-005).
+          description: Ao menos um host legível no estágio e environment:manage em todos os legíveis (spec 022 D-005; spec 026 D-007a).$
     SettingsAccess:
       type: object
       required: [allowed]
@@ -6074,7 +6074,7 @@ components:
           minimum: 1
         editable:
           type: boolean
-          description: Verdadeiro com environment:manage em todos os hosts legíveis do estágio.
+          description: Verdadeiro com ao menos um host legível no estágio e environment:manage em todos os legíveis.
         status:
           $ref: '#/components/schemas/ChangeWindowStatus'
     ChangeWindowList:

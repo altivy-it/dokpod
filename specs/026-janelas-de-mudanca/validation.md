@@ -106,3 +106,17 @@ deu `403 license_invalid`.
 4. **Quickstart, cenário 1, passo 3**: diz que `operador-026` vê a janela só para leitura; pelo contrato, a vista exige
    `environment:manage` em algum host, e o operador recebe `403`.
 5. **Grupos do provisionamento**: o script só aceita grupos `^/dokpod/[a-z]+$`; nomes com hífen ou dígito são recusados.
+
+### Convergência D-007: B (2026-11-24)
+
+Encaminhamento dos achados 1, 3 e 5:
+
+- Achados 1 e 5: corrigidos pelo Bug Fixing `provisionamento-uma-policy-existente` (PR #177).
+- Achado 3: decisão humana "D-007: B", tarefas T039–T044. Quem não lê nenhum host habilitado de um estágio não edita a
+  janela, a política de justificativa nem a política de registros desse estágio.
+
+| Verificação | Resultado | Evidência |
+|---|---|---|
+| Testes com PostgreSQL real (`ChangeWindowEndpointsTests`, `AlertGovernanceServiceTests`) e de aplicação (`RegistryCatalogTests`) | PASS | Falham antes da correção (3) e passam depois; `Dokpod.ControlPlane.Api.Tests` 457 e `Dokpod.ControlPlane.Application.Tests` 330 sem falhas, com PostgreSQL 17.6 descartável e o cliente `psql` como no CI |
+| `OpenApiContractTests` e cliente do frontend regenerado | PASS | `npm run generate:api` muda só as descrições da regra |
+| E2E `test_change_windows_business.py` (T041) | NOT RUN | Asserção atualizada para `editable is False` e `403` em Homologação para `admin-026`; a reexecução exige de novo a stack Business com agentes reais no quality |

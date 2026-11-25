@@ -613,7 +613,7 @@ export type JustificationPolicy = {
     updatedBy: string | null;
     updatedAt: string | null;
     /**
-     * environment:manage em todos os hosts legíveis do estágio (spec 022 D-005).
+     * Ao menos um host legível no estágio e environment:manage em todos os legíveis (spec 022 D-005; spec 026 D-007a).$
      */
     canEdit: boolean;
 };
@@ -1265,7 +1265,7 @@ export type ChangeWindowItem = {
     updatedAt: string | null;
     version: number | null;
     /**
-     * Verdadeiro com environment:manage em todos os hosts legíveis do estágio.
+     * Verdadeiro com ao menos um host legível no estágio e environment:manage em todos os legíveis.
      */
     editable: boolean;
     status: ChangeWindowStatus;
