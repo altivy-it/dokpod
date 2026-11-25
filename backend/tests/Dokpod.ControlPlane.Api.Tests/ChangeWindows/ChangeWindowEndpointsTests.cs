@@ -108,6 +108,20 @@ public sealed class ChangeWindowEndpointsTests
     }
 
     [Fact]
+    public async Task StageWithoutAReadableHost_IsReadOnly_EvenWithManageOnEveryReadableHost()
+    {
+        // Decisão humana de 2026-11-24 (D-007: B): sem host legível no estágio, ninguém edita a janela dele; o fallback
+        // para todos os hosts legíveis deixaria a janela valer em hosts que o usuário não vê.
+        await using var fixture = await Fixture.CreateAsync();
+
+        Assert.Equal((403, "authorization_denied"), Code(await fixture.PutAsync("development", Window, ifNoneMatch: true)));
+        Assert.Equal((403, "authorization_denied"), Code(await fixture.DeleteAsync("development", "\"1\"")));
+        Assert.Null(await fixture.Store.GetAsync(EnvironmentStage.Development, Ct));
+        var stages = (await fixture.ListAsync()).Body!["stages"]!.AsArray();
+        Assert.Equal([true, true, false], stages.Select(stage => stage!["editable"]!.GetValue<bool>()));
+    }
+
+    [Fact]
     public async Task RestrictedLicense_BlocksPut_ButNotDeleteOrList()
     {
         await using var fixture = await Fixture.CreateAsync();

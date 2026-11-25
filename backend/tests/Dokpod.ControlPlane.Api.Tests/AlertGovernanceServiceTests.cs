@@ -162,6 +162,10 @@ public sealed class AlertGovernanceServiceTests
             var onlyManaged = caller with { Readable = caller.Readable.Where(r => r.EnvironmentId == prod1).ToArray() };
             var listed = await service.ListPoliciesAsync(onlyManaged, ct);
             Assert.True(listed.Single(p => p.Policy.Stage == EnvironmentStage.Production).CanEdit);
+            // Decisão humana de 2026-11-24 (D-007: B): estágio sem host legível não é editável, mesmo com
+            // environment:manage em todos os hosts legíveis.
+            Assert.False(listed.Single(p => p.Policy.Stage == EnvironmentStage.Staging).CanEdit);
+            Assert.Equal(GovernanceOutcome.Forbidden, (await service.SetPolicyAsync(onlyManaged, EnvironmentStage.Staging, true, ct)).Outcome);
             Assert.Equal(GovernanceOutcome.Ok, (await service.SetPolicyAsync(onlyManaged, EnvironmentStage.Production, true, ct)).Outcome);
             var production = (await service.ListPoliciesAsync(onlyManaged, ct)).Single(p => p.Policy.Stage == EnvironmentStage.Production).Policy;
             Assert.True(production.Required);

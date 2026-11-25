@@ -126,7 +126,12 @@ public sealed class RegistryCatalogTests
         var views = await allowed.ListAsync(caller, ct);
         Assert.True(views.Single(v => v.Stage == EnvironmentStage.Staging).FromConsole);
         Assert.Equal(["registry.empresa.com", "docker.io"], views.Single(v => v.Stage == EnvironmentStage.Production).Registries); // ordem da configuração
-        Assert.All(views, v => Assert.True(v.CanEdit));
+        // Decisão humana de 2026-11-24 (D-007: B): estágio sem host legível (aqui, desenvolvimento e "sem estágio") não é
+        // editável, mesmo com environment:manage em todos os hosts legíveis.
+        Assert.Equal([true, true, false, false], views.Select(v => v.CanEdit));
+        Assert.Equal(RegistryPolicyOutcome.Forbidden, await allowed.SaveAsync(caller, EnvironmentStage.Development, ["quay.io"], ct));
+        Assert.Equal(RegistryPolicyOutcome.Forbidden, await allowed.SaveAsync(caller, null, ["quay.io"], ct));
+        Assert.Single(store.Saved);
     }
 
     private sealed class PolicyStore : IRegistryPolicyStore
