@@ -52,10 +52,13 @@ public sealed class ImageUpdateLookup : Dokpod.ControlPlane.Application.Images.I
         }
     }
 
-    /// <summary>Estado da imagem: o da primeira tag com resultado; nulo sem verificação ainda.</summary>
+    /// <summary>
+    /// Estado da imagem: o da primeira tag com resultado; nulo sem verificação ainda. Referências por digest, que o
+    /// Podman também lista em <c>RepoTags</c> e às vezes antes da tag, só contam quando nenhuma tag tem resultado.
+    /// </summary>
     public ImageUpdateCheckView? ForImage(Guid environmentId, IEnumerable<string> repoTags, bool stale)
     {
-        foreach (var tag in repoTags)
+        foreach (var tag in repoTags.OrderBy(ImageReference.IsDigestOnly))
         {
             if (checks.TryGetValue((environmentId, Canonical(tag)), out var check)) return View(check, check.State, stale);
         }

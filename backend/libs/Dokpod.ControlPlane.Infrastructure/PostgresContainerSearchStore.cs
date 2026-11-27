@@ -58,7 +58,7 @@ public sealed class PostgresContainerSearchStore(ControlPlaneDbContext dbContext
                 $"""
                 SELECT c.environment_id, c.container_id, c.name, c.image_reference, c.state, c.revision, c.observed_at_utc,
                        c.created_at_utc, c.started_at_utc, c.health, c.restart_count, c.exit_code, c.oom_killed, c.ports::text,
-                       {sortKey} AS sort_key
+                       c.image_id, {sortKey} AS sort_key
                 FROM dokpod.inventory_containers c
                 JOIN dokpod.environments e ON e.environment_id = c.environment_id
                 WHERE {filters}
@@ -88,8 +88,10 @@ public sealed class PostgresContainerSearchStore(ControlPlaneDbContext dbContext
                         ExitCode = reader.IsDBNull(11) ? null : reader.GetInt32(11),
                         OomKilled = reader.IsDBNull(12) ? null : reader.GetBoolean(12),
                         Ports = reader.IsDBNull(13) ? null : reader.GetString(13),
+                        // Spec 025 (D-008): sem o ImageID, a lista derivaria container_behind para todo container em dia.
+                        ImageId = reader.IsDBNull(14) ? null : reader.GetString(14),
                     };
-                    rows.Add(new ContainerSearchRow(entity.EnvironmentId, PostgresInventoryProjectionStore.ToDomain(entity), reader.GetString(14)));
+                    rows.Add(new ContainerSearchRow(entity.EnvironmentId, PostgresInventoryProjectionStore.ToDomain(entity), reader.GetString(15)));
                 }
             }
 

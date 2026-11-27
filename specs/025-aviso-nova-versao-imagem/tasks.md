@@ -283,7 +283,8 @@ description: "Tarefas da implementação do aviso de nova versão de imagem"
   - linha da capability `image-update-notice` em `docs/licenciamento.md` (seção de capabilities implementadas);
   - seção em `docs/seguranca.md` sobre a saída do agente para registros.
   *(2026-11-07: runbook com estados, motivos, credencial, proxy, registros inseguros, cota do Docker Hub, agente Windows, licença e diagnóstico.)*
-- [ ] T028 Validação com agentes Docker e Podman reais da stack E2E: capability anunciada nos dois engines e cenários 1 e 3 do quickstart contra um registro real.
+- [X] T028 Validação com agentes Docker e Podman reais da stack E2E: capability anunciada nos dois engines e cenários 1 e 3 do quickstart contra um registro real.
+  *(2026-11-27: executada no quality com Docker 29.9.3 e Podman 6.2.0 rootless; capability anunciada e cenário 3 aprovado nos dois; cenário 1 reprovado em parte pelos achados T028-1 a T028-3 de [validation.md](validation.md#agentes-reais-t028); depois do Bug Fixing (T028-1 e T028-2 corrigidos, T028-3 pela decisão D-003a), o passo 2 foi repetido e aprovado nos dois engines.)*
   *(2026-11-07: NOT RUN. A stack E2E deste host é de 2026-10-31, CE, com os agentes parados, e a imagem Business exige licença com `image-update-notice` assinada por chave que só um build local de teste tem. Os passos para executar estão em [validation.md](validation.md).)*
 - [X] T029 Revisão de segurança e privacidade contra o T001, registrada em `specs/025-aviso-nova-versao-imagem/threat-model.md`.
   *(2026-11-07: L1–L5 e B1–B5 conferidos no código e nos testes; achados F1–F3 registrados; revisão humana pendente no PR.)*

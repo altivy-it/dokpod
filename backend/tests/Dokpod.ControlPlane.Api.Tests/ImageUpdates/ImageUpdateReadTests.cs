@@ -46,6 +46,28 @@ public sealed class ImageUpdateReadTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task ImageWithTagAndDigestReferences_TakesTheTagState_InEitherRepoTagsOrder()
+    {
+        // Spec 025 T028-2: o Podman lista em RepoTags a referência por digest antes da tag.
+        var byDigest = "registry.empresa.com/app/web@" + LocalImage;
+        const string byTag = "registry.empresa.com/app/web:1.0";
+        await Store.UpsertLocalAsync(environmentId,
+        [
+            new ImageUpdateResult(byTag, "linux/amd64", ImageUpdateStates.UpToDate, null, Remote, LocalImage),
+            new ImageUpdateResult(byDigest, "linux/amd64", ImageUpdateStates.NotCheckable, ImageUpdateReasons.DigestReference, null, LocalImage),
+        ], DateTimeOffset.UtcNow, Ct);
+
+        var lookup = (await Reader(licensed: true).LoadAsync([environmentId], Ct))!;
+
+        Assert.Equal(ImageUpdateStates.UpToDate, lookup.ForImage(environmentId, [byDigest, byTag], stale: false)!.State);
+        Assert.Equal(ImageUpdateStates.UpToDate, lookup.ForImage(environmentId, [byTag, byDigest], stale: false)!.State);
+        Assert.Equal(ImageUpdateReasons.DigestReference, lookup.ForImage(environmentId, [byDigest], stale: false)!.Reason);
+        // A mesma regra escolhe a tag exibida na lista de Imagens (ImageEndpoints.ToItem).
+        Assert.Equal(byTag, new[] { byDigest, byTag }.OrderBy(ImageReference.IsDigestOnly).First());
+        Assert.False(ImageReference.IsDigestOnly("registry.empresa.com/app/web:1.0@" + LocalImage));
+    }
+
+    [Fact]
     public async Task WorstStateAcrossPlatforms_Wins_AndTheViewNeverCarriesTheRemoteDigest()
     {
         var now = DateTimeOffset.UtcNow;

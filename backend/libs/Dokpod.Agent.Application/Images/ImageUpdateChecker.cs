@@ -20,6 +20,8 @@ public sealed record ImageUpdateCheckOutcome(
 /// </list>
 /// Referência só por digest, imagem sem <c>RepoDigests</c> (construída ou importada no host) e registro inseguro são
 /// <c>not_checkable</c> sem nenhuma chamada HTTP. Nenhuma falha resulta em <c>up_to_date</c> (SC-002).
+/// Podman 6 e o containerd image store do Docker 29 dão <c>RepoDigests</c> também a imagens do host; sem outro sinal no
+/// engine, essas imagens são verificadas como as demais (D-003a, T028-3).
 /// </summary>
 public sealed class ImageUpdateChecker(IContainerEngine engine, IRegistryManifestClient registry, IReadOnlySet<string> insecureRegistries)
 {
