@@ -35,6 +35,7 @@ Decisões técnicas que resolvem o contexto técnico do plano. Cada uma registra
   - o agente não anuncia a capability (`agent_unsupported`).
 - **Justificativa**: casos de aceite 3 da Jornada 1 e FR-002. Nunca há consulta HTTP sem TLS.
 - **Alternativas**: consultar registros inseguros por HTTP (sem TLS e sem garantia de autenticidade do digest).
+- **D-003a: imagens do host com `RepoDigests` (2026-11-27, Origem: humano, lzocateli, Bug Fixing `imagem-local-com-repodigests`)**: decisão "Opção recomendada", tomada depois do achado T028-3 da [validação](validation.md#agentes-reais-t028). Podman 6 e o containerd image store do Docker 29 dão `RepoDigests` também a imagens construídas ou importadas no host, e os metadados do engine não separam essas imagens das puxadas. O `local_image` fica para engines sem `RepoDigests` nessas imagens (o armazenamento clássico do Docker). Nos demais, a imagem do host é verificada como qualquer outra: tag ausente no registro dá `failed`/`reference_not_found`, conteúdo diferente dá `update_available`, e o mesmo conteúdo, `up_to_date`. Nenhum caso mostra falso "Atualizada" (SC-002), e a política de registros do estágio continua limitando as consultas. Alternativas recusadas: histórico de pulls no agente (estado novo e falho para imagens anteriores ao agente) e tratar `reference_not_found` como `local_image` (confunde a tag removida no Docker 29).
 
 ## D-004: Protocolo agente-servidor
 
