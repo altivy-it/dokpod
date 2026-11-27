@@ -100,6 +100,25 @@ public sealed class ImageUpdateCheckerTests
         Assert.Equal((ImageUpdateStates.NotCheckable, ImageUpdateReasons.LocalImage), (outcome.State, outcome.Reason));
     }
 
+    [Fact]
+    public async Task HostBuiltImageWithSynthesizedRepoDigests_IsCheckedLikeAnyOther_NeverUpToDate()
+    {
+        // Spec 025 D-003a (T028-3): Podman 6 e o containerd image store do Docker 29 dão RepoDigests a imagens
+        // construídas ou importadas no host. Sem sinal no engine, a imagem é verificada: tag ausente no registro é
+        // reference_not_found e conteúdo diferente é update_available.
+        var synthesized = "sha256:" + new string('9', 64);
+        var local = new EngineImagePlatform("linux", "amd64", null, [$"127.0.0.1:5443/teste/local@{synthesized}"]);
+
+        var missing = new FakeRegistry(ManifestHead.Failed(ImageUpdateReasons.ReferenceNotFound));
+        var absent = await Checker(missing, local).CheckAsync(Input("127.0.0.1:5443/teste/local:1.0"), Ct);
+        var other = await Checker(new FakeRegistry(new ManifestHead(Amd, ManifestMediaTypes.OciManifest, null)), local)
+            .CheckAsync(Input("127.0.0.1:5443/teste/local:1.0"), Ct);
+
+        Assert.Equal((ImageUpdateStates.Failed, ImageUpdateReasons.ReferenceNotFound), (absent.State, absent.Reason));
+        Assert.Equal(1, missing.HeadCalls);
+        Assert.Equal(ImageUpdateStates.UpdateAvailable, other.State);
+    }
+
     [Theory]
     [InlineData(ImageUpdateReasons.Unauthorized)]
     [InlineData(ImageUpdateReasons.RateLimited)]

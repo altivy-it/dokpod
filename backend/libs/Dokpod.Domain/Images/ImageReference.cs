@@ -33,6 +33,12 @@ public sealed partial record ImageReference(string Registry, string Repository, 
     /// <summary>Nome sem tag/digest (`fromImage` do engine).</summary>
     public string Name => $"{Registry}/{Repository}";
 
+    /// <summary>
+    /// Referência só por digest (<c>repo@sha256:…</c>), sem tag. O Podman também lista essas referências em
+    /// <c>RepoTags</c>, às vezes antes da tag (spec 025 T028-2).
+    /// </summary>
+    public static bool IsDigestOnly(string value) => TryParse(value, out var parsed) && parsed is { Digest: not null, Tag: null };
+
     public static bool TryParse(string? value, out ImageReference reference)
     {
         reference = null!;

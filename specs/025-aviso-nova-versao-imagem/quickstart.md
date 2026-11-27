@@ -14,7 +14,7 @@ Cenários ponta a ponta para comprovar a feature depois da implementação. Tudo
 1. Publicar `teste/web:1.0` no registro e criar um container com essa referência nos dois hosts.
 2. Acionar "Verificar agora": em até 1 minuto, Imagens, Containers e o detalhe mostram "Atualizada" com a data.
 3. Publicar outro conteúdo na mesma tag e acionar "Verificar agora": "Nova versão disponível".
-4. Container por digest, imagem construída no host e registro fora da política: "Não verificável" com o motivo, e o log do registro mostra que não houve consulta.
+4. Container por digest, imagem construída no host e registro fora da política: "Não verificável" com o motivo, e o log do registro mostra que não houve consulta. A imagem construída no host só é "Não verificável" em engines que não lhe dão `RepoDigests`; no Podman 6 e no Docker 29 com containerd image store ela é verificada como as demais ([D-003a](research.md#d-003-referências-não-verificáveis)).
 
 ## Cenário 2: plataforma (caso de borda)
 
