@@ -101,7 +101,10 @@ public static class ImageEndpoints
 
     private static object ToItem(HostView host, ImageSearchRow row)
     {
-        var first = row.Image.RepoTags.FirstOrDefault();
+        // Tags antes das referências por digest que o Podman também lista em RepoTags (spec 025 T028-2): a tela usa a
+        // primeira para o nome exibido e para "Baixar nova versão".
+        var repoTags = row.Image.RepoTags.OrderBy(ImageReference.IsDigestOnly).ToArray();
+        var first = repoTags.FirstOrDefault();
         ImageReference? reference = null;
         if (first is not null) ImageReference.TryParse(first, out reference);
         return new
@@ -113,7 +116,7 @@ public static class ImageEndpoints
             imageId = row.Image.ImageId,
             repository = reference?.Name,
             tag = reference?.Tag,
-            repoTags = row.Image.RepoTags,
+            repoTags,
             repoDigests = row.Image.RepoDigests,
             sizeBytes = row.Image.SizeBytes,
             createdAt = row.Image.CreatedAtUtc,

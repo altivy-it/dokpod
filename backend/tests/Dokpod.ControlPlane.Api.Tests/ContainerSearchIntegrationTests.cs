@@ -62,6 +62,37 @@ public sealed class ContainerSearchIntegrationTests
         }
     }
 
+    [Fact]
+    public async Task SearchStore_ReturnsTheContainerImageId_SoAnUpToDateContainerIsNotBehind()
+    {
+        // Spec 025 T028-1: a lista não lia image_id, e todo container em dia virava container_behind.
+        await using var context = CreateContextOrSkip();
+        var ct = TestContext.Current.CancellationToken;
+        var id = Guid.NewGuid();
+        var image = "sha256:" + new string('e', 64);
+        var now = DateTimeOffset.UtcNow;
+        try
+        {
+            await new PostgresEnvironmentRegistrationStore(context).CreateAsync(
+                EnvironmentRegistration.Create(id, $"i-{id:N}"[..18], "srv-i", true, [EnvironmentResourceScopes.Read]), ct);
+            var container = new ContainerInventory($"{id:N}-web", "web", "registry/web:1", "Running", "r", now) { ImageId = image };
+            await new PostgresInventoryProjectionStore(context).ReplaceSnapshotAsync(
+                new InventorySnapshot(id, (ulong)now.ToUnixTimeMilliseconds(), new Dictionary<string, ContainerInventory> { [container.ContainerId] = container }), ct);
+            var store = new PostgresContainerSearchStore(context);
+
+            var row = Assert.Single((await store.SearchAsync(new ContainerSearchQuery([id], [], null, ContainerSort.NameAsc, null, 10), ct)).Rows);
+            Assert.Equal(image, row.Container.ImageId);
+            Assert.Equal(image, (await store.GetAsync(id, container.ContainerId, ct))!.ImageId);
+            var check = new Dokpod.Domain.Images.ImageUpdateCheck(id, "registry/web:1", "linux/amd64", image, Dokpod.Domain.Images.ImageUpdateStates.UpToDate, null, null, now, now, null);
+            Assert.Equal(Dokpod.Domain.Images.ImageUpdateStates.UpToDate, check.StateForContainer(row.Container.ImageId));
+        }
+        finally
+        {
+            await context.InventoryProjections.Where(item => item.EnvironmentId == id).ExecuteDeleteAsync(ct);
+            await context.EnvironmentRegistrations.Where(item => item.EnvironmentId == id).ExecuteDeleteAsync(ct);
+        }
+    }
+
     [Theory]
     [InlineData(56)]
     [InlineData(100)]
