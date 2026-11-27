@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.12.4](https://github.com/altivy-it/dokpod/compare/v0.12.3...v0.12.4) (2026-11-27)
+
+
+### Corrigido
+
+* **api:** corrija o aviso de nova versão com agentes reais (spec 025 T028) ([#182](https://github.com/altivy-it/dokpod/issues/182)) ([2824eec](https://github.com/altivy-it/dokpod/commit/2824eeccbdc719ea623880951bb820108f951f2a))
+
 ## [0.12.3](https://github.com/altivy-it/dokpod/compare/v0.12.2...v0.12.3) (2026-11-25)
 
 
