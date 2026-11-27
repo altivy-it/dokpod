@@ -46,7 +46,7 @@ Documento JSON do fornecedor, nunca gerado pela instalação do cliente. Proprie
 | `license` | fora da revogação: `plan`, `notBefore`, `expiresAt` (UTC, `Z`, sem frações), `capacity`, `vcpuBand`, `slots`, `capabilities` do [formato](license-format.md#payload-da-licença); `notBefore` não pode ser anterior ao instante de emissão |
 | `revokedLicenses` | só na revogação: 1 a 64 itens `{licenseId, revisionsUpTo}` de licenças emitidas para a organização |
 | `approval` | `{approver, requestSha256}`: outra pessoa, ligada ao hash do pedido (código 4 se ausente ou divergente) |
-| `reportApproval` | opcional: `{approver, requestSha256, reportSha256}` de uma terceira pessoa, só com `--accept-report-findings` |
+| `reportApproval` | opcional: `{approver, requestSha256, reportSha256}` de alguém diferente do operador, que pode ser o aprovador do pedido (D-010a), só com `--accept-report-findings` |
 
 O hash é o SHA-256 do JSON canônico do pedido (chaves em ordem ordinal, sem espaços, só inteiros) sem `approval` e `reportApproval`. A revisão é numerada pela CLI (1 na contratação, a última mais um depois), a sequência da revogação por organização, e `product`, `schemaVersion`, `meteringVersion`, `windowDays` e `graceDays` são fixos do perfil 1. Validado antes de assinar: aprovação, datas, soma das cotas dos slots habilitados contra a capacidade, capabilities conhecidas, idempotência por `requestId` + hash.
 
@@ -57,4 +57,4 @@ O hash é o SHA-256 do JSON canônico do pedido (chaves em ordem ordinal, sem es
 - Saída gravada de forma atômica; reexecução após falha recupera o mesmo resultado lógico.
 - O artefato é verificado com `Dokpod.Licensing` antes de ser entregue.
 - O pedido de contratação ou renovação traz o `challenge` que o cliente informa ao exportar o relatório. Emitida a licença, o registro guarda `installationId`, `headSeq` e `headHash` do relatório aceito, base da continuidade na auditoria seguinte.
-- Emitir com relatório não `ok` exige `--accept-report-findings <justificativa>` e a segunda aprovação ligada ao hash do pedido e do relatório; os achados ficam no registro de emissões.
+- Emitir com relatório não `ok` exige `--accept-report-findings <justificativa>` e a aprovação de alguém diferente do operador (D-010a) ligada ao hash do pedido e do relatório; os achados ficam no registro de emissões.

@@ -71,6 +71,7 @@ Origem: plano privado de licenciamento (2026-10-28), aprovado como entrada pelo 
   - provedor de chave na primeira versão: **arquivo PKCS#8 cifrado** (P-256, PBES2 com AES-256-CBC e PBKDF2-SHA256) fora do repositório, com a passphrase lida do terminal ou de um descritor de arquivo, nunca por argumento nem variável de ambiente; acesso atrás de uma interface de provedor, para trocar por HSM/PKCS#11 sem mudar os comandos;
   - registro de emissões em **PostgreSQL** (escolhido no lugar do SQLite proposto), por `Npgsql` (PostgreSQL License, permissiva) com versão fixada; transações serializáveis por pedido;
   - `Dokpod.Licensing` publicado **já** no GitHub Packages da organização (substitui o "sem publicar antes do GO de F7" da T054), versão exata `0.1.0`, com os vetores de conformidade em `conformance/`; publicação manual pelo workflow `licensing-package.yml` na `main`.
+- **D-010a: um aprovador para aceitar achados do relatório (2026-11-26, Origem: humano, lzocateli, T075)**: decisão "Mude essa necessidade para apenas 1 aprovador real", tomada na T028 da spec 025, quando um relatório `mismatch` de laboratório bloqueou a emissão. O `reportApproval` deixa de exigir uma terceira pessoa: basta alguém diferente do operador, que pode ser o próprio aprovador do pedido. A conferência continua dupla (operador e aprovador), ligada aos hashes do pedido e do relatório, com a justificativa e os achados no registro de emissões.
 
 ## D-011: Revogação e rotação
 

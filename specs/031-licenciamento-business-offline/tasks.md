@@ -227,6 +227,14 @@ description: "Tarefas da spec 031: licenciamento Business offline"
 
 ---
 
+## Fase 10: Convergência
+
+**Origem**: decisão humana D-010a (2026-11-26, lzocateli) em [research.md](research.md#d-010-cli-de-emissão).
+
+- [x] T075 No repositório da CLI: aceitar `reportApproval` de qualquer pessoa diferente do operador, inclusive o aprovador do pedido, em `src/Dokpod.LicenseAdmin/IssuanceService.cs` (`EnsureReportAccepted`), com o teste `AcceptingFindings_RequiresJustificationAndApprovalOutsideOperator` em `tests/Dokpod.LicenseAdmin.Tests/IssuanceTests.cs` e o README, conforme [cli-commands.md](contracts/cli-commands.md) por D-010a (contradicts)
+
+---
+
 ## Dependências e Ordem de Execução
 
 ### Dependências entre Fases
