@@ -1,5 +1,5 @@
 {
-  "version": "0.12.4",
+  "version": "0.12.5",
   "expectedSchema": {
     "path": "schema/expected-schema.json",
     "sha256": "25008b33fd9c5a9d8f267d9f94779e289daa3c2dae98c508372529b71a1df50a"

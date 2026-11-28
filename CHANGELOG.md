@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.12.5](https://github.com/altivy-it/dokpod/compare/v0.12.4...v0.12.5) (2026-11-28)
+
+
+### Corrigido
+
+* **api:** impeça que a reconexão do agente cancele a leitura de comandos da outra sessão ([#186](https://github.com/altivy-it/dokpod/issues/186)) ([50050c3](https://github.com/altivy-it/dokpod/commit/50050c32403e82df0222f026c7e55b28813d6f1f))
+
 ## [0.12.4](https://github.com/altivy-it/dokpod/compare/v0.12.3...v0.12.4) (2026-11-27)
 
 
