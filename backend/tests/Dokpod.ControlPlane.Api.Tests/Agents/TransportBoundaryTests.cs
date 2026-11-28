@@ -641,8 +641,11 @@ public sealed class TransportBoundaryTests
             await call.ResponseStream.MoveNext(TestContext.Current.CancellationToken);
         });
 
+        // No TLS 1.3 o servidor recusa o certificado depois do handshake do cliente: conforme o momento,
+        // a recusa chega na escrita (IOException do SslStream) ou na leitura (HttpIOException, RpcException).
         Assert.True(
-            exception is HttpIOException
+            exception is IOException
+            || exception is HttpRequestException
             || exception is RpcException,
             $"Unexpected rejection exception: {exception.GetType().FullName}");
     }
