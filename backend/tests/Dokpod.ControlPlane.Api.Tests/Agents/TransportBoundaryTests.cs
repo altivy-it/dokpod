@@ -676,6 +676,46 @@ public sealed class TransportBoundaryTests
     }
 
     [Fact]
+    public async Task KestrelSession_CommandOfANewerSession_IsReturnedToTheQueue_AndTheStaleSessionIsFenced()
+    {
+        // Bug Fixing fencing-reconexao-status-unknown: na reconexão a sessão cercada pode ler o comando da nova.
+        using var certificates = TestCertificates.Create();
+        var environmentId = Guid.NewGuid();
+        var fingerprint = Convert.ToHexString(SHA256.HashData(certificates.Agent.RawData));
+        var deliveryQueue = new InMemoryAgentCommandDeliveryQueue();
+        await using var app = await StartApiAsync(certificates, environmentId, fingerprint, commandDeliveryQueue: deliveryQueue);
+        using var handler = CreateHttpHandler(certificates);
+        using var channel = GrpcChannel.ForAddress(GetGrpcEndpoint(app), new GrpcChannelOptions { HttpHandler = handler });
+        var client = new AgentControl.AgentControlClient(channel);
+        using var call = client.Connect(cancellationToken: TestContext.Current.CancellationToken);
+        var session = await EstablishSessionAsync(call, Capability.ContainerRestart);
+        var command = new PersistedAgentCommand(
+            new Dokpod.Domain.Commands.AgentCommand(
+                environmentId,
+                Guid.NewGuid(),
+                AgentCommandKind.RestartContainer,
+                new string('A', 64),
+                "revision-01",
+                new string('B', 64),
+                DateTimeOffset.UtcNow.AddMinutes(1),
+                (long)session.FencingToken + 1),
+            ControlPlaneCommandState.Pending,
+            DateTimeOffset.UtcNow,
+            DateTimeOffset.UtcNow);
+
+        await deliveryQueue.EnqueueAsync(command, TestContext.Current.CancellationToken);
+
+        var exception = await Assert.ThrowsAsync<RpcException>(async () =>
+            await call.ResponseStream.MoveNext(TestContext.Current.CancellationToken));
+        Assert.Equal(StatusCode.Aborted, exception.StatusCode);
+        Assert.Equal("agent_session_fenced", exception.Status.Detail);
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        timeout.CancelAfter(TimeSpan.FromSeconds(5));
+        var returned = await deliveryQueue.DequeueAsync(environmentId, timeout.Token);
+        Assert.Equal(command.Command.CommandId, returned.Command.CommandId);
+    }
+
+    [Fact]
     public async Task KestrelSession_ActiveInvalidationFencesStream()
     {
         using var certificates = TestCertificates.Create();

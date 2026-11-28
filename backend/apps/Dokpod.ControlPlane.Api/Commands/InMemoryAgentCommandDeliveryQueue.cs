@@ -34,7 +34,9 @@ public sealed class InMemoryAgentCommandDeliveryQueue : IAgentCommandDeliveryQue
             static _ => Channel.CreateUnbounded<PersistedAgentCommand>(
                 new UnboundedChannelOptions
                 {
-                    SingleReader = true,
+                    // Na reconexão, a sessão cercada e a nova leem o mesmo ambiente ao mesmo tempo; com um único
+                    // leitor, a leitura nova cancelaria a pendente e derrubaria uma das sessões.
+                    SingleReader = false,
                     SingleWriter = false,
                     AllowSynchronousContinuations = false,
                 }));

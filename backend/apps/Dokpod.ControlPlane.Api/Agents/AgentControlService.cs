@@ -211,6 +211,15 @@ public sealed class AgentControlService(
                         continue;
                     }
 
+                    if (command.Command.EnvironmentId == session.EnvironmentId &&
+                        command.Command.FencingToken > (long)session.FencingToken)
+                    {
+                        // Reconexão: o comando é de uma sessão mais nova do ambiente. Esta já foi cercada; devolve o
+                        // comando à fila para a sessão ativa em vez de descartá-lo.
+                        await commandDeliveryQueue.EnqueueAsync(command, CancellationToken.None);
+                        throw new RpcException(new Status(StatusCode.Aborted, "agent_session_fenced"));
+                    }
+
                     if (command.Command.EnvironmentId != session.EnvironmentId ||
                         command.Command.FencingToken != (long)session.FencingToken)
                     {
